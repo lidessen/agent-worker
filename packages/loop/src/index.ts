@@ -1,0 +1,28 @@
+// ── Loop implementations ────────────────────────────────────────────────────
+export { AiSdkLoop } from "./loops/ai-sdk.ts";
+export type { AiSdkLoopOptions } from "./loops/ai-sdk.ts";
+
+export { ClaudeCodeLoop } from "./loops/claude-code.ts";
+export type { ClaudeCodeModel } from "./loops/claude-code.ts";
+export { CodexLoop } from "./loops/codex.ts";
+export { CursorLoop } from "./loops/cursor.ts";
+
+// ── Types ───────────────────────────────────────────────────────────────────
+export type {
+  LoopStatus,
+  LoopEvent,
+  LoopResult,
+  LoopRun,
+  TokenUsage,
+  CliLoopOptions,
+  ClaudeCodeLoopOptions,
+  CodexLoopOptions,
+  CursorLoopOptions,
+  PreflightResult,
+} from "./types.ts";
+
+// ── Utilities ───────────────────────────────────────────────────────────────
+export { checkCliAvailability, type CliCheckResult } from "./utils/cli.ts";
+export { runCliLoop, type CliLoopConfig } from "./utils/cli-loop.ts";
+export { createStreamParser } from "./utils/stream-parser.ts";
+export { extractProvider, hasProviderKey } from "./utils/models.ts";

@@ -1,0 +1,119 @@
+import type { CodexLoopOptions, LoopRun, LoopStatus, PreflightResult } from "../types.ts";
+import type { RawCliEvent } from "../utils/cli-loop.ts";
+import { checkCliAvailability, checkCodexAuth } from "../utils/cli.ts";
+import { runCliLoop } from "../utils/cli-loop.ts";
+
+export class CodexLoop {
+  private _status: LoopStatus = "idle";
+  private abortController: AbortController | null = null;
+
+  constructor(private options: CodexLoopOptions = {}) {}
+
+  get status(): LoopStatus {
+    return this._status;
+  }
+
+  run(prompt: string): LoopRun {
+    if (this._status === "running") throw new Error("Already running");
+    this._status = "running";
+    this.abortController = new AbortController();
+
+    const loopRun = runCliLoop(
+      {
+        command: "codex",
+        args: buildArgs(prompt, this.options),
+        mapEvent: mapCodexEvent,
+        extractResult: extractCodexResult,
+      },
+      this.options,
+      { abortSignal: this.abortController.signal },
+    );
+
+    loopRun.result
+      .then(() => {
+        if (this._status === "running") this._status = "completed";
+      })
+      .catch(() => {
+        if (this._status === "running") {
+          this._status = this.abortController!.signal.aborted ? "cancelled" : "failed";
+        }
+      });
+
+    return loopRun;
+  }
+
+  cancel(): void {
+    this.abortController?.abort();
+    if (this._status === "running") {
+      this._status = "cancelled";
+    }
+  }
+
+  /** Check if codex CLI is installed and authenticated. Not a runtime test. */
+  async preflight(): Promise<PreflightResult> {
+    const cli = await checkCliAvailability("codex");
+    if (!cli.available) return { ok: false, version: cli.version, error: cli.error };
+
+    const auth = await checkCodexAuth();
+    if (!auth.authenticated) {
+      return { ok: false, version: cli.version, error: auth.error ?? "Not authenticated" };
+    }
+
+    return { ok: true, version: cli.version };
+  }
+}
+
+function buildArgs(prompt: string, opts: CodexLoopOptions): string[] {
+  const args = ["exec", prompt, "--json"];
+
+  if (opts.model) args.push("--model", opts.model);
+  if (opts.fullAuto) args.push("--full-auto");
+  if (opts.sandbox) args.push("--sandbox", opts.sandbox);
+  if (opts.extraArgs?.length) args.push(...opts.extraArgs);
+
+  return args;
+}
+
+function mapCodexEvent(data: unknown): RawCliEvent {
+  const event = data as Record<string, unknown>;
+  const type = event.type as string;
+
+  switch (type) {
+    case "message": {
+      if ((event.role as string) === "assistant") {
+        return { type: "text", text: (event.content as string) ?? "" };
+      }
+      return null;
+    }
+
+    case "function_call":
+    case "tool_call":
+      return {
+        type: "tool_call_start",
+        name: (event.name as string) ?? "unknown",
+        args: (event.arguments as Record<string, unknown>) ?? {},
+      };
+
+    case "function_call_output":
+    case "tool_call_output":
+      return {
+        type: "tool_call_end",
+        name: (event.name as string) ?? "unknown",
+        result: event.output,
+      };
+
+    default:
+      return { type: "unknown", data: event };
+  }
+}
+
+function extractCodexResult(stdout: string): string {
+  try {
+    const parsed = JSON.parse(stdout) as Record<string, unknown>;
+    if (typeof parsed.output === "string") return parsed.output;
+    if (typeof parsed.result === "string") return parsed.result;
+  } catch {
+    // not JSON
+  }
+  return stdout;
+}
