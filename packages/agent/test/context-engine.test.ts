@@ -3,6 +3,7 @@ import { ContextEngine } from "../src/context-engine.ts";
 import { Inbox } from "../src/inbox.ts";
 import { TodoManager } from "../src/todo.ts";
 import { InMemoryNotesStorage } from "../src/notes.ts";
+import { ReminderManager } from "../src/reminder.ts";
 
 describe("ContextEngine", () => {
   function createSources(overrides: Record<string, unknown> = {}) {
@@ -12,6 +13,7 @@ describe("ContextEngine", () => {
       todos: new TodoManager(),
       notes: new InMemoryNotesStorage(),
       memory: null,
+      reminders: new ReminderManager(),
       history: [],
       currentFocus: "idle" as const,
       ...overrides,

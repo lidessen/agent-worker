@@ -60,6 +60,15 @@ export interface WaitResult {
   timeout: boolean;
 }
 
+// ── Reminders ─────────────────────────────────────────────────────────────
+
+export interface ReminderResult {
+  id: string;
+  label: string;
+  reason: "completed" | "timeout";
+  message?: string;
+}
+
 // ── Todo ───────────────────────────────────────────────────────────────────
 
 export interface TodoItem {

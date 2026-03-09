@@ -10,6 +10,7 @@ import type { Inbox } from "./inbox.ts";
 import type { TodoManager } from "./todo.ts";
 import type { ContextEngine } from "./context-engine.ts";
 import type { MemoryManager } from "./memory.ts";
+import type { ReminderManager } from "./reminder.ts";
 
 export interface RunCoordinatorDeps {
   loop: AgentLoop;
@@ -18,6 +19,7 @@ export interface RunCoordinatorDeps {
   notes: NotesStorage;
   contextEngine: ContextEngine;
   memory: MemoryManager | null;
+  reminders: ReminderManager;
   instructions: string;
   maxRuns: number;
 }
@@ -45,9 +47,10 @@ export class RunCoordinator {
 
   // ── Decision ────────────────────────────────────────────────────────────
 
-  shouldContinue(): "next_message" | "next_todo" | "idle" {
+  shouldContinue(): "next_message" | "next_todo" | "waiting_reminder" | "idle" {
     if (this.deps.inbox.unread.length > 0) return "next_message";
     if (this.deps.todos.pending.length > 0) return "next_todo";
+    if (this.deps.reminders.hasPending) return "waiting_reminder";
     return "idle";
   }
 
@@ -87,6 +90,7 @@ export class RunCoordinator {
       todos: this.deps.todos,
       notes: this.deps.notes,
       memory: this.deps.memory,
+      reminders: this.deps.reminders,
       history: this.history,
       currentFocus: trigger,
     });
@@ -134,6 +138,11 @@ export class RunCoordinator {
    * Dual-cap system:
    * - runCount resets when switching from todos to new messages
    * - totalRuns (hardCap) prevents infinite loops
+   *
+   * Reminder-aware: when nothing else to do but reminders are pending,
+   * the loop awaits the next reminder instead of returning "idle".
+   * Fired reminders inject a notification message into the inbox,
+   * which naturally triggers the next run.
    */
   async processLoop(callbacks: ProcessingCallbacks): Promise<"idle" | "error"> {
     let runCount = 0;
@@ -146,6 +155,25 @@ export class RunCoordinator {
       const decision = this.shouldContinue();
       if (decision === "idle") return "idle";
       if (totalRuns >= hardCap) return "idle";
+
+      // ── Reminder wait: block here instead of going idle ──────────
+      if (decision === "waiting_reminder") {
+        const result = await this.deps.reminders.waitForNext();
+        this.deps.reminders.cleanup();
+
+        // Timeout reminders inject a notification into inbox so the
+        // agent sees them on the next run. Completed reminders (e.g.
+        // inbox_wait fired by a new message) don't need extra
+        // notification — the triggering event is already visible.
+        if (result.reason === "timeout") {
+          this.deps.inbox.push({
+            content: `⏰ Reminder timed out: [${result.id}] "${result.label}"${result.message ? ` — ${result.message}` : ""}`,
+            from: "system",
+          });
+        }
+        // Re-check after reminder fires
+        continue;
+      }
 
       if (runCount >= this.deps.maxRuns) {
         if (decision === "next_message") {
@@ -201,6 +229,7 @@ export class RunCoordinator {
       todos: this.deps.todos,
       notes: this.deps.notes,
       memory: this.deps.memory,
+      reminders: this.deps.reminders,
       history: this.history,
       currentFocus: this.shouldContinue(),
     });

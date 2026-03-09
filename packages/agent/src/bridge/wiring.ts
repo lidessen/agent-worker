@@ -40,6 +40,7 @@ export class LoopWiring {
       notes: this.deps.notes,
       memory: this.deps.memory,
       sendGuard: this.deps.sendGuard,
+      reminders: this.deps.reminders,
     };
   }
 

@@ -14,6 +14,7 @@ import { InMemoryNotesStorage } from "./notes.ts";
 import { SendGuard } from "./send.ts";
 import { ContextEngine } from "./context-engine.ts";
 import { MemoryManager } from "./memory.ts";
+import { ReminderManager } from "./reminder.ts";
 import { RunCoordinator } from "./run-coordinator.ts";
 import { LoopWiring } from "./bridge/wiring.ts";
 
@@ -33,6 +34,7 @@ export class Agent {
   private readonly todoManager: TodoManager;
   private readonly notesStorage: NotesStorage;
   private readonly sendGuard: SendGuard;
+  private readonly reminders: ReminderManager;
   private readonly coordinator: RunCoordinator;
   private readonly wiring: LoopWiring;
 
@@ -48,9 +50,13 @@ export class Agent {
     this.notesStorage = config.notesStorage ?? new InMemoryNotesStorage();
     const contextEngine = new ContextEngine(config.context);
     const memoryManager = config.memory ? new MemoryManager(config.memory) : null;
+    this.reminders = new ReminderManager();
     this.sendGuard = new SendGuard(this.inbox, (target, content) => {
       this.emit("send", target, content);
     });
+
+    // Wire inbox ↔ reminders
+    this.inbox.setReminders(this.reminders);
 
     // RunCoordinator owns the processing loop and history
     this.coordinator = new RunCoordinator({
@@ -60,6 +66,7 @@ export class Agent {
       notes: this.notesStorage,
       contextEngine,
       memory: memoryManager,
+      reminders: this.reminders,
       instructions: config.instructions ?? "",
       maxRuns: config.maxRuns ?? 10,
     });
@@ -72,6 +79,7 @@ export class Agent {
       notes: this.notesStorage,
       memory: memoryManager,
       sendGuard: this.sendGuard,
+      reminders: this.reminders,
       coordinator: this.coordinator,
       toolkit: config.toolkit,
     });
@@ -87,6 +95,7 @@ export class Agent {
     this.setState("stopped");
     this.config.loop.cancel();
     this.inbox.cancelDebounce();
+    this.reminders.cancelAll();
     await this.wiring.stop();
     await this.config.loop.cleanup?.();
   }

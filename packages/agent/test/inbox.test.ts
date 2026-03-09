@@ -1,5 +1,6 @@
-import { test, expect, describe, beforeEach } from "bun:test";
+import { test, expect, describe } from "bun:test";
 import { Inbox } from "../src/inbox.ts";
+import { ReminderManager } from "../src/reminder.ts";
 
 describe("Inbox", () => {
   test("push adds unread message", () => {
@@ -62,28 +63,18 @@ describe("Inbox", () => {
     expect(inbox.peek()).toBe("📥 Inbox: empty");
   });
 
-  test("wait resolves when message arrives", async () => {
+  test("push fires inbox_wait reminders", () => {
     const inbox = new Inbox({}, () => {});
-    const waitPromise = inbox.wait(1000);
+    const reminders = new ReminderManager();
+    inbox.setReminders(reminders);
 
-    // Push after a short delay
-    setTimeout(() => inbox.push("hello"), 10);
+    // Set a reminder (like inbox wait would)
+    const { id } = reminders.add("inbox_wait", { timeoutMs: 5000 });
+    expect(reminders.hasPending).toBe(true);
 
-    const result = await waitPromise;
-    expect(result.timeout).toBe(false);
-  });
-
-  test("wait resolves immediately when unread exists", async () => {
-    const inbox = new Inbox({}, () => {});
-    inbox.push("already here");
-    const result = await inbox.wait(100);
-    expect(result.timeout).toBe(false);
-  });
-
-  test("wait times out", async () => {
-    const inbox = new Inbox({}, () => {});
-    const result = await inbox.wait(50);
-    expect(result.timeout).toBe(true);
+    // Push a message — should fire the reminder
+    inbox.push("hello");
+    expect(reminders.hasPending).toBe(false);
   });
 
   test("debounce triggers wake callback", async () => {
