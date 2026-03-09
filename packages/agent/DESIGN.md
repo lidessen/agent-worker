@@ -189,42 +189,39 @@ The LLM interacts with the inbox via tools:
 |--------|--------|--------|
 | `peek` | — | Return inbox summary (same format as prompt injection, refreshed) |
 | `read` | `id` | Read full content of a message, mark as `read` |
-| `wait` | `timeoutMs?` | Block until a new message arrives, or timeout |
+| `wait` | `timeoutMs?` | Register a non-blocking reminder — notified when a new message arrives or timeout expires |
 
 Peek is also auto-injected into the prompt at each checkpoint, so the LLM doesn't need to call `peek` explicitly unless it wants to check for new messages mid-run.
 
-#### Wait: ask-and-wait pattern
+#### Wait: async reminder pattern
 
-`inbox.wait(timeoutMs?)` blocks until a new message arrives in the inbox (or timeout). The message enters the inbox normally (unread, visible in peek). Wait just tells the LLM "a new message showed up" — the LLM then decides what to do with it (read it, ignore it, keep waiting, etc.).
+`inbox.wait(timeoutMs?)` is **non-blocking**. It registers a reminder via `ReminderManager` and returns immediately. The LLM can continue working on other tasks. When a new message arrives (or timeout expires), the reminder fires:
+
+- **Message arrives**: `inbox.push()` fires all `inbox_wait` reminders. The message is already visible via peek — no extra notification needed.
+- **Timeout expires**: A system notification is pushed into the inbox (`⏰ Reminder timed out: ...`), waking the agent if idle.
+
+While reminders are pending, the processing loop waits instead of going idle — this prevents the agent from shutting down prematurely.
 
 ```
 LLM calls send("user", "Which database do you prefer: Postgres or SQLite?")
-LLM calls inbox.wait(60000)   // wait up to 60s
-  → Agent suspends the current tool call
-  → User pushes: "Postgres" → enters inbox as unread
-  → wait() resolves → returns { timeout: false }
-LLM calls inbox.peek() or inbox.read(id) to see the message
+LLM calls inbox.wait(60000)
+  → Returns immediately: { status: "reminder_set", reminderId: "reminder_1" }
+  → LLM continues with other work (or has nothing to do — loop waits)
+  → User pushes: "Postgres" → enters inbox as unread, fires the reminder
+  → Processing loop resumes, LLM sees the message via peek
 LLM continues working
 ```
 
-If the message isn't what the LLM expected, it can call `wait()` again:
-
-```
-LLM calls inbox.wait(30000)
-  → User pushes: "btw also fix the login page"  → not the answer
-  → wait() resolves
-LLM peeks → "this isn't my answer, let me ask again"
-LLM calls send("user", "Could you answer the database question?")
-LLM calls inbox.wait(30000)
-```
-
 ```ts
-interface WaitResult {
-  timeout: boolean   // true if timed out, false if a message arrived
+interface ReminderResult {
+  id: string;
+  label: string;
+  reason: "completed" | "timeout";
+  message?: string;
 }
 ```
 
-While waiting, the agent stays in `processing` state. The wait suspends the tool call, not the agent — other internal state (todos, notes) is unchanged.
+This is built on the general-purpose `ReminderManager` — see the `agent_reminder` tool for arbitrary async reminders (scheduled checks, background task completion, etc.).
 
 ### Send
 
@@ -717,7 +714,7 @@ packages/agent/
 
 7. **`agent_*` namespace is reserved**: Built-in tools cannot be overridden. User/MCP tools must use other prefixes. `init()` throws on collision.
 
-8. **`inbox.wait()` is simple**: Blocks until any new message arrives (or timeout). Message enters inbox normally. LLM decides if it's the one it wanted.
+8. **`inbox.wait()` is non-blocking**: Registers a reminder and returns immediately. The processing loop waits for the reminder instead of going idle. When a message arrives, the reminder fires and the agent resumes naturally. Timeout reminders push a system notification into the inbox.
 
 9. **Messaging model, not task model**: The agent is an always-on async recipient. "Read" means delivered, not handled. Todos are working memory, not a task queue. Messages may be ignored. No guarantee of completion or response.
 
