@@ -56,10 +56,6 @@ export interface InboxConfig {
   peekThreshold?: number;
 }
 
-export interface WaitResult {
-  timeout: boolean;
-}
-
 // ── Reminders ─────────────────────────────────────────────────────────────
 
 export interface ReminderResult {
