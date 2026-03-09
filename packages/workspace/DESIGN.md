@@ -210,6 +210,15 @@ re-queues itself. The higher-priority instruction runs first.
 - Retry after failure: priority stays the same on first retry, degrades one level
   on subsequent retries (immediate→normal→background)
 
+**Lane bandwidth policy:**
+- After every 4 consecutive `immediate` dispatches, the queue MUST dispatch
+  1 `normal` task if any are pending (prevents normal starvation under immediate storm)
+- After every 8 consecutive `immediate + normal` dispatches, the queue MUST dispatch
+  1 `background` task if any are pending
+- These ratios are configurable: `{ immediateQuota: 4, normalQuota: 8 }`
+- Per-agent fairness: within the same lane, round-robin across agents (no single
+  agent monopolizes a lane by flooding messages)
+
 **SLO metrics (for monitoring and testing):**
 
 | Metric                        | Target          | Description                          |
@@ -343,8 +352,9 @@ Unified event entry point. Records all notable events across the workspace:
 | `output`      | Backend streaming text                         |
 | `debug`       | Debug-level detail (only shown with --debug)   |
 
-EventLog writes through ContextProvider so events are persisted alongside
-channel messages. Agents never write to it directly.
+EventLog writes to TimelineStore only — never to channels. Channels are
+exclusively for agent-to-agent `message` kind events (see Invariants #12-14
+for the full routing table). Agents never write to EventLog directly.
 
 ## File Structure
 
@@ -518,6 +528,89 @@ System-wide constraints that all implementations must respect.
 11. **Agent identity is 1:1 with loop** — one agent name = one AgentLoop instance
     = one context window. No agent multiplexing across tasks.
 
+### Event Routing Invariants
+
+12. **Channel is for agent-to-agent communication only** — messages with
+    `kind: "message"` go into channels. This is the only kind that enters channels.
+13. **Timeline/EventLog is for operational events** — `tool_call`, `system`,
+    `output`, `debug` go to TimelineStore/EventLog only. Never to channels.
+14. **Canonical event ID** — every event (channel message or timeline entry)
+    has a globally unique `id` (nanoid). This is the dedup/idempotency key
+    across all stores. No event is written to both channel and timeline.
+
+**Routing table:**
+
+| Event kind   | → Channel | → Timeline/EventLog | Notes                           |
+|--------------|-----------|--------------------|---------------------------------|
+| `message`    | YES       | NO                 | Agent-to-agent, the core data   |
+| `tool_call`  | NO        | YES                | Operational, per-agent timeline  |
+| `system`     | NO        | YES                | Lifecycle, warnings              |
+| `output`     | NO        | YES                | Backend streaming text           |
+| `debug`      | NO        | YES                | Only with --debug flag           |
+
+## Crash Recovery
+
+**Priority data source:** Channel is always the source of truth. Inbox is
+rebuildable from channel. All other stores are either append-only (timeline)
+or independently recoverable.
+
+### Write Semantics
+
+All JSONL stores use **append-with-fsync**: write full line + `\n`, then fsync.
+A partial line (crash mid-write) is detected on startup and truncated.
+
+**Write order for message delivery:**
+1. Append message to channel JSONL (fsync)
+2. Append inbox entry to agent's inbox JSONL (fsync)
+
+If crash between step 1 and 2: message is in channel but inbox entry is missing.
+Recovery will detect and repair this (see below).
+
+### Startup Recovery Algorithm
+
+On `workspace.init()`, before any agent loop starts:
+
+```
+1. For each JSONL file (channel, inbox, timeline):
+   - Read file, detect and truncate any incomplete trailing line
+   - Log warning if truncation occurred
+
+2. For each agent's inbox:
+   - Scan inbox entries, collect all messageIds
+   - Scan channel messages since run epoch that @mention this agent
+   - For any channel message missing from inbox → re-enqueue as pending
+   - For any inbox entry whose messageId doesn't exist in channel → remove
+     (should not happen given write order, but defensive)
+
+3. Clear all `seen` states → reset to `pending`
+   (crash during processing means the task didn't complete;
+    agent will re-process on restart)
+```
+
+**Idempotency:** Invariant #7 (one inbox entry per agent+messageId) ensures
+that re-enqueuing an already-present message is a no-op.
+
+**Non-goal:** We do NOT attempt to recover partial agent processing state.
+If an agent was mid-run when crash occurred, the entire instruction is
+re-processed from scratch. Agent tools should be idempotent where possible.
+
+## Channel Index (Performance)
+
+For `my_inbox` reads, inbox entries reference `messageId` which must be resolved
+to actual message content from the channel. Naively scanning the full channel
+JSONL for each lookup would degrade as channels grow.
+
+**In-memory index:** `Map<messageId, fileOffset>` built on startup by scanning
+the channel JSONL once. Maintained incrementally on each append.
+
+**Checkpoint:** Periodically persist `{ lastOffset, indexSnapshot }` so that
+startup doesn't require full rescan of large channels. On recovery, scan only
+from `lastOffset` forward.
+
+**Bounds:** Index is per-channel, lives in memory only (checkpoint is optimization,
+not requirement). Memory cost: ~100 bytes per message × N messages. A channel
+with 100K messages ≈ 10MB index — acceptable for workspace lifetimes.
+
 ## Open Decisions
 
 ### OD-1: Multi-Instance Isolation — tag vs channel vs scoped-channel [RESOLVED → A]
@@ -669,6 +762,53 @@ aw run coordinator.yaml --watch /tmp/aw-review-*/
 | 生命周期管理 | 简单 | 复杂 | 简单 |
 
 **已决定 → A。** 若需跨实例编排，走 C 的 coordinator 路径（future enhancement）。
+
+#### Appendix: Coordinator Protocol Draft (non-v1)
+
+最小协议草案，防止后续实现分叉。标记为 non-v1，仅做方向约束。
+
+**Instance discovery:**
+```
+# 每个 workspace 实例在 contextDir 下暴露 instance.json
+{
+  "workflowName": "review",
+  "tag": "pr-123",
+  "contextDir": "/tmp/aw-review-pr-123",
+  "pid": 12345,
+  "startedAt": "2026-03-09T10:00:00Z",
+  "status": "running",         // running | stopped | crashed
+  "mcpEndpoint": "http://localhost:3001/mcp"  // optional
+}
+
+# Coordinator 通过 glob /tmp/aw-review-*/instance.json 发现实例
+# 或通过 daemon API: GET /api/instances?workflow=review
+```
+
+**Message envelope (coordinator → instance):**
+```ts
+interface CoordinatorMessage {
+  id: string;              // nanoid, 幂等键
+  from: "coordinator";
+  targetTag: string;       // which instance
+  targetChannel: string;   // which channel within instance
+  content: string;
+  idempotencyKey: string;  // = id, 重复投递不产生副作用
+}
+```
+
+**Delivery:** Coordinator appends to target instance's channel JSONL directly
+(file-based), or POST to instance's MCP endpoint (HTTP-based). File-based is
+simpler and sufficient for single-machine; HTTP-based needed for distributed.
+
+**Ack/retry:**
+- Coordinator 维护 sent log: `{ messageId, targetTag, sentAt, acked: boolean }`
+- Instance 处理后通过 StatusStore 暴露 ack（或 coordinator 轮询 channel 看到回复）
+- Retry: 指数退避，最多 3 次，基于 idempotencyKey 去重
+
+**Non-goals for coordinator protocol:**
+- 不做分布式事务
+- 不保证跨实例消息顺序
+- 不做实例健康检查（依赖 OS 进程状态）
 
 ---
 
