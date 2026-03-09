@@ -1,0 +1,12 @@
+{
+  "name": "@agent-worker/workspace",
+  "version": "0.0.1",
+  "module": "src/index.ts",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@agent-worker/agent": "workspace:*"
+  }
+}
