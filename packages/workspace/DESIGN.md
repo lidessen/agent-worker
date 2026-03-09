@@ -137,7 +137,7 @@ Resource, with only a short reference posted to the channel. Prevents channel bl
 
 The inbox is an **independent message queue per agent**, not a cursor-based filtered
 view of the channel. When a channel message @mentions an agent or matches their
-subscriptions, a copy is enqueued into their inbox.
+subscriptions, a reference is enqueued into their inbox.
 
 **Why independent inbox over cursor-based:**
 - **Selective ack:** Agent can process message #3 before message #1 — not forced
@@ -154,14 +154,34 @@ subscriptions, a copy is enqueued into their inbox.
 1. Channel emits a `"message"` event on append
 2. InboxStore listens, checks: does this message @mention agent X? Is agent X
    a member of this channel?
-3. If yes, enqueues a copy into agent X's inbox with priority classification
-4. Agent loop calls `my_inbox` to peek pending, `my_inbox_ack(id)` to acknowledge
+3. If yes, enqueues a **reference** (messageId + channel + priority + state) into
+   agent X's inbox — not a full copy of the message content
+4. Agent loop calls `my_inbox` to peek pending (resolves content from channel),
+   `my_inbox_ack(id)` to acknowledge
+
+**Inbox entry structure:**
+
+```ts
+interface InboxEntry {
+  messageId: string;       // references Message.id in channel
+  channel: string;         // which channel the message lives in
+  priority: Priority;      // immediate | normal | background
+  state: InboxState;       // pending | seen | deferred
+  enqueuedAt: string;      // ISO timestamp
+  deferredUntil?: string;  // optional: defer expiry
+}
+```
 
 **Inbox entry lifecycle:**
 ```
-pending → seen (loop picked it up) → acked (processed, removed)
-                                   → deferred (explicitly postponed, returns to pending)
+pending → seen (loop picked it up) → acked (removed from inbox)
+                                   → deferred (returns to pending, optional expiry)
 ```
+
+**GC rules:**
+- `acked` entries are removed immediately
+- `deferred` entries return to `pending` after optional expiry (or on next poll if no expiry)
+- On workspace init, `markRunStart()` clears all stale entries from previous runs
 
 **Run epoch:** On workspace init, `markRunStart()` clears stale inbox entries from
 previous runs. Only new messages trigger work.
@@ -182,6 +202,24 @@ re-queues itself. The higher-priority instruction runs first.
 
 **Preempted instructions** carry progress state so they resume where they left off.
 
+**Starvation protection:**
+- Background instructions that have waited longer than `maxBackgroundWait` (default: 5min)
+  are promoted to `normal` priority
+- After N consecutive preemptions (default: 3), a background task is promoted to
+  `normal` to guarantee forward progress
+- Retry after failure: priority stays the same on first retry, degrades one level
+  on subsequent retries (immediate→normal→background)
+
+**SLO metrics (for monitoring and testing):**
+
+| Metric                        | Target          | Description                          |
+|-------------------------------|-----------------|--------------------------------------|
+| `immediate_wait_p95`          | < 2s            | Time from enqueue to processing      |
+| `normal_wait_p95`             | < 30s           | Time from enqueue to processing      |
+| `background_wait_p95`         | < 5min          | Time from enqueue to processing      |
+| `background_starvation_count` | 0               | Tasks exceeding maxBackgroundWait     |
+| `preemption_count`            | tracked         | Frequency of cooperative preemptions  |
+
 ### ContextProvider (Composite)
 
 The ContextProvider interface is satisfied by composing independent stores:
@@ -189,7 +227,7 @@ The ContextProvider interface is satisfied by composing independent stores:
 | Store          | Concern                                        | Storage         |
 |----------------|------------------------------------------------|-----------------|
 | `ChannelStore` | Per-channel append-only JSONL + EventEmitter    | JSONL file/ch   |
-| `InboxStore`   | Independent per-agent message queue              | JSONL file/agent|
+| `InboxStore`   | Per-agent refs (messageId+state), not content    | JSONL file/agent|
 | `DocumentStore`| Shared team documents (read/write/append)       | Raw text files  |
 | `ResourceStore`| Content-addressed blobs for large content       | Per-resource file|
 | `StatusStore`  | Agent state tracking (idle/running/stopped)     | JSON file       |
@@ -439,9 +477,56 @@ await workspace.shutdown();
 9. **StorageBackend abstraction** — `MemoryStorage` for tests, `FileStorage` for production.
    All stores use the same interface, so swapping persistence is a one-line change.
 
+## Invariants
+
+System-wide constraints that all implementations must respect.
+
+### Channel Invariants
+
+1. **Append-only, immutable** — once a message is written to a channel JSONL,
+   it is never modified or deleted. No update-in-place, no tombstones.
+2. **Message ID is globally unique** — nanoid, no collisions across channels.
+3. **Ordering is per-channel** — messages within a channel are strictly ordered
+   by append position. No global ordering guarantee across channels.
+
+### Inbox Invariants
+
+4. **Inbox stores references, not content** — each inbox entry contains
+   `{ messageId, channel, priority, state, enqueuedAt }`. Full message content
+   is resolved from the channel at read time.
+5. **Inbox → Channel referential integrity** — an inbox entry's `messageId`
+   always points to an existing message (guaranteed by channel append-only).
+6. **State transitions are one-directional** (with one exception):
+   ```
+   pending → seen → acked (terminal, entry removed)
+   pending → seen → deferred → pending (the one cycle allowed)
+   ```
+   No other transitions are valid. `acked` is terminal and irreversible.
+7. **One inbox entry per (agent, messageId)** — no duplicate delivery.
+
+### Resource Invariants
+
+8. **Resources are immutable** — once created, content never changes.
+   Resource IDs are content-addressed (or at minimum unique and stable).
+9. **Resources are never garbage collected while referenced** — a resource
+   referenced by a channel message lives as long as the workspace.
+
+### Workspace Invariants
+
+10. **Instance tag is an isolation boundary** — two workspace instances with
+    different tags share zero runtime state. No cross-tag reads or writes.
+11. **Agent identity is 1:1 with loop** — one agent name = one AgentLoop instance
+    = one context window. No agent multiplexing across tasks.
+
 ## Open Decisions
 
-### OD-1: Multi-Instance Isolation — tag vs channel vs scoped-channel
+### OD-1: Multi-Instance Isolation — tag vs channel vs scoped-channel [RESOLVED → A]
+
+**决策：方案 A（--tag 实例隔离）作为 v1 默认路径。方案 C（coordinator）作为后续可选增强，不在 v1 实现。**
+
+**理由：** 设计的核心价值之一是"实例级强隔离 + 生命周期简单"，A 正好匹配，复杂度最低、故障域最清晰。
+B（channel=instance）会把 scope 复杂度渗透到几乎所有 store/tool 语义里，代价太高。
+若需要跨实例编排，走 C 的 coordinator 路径，不改实例边界语义。
 
 同一个 workflow 需要跑多个实例（如同时 review PR-123 和 PR-456）。三种方案：
 
@@ -583,11 +668,20 @@ aw run coordinator.yaml --watch /tmp/aw-review-*/
 | 概念数量 | tag + channel | channel only | tag + channel + coordinator |
 | 生命周期管理 | 简单 | 复杂 | 简单 |
 
-**待决定。** 需要更多团队输入。
+**已决定 → A。** 若需跨实例编排，走 C 的 coordinator 路径（future enhancement）。
 
 ---
 
-### OD-2: Inbox — independent queue vs cursor-based filtered view
+### OD-2: Inbox — independent queue vs cursor-based filtered view [RESOLVED → A]
+
+**决策：方案 A（独立 inbox queue），配合三条工程约束：**
+1. Channel message 不可变（append-only，见 Invariants #1）
+2. Inbox 保存 messageId + state，不复制正文（见 Invariants #4）
+3. defer/ack 的状态机和 GC 规则已明确（见 Invariants #6，Inbox 节的 GC rules）
+
+**理由：** 已引入三层优先级和 cooperative preemption，意味着 agent 需要"按任务价值动态调度"。
+Cursor 模型天然是顺序化的，会和这个目标冲突。独立 inbox 提供 selective ack / defer / peek all，
+和调度系统天然配套。通过存引用而非正文副本，消除了数据冗余和一致性风险。
 
 Agent 从 channel 收到消息后，如何管理待处理队列？
 
@@ -651,7 +745,7 @@ Agent sees: [msg4, msg5]，msg3 在 deferred 列表里
 - 仍然不能自由排序（只能 skip，不能"先处理 msg5 再处理 msg4"）
 - Skip set 需要持久化和 GC
 
-**待决定。** 需要更多团队输入。
+**已决定 → A。** Inbox 存引用不存正文，状态机和 GC 规则见 Invariants 和 Inbox 节。
 
 ---
 
