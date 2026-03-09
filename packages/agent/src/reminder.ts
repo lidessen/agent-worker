@@ -13,6 +13,11 @@ export interface ReminderEntry {
 
 let nextReminderId = 1;
 
+/** Sanitize user-provided text before injecting into prompts. */
+function sanitize(text: string): string {
+  return text.replace(/[\r\n]+/g, " ").replace(/[\u201c\u201d""]/g, "'").trim();
+}
+
 /**
  * Manages async reminders that prevent the agent from going idle.
  *
@@ -26,7 +31,6 @@ let nextReminderId = 1;
  */
 export class ReminderManager {
   private reminders = new Map<string, ReminderEntry>();
-  private firedQueue: ReminderResult[] = [];
 
   /**
    * Register a new reminder. Returns immediately with the reminder ID.
@@ -73,7 +77,6 @@ export class ReminderManager {
       reason,
       message,
     };
-    this.firedQueue.push(result);
     r.resolve(result);
     return true;
   }
@@ -110,22 +113,15 @@ export class ReminderManager {
     return Promise.race(pending.map((r) => r.promise));
   }
 
-  /** Drain fired reminder results (consume once). */
-  drainFired(): ReminderResult[] {
-    const results = this.firedQueue.slice();
-    this.firedQueue = [];
-    return results;
-  }
-
   /** Format pending reminders for context injection. */
   formatPending(): string {
     const pending = this.pending;
     if (pending.length === 0) return "";
 
     const lines = pending.map((r) => {
-      const desc = r.description ? ` — ${r.description}` : "";
+      const desc = r.description ? ` — ${sanitize(r.description)}` : "";
       const elapsed = Math.round((Date.now() - r.createdAt) / 1000);
-      return `• [${r.id}] ${r.label}${desc} (${elapsed}s ago)`;
+      return `• [${r.id}] ${sanitize(r.label)}${desc} (${elapsed}s ago)`;
     });
     return `⏳ Pending reminders (${pending.length}):\n${lines.join("\n")}`;
   }
@@ -136,7 +132,6 @@ export class ReminderManager {
       if (r.timeoutTimer) clearTimeout(r.timeoutTimer);
     }
     this.reminders.clear();
-    this.firedQueue = [];
   }
 
   /** Remove fired entries to free memory. */

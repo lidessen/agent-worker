@@ -82,21 +82,15 @@ describe("ReminderManager", () => {
     rm.cancelAll();
   });
 
-  test("drainFired returns and clears fired results", () => {
+  test("formatPending sanitizes label and description", () => {
     const rm = new ReminderManager();
-    const { id: id1 } = rm.add("a");
-    const { id: id2 } = rm.add("b");
+    rm.add("evil\nlabel\r\nhere", { description: "bad\ndesc\u201cwith\u201d quotes" });
 
-    rm.fire(id1, "completed");
-    rm.fire(id2, "timeout");
-
-    const results = rm.drainFired();
-    expect(results).toHaveLength(2);
-    expect(results[0]!.label).toBe("a");
-    expect(results[1]!.label).toBe("b");
-
-    // Second drain should be empty
-    expect(rm.drainFired()).toHaveLength(0);
+    const text = rm.formatPending();
+    expect(text).not.toContain("\n" + "label");
+    expect(text).toContain("evil label here");
+    expect(text).toContain("bad desc'with' quotes");
+    rm.cancelAll();
   });
 
   test("formatPending shows pending reminders", () => {

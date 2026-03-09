@@ -166,8 +166,10 @@ export class RunCoordinator {
         // inbox_wait fired by a new message) don't need extra
         // notification — the triggering event is already visible.
         if (result.reason === "timeout") {
+          const safeLabel = result.label.replace(/[\r\n]+/g, " ").replace(/[\u201c\u201d""]/g, "'").trim();
+          const safeMsg = result.message?.replace(/[\r\n]+/g, " ").replace(/[\u201c\u201d""]/g, "'").trim();
           this.deps.inbox.push({
-            content: `⏰ Reminder timed out: [${result.id}] "${result.label}"${result.message ? ` — ${result.message}` : ""}`,
+            content: `⏰ Reminder timed out: [${result.id}] "${safeLabel}"${safeMsg ? ` — ${safeMsg}` : ""}`,
             from: "system",
           });
         }

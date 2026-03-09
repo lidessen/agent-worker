@@ -170,6 +170,47 @@ describe("RunCoordinator", () => {
     expect(runStarts.length).toBeGreaterThanOrEqual(1);
   });
 
+  test("shouldContinue returns waiting_reminder when only reminders pending", () => {
+    const { coordinator, reminders } = createCoordinator();
+    reminders.add("inbox_wait", { timeoutMs: 5000 });
+    expect(coordinator.shouldContinue()).toBe("waiting_reminder");
+    reminders.cancelAll();
+  });
+
+  test("processLoop awaits reminder then resumes", async () => {
+    const loop = createMockLoop("OK");
+    const { coordinator, inbox, reminders } = createCoordinator(loop);
+
+    // Add a reminder that fires after 30ms
+    reminders.add("test_wait", { timeoutMs: 30 });
+
+    // Push a message after the reminder fires (simulating async arrival)
+    setTimeout(() => inbox.push("delayed msg"), 60);
+
+    const outcome = await coordinator.processLoop({});
+    expect(outcome).toBe("idle");
+    // The timeout reminder should have been pushed as a system message
+    // and the delayed msg should have been processed
+    expect(loop.runCount).toBeGreaterThanOrEqual(1);
+  });
+
+  test("timeout reminder pushes sanitized system message to inbox", async () => {
+    const loop = createMockLoop("OK");
+    const { coordinator, inbox, reminders } = createCoordinator(loop);
+
+    reminders.add("evil\nlabel", { timeoutMs: 10 });
+
+    const outcome = await coordinator.processLoop({});
+    expect(outcome).toBe("idle");
+
+    // Check that the system message was sanitized (no raw newlines in label)
+    const systemMsgs = inbox.all.filter((m) => m.from === "system");
+    expect(systemMsgs.length).toBeGreaterThanOrEqual(1);
+    const content = systemMsgs[0]!.content;
+    expect(content).toContain("evil label");
+    expect(content).not.toContain("evil\nlabel");
+  });
+
   test("processLoop respects shouldStop", async () => {
     const loop = createMockLoop("OK");
     const { coordinator, inbox } = createCoordinator(loop);
