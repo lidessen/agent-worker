@@ -34,7 +34,6 @@ export type {
   PrepareStepFunction,
   InboxMessage,
   InboxConfig,
-  WaitResult,
   ReminderResult,
   TodoItem,
   NotesStorage,
