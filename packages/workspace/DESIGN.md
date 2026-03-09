@@ -55,12 +55,47 @@ Two composable primitives (factory pattern):
 1. `createWorkspace()` — context + MCP + event log (the shared infrastructure)
 2. `createWiredLoop()` — backend + workspace dir + loop (per agent)
 
+### Instance Tag (Multi-Instance Isolation)
+
+A workspace can be instantiated multiple times from the same workflow definition
+using `--tag`. Each tag creates a fully isolated workspace instance.
+
+```
+aw run review.yaml --tag pr-123    # instance 1: /tmp/agent-worker-review-pr-123/
+aw run review.yaml --tag pr-456    # instance 2: /tmp/agent-worker-review-pr-456/
+aw run review.yaml                 # instance 3: /tmp/agent-worker-review/
+```
+
+**What tag isolates:** Everything — channels, inbox, documents, resources, status,
+timeline. Two instances of the same workflow share nothing at runtime.
+
+**Tag in templates:** Available as `${{ workspace.tag }}` for interpolation in
+kickoff messages, setup commands, agent instructions, etc.
+
+```yaml
+kickoff: "@reviewer Please review PR ${{ workspace.tag }}"
+```
+
+**Tag in factory:**
+
+```ts
+const workspace = await createWorkspace({
+  name: "review",
+  tag: "pr-123",  // → contextDir: /tmp/agent-worker-review-pr-123/
+  // ...
+});
+```
+
+**Use cases:**
+- Same review workflow running on multiple PRs simultaneously
+- Same deploy workflow for different environments (`--tag staging`, `--tag prod`)
+- Testing: spin up isolated instances without interference
+
 ### Channels (Named, Append-only)
 
 Multiple named channels, each an independent append-only JSONL log. Agents join
-channels to receive messages posted there. Channels replace moniro's "tag" concept
-— instead of tagging messages after the fact, the sender chooses the channel,
-which provides natural topic isolation with built-in subscription semantics.
+channels to receive messages posted there. Channels provide natural topic isolation
+with built-in subscription semantics.
 
 **Default behavior:**
 - Every workspace has a `defaultChannel` (typically `"general"`)
@@ -68,10 +103,9 @@ which provides natural topic isolation with built-in subscription semantics.
 - Agents can join/leave channels at any time via tools
 - Each channel is independently queryable
 
-**Why multi-channel over single-channel:**
+**Why multi-channel:**
 - Channels serve as topic namespaces (`#design`, `#code-review`, `#ops`)
 - Agents only receive messages from channels they've joined — natural noise filtering
-- Replaces moniro's tag system: `channel_send("#design", msg)` > `send(msg, tags: ["design"])`
 - Channel history is isolated — querying `#design` doesn't require filtering through unrelated messages
 - Complexity is modest: each channel is just a JSONL file, routing is `channel → subscribers`
 
@@ -323,6 +357,7 @@ import { createWorkspace, createWiredLoop } from "@agent-worker/workspace";
 // 1. Create shared infrastructure
 const workspace = await createWorkspace({
   name: "code-review",
+  tag: "pr-123",  // optional: isolates this instance from other runs of the same workflow
   channels: ["general", "design", "code-review"],
   defaultChannel: "general",
   agents: ["designer", "reviewer"],
@@ -361,11 +396,11 @@ await workspace.shutdown();
 
 ## Design Decisions
 
-1. **Named channels replace tags** — moniro used a single channel + tags for topic
-   filtering. We use named channels instead (`#design`, `#code-review`). Channels
-   provide the same topic isolation with better semantics: senders choose the channel
-   explicitly, agents subscribe/unsubscribe, and history queries are naturally scoped.
-   The implementation cost is low (each channel = one JSONL file).
+1. **Named channels for topic isolation** — multiple channels (`#design`, `#code-review`)
+   give agents natural noise filtering via join/leave. Each channel is independently
+   queryable. Implementation cost is low (each channel = one JSONL file). Note: channels
+   are orthogonal to instance tags — channels organize topics *within* a workspace,
+   tags isolate entire workspace *instances* of the same workflow.
 
 2. **Independent inbox with selective ack** — the inbox is its own per-agent queue,
    not a cursor-based filtered view of the channel. This lets agents peek all pending
@@ -409,7 +444,7 @@ await workspace.shutdown();
 Key changes from v1 design, informed by reviewing moniro/workspace:
 
 - Flat channel list retained, now with explicit join/leave + per-channel JSONL
-- Channels replace moniro's tag concept — topic routing via channel membership
+- Instance tag from moniro retained — `--tag` for multi-instance isolation of same workflow
 - Independent inbox (not moniro's cursor-based filtered view) — selective ack, defer, peek
 - ~~No priority~~ → Three-lane InstructionQueue with cooperative preemption
 - ~~SharedMemory KV~~ → DocumentStore + ResourceStore (more structured)
