@@ -1,0 +1,210 @@
+import type { LoopEvent, LoopResult } from "@agent-worker/loop";
+import type {
+  AgentLoop,
+  NotesStorage,
+  Turn,
+  RunInfo,
+  AssembledPrompt,
+} from "./types.ts";
+import type { Inbox } from "./inbox.ts";
+import type { TodoManager } from "./todo.ts";
+import type { ContextEngine } from "./context-engine.ts";
+import type { MemoryManager } from "./memory.ts";
+
+export interface RunCoordinatorDeps {
+  loop: AgentLoop;
+  inbox: Inbox;
+  todos: TodoManager;
+  notes: NotesStorage;
+  contextEngine: ContextEngine;
+  memory: MemoryManager | null;
+  instructions: string;
+  maxRuns: number;
+}
+
+export interface ProcessingCallbacks {
+  onRunStart?: (info: RunInfo) => void;
+  onRunEnd?: (result: LoopResult) => void;
+  onEvent?: (event: LoopEvent) => void;
+  onContextAssembled?: (prompt: AssembledPrompt) => void;
+  /** Return true to abort the loop (e.g. agent stopped). */
+  shouldStop?: () => boolean;
+}
+
+/**
+ * Owns the main processing loop: shouldContinue → assemble → run → persist → extract.
+ *
+ * Agent delegates here for all run-level logic. Agent keeps lifecycle (state machine,
+ * event bus, subsystem wiring). RunCoordinator keeps orchestration (what to run next,
+ * how to build the prompt, where to store results).
+ */
+export class RunCoordinator {
+  readonly history: Turn[] = [];
+
+  constructor(private deps: RunCoordinatorDeps) {}
+
+  // ── Decision ────────────────────────────────────────────────────────────
+
+  shouldContinue(): "next_message" | "next_todo" | "idle" {
+    if (this.deps.inbox.unread.length > 0) return "next_message";
+    if (this.deps.todos.pending.length > 0) return "next_todo";
+    return "idle";
+  }
+
+  // ── Trigger content ─────────────────────────────────────────────────────
+
+  /**
+   * Build the user-turn content for history. This is the raw trigger —
+   * NOT the assembled prompt. Recording assembled prompts as history
+   * entries would duplicate context and cause exponential growth.
+   */
+  buildTriggerContent(trigger: "next_message" | "next_todo"): string {
+    if (trigger === "next_message") {
+      const unread = this.deps.inbox.unread;
+      const parts = unread.map((msg) => {
+        const from = msg.from ? `[${msg.from}] ` : "";
+        return `${from}${msg.content}`;
+      });
+      return parts.join("\n");
+    }
+
+    const pending = this.deps.todos.pending;
+    return `Continue working on:\n${pending.map((t) => `- ${t.text}`).join("\n")}`;
+  }
+
+  // ── Single run ──────────────────────────────────────────────────────────
+
+  async executeRun(
+    trigger: "next_message" | "next_todo",
+    onEvent?: (event: LoopEvent) => void,
+  ): Promise<{ loopResult: LoopResult; assembled: AssembledPrompt }> {
+    // Capture trigger BEFORE assembly (which may mark messages as read via peek)
+    const triggerContent = this.buildTriggerContent(trigger);
+
+    const assembled = await this.deps.contextEngine.assemble({
+      instructions: this.deps.instructions,
+      inbox: this.deps.inbox,
+      todos: this.deps.todos,
+      notes: this.deps.notes,
+      memory: this.deps.memory,
+      history: this.history,
+      currentFocus: trigger,
+    });
+
+    // Build prompt: system context + prior history + current trigger
+    const promptParts: string[] = [assembled.system];
+
+    if (assembled.turns.length > 0) {
+      promptParts.push("");
+      for (const turn of assembled.turns) {
+        promptParts.push(`[${turn.role}]: ${turn.content}`);
+      }
+    }
+
+    promptParts.push("", triggerContent);
+
+    const run = this.deps.loop.run(promptParts.join("\n"));
+
+    for await (const event of run) {
+      onEvent?.(event);
+    }
+
+    const loopResult = await run.result;
+
+    // Persist to history: only raw trigger + response
+    this.history.push({ role: "user", content: triggerContent });
+
+    const assistantText = loopResult.events
+      .filter((e): e is Extract<typeof e, { type: "text" }> => e.type === "text")
+      .map((e) => e.text)
+      .join("");
+
+    if (assistantText) {
+      this.history.push({ role: "assistant", content: assistantText });
+    }
+
+    return { loopResult, assembled };
+  }
+
+  // ── Main loop ───────────────────────────────────────────────────────────
+
+  /**
+   * Run the full processing loop until idle or error.
+   *
+   * Dual-cap system:
+   * - runCount resets when switching from todos to new messages
+   * - totalRuns (hardCap) prevents infinite loops
+   */
+  async processLoop(callbacks: ProcessingCallbacks): Promise<"idle" | "error"> {
+    let runCount = 0;
+    let totalRuns = 0;
+    const hardCap = this.deps.maxRuns * 3;
+
+    while (true) {
+      if (callbacks.shouldStop?.()) return "idle";
+
+      const decision = this.shouldContinue();
+      if (decision === "idle") return "idle";
+      if (totalRuns >= hardCap) return "idle";
+
+      if (runCount >= this.deps.maxRuns) {
+        if (decision === "next_message") {
+          // Unread messages remain — reset counter so they aren't stranded
+          runCount = 0;
+          continue;
+        }
+        // Only todos remain — go idle
+        return "idle";
+      }
+
+      runCount++;
+      totalRuns++;
+
+      callbacks.onRunStart?.({ runNumber: runCount, trigger: decision });
+
+      try {
+        const { loopResult, assembled } = await this.executeRun(
+          decision,
+          callbacks.onEvent,
+        );
+
+        callbacks.onContextAssembled?.(assembled);
+        callbacks.onRunEnd?.(loopResult);
+
+        // Memory extraction at checkpoint
+        if (this.deps.memory?.shouldExtract("checkpoint")) {
+          await this.deps.memory.extract(
+            this.history.slice(-5),
+            `run_${runCount}`,
+          );
+        }
+      } catch {
+        return "error";
+      }
+    }
+  }
+
+  // ── Step-level context (AI SDK prepareStep) ─────────────────────────────
+
+  async assembleForStep(opts: {
+    steps: unknown[];
+    stepNumber: number;
+    model: unknown;
+    messages: unknown[];
+    experimental_context: unknown;
+  }): Promise<{ system?: string }> {
+    if (opts.stepNumber === 0) return {}; // First step uses initial prompt
+
+    const assembled = await this.deps.contextEngine.assemble({
+      instructions: this.deps.instructions,
+      inbox: this.deps.inbox,
+      todos: this.deps.todos,
+      notes: this.deps.notes,
+      memory: this.deps.memory,
+      history: this.history,
+      currentFocus: this.shouldContinue(),
+    });
+
+    return { system: assembled.system };
+  }
+}

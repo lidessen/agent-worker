@@ -19,7 +19,10 @@ export type {
   CodexLoopOptions,
   CursorLoopOptions,
   PreflightResult,
+  EventChannel,
 } from "./types.ts";
+
+export { createEventChannel } from "./types.ts";
 
 // ── Utilities ───────────────────────────────────────────────────────────────
 export { checkCliAvailability, type CliCheckResult } from "./utils/cli.ts";

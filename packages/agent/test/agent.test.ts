@@ -1,0 +1,472 @@
+import { test, expect, describe } from "bun:test";
+import { Agent } from "../src/agent.ts";
+import type { AgentLoop, AgentState } from "../src/types.ts";
+import type { LoopRun, LoopResult, LoopEvent, LoopStatus } from "@agent-worker/loop";
+
+/** Create a mock AgentLoop that returns a fixed text response */
+function createMockLoop(response = "Hello!"): AgentLoop & {
+  lastPrompt: string | null;
+  prompts: string[];
+  runCount: number;
+} {
+  const mock: AgentLoop & {
+    lastPrompt: string | null;
+    prompts: string[];
+    runCount: number;
+    _status: LoopStatus;
+  } = {
+    supports: ["directTools"],
+    lastPrompt: null,
+    prompts: [],
+    runCount: 0,
+    _status: "idle" as LoopStatus,
+
+    get status(): LoopStatus {
+      return mock._status;
+    },
+
+    run(prompt: string): LoopRun {
+      mock.lastPrompt = prompt;
+      mock.prompts.push(prompt);
+      mock.runCount++;
+      mock._status = "running";
+
+      const events: LoopEvent[] = [];
+      const textEvent: LoopEvent = { type: "text", text: response };
+      events.push(textEvent);
+
+      const loopResult: LoopResult = {
+        events,
+        usage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+        durationMs: 100,
+      };
+
+      const result = Promise.resolve().then(() => {
+        mock._status = "completed";
+        return loopResult;
+      });
+
+      return {
+        async *[Symbol.asyncIterator]() {
+          yield textEvent;
+        },
+        result,
+      };
+    },
+
+    cancel() {
+      mock._status = "cancelled";
+    },
+
+    setTools() {},
+    setPrepareStep() {},
+  };
+  return mock;
+}
+
+/** Create a mock CLI loop (supports: [], has setMcpConfig) */
+function createMockCliLoop(): AgentLoop & { mcpConfigPath: string | null } {
+  const mock: AgentLoop & { mcpConfigPath: string | null; _status: LoopStatus } = {
+    supports: [],
+    mcpConfigPath: null,
+    _status: "idle" as LoopStatus,
+
+    get status(): LoopStatus {
+      return mock._status;
+    },
+
+    run(prompt: string): LoopRun {
+      mock._status = "running";
+      const textEvent: LoopEvent = { type: "text", text: "cli response" };
+      const result = Promise.resolve().then(() => {
+        mock._status = "completed";
+        return {
+          events: [textEvent],
+          usage: { inputTokens: 10, outputTokens: 10, totalTokens: 20 },
+          durationMs: 50,
+        } satisfies LoopResult;
+      });
+      return {
+        async *[Symbol.asyncIterator]() { yield textEvent; },
+        result,
+      };
+    },
+
+    cancel() { mock._status = "cancelled"; },
+
+    setMcpConfig(configPath: string) {
+      mock.mcpConfigPath = configPath;
+    },
+  };
+  return mock;
+}
+
+describe("Agent", () => {
+  test("constructs with minimal config", () => {
+    const agent = new Agent({
+      loop: createMockLoop(),
+    });
+    expect(agent.state).toBe("idle");
+  });
+
+  test("init sets up tools for direct loop", async () => {
+    const loop = createMockLoop();
+    let toolsSet = false;
+    loop.setTools = () => { toolsSet = true; };
+
+    const agent = new Agent({ loop });
+    await agent.init();
+    expect(toolsSet).toBe(true);
+  });
+
+  test("push adds message to inbox", async () => {
+    const agent = new Agent({ loop: createMockLoop() });
+    await agent.init();
+
+    const received: unknown[] = [];
+    agent.on("messageReceived", (msg) => received.push(msg));
+
+    agent.push("hello");
+    expect(agent.inboxMessages).toHaveLength(1);
+    expect(received).toHaveLength(1);
+  });
+
+  test("push triggers processing after debounce", async () => {
+    const loop = createMockLoop();
+    const agent = new Agent({
+      loop,
+      inbox: { debounceMs: 10 },
+    });
+    await agent.init();
+
+    agent.push("test message");
+    expect(agent.state).toBe("idle"); // debounce not fired yet
+
+    await new Promise((r) => setTimeout(r, 50));
+
+    // Wait for processing to complete
+    await new Promise((r) => setTimeout(r, 100));
+    expect(agent.state).toBe("idle");
+    expect(loop.lastPrompt).not.toBeNull();
+  });
+
+  test("stop prevents further processing", async () => {
+    const agent = new Agent({
+      loop: createMockLoop(),
+    });
+    await agent.init();
+    await agent.stop();
+    expect(agent.state).toBe("stopped");
+    expect(() => agent.push("hello")).toThrow("stopped");
+  });
+
+  test("state change events are emitted", async () => {
+    const agent = new Agent({
+      loop: createMockLoop(),
+      inbox: { debounceMs: 10 },
+    });
+    await agent.init();
+
+    const states: AgentState[] = [];
+    agent.on("stateChange", (s) => states.push(s));
+
+    agent.push("test");
+    await new Promise((r) => setTimeout(r, 200));
+
+    expect(states).toContain("waiting");
+    expect(states).toContain("processing");
+    expect(states).toContain("idle");
+  });
+
+  test("todos are accessible", async () => {
+    const agent = new Agent({ loop: createMockLoop() });
+    await agent.init();
+    expect(agent.todos).toHaveLength(0);
+  });
+
+  test("notes storage is accessible", async () => {
+    const agent = new Agent({ loop: createMockLoop() });
+    await agent.init();
+    await agent.notes.write("test", "value");
+    expect(await agent.notes.read("test")).toBe("value");
+  });
+
+  test("context history accumulates", async () => {
+    const agent = new Agent({
+      loop: createMockLoop(),
+      inbox: { debounceMs: 10 },
+    });
+    await agent.init();
+
+    agent.push("first message");
+    await new Promise((r) => setTimeout(r, 200));
+
+    expect(agent.context.length).toBeGreaterThan(0);
+  });
+
+  test("validates agent_* namespace collision", async () => {
+    const agent = new Agent({
+      loop: createMockLoop(),
+      toolkit: {
+        tools: {
+          agent_custom: {} as any,
+        },
+      },
+    });
+
+    expect(agent.init()).rejects.toThrow("reserved prefix");
+  });
+
+  test("runStart and runEnd events are emitted", async () => {
+    const agent = new Agent({
+      loop: createMockLoop(),
+      inbox: { debounceMs: 10 },
+    });
+    await agent.init();
+
+    let started = false;
+    let ended = false;
+    agent.on("runStart", () => { started = true; });
+    agent.on("runEnd", () => { ended = true; });
+
+    agent.push("test");
+    await new Promise((r) => setTimeout(r, 200));
+
+    expect(started).toBe(true);
+    expect(ended).toBe(true);
+  });
+});
+
+// ── Fix #1: CLI MCP bridge ─────────────────────────────────────────────────
+
+describe("CLI MCP bridge", () => {
+  test("init writes MCP config for CLI loop", async () => {
+    const loop = createMockCliLoop();
+    const agent = new Agent({ loop });
+    await agent.init();
+
+    // setMcpConfig should have been called with a real config path
+    expect(loop.mcpConfigPath).not.toBeNull();
+
+    // The config file should exist and be valid JSON
+    const file = Bun.file(loop.mcpConfigPath!);
+    expect(await file.exists()).toBe(true);
+
+    const config = await file.json();
+    expect(config.mcpServers).toBeDefined();
+    expect(config.mcpServers["agent-worker"]).toBeDefined();
+    expect(config.mcpServers["agent-worker"].command).toBe("bun");
+
+    // The entry script should also exist
+    const entryPath = config.mcpServers["agent-worker"].args[1];
+    const entryFile = Bun.file(entryPath);
+    expect(await entryFile.exists()).toBe(true);
+
+    // Entry script should proxy all built-in tools through bridge
+    const entryContent = await entryFile.text();
+    expect(entryContent).toContain("McpServer");
+    expect(entryContent).toContain("StdioServerTransport");
+    expect(entryContent).toContain("agent_inbox");
+    expect(entryContent).toContain("agent_send");
+    expect(entryContent).toContain("agent_todo");
+    expect(entryContent).toContain("agent_notes");
+    expect(entryContent).toContain("callBridge");
+    // Transport may be unix socket or TCP depending on environment
+    const hasUnix = entryContent.includes("BRIDGE_SOCKET");
+    const hasTcp = entryContent.includes("BRIDGE_URL");
+    expect(hasUnix || hasTcp).toBe(true);
+
+    await agent.stop();
+  });
+
+  test("includeBuiltins=false still starts bridge but no tools in entry script", async () => {
+    const loop = createMockCliLoop();
+    const agent = new Agent({
+      loop,
+      toolkit: { includeBuiltins: false },
+    });
+    await agent.init();
+
+    // Bridge should still be set up (transport is independent of tools)
+    expect(loop.mcpConfigPath).not.toBeNull();
+
+    const config = await Bun.file(loop.mcpConfigPath!).json();
+    const entryPath = config.mcpServers["agent-worker"].args[1];
+    const entryContent = await Bun.file(entryPath).text();
+
+    // Minimal script: no built-in tools
+    expect(entryContent).toContain("McpServer");
+    expect(entryContent).not.toContain("agent_inbox");
+    expect(entryContent).not.toContain("agent_todo");
+    expect(entryContent).not.toContain("callBridge");
+
+    await agent.stop();
+  });
+
+  test("stop cleans up temp MCP files", async () => {
+    const loop = createMockCliLoop();
+    const agent = new Agent({ loop });
+    await agent.init();
+
+    const configPath = loop.mcpConfigPath!;
+    expect(await Bun.file(configPath).exists()).toBe(true);
+
+    await agent.stop();
+
+    // Config file should be cleaned up
+    expect(await Bun.file(configPath).exists()).toBe(false);
+  });
+});
+
+// ── Fix #2: History pollution ──────────────────────────────────────────────
+
+describe("History content", () => {
+  test("history stores trigger content, not assembled prompt", async () => {
+    const loop = createMockLoop("I'll fix that!");
+    const agent = new Agent({
+      instructions: "You are a helpful assistant. Always be thorough.",
+      loop,
+      inbox: { debounceMs: 10 },
+    });
+    await agent.init();
+
+    agent.push("Fix the login bug");
+    await new Promise((r) => setTimeout(r, 200));
+
+    // History should contain the actual message, not the assembled prompt
+    const userTurns = agent.context.filter((t) => t.role === "user");
+    expect(userTurns).toHaveLength(1);
+
+    const userContent = userTurns[0]!.content;
+
+    // Should contain the actual message
+    expect(userContent).toContain("Fix the login bug");
+
+    // Should NOT contain system instructions or context engine artifacts
+    expect(userContent).not.toContain("You are a helpful assistant");
+    expect(userContent).not.toContain("📥 Inbox");
+    expect(userContent).not.toContain("📋 Todos");
+  });
+
+  test("history does not grow exponentially across runs", async () => {
+    const loop = createMockLoop("Done.");
+    const agent = new Agent({
+      instructions: "Be helpful.",
+      loop,
+      inbox: { debounceMs: 10 },
+    });
+    await agent.init();
+
+    // Send 3 messages sequentially
+    for (const msg of ["msg 1", "msg 2", "msg 3"]) {
+      agent.push(msg);
+      await new Promise((r) => setTimeout(r, 200));
+    }
+
+    // Each message should add 2 turns (user + assistant)
+    // Total should be 6, not exponentially growing
+    expect(agent.context.length).toBe(6);
+
+    // Each user turn should be short (just the message), not a massive assembled prompt
+    const userTurns = agent.context.filter((t) => t.role === "user");
+    for (const turn of userTurns) {
+      // A trigger content should be a single message line, not a multi-section prompt
+      expect(turn.content.length).toBeLessThan(100);
+    }
+  });
+
+  test("assembled prompt still includes full context for the LLM", async () => {
+    const loop = createMockLoop("Noted.");
+    const agent = new Agent({
+      instructions: "You are a coding assistant.",
+      loop,
+      inbox: { debounceMs: 10 },
+    });
+    await agent.init();
+
+    let lastPrompt = "";
+    agent.on("contextAssembled", (p) => {
+      lastPrompt = p.system;
+    });
+
+    agent.push("Add tests");
+    await new Promise((r) => setTimeout(r, 200));
+
+    // The assembled prompt (what the LLM actually sees) should have system context
+    expect(lastPrompt).toContain("You are a coding assistant");
+    expect(lastPrompt).toContain("Inbox");
+  });
+});
+
+// ── Fix #3: maxRuns with unread messages ────────────────────────────────────
+
+describe("maxRuns behavior", () => {
+  test("maxRuns resets counter for unread messages", async () => {
+    const loop = createMockLoop("Working on it.");
+    const agent = new Agent({
+      loop,
+      maxRuns: 2,
+      inbox: { debounceMs: 10 },
+    });
+    await agent.init();
+
+    // Push first batch
+    agent.push("first message");
+    await new Promise((r) => setTimeout(r, 150));
+
+    // Push more messages after first batch processes
+    agent.push("second message");
+    await new Promise((r) => setTimeout(r, 150));
+
+    agent.push("third message");
+    await new Promise((r) => setTimeout(r, 150));
+
+    // All messages should have been processed across multiple wake cycles
+    expect(loop.runCount).toBeGreaterThanOrEqual(3);
+    expect(agent.state).toBe("idle");
+  });
+
+  test("maxRuns: short messages auto-read in peek are processed in one run", async () => {
+    const loop = createMockLoop("Done.");
+    const agent = new Agent({
+      loop,
+      maxRuns: 1,
+      inbox: { debounceMs: 10 },
+    });
+    await agent.init();
+
+    // Short messages — auto-read in peek, so one run handles all
+    agent.push("msg 1");
+    agent.push("msg 2");
+    agent.push("msg 3");
+
+    await new Promise((r) => setTimeout(r, 300));
+
+    // All short messages are auto-read in peek during the first run,
+    // so the agent correctly finishes in 1 run
+    expect(loop.runCount).toBe(1);
+    expect(agent.state).toBe("idle");
+  });
+
+  test("messages arriving during processing are picked up", async () => {
+    const loop = createMockLoop("Noted.");
+    const agent = new Agent({
+      loop,
+      maxRuns: 10,
+      inbox: { debounceMs: 10 },
+    });
+    await agent.init();
+
+    // Push first message
+    agent.push("first");
+    await new Promise((r) => setTimeout(r, 100));
+
+    // Push second message after first is processed
+    agent.push("second");
+    await new Promise((r) => setTimeout(r, 200));
+
+    // Both should have been processed
+    expect(loop.runCount).toBeGreaterThanOrEqual(2);
+    expect(agent.state).toBe("idle");
+  });
+});

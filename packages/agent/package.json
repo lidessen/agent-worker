@@ -1,0 +1,15 @@
+{
+  "name": "@agent-worker/agent",
+  "version": "0.0.1",
+  "module": "src/index.ts",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@agent-worker/loop": "workspace:*",
+    "ai": "^6.0.116",
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "zod": "^3.25.0"
+  }
+}
