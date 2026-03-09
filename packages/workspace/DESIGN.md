@@ -1,45 +1,47 @@
 # @agent-worker/workspace
 
-Multi-agent workspace: single shared channel, @mention routing, priority inbox, resource system, and external platform bridges.
+Multi-agent workspace: named channels, @mention routing, independent inbox with selective ack, resource system, and external platform bridges.
 
 > Informed by moniro/workspace — battle-tested patterns adapted for agent-worker.
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                          Workspace                               │
-│                                                                  │
-│  ┌────────────────────────────────────────────────────────────┐  │
-│  │                     Channel (JSONL)                         │  │
-│  │  append-only log — single source of truth for all messages  │  │
-│  └──────┬──────────────────────────────┬──────────────────────┘  │
-│         │ filtered view                │ emit("message")         │
-│  ┌──────▼──────────────────┐    ┌──────▼──────────────────┐     │
-│  │   InboxStore            │    │   ChannelBridge          │     │
-│  │   per-agent cursors     │    │   anti-loop protection   │     │
-│  │   (seen / ack)          │    │                          │     │
-│  │   priority:             │    │  ┌────────┐ ┌────────┐  │     │
-│  │   immediate > normal    │    │  │Telegram│ │Webhook │  │     │
-│  │   > background          │    │  └────────┘ └────────┘  │     │
-│  └──────┬──────────────────┘    └─────────────────────────┘     │
-│         │ dequeue                                                │
-│  ┌──────▼──────────────────┐    ┌─────────────────────────┐     │
-│  │   InstructionQueue      │    │   ContextProvider        │     │
-│  │   3-lane priority       │    │   (composite)            │     │
-│  │   immediate│normal│bg   │    │                          │     │
-│  └──────┬──────────────────┘    │  Channel ─ Inbox         │     │
-│         │                       │  Document ─ Resource      │     │
-│  ┌──────▼──────┐ ┌──────┐     │  Status ─ Timeline        │     │
-│  │ AgentLoop A │ │Loop B│     └─────────────────────────┘     │
-│  └─────────────┘ └──────┘                                       │
-│                                                                  │
-│  ┌─────────────────────────┐    ┌─────────────────────────┐     │
-│  │   MCP Server (HTTP)     │    │   EventLog               │     │
-│  │   workspace tools for   │    │   unified event entry    │     │
-│  │   any backend           │    │   point                  │     │
-│  └─────────────────────────┘    └─────────────────────────┘     │
-└─────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│                          Workspace                                │
+│                                                                   │
+│  ┌────────────────────────────────────────────────────────────┐   │
+│  │               ChannelManager                                │   │
+│  │  #general (default)  #design  #code-review  ...             │   │
+│  │  each channel = independent append-only JSONL               │   │
+│  └──────┬──────────────────────────────┬──────────────────────┘   │
+│         │ new message event            │ emit("message")          │
+│  ┌──────▼──────────────────┐    ┌──────▼──────────────────┐      │
+│  │   InboxStore            │    │   ChannelBridge          │      │
+│  │   independent per-agent │    │   anti-loop protection   │      │
+│  │   message queue         │    │                          │      │
+│  │   • selective ack       │    │  ┌────────┐ ┌────────┐  │      │
+│  │   • peek all pending    │    │  │Telegram│ │Webhook │  │      │
+│  │   • skip / defer        │    │  └────────┘ └────────┘  │      │
+│  │   • priority tagging    │    └─────────────────────────┘      │
+│  └──────┬──────────────────┘                                      │
+│         │ dequeue                                                  │
+│  ┌──────▼──────────────────┐    ┌─────────────────────────┐      │
+│  │   InstructionQueue      │    │   ContextProvider        │      │
+│  │   3-lane priority       │    │   (composite)            │      │
+│  │   immediate│normal│bg   │    │                          │      │
+│  └──────┬──────────────────┘    │  Channels ─ Inbox        │      │
+│         │                       │  Document ─ Resource      │      │
+│  ┌──────▼──────┐ ┌──────┐     │  Status ─ Timeline        │      │
+│  │ AgentLoop A │ │Loop B│     └─────────────────────────┘      │
+│  └─────────────┘ └──────┘                                        │
+│                                                                   │
+│  ┌─────────────────────────┐    ┌─────────────────────────┐      │
+│  │   MCP Server (HTTP)     │    │   EventLog               │      │
+│  │   workspace tools for   │    │   unified event entry    │      │
+│  │   any backend           │    │   point                  │      │
+│  └─────────────────────────┘    └─────────────────────────┘      │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
 ## Core Concepts
@@ -53,14 +55,25 @@ Two composable primitives (factory pattern):
 1. `createWorkspace()` — context + MCP + event log (the shared infrastructure)
 2. `createWiredLoop()` — backend + workspace dir + loop (per agent)
 
-### Channel (Single, Append-only)
+### Channels (Named, Append-only)
 
-**One channel, not many.** All messages go into a single append-only JSONL log.
-Routing is done via `@mention` and DM (`to` field), not via channel namespaces.
+Multiple named channels, each an independent append-only JSONL log. Agents join
+channels to receive messages posted there. Channels replace moniro's "tag" concept
+— instead of tagging messages after the fact, the sender chooses the channel,
+which provides natural topic isolation with built-in subscription semantics.
 
-This is a deliberate simplification over the multi-channel design — moniro proved
-that a single channel + @mention routing covers all real-world coordination patterns
-while being drastically simpler to implement and reason about.
+**Default behavior:**
+- Every workspace has a `defaultChannel` (typically `"general"`)
+- Agents auto-join the default channel on registration
+- Agents can join/leave channels at any time via tools
+- Each channel is independently queryable
+
+**Why multi-channel over single-channel:**
+- Channels serve as topic namespaces (`#design`, `#code-review`, `#ops`)
+- Agents only receive messages from channels they've joined — natural noise filtering
+- Replaces moniro's tag system: `channel_send("#design", msg)` > `send(msg, tags: ["design"])`
+- Channel history is isolated — querying `#design` doesn't require filtering through unrelated messages
+- Complexity is modest: each channel is just a JSONL file, routing is `channel → subscribers`
 
 **Message structure:**
 
@@ -69,6 +82,7 @@ interface Message {
   id: string;              // nanoid
   timestamp: string;       // ISO
   from: string;            // agent name or "system"
+  channel: string;         // which channel this was posted to
   content: string;
   mentions: string[];      // extracted @mentions
   to?: string;             // DM recipient (private to sender + recipient)
@@ -78,29 +92,45 @@ interface Message {
 ```
 
 **Visibility rules:**
-- Public messages: visible to all agents
-- DMs (`to` field): visible only to sender and recipient
+- Channel messages: visible to all agents who have joined that channel
+- DMs (`to` field): visible only to sender and recipient (channel-independent)
 - System/debug/output: filtered out of agent inbox (operational noise)
 
 **SmartSend:** Messages longer than ~1200 chars are automatically stored as a
 Resource, with only a short reference posted to the channel. Prevents channel bloat.
 
-### Inbox (Filtered View of Channel)
+### Inbox (Independent Per-Agent Store)
 
-The inbox is **not a separate store**. It's a filtered projection of the channel
-with per-agent cursors.
+The inbox is an **independent message queue per agent**, not a cursor-based filtered
+view of the channel. When a channel message @mentions an agent or matches their
+subscriptions, a copy is enqueued into their inbox.
+
+**Why independent inbox over cursor-based:**
+- **Selective ack:** Agent can process message #3 before message #1 — not forced
+  into sequential order. A simple confirmation doesn't have to wait behind a complex task.
+- **Peek all pending:** Agent can see everything waiting and make its own scheduling
+  decisions, not just "next in line."
+- **Skip / defer:** Agent can explicitly defer a message for later without blocking
+  the queue. Useful for "I need more info before I can handle this."
+- **Priority tagging:** Each inbox entry carries a priority (immediate/normal/background)
+  that the InstructionQueue uses for scheduling. With cursors, priority must be
+  inferred from channel position.
 
 **How it works:**
-1. Channel has all messages (append-only)
-2. InboxStore filters: `mentions.includes(agent) || to === agent`
-3. Excludes: system, debug, output, tool_call, messages from self
-4. Two cursor types per agent:
-   - `seen` — loop picked it up, now processing
-   - `ack` — successfully processed, won't appear again
+1. Channel emits a `"message"` event on append
+2. InboxStore listens, checks: does this message @mention agent X? Is agent X
+   a member of this channel?
+3. If yes, enqueues a copy into agent X's inbox with priority classification
+4. Agent loop calls `my_inbox` to peek pending, `my_inbox_ack(id)` to acknowledge
 
-**Run epoch:** On workspace init, `markRunStart()` records the current channel
-position. Inbox ignores all messages before this point — prevents stale messages
-from previous runs triggering work.
+**Inbox entry lifecycle:**
+```
+pending → seen (loop picked it up) → acked (processed, removed)
+                                   → deferred (explicitly postponed, returns to pending)
+```
+
+**Run epoch:** On workspace init, `markRunStart()` clears stale inbox entries from
+previous runs. Only new messages trigger work.
 
 ### InstructionQueue (Priority Routing)
 
@@ -124,8 +154,8 @@ The ContextProvider interface is satisfied by composing independent stores:
 
 | Store          | Concern                                        | Storage         |
 |----------------|------------------------------------------------|-----------------|
-| `ChannelStore` | Append-only JSONL message log with EventEmitter | JSONL file      |
-| `InboxStore`   | Filtered view of channel + per-agent cursors    | JSON cursor file|
+| `ChannelStore` | Per-channel append-only JSONL + EventEmitter    | JSONL file/ch   |
+| `InboxStore`   | Independent per-agent message queue              | JSONL file/agent|
 | `DocumentStore`| Shared team documents (read/write/append)       | Raw text files  |
 | `ResourceStore`| Content-addressed blobs for large content       | Per-resource file|
 | `StatusStore`  | Agent state tracking (idle/running/stopped)     | JSON file       |
@@ -160,8 +190,8 @@ to the same MCP endpoint. This works with any backend — SDK, Claude CLI, Codex
 
 | Category      | Tools                                              |
 |---------------|----------------------------------------------------|
-| **Channel**   | `channel_send`, `channel_read`                     |
-| **Inbox**     | `my_inbox`, `my_inbox_ack`, `my_status_set`        |
+| **Channel**   | `channel_send`, `channel_read`, `channel_list`, `channel_join`, `channel_leave` |
+| **Inbox**     | `my_inbox`, `my_inbox_ack`, `my_inbox_defer`, `my_status_set` |
 | **Team**      | `team_members`, `team_doc_read/write/append/list/create` |
 | **Resource**  | `resource_create`, `resource_read`                 |
 | **Proposal**  | `team_proposal_create`, `team_vote`, `team_proposal_status/cancel` |
@@ -173,7 +203,7 @@ with the same MCP server — the server knows who's calling.
 
 ### ChannelBridge (External Platforms)
 
-Event-driven layer over ChannelStore for external platform integration.
+Event-driven layer over ChannelManager for external platform integration.
 
 ```
 External Platform
@@ -182,7 +212,7 @@ External Platform
 ChannelAdapter.start(bridge)     ← adapter subscribes to bridge
     │
     ▼
-ChannelBridge.send(from, content) ← injects external msg into channel
+ChannelBridge.send(channel, from, content) ← injects external msg into channel
     │
     ▼
 ChannelStore.append()            ← emits "message" event
@@ -255,8 +285,8 @@ packages/workspace/
 │   │   ├── provider.ts          # ContextProvider interface + composite impl
 │   │   ├── storage.ts           # StorageBackend (Memory, File)
 │   │   ├── stores/
-│   │   │   ├── channel.ts       # Append-only JSONL + EventEmitter
-│   │   │   ├── inbox.ts         # Filtered channel view + cursors
+│   │   │   ├── channel.ts       # Per-channel append-only JSONL + EventEmitter
+│   │   │   ├── inbox.ts         # Independent per-agent message queue
 │   │   │   ├── document.ts      # Shared team documents
 │   │   │   ├── resource.ts      # Content-addressed blobs
 │   │   │   ├── status.ts        # Agent status tracking
@@ -293,6 +323,8 @@ import { createWorkspace, createWiredLoop } from "@agent-worker/workspace";
 // 1. Create shared infrastructure
 const workspace = await createWorkspace({
   name: "code-review",
+  channels: ["general", "design", "code-review"],
+  defaultChannel: "general",
   agents: ["designer", "reviewer"],
   adapters: [
     new TelegramAdapter({ botToken: "...", chatId: "..." }),
@@ -318,8 +350,8 @@ const reviewerLoop = createWiredLoop({
 await designerLoop.start();
 await reviewerLoop.start();
 
-// 4. Send kickoff
-await workspace.contextProvider.smartSend("user", "@designer Please review this PR");
+// 4. Send kickoff (to #general by default)
+await workspace.contextProvider.smartSend("general", "user", "@designer Please review this PR");
 
 // 5. Shutdown
 await designerLoop.stop();
@@ -329,15 +361,17 @@ await workspace.shutdown();
 
 ## Design Decisions
 
-1. **Single channel, not many** — all messages flow through one append-only log.
-   Routing is via @mention and DM, not channel namespaces. moniro proved this
-   covers all real coordination patterns while being drastically simpler. Multiple
-   channels add complexity (which agent is in which channel? cross-channel awareness?)
-   without meaningful benefit.
+1. **Named channels replace tags** — moniro used a single channel + tags for topic
+   filtering. We use named channels instead (`#design`, `#code-review`). Channels
+   provide the same topic isolation with better semantics: senders choose the channel
+   explicitly, agents subscribe/unsubscribe, and history queries are naturally scoped.
+   The implementation cost is low (each channel = one JSONL file).
 
-2. **Inbox is a filtered view** — not a separate store. The channel is the single
-   source of truth. Inbox is just "channel messages that @mention me, filtered by
-   my cursor position." This eliminates data duplication and sync issues.
+2. **Independent inbox with selective ack** — the inbox is its own per-agent queue,
+   not a cursor-based filtered view of the channel. This lets agents peek all pending
+   messages, process them in any order, and defer messages they're not ready for.
+   The cursor approach (moniro) forces strict sequential processing — an agent can't
+   skip a complex task to handle a simple confirmation first.
 
 3. **Priority queue with preemption** — not all messages are equal. A DM or direct
    @mention should interrupt a low-priority background task. Three lanes
@@ -372,13 +406,14 @@ await workspace.shutdown();
 
 ## Changes from v1 Design
 
-Key changes based on reviewing moniro/workspace:
+Key changes from v1 design, informed by reviewing moniro/workspace:
 
-- ~~Multi-channel~~ → Single channel + @mention + DM
-- ~~Independent inbox store~~ → Inbox as filtered view of channel
+- Flat channel list retained, now with explicit join/leave + per-channel JSONL
+- Channels replace moniro's tag concept — topic routing via channel membership
+- Independent inbox (not moniro's cursor-based filtered view) — selective ack, defer, peek
 - ~~No priority~~ → Three-lane InstructionQueue with cooperative preemption
 - ~~SharedMemory KV~~ → DocumentStore + ResourceStore (more structured)
-- ~~MessageBus + MentionRouter~~ → Channel + InboxStore + MCP tools (simpler)
+- ~~MessageBus + MentionRouter~~ → ChannelManager + InboxStore + MCP tools (simpler)
 - ~~Connector abstraction~~ → ChannelBridge + ChannelAdapter (event-driven)
 - ~~Monolithic Workspace class~~ → createWorkspace() + createWiredLoop() factory
 - ~~Tool injection only~~ → MCP server (HTTP) as universal transport
