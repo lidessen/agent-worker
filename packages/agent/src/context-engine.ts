@@ -2,13 +2,12 @@ import type {
   Turn,
   AssembledPrompt,
   ContextConfig,
-  TodoItem,
-  MemoryEntry,
 } from "./types.ts";
 import type { Inbox } from "./inbox.ts";
 import type { TodoManager } from "./todo.ts";
 import type { NotesStorage } from "./types.ts";
 import type { MemoryManager } from "./memory.ts";
+import type { ReminderManager } from "./reminder.ts";
 
 export interface ContextSources {
   instructions: string;
@@ -16,8 +15,9 @@ export interface ContextSources {
   todos: TodoManager;
   notes: NotesStorage;
   memory: MemoryManager | null;
+  reminders: ReminderManager;
   history: Turn[];
-  currentFocus: "next_message" | "next_todo" | "idle";
+  currentFocus: "next_message" | "next_todo" | "waiting_reminder" | "idle";
 }
 
 function defaultTokenEstimator(text: string): number {
@@ -59,7 +59,13 @@ export class ContextEngine {
     const todoText = sources.todos.format();
     systemParts.push(`📋 Todos:\n${todoText}`);
 
-    // 5. Note keys
+    // 5. Pending reminders
+    const reminderText = sources.reminders.formatPending();
+    if (reminderText) {
+      systemParts.push(reminderText);
+    }
+
+    // 6. Note keys
     const noteKeys = await sources.notes.list();
     if (noteKeys.length > 0) {
       systemParts.push(`📝 Notes: ${noteKeys.join(", ")}`);
@@ -68,7 +74,7 @@ export class ContextEngine {
     const system = systemParts.join("\n\n");
     budget -= this.estimateTokens(system);
 
-    // 6. Memory (up to memoryBudget fraction of remaining)
+    // 7. Memory (up to memoryBudget fraction of remaining)
     let memoryText = "";
     if (sources.memory && budget > 0) {
       const memBudget = Math.floor(budget * this.memoryBudget);
@@ -86,7 +92,7 @@ export class ContextEngine {
       }
     }
 
-    // 7. Conversation history (fills remaining budget, most recent first)
+    // 8. Conversation history (fills remaining budget, most recent first)
     const turns: Turn[] = [];
     let historyTokens = 0;
     for (let i = sources.history.length - 1; i >= 0 && budget > 0; i--) {
@@ -118,6 +124,8 @@ export class ContextEngine {
         return "🎯 Focus: New messages arrived — review your inbox.";
       case "next_todo":
         return "🎯 Focus: Continue working on your pending todos.";
+      case "waiting_reminder":
+        return "🎯 Focus: Waiting for pending reminders. Continue with available work or wait.";
       case "idle":
         return null;
     }

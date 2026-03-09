@@ -18,6 +18,7 @@ import type { TodoManager } from "./todo.ts";
 import type { NotesStorage } from "./types.ts";
 import type { MemoryManager } from "./memory.ts";
 import type { SendGuard } from "./send.ts";
+import type { ReminderManager } from "./reminder.ts";
 
 // ── Deps ────────────────────────────────────────────────────────────────────
 
@@ -27,6 +28,7 @@ export interface ToolHandlerDeps {
   notes: NotesStorage;
   memory: MemoryManager | null;
   sendGuard: SendGuard;
+  reminders: ReminderManager;
 }
 
 // ── Tool definitions ────────────────────────────────────────────────────────
@@ -43,7 +45,7 @@ export interface ToolDef {
 export const BUILTIN_TOOLS: Record<string, ToolDef> = {
   agent_inbox: {
     description:
-      "Interact with the message inbox. Actions: peek (refresh inbox summary), read (get full message by ID), wait (block until new message arrives or timeout).",
+      "Interact with the message inbox. Actions: peek (refresh inbox summary), read (get full message by ID), wait (set a non-blocking reminder — you'll be notified when a new message arrives or timeout expires, and can continue working in the meantime).",
     parameters: {
       action: z.enum(["peek", "read", "wait"]),
       id: z.string().optional().describe("Message ID (for read action)"),
@@ -77,6 +79,17 @@ export const BUILTIN_TOOLS: Record<string, ToolDef> = {
       content: z.string().optional().describe("Note content (for write)"),
     },
   },
+  agent_reminder: {
+    description:
+      "Set a non-blocking async reminder. The agent continues working; when the timeout expires, a notification is injected. Use this to schedule follow-ups, periodic checks, or prevent going idle while waiting for an external event. Actions: set (create reminder), list (show pending), cancel (cancel by ID).",
+    parameters: {
+      action: z.enum(["set", "list", "cancel"]),
+      label: z.string().optional().describe("Reminder label (for set action)"),
+      timeoutMs: z.number().optional().describe("Timeout in ms (for set action)"),
+      description: z.string().optional().describe("Human-readable description of what you're waiting for"),
+      id: z.string().optional().describe("Reminder ID (for cancel action)"),
+    },
+  },
   agent_memory: {
     description:
       "Search your memories. Read-only — memories are managed automatically.",
@@ -96,7 +109,7 @@ export type ToolHandler = (args: Record<string, unknown>) => Promise<string>;
  * When `deps.memory` is null, `agent_memory` is omitted from the map.
  */
 export function createToolHandlers(deps: ToolHandlerDeps): Record<string, ToolHandler> {
-  const { inbox, todos, notes, memory, sendGuard } = deps;
+  const { inbox, todos, notes, memory, sendGuard, reminders } = deps;
 
   const handlers: Record<string, ToolHandler> = {
     agent_inbox: async ({ action, id, timeoutMs }) => {
@@ -108,8 +121,21 @@ export function createToolHandlers(deps: ToolHandlerDeps): Record<string, ToolHa
           const msg = inbox.read(id as string);
           return msg ? JSON.stringify(msg) : `Error: message ${id} not found`;
         }
-        case "wait":
-          return JSON.stringify(await inbox.wait(timeoutMs as number | undefined));
+        case "wait": {
+          // Non-blocking: register a reminder and return immediately
+          const reminder = reminders.add("inbox_wait", {
+            timeoutMs: timeoutMs as number | undefined,
+            description: "Waiting for new inbox message",
+          });
+          return JSON.stringify({
+            status: "reminder_set",
+            reminderId: reminder.id,
+            message:
+              "Reminder registered. You will be notified when a new message arrives" +
+              (timeoutMs ? ` or after ${timeoutMs}ms` : "") +
+              ". Continue with other work — do not block.",
+          });
+        }
         default:
           return "Unknown action";
       }
@@ -157,6 +183,36 @@ export function createToolHandlers(deps: ToolHandlerDeps): Record<string, ToolHa
           if (!key) return "Error: key required";
           await notes.delete(key as string);
           return `Deleted: ${key}`;
+        }
+        default:
+          return "Unknown action";
+      }
+    },
+
+    agent_reminder: async ({ action, label, timeoutMs, description, id }) => {
+      switch (action) {
+        case "set": {
+          if (!label) return "Error: label required";
+          const r = reminders.add(label as string, {
+            timeoutMs: timeoutMs as number | undefined,
+            description: description as string | undefined,
+          });
+          return JSON.stringify({
+            status: "reminder_set",
+            reminderId: r.id,
+            label,
+            message:
+              "Reminder registered." +
+              (timeoutMs ? ` Will fire after ${timeoutMs}ms if not completed sooner.` : " No timeout — will persist until manually fired or cancelled.") +
+              " Continue working — you'll be notified when it fires.",
+          });
+        }
+        case "list":
+          return reminders.formatPending() || "No pending reminders.";
+        case "cancel": {
+          if (!id) return "Error: id required";
+          const fired = reminders.fire(id as string, "completed", "Cancelled by agent");
+          return fired ? `Cancelled reminder ${id}` : `Error: reminder ${id} not found or already fired`;
         }
         default:
           return "Unknown action";

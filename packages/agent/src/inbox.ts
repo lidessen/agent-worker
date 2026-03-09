@@ -1,16 +1,19 @@
-import type { InboxMessage, InboxConfig, WaitResult, Message } from "./types.ts";
+import type { InboxMessage, InboxConfig, Message } from "./types.ts";
+import type { ReminderManager } from "./reminder.ts";
 
 let nextMsgId = 1;
 
 export class Inbox {
   private messages: InboxMessage[] = [];
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
-  private waitResolvers: Array<() => void> = [];
   private messageCounter = 0;
   private lastPeekCounter = 0;
 
   private readonly debounceMs: number;
   private readonly peekThreshold: number;
+
+  /** Optional reminder manager — set via setReminders(). */
+  private reminders: ReminderManager | null = null;
 
   constructor(
     config: InboxConfig = {},
@@ -18,6 +21,11 @@ export class Inbox {
   ) {
     this.debounceMs = config.debounceMs ?? 200;
     this.peekThreshold = config.peekThreshold ?? 200;
+  }
+
+  /** Wire the reminder manager (called once during Agent init). */
+  setReminders(reminders: ReminderManager): void {
+    this.reminders = reminders;
   }
 
   /** Push a message into the inbox. Triggers debounced wake if agent is idle. */
@@ -32,11 +40,10 @@ export class Inbox {
     this.messages.push(msg);
     this.messageCounter++;
 
-    // Resolve any pending wait()
-    for (const resolve of this.waitResolvers) {
-      resolve();
+    // Fire any pending inbox_wait reminders — message arrived
+    if (this.reminders) {
+      this.reminders.fireByLabel("inbox_wait", "completed", `New message: ${msg.id}`);
     }
-    this.waitResolvers = [];
 
     // Debounced wake
     this.scheduleDebouncedWake();
@@ -110,35 +117,6 @@ export class Inbox {
     });
 
     return `📥 Inbox (${unread.length} unread):\n${lines.join("\n")}`;
-  }
-
-  /** Wait for a new message to arrive, or timeout */
-  wait(timeoutMs?: number): Promise<WaitResult> {
-    return new Promise<WaitResult>((resolve) => {
-      // Check if already have unread
-      if (this.unread.length > 0) {
-        resolve({ timeout: false });
-        return;
-      }
-
-      let timer: ReturnType<typeof setTimeout> | null = null;
-
-      const onMessage = () => {
-        if (timer) clearTimeout(timer);
-        resolve({ timeout: false });
-      };
-
-      this.waitResolvers.push(onMessage);
-
-      if (timeoutMs !== undefined) {
-        timer = setTimeout(() => {
-          // Remove resolver
-          const idx = this.waitResolvers.indexOf(onMessage);
-          if (idx >= 0) this.waitResolvers.splice(idx, 1);
-          resolve({ timeout: true });
-        }, timeoutMs);
-      }
-    });
   }
 
   /** Count of unread messages */

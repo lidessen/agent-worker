@@ -4,6 +4,7 @@ import { Inbox } from "../src/inbox.ts";
 import { TodoManager } from "../src/todo.ts";
 import { InMemoryNotesStorage } from "../src/notes.ts";
 import { ContextEngine } from "../src/context-engine.ts";
+import { ReminderManager } from "../src/reminder.ts";
 import type { AgentLoop } from "../src/types.ts";
 import type { LoopRun, LoopResult, LoopEvent, LoopStatus } from "@agent-worker/loop";
 
@@ -59,6 +60,8 @@ function createCoordinator(loop?: ReturnType<typeof createMockLoop>) {
   const notes = new InMemoryNotesStorage();
   const contextEngine = new ContextEngine();
 
+  const reminders = new ReminderManager();
+
   return {
     coordinator: new RunCoordinator({
       loop: loop ?? createMockLoop(),
@@ -67,11 +70,13 @@ function createCoordinator(loop?: ReturnType<typeof createMockLoop>) {
       notes,
       contextEngine,
       memory: null,
+      reminders,
       instructions: "Be helpful.",
       maxRuns: 10,
     }),
     inbox,
     todos,
+    reminders,
   };
 }
 

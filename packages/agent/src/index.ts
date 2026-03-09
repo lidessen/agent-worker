@@ -8,6 +8,7 @@ export { InMemoryNotesStorage } from "./notes.ts";
 export { SendGuard } from "./send.ts";
 export { ContextEngine } from "./context-engine.ts";
 export { MemoryManager, InMemoryMemoryStorage } from "./memory.ts";
+export { ReminderManager } from "./reminder.ts";
 export { RunCoordinator } from "./run-coordinator.ts";
 
 // ── Bridge (CLI loop infrastructure) ────────────────────────────────────────
@@ -34,6 +35,7 @@ export type {
   InboxMessage,
   InboxConfig,
   WaitResult,
+  ReminderResult,
   TodoItem,
   NotesStorage,
   MemoryEntry,
