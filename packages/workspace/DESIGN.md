@@ -439,13 +439,228 @@ await workspace.shutdown();
 9. **StorageBackend abstraction** — `MemoryStorage` for tests, `FileStorage` for production.
    All stores use the same interface, so swapping persistence is a one-line change.
 
+## Open Decisions
+
+### OD-1: Multi-Instance Isolation — tag vs channel vs scoped-channel
+
+同一个 workflow 需要跑多个实例（如同时 review PR-123 和 PR-456）。三种方案：
+
+#### 方案 A：Instance Tag（moniro 方式，当前设计）
+
+每个实例是完全独立的 workspace 进程。
+
+```
+aw run review.yaml --tag pr-123  → /tmp/aw-review-pr-123/ (独立进程)
+aw run review.yaml --tag pr-456  → /tmp/aw-review-pr-456/ (独立进程)
+```
+
+**模型：** 1 tag = 1 workspace 进程 = 完全隔离（channels, inbox, documents, resources 全部独立）
+
+```
+┌─ workspace (tag=pr-123) ──┐    ┌─ workspace (tag=pr-456) ──┐
+│  #general  #code-review   │    │  #general  #code-review   │
+│  designer ←→ reviewer     │    │  designer ←→ reviewer     │
+│  documents, resources     │    │  documents, resources     │
+└───────────────────────────┘    └───────────────────────────┘
+         完全隔离，互不感知
+```
+
+**优点：**
+- 最简单 — 隔离靠文件系统目录，零额外抽象
+- 故障隔离 — 一个实例挂了不影响其他
+- Agent 身份清晰 — 每个实例有自己的 "designer"，独立 context window
+- 生命周期简单 — 关掉一个实例 = kill 一个进程
+
+**缺点：**
+- 跨实例协调不可能 — pr-123 的 agent 无法感知 pr-456 的存在
+- 资源重复 — 每个实例独立加载模型、启动 MCP server
+- 无法共享知识 — 团队规范、代码风格等每个实例各存一份
+- 需要外部机制（supervisor workspace + IPC）才能做跨实例编排
+
+---
+
+#### 方案 B：Channel 替代 Tag（channel = instance boundary）
+
+一个 workspace 进程，每个 "实例" 是一个 channel。Context 分为 workspace-level 和 channel-level。
+
+```
+aw run review.yaml --instances pr-123,pr-456
+# 一个 workspace 进程
+# 自动创建 #pr-123, #pr-456 channels
+```
+
+**模型：** 1 workspace + N channels。Workspace-level context 共享，channel-level context 隔离。
+
+```
+┌─ workspace ──────────────────────────────────────┐
+│                                                   │
+│  workspace-level (shared):                        │
+│    team roster, code standards, shared memory      │
+│                                                   │
+│  ┌─ #pr-123 ──────────┐  ┌─ #pr-456 ──────────┐ │
+│  │ messages            │  │ messages            │ │
+│  │ channel documents   │  │ channel documents   │ │
+│  │ channel resources   │  │ channel resources   │ │
+│  └────────────────────┘  └────────────────────┘ │
+│                                                   │
+│  designer (joins #pr-123)                         │
+│  reviewer (joins #pr-456)                         │
+│  supervisor (joins both)    ← 跨实例协调          │
+└──────────────────────────────────────────────────┘
+```
+
+**优点：**
+- 跨实例协调原生支持 — supervisor 加入多个 channel 即可
+- 共享知识不重复 — workspace-level documents 所有 channel 可见
+- 资源效率 — 一个进程、一个 MCP server
+- 概念更少 — channel 统一了"话题"和"实例"两个概念
+
+**缺点：**
+- **Agent 身份问题** — "designer" 是一个 agent 还是多个？
+  - 如果一个 agent 加入多个 channel → LLM context window 是单线程的，无法同时思考两个 PR，context 互相污染
+  - 如果每个 channel 独立启一个 agent loop → 本质上就是方案 A 换了个名字，但更复杂
+- **Store 双层化** — 每个 store 操作都要区分 scope：
+  - `team_doc_read("spec.md")` → workspace-level 还是 channel-level？
+  - `resource_create(content)` → 归哪个 channel？
+  - `my_status_set("busy")` → 在哪个 channel 里 busy？
+  - 这是 pervasive complexity，渗透到每个 context 操作
+- **生命周期模糊** — "关掉 pr-123 实例" = 删 channel？agent 还在跑。channel-scoped 资源怎么 GC？
+- **故障不隔离** — 共享进程，一个 channel 出问题可能影响所有
+
+---
+
+#### 方案 C：Scoped Channel（混合方案）
+
+保留 --tag 做进程级隔离，但允许 workspace 内 channel 携带 scope metadata。
+跨实例协调通过独立的 "coordinator workspace" 实现。
+
+```
+# 独立实例（进程隔离）
+aw run review.yaml --tag pr-123
+aw run review.yaml --tag pr-456
+
+# 独立的协调器 workspace，通过文件系统读取各实例状态
+aw run coordinator.yaml --watch /tmp/aw-review-*/
+```
+
+**模型：** Tag 做隔离 + 外部协调层做跨实例感知。
+
+```
+┌─ coordinator workspace ────────────┐
+│  supervisor agent                   │
+│  reads: /tmp/aw-review-*/status    │
+│  can send messages to instances     │
+└─────────────────────────────────────┘
+        │ file watch / API
+┌───────▼───────┐  ┌────────────────┐
+│ tag=pr-123    │  │ tag=pr-456     │
+│ (isolated)    │  │ (isolated)     │
+└───────────────┘  └────────────────┘
+```
+
+**优点：**
+- 保留方案 A 的简单性和隔离性
+- 跨实例协调可选（不需要时零开销）
+- 不需要 store 双层化
+- 协调器本身也是一个 workspace，复用全部基础设施
+
+**缺点：**
+- 跨实例协调是"外挂"的，不如方案 B 自然
+- 协调器和实例之间的通信需要额外协议（文件、HTTP、IPC）
+- 对简单场景（"只是想让 supervisor 看看两个 PR"）过于重型
+
+---
+
+#### 决策维度
+
+| 维度 | 方案 A (tag) | 方案 B (channel=instance) | 方案 C (tag+coordinator) |
+|------|-------------|--------------------------|--------------------------|
+| 实现复杂度 | 低 | 高（store 双层化） | 中（需要协调协议） |
+| 隔离性 | 强（进程级） | 弱（共享进程） | 强 |
+| 跨实例协调 | 不支持 | 原生 | 可选外挂 |
+| Agent 身份 | 清晰（1:1） | 模糊（1:N?） | 清晰 |
+| 资源效率 | 低（N 个进程） | 高（1 个进程） | 低 |
+| 概念数量 | tag + channel | channel only | tag + channel + coordinator |
+| 生命周期管理 | 简单 | 复杂 | 简单 |
+
+**待决定。** 需要更多团队输入。
+
+---
+
+### OD-2: Inbox — independent queue vs cursor-based filtered view
+
+Agent 从 channel 收到消息后，如何管理待处理队列？
+
+#### 方案 A：独立 inbox queue（当前设计）
+
+Channel 消息触发 copy 到 agent 独立的 inbox 队列。Agent 可以 peek all、selective ack、defer。
+
+```
+Channel: [msg1, msg2, msg3, msg4, msg5]
+                ↓ filter (@mentions me)
+Agent inbox: [msg2, msg4]  ← 独立队列，可以先处理 msg4 再处理 msg2
+```
+
+**优点：**
+- 灵活 — agent 自主决定处理顺序
+- Selective ack — 跳过复杂任务先处理简单确认
+- Defer — "现在不处理，稍后再看"
+
+**缺点：**
+- 数据冗余 — 消息在 channel 和 inbox 中各存一份
+- 一致性风险 — channel 消息被修改/删除后 inbox 副本怎么办？（虽然 channel 是 append-only 的，但仍是两份数据）
+- 实现复杂度 — inbox 是独立的 JSONL 文件，需要自己的写入/读取/GC 逻辑
+
+#### 方案 B：Cursor-based filtered view（moniro 方式）
+
+Inbox 不是独立存储，是 channel 的 filtered view + cursor。
+
+```
+Channel: [msg1, msg2, msg3, msg4, msg5]
+                    ↑ cursor (已处理到 msg2)
+Agent sees: [msg3, msg4, msg5] filtered by @mention
+```
+
+**优点：**
+- 单一数据源 — channel 是唯一真相，零冗余
+- 实现简单 — 只需维护一个 cursor position
+- 一致性保证 — 不存在两份数据不同步的问题
+
+**缺点：**
+- 严格顺序 — 不能跳过 msg3 先处理 msg5
+- 无法 defer — cursor 只能前进不能后退
+- 阻塞 — 一条复杂消息堵住后面所有简单消息
+
+#### 方案 C：Cursor + skip list
+
+Cursor-based，但额外维护一个 skip set。
+
+```
+Channel: [msg1, msg2, msg3, msg4, msg5]
+                    ↑ cursor=msg2
+Skip set: {msg3}   ← 标记为跳过，稍后回来
+Agent sees: [msg4, msg5]，msg3 在 deferred 列表里
+```
+
+**优点：**
+- 单一数据源（同 B）
+- 支持 skip/defer（部分解决 B 的刚性问题）
+- 实现比方案 A 简单（不需要独立 store）
+
+**缺点：**
+- 仍然不能自由排序（只能 skip，不能"先处理 msg5 再处理 msg4"）
+- Skip set 需要持久化和 GC
+
+**待决定。** 需要更多团队输入。
+
+---
+
 ## Changes from v1 Design
 
 Key changes from v1 design, informed by reviewing moniro/workspace:
 
 - Flat channel list retained, now with explicit join/leave + per-channel JSONL
 - Instance tag from moniro retained — `--tag` for multi-instance isolation of same workflow
-- Independent inbox (not moniro's cursor-based filtered view) — selective ack, defer, peek
 - ~~No priority~~ → Three-lane InstructionQueue with cooperative preemption
 - ~~SharedMemory KV~~ → DocumentStore + ResourceStore (more structured)
 - ~~MessageBus + MentionRouter~~ → ChannelManager + InboxStore + MCP tools (simpler)
