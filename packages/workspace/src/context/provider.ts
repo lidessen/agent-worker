@@ -54,9 +54,7 @@ export class CompositeContextProvider implements ContextProvider {
 
     // Only "message" kind goes to channels (Invariant #12)
     if (kind !== "message") {
-      throw new Error(
-        `Cannot send kind="${kind}" to channel. Only "message" kind is allowed.`,
-      );
+      throw new Error(`Cannot send kind="${kind}" to channel. Only "message" kind is allowed.`);
     }
 
     let finalContent = content;

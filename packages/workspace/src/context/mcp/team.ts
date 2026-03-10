@@ -9,10 +9,7 @@ export interface TeamTools {
   team_doc_create: (args: { name: string; content: string }) => Promise<string>;
 }
 
-export function createTeamTools(
-  agentName: string,
-  provider: ContextProvider,
-): TeamTools {
+export function createTeamTools(agentName: string, provider: ContextProvider): TeamTools {
   return {
     async team_members() {
       const members = await provider.status.getAll();

@@ -5,10 +5,7 @@ export interface ResourceTools {
   resource_read: (args: { id: string }) => Promise<string>;
 }
 
-export function createResourceTools(
-  agentName: string,
-  provider: ContextProvider,
-): ResourceTools {
+export function createResourceTools(agentName: string, provider: ContextProvider): ResourceTools {
   return {
     async resource_create(args) {
       const resource = await provider.resources.create(args.content, agentName);

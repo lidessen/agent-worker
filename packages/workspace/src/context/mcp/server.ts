@@ -54,9 +54,7 @@ export function createWorkspaceTools(
 
     // Resource tools
     resource_create: (args) =>
-      resourceTools.resource_create(
-        args as Parameters<typeof resourceTools.resource_create>[0],
-      ),
+      resourceTools.resource_create(args as Parameters<typeof resourceTools.resource_create>[0]),
     resource_read: (args) =>
       resourceTools.resource_read(args as Parameters<typeof resourceTools.resource_read>[0]),
   };

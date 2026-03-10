@@ -1,10 +1,5 @@
 import { test, expect, describe } from "bun:test";
-import {
-  assemblePrompt,
-  DEFAULT_SECTIONS,
-  soulSection,
-  inboxSection,
-} from "../src/loop/prompt.ts";
+import { assemblePrompt, DEFAULT_SECTIONS, soulSection, inboxSection } from "../src/loop/prompt.ts";
 import { MemoryStorage } from "../src/context/storage.ts";
 import { createWorkspace } from "../src/factory.ts";
 

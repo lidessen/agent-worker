@@ -4,6 +4,7 @@ Interactive CLI-based tests for the full Agent lifecycle across all available pr
 Tests the Agent wrapper (not just the loop): init → push message → process → verify state → stop.
 
 > A2A tests are manual/interactive. Each test case specifies:
+>
 > - **Input:** exact CLI commands
 > - **Expected:** observable output pattern (grep-able)
 > - **Timeout:** max wait before marking as fail
@@ -46,12 +47,12 @@ aw state > "a2a-artifacts/${TEST_ID}_state.txt"
 
 ## 1. Preflight — Provider Availability
 
-| Field    | Value |
-|----------|-------|
-| Input    | `aw start` + `aw stop` per provider |
+| Field    | Value                                       |
+| -------- | ------------------------------------------- |
+| Input    | `aw start` + `aw stop` per provider         |
 | Expected | Daemon starts if API key / CLI is available |
-| Timeout  | 5s per provider |
-| Retry    | No |
+| Timeout  | 5s per provider                             |
+| Retry    | No                                          |
 
 ```sh
 # Test each provider (skip if key/CLI not available):
@@ -74,11 +75,11 @@ done
 
 ## 2. Simple Message → LLM Response
 
-| Field    | Value |
-|----------|-------|
-| Input    | `aw send "Reply with exactly: AGENT_A2A_OK"` |
-| Expected | `recv` output contains string `AGENT_A2A_OK` |
-| Timeout  | 10s (ai-sdk), 20s (CLI runtimes) |
+| Field    | Value                                         |
+| -------- | --------------------------------------------- |
+| Input    | `aw send "Reply with exactly: AGENT_A2A_OK"`  |
+| Expected | `recv` output contains string `AGENT_A2A_OK`  |
+| Timeout  | 10s (ai-sdk), 20s (CLI runtimes)              |
 | Retry    | Yes (LLM may not follow instructions exactly) |
 
 ```sh
@@ -91,6 +92,7 @@ aw stop
 ```
 
 **Pass criteria:**
+
 - `grep` exits 0 (marker found)
 - At least one text response block in `recv`
 
@@ -100,12 +102,12 @@ aw stop
 
 ## 3. State Transitions
 
-| Field    | Value |
-|----------|-------|
-| Input    | `aw send "Say hi"` with `log --follow` |
+| Field    | Value                                                       |
+| -------- | ----------------------------------------------------------- |
+| Input    | `aw send "Say hi"` with `log --follow`                      |
 | Expected | Log shows waiting → processing → run_start → run_end → idle |
-| Timeout  | 15s (ai-sdk), 25s (CLI) |
-| Retry    | No |
+| Timeout  | 15s (ai-sdk), 25s (CLI)                                     |
+| Retry    | No                                                          |
 
 ```sh
 aw start --model anthropic:claude-haiku-4-5-20251001
@@ -123,6 +125,7 @@ grep "state_change\|run_start\|run_end" /tmp/a2a_t3_log.txt
 ```
 
 **Pass criteria:**
+
 1. `processing` state appears after message
 2. `run_start` appears
 3. `run_end` appears after `run_start`
@@ -133,13 +136,13 @@ grep "state_change\|run_start\|run_end" /tmp/a2a_t3_log.txt
 
 ## 4. Tool Call — agent_notes
 
-| Field    | Value |
-|----------|-------|
-| Input    | `aw send 'Save a note: key="ping" content="pong"'` |
+| Field    | Value                                                           |
+| -------- | --------------------------------------------------------------- |
+| Input    | `aw send 'Save a note: key="ping" content="pong"'`              |
 | Expected | `log` shows `tool_call_start` + `tool_call_end` for agent_notes |
-| Timeout  | 20s |
-| Retry    | Yes (LLM may not call tool) |
-| Requires | Real LLM with tool support |
+| Timeout  | 20s                                                             |
+| Retry    | Yes (LLM may not call tool)                                     |
+| Requires | Real LLM with tool support                                      |
 
 ```sh
 aw start --model anthropic:claude-sonnet-4-20250514
@@ -156,6 +159,7 @@ echo "agent_notes calls: $STARTS"
 ```
 
 **Pass criteria:**
+
 - At least one `tool_call_start` with name containing `agent_notes`
 - Matching `tool_call_end` exists
 - `recv` shows confirmation text
@@ -166,12 +170,12 @@ echo "agent_notes calls: $STARTS"
 
 ## 5. Context Assembly — Custom Instructions
 
-| Field    | Value |
-|----------|-------|
+| Field    | Value                                                           |
+| -------- | --------------------------------------------------------------- |
 | Input    | Start with `--instructions "CUSTOM_MARKER_12345"`, send message |
 | Expected | `context_assembled` log entry contains marker in `system` field |
-| Timeout  | 15s |
-| Retry    | No |
+| Timeout  | 15s                                                             |
+| Retry    | No                                                              |
 
 ```sh
 aw start --model anthropic:claude-haiku-4-5-20251001 --instructions "CUSTOM_MARKER_12345"
@@ -186,18 +190,19 @@ echo "exit: $?"    # 0 = PASS
 ```
 
 **Pass criteria:**
+
 - `grep` exits 0 (marker found in `context_assembled` entry's `system` field)
 
 ---
 
 ## 6. History Persistence Across Runs
 
-| Field    | Value |
-|----------|-------|
+| Field    | Value                                                      |
+| -------- | ---------------------------------------------------------- |
 | Input    | Two messages in sequence, check history count between them |
-| Expected | History turn count increases |
-| Timeout  | 15s per cycle |
-| Retry    | No |
+| Expected | History turn count increases                               |
+| Timeout  | 15s per cycle                                              |
+| Retry    | No                                                         |
 
 ```sh
 aw start --model anthropic:claude-haiku-4-5-20251001
@@ -216,18 +221,19 @@ echo "History: $H1 → $H2"
 ```
 
 **Pass criteria:**
+
 - H2 > H1
 
 ---
 
 ## 7. Stop During Processing
 
-| Field    | Value |
-|----------|-------|
-| Input    | Send long prompt, stop after 2s |
+| Field    | Value                                           |
+| -------- | ----------------------------------------------- |
+| Input    | Send long prompt, stop after 2s                 |
 | Expected | `stop` completes within 5s, no orphan processes |
-| Timeout  | 10s |
-| Retry    | No |
+| Timeout  | 10s                                             |
+| Retry    | No                                              |
 
 ```sh
 aw start --model anthropic:claude-haiku-4-5-20251001
@@ -240,6 +246,7 @@ pgrep -f "aw.*start" | wc -l    # should be 0
 ```
 
 **Pass criteria:**
+
 - `stop` completes in < 5s
 - `state` shows no running daemon
 - No orphan processes
@@ -248,12 +255,12 @@ pgrep -f "aw.*start" | wc -l    # should be 0
 
 ## 8. Inbox Message Tracking
 
-| Field    | Value |
-|----------|-------|
-| Input    | `aw send --from test-user "Hello from user"` |
+| Field    | Value                                                                                  |
+| -------- | -------------------------------------------------------------------------------------- |
+| Input    | `aw send --from test-user "Hello from user"`                                           |
 | Expected | `state` inbox shows `from=test-user`; `log` has `message_received` with correct fields |
-| Timeout  | 15s |
-| Retry    | No |
+| Timeout  | 15s                                                                                    |
+| Retry    | No                                                                                     |
 
 ```sh
 aw start --model anthropic:claude-haiku-4-5-20251001
@@ -267,6 +274,7 @@ aw stop
 ```
 
 **Pass criteria:**
+
 - `state` shows message with `from=test-user`
 - `log` has `message_received` event with `from: "test-user"`
 
@@ -274,12 +282,12 @@ aw stop
 
 ## 9. Multi-Provider Cross-Verification
 
-| Field    | Value |
-|----------|-------|
+| Field    | Value                                      |
+| -------- | ------------------------------------------ |
 | Input    | Same prompt across all available providers |
-| Expected | Each returns non-empty text response |
-| Timeout  | 15s (ai-sdk), 25s (CLI) |
-| Retry    | Yes (per provider) |
+| Expected | Each returns non-empty text response       |
+| Timeout  | 15s (ai-sdk), 25s (CLI)                    |
+| Retry    | Yes (per provider)                         |
 
 ```sh
 # AI SDK providers:
@@ -308,12 +316,12 @@ done
 
 ## Timeout Reference
 
-| Runtime        | Simple prompt | Tool call | Cancel |
-|----------------|---------------|-----------|--------|
-| ai-sdk         | 10s           | 20s       | 10s    |
-| claude-code    | 20s           | 25s       | 10s    |
-| codex          | 20s           | 25s       | 10s    |
-| cursor         | 20s           | 25s       | 10s    |
+| Runtime     | Simple prompt | Tool call | Cancel |
+| ----------- | ------------- | --------- | ------ |
+| ai-sdk      | 10s           | 20s       | 10s    |
+| claude-code | 20s           | 25s       | 10s    |
+| codex       | 20s           | 25s       | 10s    |
+| cursor      | 20s           | 25s       | 10s    |
 
 ---
 
@@ -323,7 +331,7 @@ Record: pass (P), fail (F), skip (S), flaky (FL).
 Include artifact path for failed/flaky results.
 
 | Test | Anthropic | OpenAI | DeepSeek | KimiCode | BigModel | MiniMax | ClaudeCode | Codex | Cursor | Artifact |
-|------|-----------|--------|----------|----------|----------|---------|------------|-------|--------|----------|
+| ---- | --------- | ------ | -------- | -------- | -------- | ------- | ---------- | ----- | ------ | -------- |
 | T1   |           |        |          |          |          |         |            |       |        |          |
 | T2   |           |        |          |          |          |         |            |       |        |          |
 | T3   |           |        |          |          |          |         |            |       |        |          |

@@ -130,11 +130,7 @@ export class Workspace implements WorkspaceRuntime {
 
       // Check if agent is mentioned or if this is a channel broadcast
       const isMentioned = message.mentions.includes(agentName);
-      await this.enqueueToAgent(
-        message,
-        agentName,
-        isMentioned ? "normal" : "background",
-      );
+      await this.enqueueToAgent(message, agentName, isMentioned ? "normal" : "background");
     }
   }
 

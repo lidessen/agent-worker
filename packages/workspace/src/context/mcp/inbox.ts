@@ -3,20 +3,11 @@ import type { ContextProvider, AgentStatus } from "../../types.ts";
 export interface InboxTools {
   my_inbox: () => Promise<string>;
   my_inbox_ack: (args: { message_id: string }) => Promise<string>;
-  my_inbox_defer: (args: {
-    message_id: string;
-    until?: string;
-  }) => Promise<string>;
-  my_status_set: (args: {
-    status: AgentStatus;
-    task?: string;
-  }) => Promise<string>;
+  my_inbox_defer: (args: { message_id: string; until?: string }) => Promise<string>;
+  my_status_set: (args: { status: AgentStatus; task?: string }) => Promise<string>;
 }
 
-export function createInboxTools(
-  agentName: string,
-  provider: ContextProvider,
-): InboxTools {
+export function createInboxTools(agentName: string, provider: ContextProvider): InboxTools {
   return {
     async my_inbox() {
       const entries = await provider.inbox.peek(agentName);
@@ -24,13 +15,9 @@ export function createInboxTools(
 
       const lines: string[] = [];
       for (const entry of entries) {
-        const msg = await provider.channels.getMessage(
-          entry.channel,
-          entry.messageId,
-        );
+        const msg = await provider.channels.getMessage(entry.channel, entry.messageId);
         if (!msg) continue;
-        const priority =
-          entry.priority !== "normal" ? ` [${entry.priority}]` : "";
+        const priority = entry.priority !== "normal" ? ` [${entry.priority}]` : "";
         lines.push(
           `- [${msg.id}] #${entry.channel} from:@${msg.from}${priority}: "${msg.content}"`,
         );

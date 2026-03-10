@@ -5,6 +5,7 @@ multi-agent workspace lifecycle: channel messaging, @mention routing, inbox deli
 priority scheduling, resource system, team documents, and cross-agent collaboration.
 
 > A2A tests are manual/interactive. Each test case specifies:
+>
 > - **Input:** exact CLI commands
 > - **Expected:** observable output pattern (grep-able)
 > - **Timeout:** max wait before marking as fail
@@ -49,12 +50,12 @@ These tests validate workspace infrastructure using mock handlers. No API keys n
 
 ### T1 — Workspace Init & Channel Setup
 
-| Field    | Value |
-|----------|-------|
-| Input    | Create workspace with 3 channels, 2 agents |
+| Field    | Value                                                     |
+| -------- | --------------------------------------------------------- |
+| Input    | Create workspace with 3 channels, 2 agents                |
 | Expected | All channels exist, agents auto-joined to default channel |
-| Timeout  | 2s |
-| Retry    | No |
+| Timeout  | 2s                                                        |
+| Retry    | No                                                        |
 
 ```ts
 import { createWorkspace, MemoryStorage } from "@agent-worker/workspace";
@@ -88,6 +89,7 @@ console.log("T1: PASS");
 ```
 
 **Pass criteria:**
+
 - 3 channels created
 - Both agents auto-joined to `general`
 - `shutdown()` completes without error
@@ -96,12 +98,12 @@ console.log("T1: PASS");
 
 ### T2 — Channel Send & Read
 
-| Field    | Value |
-|----------|-------|
-| Input    | Post 3 messages to #general, read back |
+| Field    | Value                                                 |
+| -------- | ----------------------------------------------------- |
+| Input    | Post 3 messages to #general, read back                |
 | Expected | All 3 messages returned in order, with correct fields |
-| Timeout  | 2s |
-| Retry    | No |
+| Timeout  | 2s                                                    |
+| Retry    | No                                                    |
 
 ```ts
 import { createWorkspace, MemoryStorage } from "@agent-worker/workspace";
@@ -131,7 +133,7 @@ assert(msgs[1].from === "bob");
 assert(msgs[2].mentions.includes("bob"));
 
 // Verify message IDs are unique
-const ids = msgs.map(m => m.id);
+const ids = msgs.map((m) => m.id);
 assert(new Set(ids).size === 3, "message IDs must be unique");
 
 await ws.shutdown();
@@ -139,6 +141,7 @@ console.log("T2: PASS");
 ```
 
 **Pass criteria:**
+
 - 3 messages in order
 - Correct `from`, `content`, `mentions` fields
 - Unique message IDs (invariant #2)
@@ -147,12 +150,12 @@ console.log("T2: PASS");
 
 ### T3 — @mention → Inbox Routing
 
-| Field    | Value |
-|----------|-------|
-| Input    | Send `@bob please review` to #general |
+| Field    | Value                                                   |
+| -------- | ------------------------------------------------------- |
+| Input    | Send `@bob please review` to #general                   |
 | Expected | Bob's inbox has 1 pending entry referencing the message |
-| Timeout  | 2s |
-| Retry    | No |
+| Timeout  | 2s                                                      |
+| Retry    | No                                                      |
 
 ```ts
 import { createWorkspace, MemoryStorage } from "@agent-worker/workspace";
@@ -191,6 +194,7 @@ console.log("T3: PASS");
 ```
 
 **Pass criteria:**
+
 - Bob's inbox has 1 pending entry
 - Entry references correct message
 - Alice (sender) does not get self-delivery
@@ -200,12 +204,12 @@ console.log("T3: PASS");
 
 ### T4 — Inbox Selective Ack & Defer
 
-| Field    | Value |
-|----------|-------|
+| Field    | Value                                             |
+| -------- | ------------------------------------------------- |
 | Input    | Enqueue 3 messages, ack #2, defer #1, check state |
-| Expected | Only #3 remains pending, #1 deferred, #2 gone |
-| Timeout  | 2s |
-| Retry    | No |
+| Expected | Only #3 remains pending, #1 deferred, #2 gone     |
+| Timeout  | 2s                                                |
+| Retry    | No                                                |
 
 ```ts
 import { createWorkspace, MemoryStorage } from "@agent-worker/workspace";
@@ -237,21 +241,27 @@ await ws.contextProvider.inbox.defer("bob", task1.messageId, future);
 // Check remaining
 const remaining = await ws.contextProvider.inbox.peek("bob");
 console.log("remaining:", remaining.length);
-console.log("remaining entries:", remaining.map(e => e.messageId));
+console.log(
+  "remaining entries:",
+  remaining.map((e) => e.messageId),
+);
 
 // Only task3 should be pending (task1 deferred with future time, task2 acked)
 assert(remaining.length === 1, "only task3 should be pending");
 assert(remaining[0].messageId === task3.messageId);
 
 // Verify no duplicate delivery (invariant #7)
-assert(!(await ws.contextProvider.inbox.hasEntry("bob", task2.messageId)),
-  "acked entry should be removed");
+assert(
+  !(await ws.contextProvider.inbox.hasEntry("bob", task2.messageId)),
+  "acked entry should be removed",
+);
 
 await ws.shutdown();
 console.log("T4: PASS");
 ```
 
 **Pass criteria:**
+
 - Task2 acked and removed
 - Task1 deferred (not in pending peek)
 - Task3 remains pending
@@ -261,12 +271,12 @@ console.log("T4: PASS");
 
 ### T5 — SmartSend Resource Auto-Creation
 
-| Field    | Value |
-|----------|-------|
-| Input    | Send message > 1200 chars |
+| Field    | Value                                                       |
+| -------- | ----------------------------------------------------------- |
+| Input    | Send message > 1200 chars                                   |
 | Expected | Short reference posted to channel, full content in resource |
-| Timeout  | 2s |
-| Retry    | No |
+| Timeout  | 2s                                                          |
+| Retry    | No                                                          |
 
 ```ts
 import { createWorkspace, MemoryStorage } from "@agent-worker/workspace";
@@ -276,7 +286,7 @@ const ws = await createWorkspace({
   channels: ["general"],
   agents: ["alice"],
   storage: new MemoryStorage(),
-  smartSendThreshold: 100,  // Low threshold for testing
+  smartSendThreshold: 100, // Low threshold for testing
 });
 
 const longContent = "x".repeat(200);
@@ -300,6 +310,7 @@ console.log("T5: PASS");
 ```
 
 **Pass criteria:**
+
 - Channel message shortened with resource reference
 - Resource stores full content
 - Resource ID in `res_*` format
@@ -308,12 +319,12 @@ console.log("T5: PASS");
 
 ### T6 — InstructionQueue Priority Ordering
 
-| Field    | Value |
-|----------|-------|
+| Field    | Value                                              |
+| -------- | -------------------------------------------------- |
 | Input    | Enqueue background, normal, immediate instructions |
-| Expected | Dequeue order: immediate → normal → background |
-| Timeout  | 2s |
-| Retry    | No |
+| Expected | Dequeue order: immediate → normal → background     |
+| Timeout  | 2s                                                 |
+| Retry    | No                                                 |
 
 ```ts
 import { InstructionQueue, nanoid } from "@agent-worker/workspace";
@@ -322,18 +333,30 @@ const queue = new InstructionQueue();
 
 // Enqueue in reverse priority order
 queue.enqueue({
-  id: nanoid(), agentName: "alice", messageId: "m1",
-  channel: "general", content: "bg task", priority: "background",
+  id: nanoid(),
+  agentName: "alice",
+  messageId: "m1",
+  channel: "general",
+  content: "bg task",
+  priority: "background",
   enqueuedAt: new Date().toISOString(),
 });
 queue.enqueue({
-  id: nanoid(), agentName: "alice", messageId: "m2",
-  channel: "general", content: "normal task", priority: "normal",
+  id: nanoid(),
+  agentName: "alice",
+  messageId: "m2",
+  channel: "general",
+  content: "normal task",
+  priority: "normal",
   enqueuedAt: new Date().toISOString(),
 });
 queue.enqueue({
-  id: nanoid(), agentName: "alice", messageId: "m3",
-  channel: "general", content: "urgent task", priority: "immediate",
+  id: nanoid(),
+  agentName: "alice",
+  messageId: "m3",
+  channel: "general",
+  content: "urgent task",
+  priority: "immediate",
   enqueuedAt: new Date().toISOString(),
 });
 
@@ -355,6 +378,7 @@ console.log("T6: PASS");
 ```
 
 **Pass criteria:**
+
 - Dequeue order respects priority: immediate → normal → background
 - Queue empty after 3 dequeues
 
@@ -362,32 +386,40 @@ console.log("T6: PASS");
 
 ### T7 — InstructionQueue Starvation Protection
 
-| Field    | Value |
-|----------|-------|
-| Input    | 1 background + stream of immediate tasks |
+| Field    | Value                                                    |
+| -------- | -------------------------------------------------------- |
+| Input    | 1 background + stream of immediate tasks                 |
 | Expected | Background task eventually promoted after quota exceeded |
-| Timeout  | 2s |
-| Retry    | No |
+| Timeout  | 2s                                                       |
+| Retry    | No                                                       |
 
 ```ts
 import { InstructionQueue, nanoid } from "@agent-worker/workspace";
 
 const queue = new InstructionQueue({
-  immediateQuota: 4,  // After 4 immediate, must serve 1 normal/bg
+  immediateQuota: 4, // After 4 immediate, must serve 1 normal/bg
 });
 
 // 1 background task
 queue.enqueue({
-  id: nanoid(), agentName: "alice", messageId: "bg",
-  channel: "general", content: "background", priority: "background",
+  id: nanoid(),
+  agentName: "alice",
+  messageId: "bg",
+  channel: "general",
+  content: "background",
+  priority: "background",
   enqueuedAt: new Date().toISOString(),
 });
 
 // 6 immediate tasks
 for (let i = 0; i < 6; i++) {
   queue.enqueue({
-    id: nanoid(), agentName: "alice", messageId: `imm-${i}`,
-    channel: "general", content: `immediate-${i}`, priority: "immediate",
+    id: nanoid(),
+    agentName: "alice",
+    messageId: `imm-${i}`,
+    channel: "general",
+    content: `immediate-${i}`,
+    priority: "immediate",
     enqueuedAt: new Date().toISOString(),
   });
 }
@@ -410,6 +442,7 @@ console.log("T7: PASS");
 ```
 
 **Pass criteria:**
+
 - Background task served before all immediate tasks are consumed
 - Bandwidth policy prevents starvation
 
@@ -417,12 +450,12 @@ console.log("T7: PASS");
 
 ### T8 — DM Visibility
 
-| Field    | Value |
-|----------|-------|
-| Input    | Send DM from alice to bob |
+| Field    | Value                                                     |
+| -------- | --------------------------------------------------------- |
+| Input    | Send DM from alice to bob                                 |
 | Expected | Only sender and recipient can see DM; other agents cannot |
-| Timeout  | 2s |
-| Retry    | No |
+| Timeout  | 2s                                                        |
+| Retry    | No                                                        |
 
 ```ts
 import { createWorkspace, MemoryStorage } from "@agent-worker/workspace";
@@ -435,8 +468,10 @@ const ws = await createWorkspace({
 });
 
 // Alice DMs bob
-await ws.contextProvider.smartSend("general", "alice", "Secret message for you",
-  { to: "bob", priority: "immediate" });
+await ws.contextProvider.smartSend("general", "alice", "Secret message for you", {
+  to: "bob",
+  priority: "immediate",
+});
 
 // Bob should have it in inbox (DM = immediate priority)
 const bobInbox = await ws.contextProvider.inbox.peek("bob");
@@ -454,6 +489,7 @@ console.log("T8: PASS");
 ```
 
 **Pass criteria:**
+
 - DM delivered to recipient only
 - DM has `immediate` priority
 - Non-recipients have empty inbox
@@ -462,12 +498,12 @@ console.log("T8: PASS");
 
 ### T9 — Team Documents CRUD
 
-| Field    | Value |
-|----------|-------|
+| Field    | Value                                       |
+| -------- | ------------------------------------------- |
 | Input    | Create, read, write, append, list documents |
-| Expected | Full CRUD lifecycle works |
-| Timeout  | 2s |
-| Retry    | No |
+| Expected | Full CRUD lifecycle works                   |
+| Timeout  | 2s                                          |
+| Retry    | No                                          |
 
 ```ts
 import { createWorkspace, MemoryStorage } from "@agent-worker/workspace";
@@ -513,6 +549,7 @@ console.log("T9: PASS");
 ```
 
 **Pass criteria:**
+
 - Create, read, write, append all work
 - List returns all documents
 - Non-existent document returns null
@@ -521,12 +558,12 @@ console.log("T9: PASS");
 
 ### T10 — EventLog Routing Invariants
 
-| Field    | Value |
-|----------|-------|
+| Field    | Value                                                        |
+| -------- | ------------------------------------------------------------ |
 | Input    | Log `tool_call`, `system`, `debug` events; attempt `message` |
-| Expected | Non-message events go to timeline; `message` throws |
-| Timeout  | 2s |
-| Retry    | No |
+| Expected | Non-message events go to timeline; `message` throws          |
+| Timeout  | 2s                                                           |
+| Retry    | No                                                           |
 
 ```ts
 import { createWorkspace, MemoryStorage } from "@agent-worker/workspace";
@@ -567,6 +604,7 @@ console.log("T10: PASS");
 ```
 
 **Pass criteria:**
+
 - `tool_call`, `system`, `debug` → timeline
 - `message` → throws error (invariant #12)
 - Timeline entries have unique IDs (invariant #14)
@@ -575,12 +613,12 @@ console.log("T10: PASS");
 
 ### T11 — Agent Status Tracking
 
-| Field    | Value |
-|----------|-------|
+| Field    | Value                                     |
+| -------- | ----------------------------------------- |
 | Input    | Set status for multiple agents, read back |
-| Expected | Status correctly tracked per agent |
-| Timeout  | 2s |
-| Retry    | No |
+| Expected | Status correctly tracked per agent        |
+| Timeout  | 2s                                        |
+| Retry    | No                                        |
 
 ```ts
 import { createWorkspace, MemoryStorage } from "@agent-worker/workspace";
@@ -613,6 +651,7 @@ console.log("T11: PASS");
 ```
 
 **Pass criteria:**
+
 - Per-agent status with optional task description
 - `getAll()` returns all agents
 
@@ -620,12 +659,12 @@ console.log("T11: PASS");
 
 ### T12 — Workspace Tools via createAgentTools
 
-| Field    | Value |
-|----------|-------|
+| Field    | Value                                                  |
+| -------- | ------------------------------------------------------ |
 | Input    | Create tools for agent, invoke channel_send + my_inbox |
-| Expected | Message posted, appears in inbox of mentioned agent |
-| Timeout  | 2s |
-| Retry    | No |
+| Expected | Message posted, appears in inbox of mentioned agent    |
+| Timeout  | 2s                                                     |
+| Retry    | No                                                     |
 
 ```ts
 import { createWorkspace, createAgentTools, MemoryStorage } from "@agent-worker/workspace";
@@ -670,6 +709,7 @@ console.log("T12: PASS");
 ```
 
 **Pass criteria:**
+
 - Tools work as expected for the calling agent
 - Agent identity correctly scoped per tool set
 - Inbox → ack lifecycle works via tools
@@ -678,12 +718,12 @@ console.log("T12: PASS");
 
 ### T13 — Instance Tag Isolation (Invariant #10)
 
-| Field    | Value |
-|----------|-------|
+| Field    | Value                                                 |
+| -------- | ----------------------------------------------------- |
 | Input    | Create 2 workspaces with same name but different tags |
-| Expected | Zero shared state between instances |
-| Timeout  | 2s |
-| Retry    | No |
+| Expected | Zero shared state between instances                   |
+| Timeout  | 2s                                                    |
+| Retry    | No                                                    |
 
 ```ts
 import { createWorkspace, MemoryStorage } from "@agent-worker/workspace";
@@ -693,7 +733,7 @@ const ws1 = await createWorkspace({
   tag: "pr-123",
   channels: ["general"],
   agents: ["reviewer"],
-  storage: new MemoryStorage(),  // Each gets own storage = isolated
+  storage: new MemoryStorage(), // Each gets own storage = isolated
 });
 
 const ws2 = await createWorkspace({
@@ -725,6 +765,7 @@ console.log("T13: PASS");
 ```
 
 **Pass criteria:**
+
 - Each workspace instance completely isolated
 - Messages in one don't appear in the other
 - Tags accessible via `workspace.tag`
@@ -739,13 +780,13 @@ These tests use real LLM backends to verify end-to-end multi-agent workflows.
 
 ### T14 — Two-Agent Ping-Pong
 
-| Field    | Value |
-|----------|-------|
+| Field    | Value                                                    |
+| -------- | -------------------------------------------------------- |
 | Input    | Alice sends @bob, bob responds @alice, verify round-trip |
-| Expected | Both agents process messages, channel has conversation |
-| Timeout  | 30s |
-| Retry    | Yes (LLM dependent) |
-| Requires | `ANTHROPIC_API_KEY` |
+| Expected | Both agents process messages, channel has conversation   |
+| Timeout  | 30s                                                      |
+| Retry    | Yes (LLM dependent)                                      |
+| Requires | `ANTHROPIC_API_KEY`                                      |
 
 ```ts
 import { createWorkspace, createWiredLoop, MemoryStorage } from "@agent-worker/workspace";
@@ -762,16 +803,15 @@ const processed: string[] = [];
 
 const aliceLoop = createWiredLoop({
   name: "alice",
-  instructions: "You are Alice. When you receive a message, reply in the same channel with a short acknowledgment. Always @mention the sender.",
+  instructions:
+    "You are Alice. When you receive a message, reply in the same channel with a short acknowledgment. Always @mention the sender.",
   runtime: ws,
   pollInterval: 1000,
   onInstruction: async (prompt, instruction) => {
     processed.push(`alice: ${instruction.content.slice(0, 50)}`);
     // In real test: feed prompt to LLM, handle response
     // For mock: auto-reply
-    await ws.contextProvider.smartSend(
-      "general", "alice", `@bob Got it! Processing your request.`
-    );
+    await ws.contextProvider.smartSend("general", "alice", `@bob Got it! Processing your request.`);
   },
 });
 
@@ -782,9 +822,7 @@ const bobLoop = createWiredLoop({
   pollInterval: 1000,
   onInstruction: async (prompt, instruction) => {
     processed.push(`bob: ${instruction.content.slice(0, 50)}`);
-    await ws.contextProvider.smartSend(
-      "general", "bob", `@alice Done!`
-    );
+    await ws.contextProvider.smartSend("general", "bob", `@alice Done!`);
   },
 });
 
@@ -793,10 +831,14 @@ await aliceLoop.start();
 await bobLoop.start();
 
 // Kickoff
-await ws.contextProvider.smartSend("general", "user", "@alice Please coordinate with @bob on the review");
+await ws.contextProvider.smartSend(
+  "general",
+  "user",
+  "@alice Please coordinate with @bob on the review",
+);
 
 // Wait for processing
-await new Promise(r => setTimeout(r, 5000));
+await new Promise((r) => setTimeout(r, 5000));
 
 // Stop
 await aliceLoop.stop();
@@ -818,6 +860,7 @@ console.log("T14: PASS");
 ```
 
 **Pass criteria:**
+
 - At least 2 messages in channel after kickoff
 - Both agents process at least 1 instruction each
 - No infinite loop (agents stop cleanly)
@@ -826,12 +869,12 @@ console.log("T14: PASS");
 
 ### T15 — Multi-Channel Topic Isolation
 
-| Field    | Value |
-|----------|-------|
-| Input    | Alice in #design, bob in #code-review, send to each |
+| Field    | Value                                                 |
+| -------- | ----------------------------------------------------- |
+| Input    | Alice in #design, bob in #code-review, send to each   |
 | Expected | Each agent only receives messages from their channels |
-| Timeout  | 5s |
-| Retry    | No |
+| Timeout  | 5s                                                    |
+| Retry    | No                                                    |
 
 ```ts
 import { createWorkspace, createAgentTools, MemoryStorage } from "@agent-worker/workspace";
@@ -858,8 +901,16 @@ await ws.contextProvider.smartSend("code-review", "user", "@bob review the code"
 const aliceInbox = await ws.contextProvider.inbox.peek("alice");
 const bobInbox = await ws.contextProvider.inbox.peek("bob");
 
-console.log("alice inbox:", aliceInbox.length, aliceInbox.map(e => e.channel));
-console.log("bob inbox:", bobInbox.length, bobInbox.map(e => e.channel));
+console.log(
+  "alice inbox:",
+  aliceInbox.length,
+  aliceInbox.map((e) => e.channel),
+);
+console.log(
+  "bob inbox:",
+  bobInbox.length,
+  bobInbox.map((e) => e.channel),
+);
 
 assert(aliceInbox.length === 1);
 assert(aliceInbox[0].channel === "design");
@@ -871,6 +922,7 @@ console.log("T15: PASS");
 ```
 
 **Pass criteria:**
+
 - Alice only sees #design messages
 - Bob only sees #code-review messages
 - Channel isolation is correct
@@ -879,17 +931,20 @@ console.log("T15: PASS");
 
 ### T16 — Prompt Assembly Content
 
-| Field    | Value |
-|----------|-------|
+| Field    | Value                                                         |
+| -------- | ------------------------------------------------------------- |
 | Input    | Assemble prompt for agent with inbox, team info, instructions |
-| Expected | Prompt contains all sections in correct order |
-| Timeout  | 2s |
-| Retry    | No |
+| Expected | Prompt contains all sections in correct order                 |
+| Timeout  | 2s                                                            |
+| Retry    | No                                                            |
 
 ```ts
 import {
-  createWorkspace, MemoryStorage,
-  assemblePrompt, DEFAULT_SECTIONS, type PromptContext,
+  createWorkspace,
+  MemoryStorage,
+  assemblePrompt,
+  DEFAULT_SECTIONS,
+  type PromptContext,
 } from "@agent-worker/workspace";
 
 const ws = await createWorkspace({
@@ -931,6 +986,7 @@ console.log("T16: PASS");
 ```
 
 **Pass criteria:**
+
 - Prompt includes soul section (agent identity)
 - Prompt includes team roster
 - Prompt includes inbox summary
@@ -941,12 +997,12 @@ console.log("T16: PASS");
 
 ### T17 — Workspace shouldYield (Cooperative Preemption)
 
-| Field    | Value |
-|----------|-------|
+| Field    | Value                                       |
+| -------- | ------------------------------------------- |
 | Input    | Agent processing bg task, immediate arrives |
-| Expected | `shouldYield()` returns true |
-| Timeout  | 2s |
-| Retry    | No |
+| Expected | `shouldYield()` returns true                |
+| Timeout  | 2s                                          |
+| Retry    | No                                          |
 
 ```ts
 import { InstructionQueue, nanoid } from "@agent-worker/workspace";
@@ -956,8 +1012,12 @@ const queue = new InstructionQueue();
 // Start with a background task (simulates agent dequeued it)
 // Then an immediate arrives while agent is "working"
 queue.enqueue({
-  id: nanoid(), agentName: "alice", messageId: "urgent",
-  channel: "general", content: "urgent fix needed", priority: "immediate",
+  id: nanoid(),
+  agentName: "alice",
+  messageId: "urgent",
+  channel: "general",
+  content: "urgent fix needed",
+  priority: "immediate",
   enqueuedAt: new Date().toISOString(),
 });
 
@@ -969,8 +1029,12 @@ assert(shouldYield === true, "should yield for immediate task");
 // No immediate task pending
 const queue2 = new InstructionQueue();
 queue2.enqueue({
-  id: nanoid(), agentName: "alice", messageId: "normal",
-  channel: "general", content: "normal task", priority: "normal",
+  id: nanoid(),
+  agentName: "alice",
+  messageId: "normal",
+  channel: "general",
+  content: "normal task",
+  priority: "normal",
   enqueuedAt: new Date().toISOString(),
 });
 assert(queue2.shouldYield("alice") === false, "should not yield for normal");
@@ -979,6 +1043,7 @@ console.log("T17: PASS");
 ```
 
 **Pass criteria:**
+
 - `shouldYield` returns true when immediate is pending
 - `shouldYield` returns false for normal-only queue
 
@@ -990,12 +1055,12 @@ console.log("T17: PASS");
 
 ### T18 — Channel Append-Only Immutability (Invariant #1)
 
-| Field    | Value |
-|----------|-------|
-| Input    | Send message, verify no mutation API exists |
+| Field    | Value                                                 |
+| -------- | ----------------------------------------------------- |
+| Input    | Send message, verify no mutation API exists           |
 | Expected | Messages cannot be modified or deleted after creation |
-| Timeout  | 2s |
-| Retry    | No |
+| Timeout  | 2s                                                    |
+| Retry    | No                                                    |
 
 ```ts
 import { createWorkspace, MemoryStorage } from "@agent-worker/workspace";
@@ -1024,14 +1089,15 @@ assert(msgs2.length === 2, "append only — 2 messages now");
 
 // Verify ChannelStore has no update/delete methods
 const store = ws.contextProvider.channels;
-assert(!('update' in store), "no update method should exist");
-assert(!('delete' in store), "no delete method should exist");
+assert(!("update" in store), "no update method should exist");
+assert(!("delete" in store), "no delete method should exist");
 
 await ws.shutdown();
 console.log("T18: PASS");
 ```
 
 **Pass criteria:**
+
 - Original message immutable after new appends
 - No update/delete API on ChannelStore
 
@@ -1039,12 +1105,12 @@ console.log("T18: PASS");
 
 ### T19 — Run Epoch (markRunStart Clears Stale Inbox)
 
-| Field    | Value |
-|----------|-------|
+| Field    | Value                                              |
+| -------- | -------------------------------------------------- |
 | Input    | Enqueue entries, call markRunStart, verify cleared |
-| Expected | All stale entries from "previous run" are gone |
-| Timeout  | 2s |
-| Retry    | No |
+| Expected | All stale entries from "previous run" are gone     |
+| Timeout  | 2s                                                 |
+| Retry    | No                                                 |
 
 ```ts
 import { createWorkspace, MemoryStorage } from "@agent-worker/workspace";
@@ -1081,6 +1147,7 @@ console.log("T19: PASS");
 ```
 
 **Pass criteria:**
+
 - `markRunStart` clears all previous entries
 - New messages after epoch are delivered normally
 
@@ -1088,12 +1155,12 @@ console.log("T19: PASS");
 
 ## Timeout Reference
 
-| Phase    | Test Type          | Timeout |
-|----------|--------------------|---------|
-| Phase 1  | Infrastructure     | 2s      |
-| Phase 2  | Multi-agent (mock) | 5-10s   |
-| Phase 2  | Multi-agent (LLM)  | 30s     |
-| Phase 3  | Edge cases         | 2s      |
+| Phase   | Test Type          | Timeout |
+| ------- | ------------------ | ------- |
+| Phase 1 | Infrastructure     | 2s      |
+| Phase 2 | Multi-agent (mock) | 5-10s   |
+| Phase 2 | Multi-agent (LLM)  | 30s     |
+| Phase 3 | Edge cases         | 2s      |
 
 ---
 
@@ -1102,7 +1169,7 @@ console.log("T19: PASS");
 Record: pass (P), fail (F), skip (S), flaky (FL).
 
 | Test | Description                          | Mock | Anthropic | OpenAI | Artifact |
-|------|--------------------------------------|------|-----------|--------|----------|
+| ---- | ------------------------------------ | ---- | --------- | ------ | -------- |
 | T1   | Workspace init & channel setup       |      |           |        |          |
 | T2   | Channel send & read                  |      |           |        |          |
 | T3   | @mention → inbox routing             |      |           |        |          |

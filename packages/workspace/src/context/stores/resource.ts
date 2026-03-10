@@ -1,9 +1,5 @@
 import { nanoid } from "../../utils.ts";
-import type {
-  Resource,
-  StorageBackend,
-  ResourceStoreInterface,
-} from "../../types.ts";
+import type { Resource, StorageBackend, ResourceStoreInterface } from "../../types.ts";
 
 export class ResourceStore implements ResourceStoreInterface {
   constructor(private readonly storage: StorageBackend) {}
@@ -20,10 +16,7 @@ export class ResourceStore implements ResourceStoreInterface {
       createdBy,
     };
 
-    await this.storage.writeFile(
-      this.resourcePath(resource.id),
-      JSON.stringify(resource),
-    );
+    await this.storage.writeFile(this.resourcePath(resource.id), JSON.stringify(resource));
 
     return resource;
   }

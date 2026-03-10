@@ -56,25 +56,15 @@ async function createDeepSeekHandler(agentName: string, ws: any) {
         maxTokens: 500,
       });
 
-      console.log(
-        `${c.cyan}[${agentName}]${c.reset} Response: ${result.text.slice(0, 120)}`,
-      );
-      console.log(
-        `${c.dim}  tokens: ${result.usage?.totalTokens ?? "?"}${c.reset}`,
-      );
+      console.log(`${c.cyan}[${agentName}]${c.reset} Response: ${result.text.slice(0, 120)}`);
+      console.log(`${c.dim}  tokens: ${result.usage?.totalTokens ?? "?"}${c.reset}`);
 
       // If the LLM mentions sending a message, auto-send to channel
       if (result.text.length > 0) {
-        await ws.contextProvider.smartSend(
-          "general",
-          agentName,
-          result.text.slice(0, 500),
-        );
+        await ws.contextProvider.smartSend("general", agentName, result.text.slice(0, 500));
       }
     } catch (err) {
-      console.log(
-        `${c.red}[${agentName}] Error: ${err}${c.reset}`,
-      );
+      console.log(`${c.red}[${agentName}] Error: ${err}${c.reset}`);
       throw err;
     }
   };
@@ -186,19 +176,11 @@ async function testTwoAgentCollaboration(): Promise<void> {
         maxTokens: 200,
       });
 
-      console.log(
-        `${c.magenta}[planner]${c.reset} ${result.text.slice(0, 120)}`,
-      );
+      console.log(`${c.magenta}[planner]${c.reset} ${result.text.slice(0, 120)}`);
 
       // Post planner's response mentioning executor
-      const response = result.text.includes("@executor")
-        ? result.text
-        : `@executor ${result.text}`;
-      await ws.contextProvider.smartSend(
-        "general",
-        "planner",
-        response.slice(0, 300),
-      );
+      const response = result.text.includes("@executor") ? result.text : `@executor ${result.text}`;
+      await ws.contextProvider.smartSend("general", "planner", response.slice(0, 300));
     },
   });
 
@@ -220,15 +202,9 @@ async function testTwoAgentCollaboration(): Promise<void> {
         maxTokens: 100,
       });
 
-      console.log(
-        `${c.cyan}[executor]${c.reset} ${result.text.slice(0, 120)}`,
-      );
+      console.log(`${c.cyan}[executor]${c.reset} ${result.text.slice(0, 120)}`);
 
-      await ws.contextProvider.smartSend(
-        "general",
-        "executor",
-        result.text.slice(0, 200),
-      );
+      await ws.contextProvider.smartSend("general", "executor", result.text.slice(0, 200));
     },
   });
 
@@ -251,9 +227,7 @@ async function testTwoAgentCollaboration(): Promise<void> {
   const msgs = await ws.contextProvider.channels.read("general");
   console.log(`\n  ${c.bold}Conversation (${msgs.length} messages):${c.reset}`);
   for (const m of msgs) {
-    console.log(
-      `  ${c.dim}[${m.from}]${c.reset} ${m.content.slice(0, 100)}`,
-    );
+    console.log(`  ${c.dim}[${m.from}]${c.reset} ${m.content.slice(0, 100)}`);
   }
 
   assert(plannerProcessed, "planner should have processed a message");
@@ -358,11 +332,7 @@ async function testDeepSeekWithInboxCycle(): Promise<void> {
         maxTokens: 100,
       });
 
-      await ws.contextProvider.smartSend(
-        "general",
-        "responder",
-        result.text.slice(0, 200),
-      );
+      await ws.contextProvider.smartSend("general", "responder", result.text.slice(0, 200));
     },
   });
 
@@ -416,10 +386,7 @@ const testMap: Record<string, () => Promise<void>> = {
   "T-DS5": testDeepSeekWithInboxCycle,
 };
 
-const toRun =
-  arg === "all"
-    ? Object.keys(testMap)
-    : [arg];
+const toRun = arg === "all" ? Object.keys(testMap) : [arg];
 
 let passed = 0;
 let failed = 0;
@@ -435,14 +402,10 @@ for (const id of toRun) {
     passed++;
   } catch (e) {
     failed++;
-    console.log(
-      `${c.red}FAIL${c.reset} ${id} — ${e instanceof Error ? e.message : e}`,
-    );
+    console.log(`${c.red}FAIL${c.reset} ${id} — ${e instanceof Error ? e.message : e}`);
   }
 }
 
 console.log(`\n${"─".repeat(50)}`);
-console.log(
-  `${failed > 0 ? c.red : c.green}${passed}/${passed + failed} passed${c.reset}`,
-);
+console.log(`${failed > 0 ? c.red : c.green}${passed}/${passed + failed} passed${c.reset}`);
 if (failed > 0) process.exit(1);

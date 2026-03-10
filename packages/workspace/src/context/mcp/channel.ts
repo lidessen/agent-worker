@@ -1,15 +1,8 @@
 import type { ContextProvider, Priority } from "../../types.ts";
 
 export interface ChannelTools {
-  channel_send: (args: {
-    channel: string;
-    content: string;
-    to?: string;
-  }) => Promise<string>;
-  channel_read: (args: {
-    channel: string;
-    limit?: number;
-  }) => Promise<string>;
+  channel_send: (args: { channel: string; content: string; to?: string }) => Promise<string>;
+  channel_read: (args: { channel: string; limit?: number }) => Promise<string>;
   channel_list: () => Promise<string>;
   channel_join: (args: { channel: string }) => Promise<string>;
   channel_leave: (args: { channel: string }) => Promise<string>;
@@ -32,9 +25,7 @@ export function createChannelTools(
       const messages = await provider.channels.read(channel, { limit: limit ?? 20 });
       if (messages.length === 0) return `#${channel}: no messages`;
 
-      const lines = messages.map(
-        (m) => `[${m.id}] @${m.from}: ${m.content}`,
-      );
+      const lines = messages.map((m) => `[${m.id}] @${m.from}: ${m.content}`);
       return `#${channel} (${messages.length} messages):\n${lines.join("\n")}`;
     },
 

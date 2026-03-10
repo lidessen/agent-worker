@@ -12,11 +12,7 @@ export class StatusStore implements StatusStoreInterface {
 
   constructor(private readonly storage: StorageBackend) {}
 
-  async set(
-    name: string,
-    status: AgentStatus,
-    currentTask?: string,
-  ): Promise<void> {
+  async set(name: string, status: AgentStatus, currentTask?: string): Promise<void> {
     const entry: AgentStatusEntry = {
       name,
       status,
@@ -50,9 +46,6 @@ export class StatusStore implements StatusStoreInterface {
   }
 
   private async persist(): Promise<void> {
-    await this.storage.writeFile(
-      STATUS_FILE,
-      JSON.stringify([...this.statuses.values()], null, 2),
-    );
+    await this.storage.writeFile(STATUS_FILE, JSON.stringify([...this.statuses.values()], null, 2));
   }
 }

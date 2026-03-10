@@ -35,11 +35,7 @@ describe("Workspace", () => {
   });
 
   test("smartSend posts message to channel", async () => {
-    const msg = await workspace.contextProvider.smartSend(
-      "general",
-      "alice",
-      "Hello team!",
-    );
+    const msg = await workspace.contextProvider.smartSend("general", "alice", "Hello team!");
 
     expect(msg.id).toBeTruthy();
     expect(msg.content).toBe("Hello team!");
@@ -51,11 +47,7 @@ describe("Workspace", () => {
 
   test("smartSend stores long content as resource", async () => {
     const longContent = "x".repeat(2000);
-    const msg = await workspace.contextProvider.smartSend(
-      "general",
-      "alice",
-      longContent,
-    );
+    const msg = await workspace.contextProvider.smartSend("general", "alice", longContent);
 
     // Should contain resource reference
     expect(msg.content).toContain("resource_read(");
@@ -64,11 +56,7 @@ describe("Workspace", () => {
 
   test("message routing to inbox on @mention", async () => {
     // Alice sends a message mentioning bob
-    await workspace.contextProvider.smartSend(
-      "general",
-      "alice",
-      "Hey @bob please review",
-    );
+    await workspace.contextProvider.smartSend("general", "alice", "Hey @bob please review");
 
     // Bob should have an inbox entry
     const bobInbox = await workspace.contextProvider.inbox.peek("bob");
@@ -77,11 +65,7 @@ describe("Workspace", () => {
   });
 
   test("message not self-delivered", async () => {
-    await workspace.contextProvider.smartSend(
-      "general",
-      "alice",
-      "Hey @alice talking to myself",
-    );
+    await workspace.contextProvider.smartSend("general", "alice", "Hey @alice talking to myself");
 
     const aliceInbox = await workspace.contextProvider.inbox.peek("alice");
     expect(aliceInbox).toHaveLength(0);
@@ -99,11 +83,7 @@ describe("Workspace", () => {
 
   test("channel broadcast with background priority", async () => {
     // No @mentions, just a broadcast to the channel
-    await workspace.contextProvider.smartSend(
-      "general",
-      "alice",
-      "General announcement",
-    );
+    await workspace.contextProvider.smartSend("general", "alice", "General announcement");
 
     const bobInbox = await workspace.contextProvider.inbox.peek("bob");
     expect(bobInbox).toHaveLength(1);
@@ -124,9 +104,7 @@ describe("Workspace", () => {
   });
 
   test("event log rejects message kind", async () => {
-    expect(
-      workspace.eventLog.log("alice", "message", "Bad"),
-    ).rejects.toThrow();
+    expect(workspace.eventLog.log("alice", "message", "Bad")).rejects.toThrow();
   });
 
   test("instance tag isolation", async () => {

@@ -107,7 +107,12 @@ export class AwDaemon {
     });
 
     this.agent.on("messageReceived", (msg) => {
-      this.appendEvent({ type: "message_received", id: msg.id, from: msg.from, content: msg.content });
+      this.appendEvent({
+        type: "message_received",
+        id: msg.id,
+        from: msg.from,
+        content: msg.content,
+      });
     });
 
     this.agent.on("runStart", (info) => {

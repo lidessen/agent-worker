@@ -1,9 +1,4 @@
-import type {
-  Instruction,
-  Priority,
-  QueueConfig,
-  InstructionQueueInterface,
-} from "../types.ts";
+import type { Instruction, Priority, QueueConfig, InstructionQueueInterface } from "../types.ts";
 
 const PRIORITY_ORDER: Priority[] = ["immediate", "normal", "background"];
 
@@ -71,26 +66,17 @@ export class InstructionQueue implements InstructionQueueInterface {
 
   shouldYield(agentName: string): boolean {
     // Check if a higher-priority instruction is waiting for this agent
-    const immediate = this.lanes.immediate.find(
-      (i) => i.agentName === agentName,
-    );
+    const immediate = this.lanes.immediate.find((i) => i.agentName === agentName);
     return !!immediate;
   }
 
   get size(): number {
-    return (
-      this.lanes.immediate.length +
-      this.lanes.normal.length +
-      this.lanes.background.length
-    );
+    return this.lanes.immediate.length + this.lanes.normal.length + this.lanes.background.length;
   }
 
   // ── Internal ──────────────────────────────────────────────────────────
 
-  private dequeueFromLane(
-    priority: Priority,
-    agentName: string,
-  ): Instruction | null {
+  private dequeueFromLane(priority: Priority, agentName: string): Instruction | null {
     const lane = this.lanes[priority];
     const idx = lane.findIndex((i) => i.agentName === agentName);
     if (idx === -1) return null;
@@ -99,18 +85,12 @@ export class InstructionQueue implements InstructionQueueInterface {
 
   private getForcedLane(): Priority | null {
     // After immediateQuota consecutive immediate dispatches, force a normal task
-    if (
-      this.consecutiveImmediate >= this.immediateQuota &&
-      this.lanes.normal.length > 0
-    ) {
+    if (this.consecutiveImmediate >= this.immediateQuota && this.lanes.normal.length > 0) {
       return "normal";
     }
 
     // After normalQuota consecutive high-priority dispatches, force a background task
-    if (
-      this.consecutiveHighPriority >= this.normalQuota &&
-      this.lanes.background.length > 0
-    ) {
+    if (this.consecutiveHighPriority >= this.normalQuota && this.lanes.background.length > 0) {
       return "background";
     }
 

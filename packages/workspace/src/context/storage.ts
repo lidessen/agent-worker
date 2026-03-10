@@ -15,9 +15,7 @@ export class MemoryStorage implements StorageBackend {
   async readLines(path: string): Promise<string[]> {
     const content = this.files.get(path);
     if (!content) return [];
-    return content
-      .split("\n")
-      .filter((line) => line.length > 0);
+    return content.split("\n").filter((line) => line.length > 0);
   }
 
   async writeFile(path: string, content: string): Promise<void> {
@@ -75,9 +73,7 @@ export class FileStorage implements StorageBackend {
     const file = Bun.file(fullPath);
     if (!(await file.exists())) return [];
     const content = await file.text();
-    return content
-      .split("\n")
-      .filter((line) => line.length > 0);
+    return content.split("\n").filter((line) => line.length > 0);
   }
 
   async writeFile(path: string, content: string): Promise<void> {

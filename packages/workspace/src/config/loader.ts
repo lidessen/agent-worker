@@ -19,10 +19,7 @@ const TEMPLATE_RE = /\$\{\{\s*([a-zA-Z_][a-zA-Z0-9_.]*)\s*\}\}/g;
  * Interpolate `${{ var }}` references in a string.
  * Supports dotted paths like `${{ workspace.tag }}`.
  */
-export function interpolate(
-  template: string,
-  vars: Record<string, string>,
-): string {
+export function interpolate(template: string, vars: Record<string, string>): string {
   return template.replace(TEMPLATE_RE, (match, key: string) => {
     return vars[key] ?? match; // leave unresolved templates as-is
   });
@@ -84,9 +81,7 @@ export async function runSetupSteps(
     const exitCode = await proc.exited;
 
     if (exitCode !== 0) {
-      throw new Error(
-        `Setup step failed (exit ${exitCode}): ${cmd}\nstderr: ${stderr.trim()}`,
-      );
+      throw new Error(`Setup step failed (exit ${exitCode}): ${cmd}\nstderr: ${stderr.trim()}`);
     }
 
     if (step.as) {
@@ -139,10 +134,7 @@ export async function loadWorkspaceDef(
 ): Promise<ResolvedWorkspace> {
   // Determine if it's a file path or raw YAML content
   let content: string;
-  if (
-    pathOrContent.includes("\n") ||
-    pathOrContent.trimStart().startsWith("name:")
-  ) {
+  if (pathOrContent.includes("\n") || pathOrContent.trimStart().startsWith("name:")) {
     content = pathOrContent;
   } else {
     const file = Bun.file(pathOrContent);
@@ -157,9 +149,7 @@ export async function loadWorkspaceDef(
   // Resolve agents (runtime + model)
   const agents: ResolvedAgent[] = [];
   for (const [name, agentDef] of Object.entries(def.agents)) {
-    const modelSpec = agentDef.model
-      ? resolveModel(agentDef.model)
-      : undefined;
+    const modelSpec = agentDef.model ? resolveModel(agentDef.model) : undefined;
 
     // Resolve runtime with defaults/discovery
     const resolution = opts.skipSetup
@@ -171,9 +161,7 @@ export async function loadWorkspaceDef(
       : await resolveRuntime(agentDef.runtime, modelSpec?.full);
 
     // If runtime resolution found a model and agent didn't specify one, use it
-    const finalModel =
-      modelSpec ??
-      (resolution.model ? resolveModel(resolution.model) : undefined);
+    const finalModel = modelSpec ?? (resolution.model ? resolveModel(resolution.model) : undefined);
 
     agents.push({
       name,
@@ -226,8 +214,7 @@ export function toWorkspaceConfig(
     storageType === "memory"
       ? new MemoryStorage()
       : new FileStorage(
-          def.storage_dir ??
-            `/tmp/agent-worker-${def.name}${opts.tag ? `-${opts.tag}` : ""}`,
+          def.storage_dir ?? `/tmp/agent-worker-${def.name}${opts.tag ? `-${opts.tag}` : ""}`,
         );
 
   return {
