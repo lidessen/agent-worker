@@ -9,6 +9,7 @@ import type {
 } from "./types.ts";
 import type { WorkspaceConfig } from "../types.ts";
 import { MemoryStorage, FileStorage } from "../context/storage.ts";
+import { resolveRuntime } from "./resolve-runtime.ts";
 
 // ── Template interpolation ────────────────────────────────────────────────
 
@@ -153,16 +154,35 @@ export async function loadWorkspaceDef(
 
   const def = parseWorkspaceDef(content);
 
-  // Resolve agents
-  const agents: ResolvedAgent[] = Object.entries(def.agents).map(
-    ([name, agentDef]) => ({
+  // Resolve agents (runtime + model)
+  const agents: ResolvedAgent[] = [];
+  for (const [name, agentDef] of Object.entries(def.agents)) {
+    const modelSpec = agentDef.model
+      ? resolveModel(agentDef.model)
+      : undefined;
+
+    // Resolve runtime with defaults/discovery
+    const resolution = opts.skipSetup
+      ? // In dry-run mode, don't do CLI discovery — just apply simple defaults
+        {
+          runtime: agentDef.runtime ?? (modelSpec ? "ai-sdk" : undefined),
+          model: modelSpec?.full,
+        }
+      : await resolveRuntime(agentDef.runtime, modelSpec?.full);
+
+    // If runtime resolution found a model and agent didn't specify one, use it
+    const finalModel =
+      modelSpec ??
+      (resolution.model ? resolveModel(resolution.model) : undefined);
+
+    agents.push({
       name,
-      runtime: agentDef.runtime,
-      model: agentDef.model ? resolveModel(agentDef.model) : undefined,
+      runtime: resolution.runtime,
+      model: finalModel,
       instructions: agentDef.instructions,
       channels: agentDef.channels,
-    }),
-  );
+    });
+  }
 
   // Build template vars
   const baseVars: Record<string, string> = {
