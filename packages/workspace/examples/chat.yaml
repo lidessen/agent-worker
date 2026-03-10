@@ -5,14 +5,13 @@ agents:
   alice:
     backend: claude
     model: claude-sonnet-4-5
-    system_prompt: You are Alice. Curious and always asking questions.
+    instructions: You are Alice. Curious and always asking questions.
 
   bob:
     backend: claude
-    system_prompt: You are Bob. Knowledgeable and patient.
+    instructions: You are Bob. Knowledgeable and patient.
 
-context:
-  provider: memory
+storage: memory
 
 kickoff: |
   @alice Ask @bob a question about how AI agents collaborate.

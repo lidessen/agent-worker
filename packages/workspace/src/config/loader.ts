@@ -1,10 +1,10 @@
 import { parse as parseYaml } from "yaml";
 import type {
-  WorkspaceYamlConfig,
-  LoadedWorkspaceConfig,
+  WorkspaceDef,
+  ResolvedWorkspace,
   SetupStep,
 } from "./types.ts";
-import type { WorkspaceConfig, QueueConfig } from "../types.ts";
+import type { WorkspaceConfig } from "../types.ts";
 import { MemoryStorage, FileStorage } from "../context/storage.ts";
 
 // ── Template interpolation ────────────────────────────────────────────────
@@ -63,23 +63,23 @@ export async function runSetupSteps(
 
 // ── YAML parsing ──────────────────────────────────────────────────────────
 
-/** Parse a YAML string into WorkspaceYamlConfig. */
-export function parseWorkspaceYaml(content: string): WorkspaceYamlConfig {
+/** Parse a YAML string into a WorkspaceDef. */
+export function parseWorkspaceDef(content: string): WorkspaceDef {
   const raw = parseYaml(content);
 
   if (!raw || typeof raw !== "object") {
-    throw new Error("Invalid workspace YAML: expected an object");
+    throw new Error("Invalid workspace definition: expected an object");
   }
 
   if (!raw.name || typeof raw.name !== "string") {
-    throw new Error("Invalid workspace YAML: 'name' is required");
+    throw new Error("Invalid workspace definition: 'name' is required");
   }
 
   if (!raw.agents || typeof raw.agents !== "object") {
-    throw new Error("Invalid workspace YAML: 'agents' map is required");
+    throw new Error("Invalid workspace definition: 'agents' map is required");
   }
 
-  return raw as WorkspaceYamlConfig;
+  return raw as WorkspaceDef;
 }
 
 // ── Full config loader ────────────────────────────────────────────────────
@@ -94,13 +94,13 @@ export interface LoadOptions {
 }
 
 /**
- * Load a workspace YAML file, run setup steps, and interpolate templates.
- * Returns the parsed config, setup variables, and the resolved kickoff message.
+ * Load a workspace definition from a YAML file or string, run setup steps,
+ * and interpolate templates. Returns the resolved workspace.
  */
-export async function loadWorkspaceYaml(
+export async function loadWorkspaceDef(
   pathOrContent: string,
   opts: LoadOptions = {},
-): Promise<LoadedWorkspaceConfig> {
+): Promise<ResolvedWorkspace> {
   // Determine if it's a file path or raw YAML content
   let content: string;
   if (
@@ -111,17 +111,17 @@ export async function loadWorkspaceYaml(
   } else {
     const file = Bun.file(pathOrContent);
     if (!(await file.exists())) {
-      throw new Error(`Workspace YAML not found: ${pathOrContent}`);
+      throw new Error(`Workspace definition not found: ${pathOrContent}`);
     }
     content = await file.text();
   }
 
-  const yaml = parseWorkspaceYaml(content);
+  const def = parseWorkspaceDef(content);
 
   // Build template vars
   const baseVars: Record<string, string> = {
     ...opts.vars,
-    "workspace.name": yaml.name,
+    "workspace.name": def.name,
   };
   if (opts.tag) {
     baseVars["workspace.tag"] = opts.tag;
@@ -129,59 +129,47 @@ export async function loadWorkspaceYaml(
 
   // Run setup steps
   let setupVars: Record<string, string> = {};
-  if (yaml.setup && !opts.skipSetup) {
-    setupVars = await runSetupSteps(yaml.setup, baseVars);
+  if (def.setup && !opts.skipSetup) {
+    setupVars = await runSetupSteps(def.setup, baseVars);
   }
 
   // Merge all vars for kickoff interpolation
   const allVars = { ...baseVars, ...setupVars };
 
   // Interpolate kickoff
-  const kickoff = yaml.kickoff ? interpolate(yaml.kickoff, allVars) : undefined;
+  const kickoff = def.kickoff ? interpolate(def.kickoff, allVars) : undefined;
 
-  return { yaml, setupVars, kickoff };
+  return { def, vars: setupVars, kickoff };
 }
 
 // ── Convert to WorkspaceConfig ────────────────────────────────────────────
 
 /**
- * Convert a loaded YAML config into a WorkspaceConfig suitable for createWorkspace().
+ * Convert a resolved workspace definition into a WorkspaceConfig
+ * suitable for createWorkspace().
  */
 export function toWorkspaceConfig(
-  loaded: LoadedWorkspaceConfig,
+  resolved: ResolvedWorkspace,
   opts: LoadOptions = {},
 ): WorkspaceConfig {
-  const { yaml } = loaded;
+  const { def } = resolved;
 
   // Storage backend
-  const providerType = yaml.context?.provider ?? "file";
+  const storageType = def.storage ?? "file";
   const storage =
-    providerType === "memory"
+    storageType === "memory"
       ? new MemoryStorage()
       : new FileStorage(
-          yaml.context?.dir ??
-            `/tmp/agent-worker-${yaml.name}${opts.tag ? `-${opts.tag}` : ""}`,
+          def.storage_dir ??
+            `/tmp/agent-worker-${def.name}${opts.tag ? `-${opts.tag}` : ""}`,
         );
 
-  // Queue config
-  let queueConfig: QueueConfig | undefined;
-  if (yaml.queue) {
-    queueConfig = {
-      immediateQuota: yaml.queue.immediate_quota,
-      normalQuota: yaml.queue.normal_quota,
-      maxBackgroundWait: yaml.queue.max_background_wait,
-      maxPreemptions: yaml.queue.max_preemptions,
-    };
-  }
-
   return {
-    name: yaml.name,
+    name: def.name,
     tag: opts.tag,
-    channels: yaml.channels,
-    defaultChannel: yaml.default_channel,
-    agents: Object.keys(yaml.agents),
+    channels: def.channels,
+    defaultChannel: def.default_channel,
+    agents: Object.keys(def.agents),
     storage,
-    queueConfig,
-    smartSendThreshold: yaml.smart_send_threshold,
   };
 }
