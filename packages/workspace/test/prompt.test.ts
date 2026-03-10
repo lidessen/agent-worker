@@ -1,0 +1,90 @@
+import { test, expect, describe } from "bun:test";
+import {
+  assemblePrompt,
+  DEFAULT_SECTIONS,
+  soulSection,
+  inboxSection,
+} from "../src/loop/prompt.ts";
+import { MemoryStorage } from "../src/context/storage.ts";
+import { createWorkspace } from "../src/factory.ts";
+
+describe("Prompt assembly", () => {
+  test("soulSection returns instructions", async () => {
+    const workspace = await createWorkspace({
+      name: "test",
+      agents: [],
+      storage: new MemoryStorage(),
+    });
+
+    const result = await soulSection({
+      agentName: "alice",
+      instructions: "You are a helpful assistant.",
+      provider: workspace.contextProvider,
+      inboxEntries: [],
+    });
+
+    expect(result).toContain("You are a helpful assistant.");
+  });
+
+  test("soulSection returns null without instructions", async () => {
+    const workspace = await createWorkspace({
+      name: "test",
+      agents: [],
+      storage: new MemoryStorage(),
+    });
+
+    const result = await soulSection({
+      agentName: "alice",
+      provider: workspace.contextProvider,
+      inboxEntries: [],
+    });
+
+    expect(result).toBeNull();
+  });
+
+  test("inboxSection shows pending messages", async () => {
+    const workspace = await createWorkspace({
+      name: "test",
+      channels: ["general"],
+      agents: ["alice", "bob"],
+      storage: new MemoryStorage(),
+    });
+
+    const msg = await workspace.contextProvider.smartSend(
+      "general",
+      "alice",
+      "Hey @bob review this",
+    );
+
+    const entries = await workspace.contextProvider.inbox.peek("bob");
+
+    const result = await inboxSection({
+      agentName: "bob",
+      provider: workspace.contextProvider,
+      inboxEntries: entries,
+    });
+
+    expect(result).toContain("Hey @bob review this");
+    expect(result).toContain("#general");
+  });
+
+  test("assemblePrompt joins sections with dividers", async () => {
+    const workspace = await createWorkspace({
+      name: "test",
+      agents: ["alice"],
+      storage: new MemoryStorage(),
+    });
+
+    const result = await assemblePrompt(DEFAULT_SECTIONS, {
+      agentName: "alice",
+      instructions: "Be helpful.",
+      provider: workspace.contextProvider,
+      inboxEntries: [],
+      currentInstruction: "Do something",
+    });
+
+    expect(result).toContain("Be helpful.");
+    expect(result).toContain("Do something");
+    expect(result).toContain("---");
+  });
+});

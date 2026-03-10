@@ -1,0 +1,91 @@
+// ── Workspace ──────────────────────────────────────────────────────────────
+export { Workspace } from "./workspace.ts";
+export { createWorkspace, createWiredLoop, createAgentTools } from "./factory.ts";
+export type { WiredLoopConfig } from "./factory.ts";
+
+// ── Context ────────────────────────────────────────────────────────────────
+export { CompositeContextProvider } from "./context/provider.ts";
+export { ChannelBridge } from "./context/bridge.ts";
+export { WorkspaceEventLog } from "./context/event-log.ts";
+
+// ── Stores ─────────────────────────────────────────────────────────────────
+export { ChannelStore } from "./context/stores/channel.ts";
+export { InboxStore } from "./context/stores/inbox.ts";
+export { DocumentStore } from "./context/stores/document.ts";
+export { ResourceStore } from "./context/stores/resource.ts";
+export { StatusStore } from "./context/stores/status.ts";
+export { TimelineStore } from "./context/stores/timeline.ts";
+
+// ── Storage backends ───────────────────────────────────────────────────────
+export { MemoryStorage, FileStorage } from "./context/storage.ts";
+
+// ── Loop ───────────────────────────────────────────────────────────────────
+export { WorkspaceAgentLoop } from "./loop/loop.ts";
+export type { AgentLoopConfig } from "./loop/loop.ts";
+export { InstructionQueue } from "./loop/priority-queue.ts";
+
+// ── Prompt ─────────────────────────────────────────────────────────────────
+export {
+  assemblePrompt,
+  DEFAULT_SECTIONS,
+  soulSection,
+  teamSection,
+  inboxSection,
+  currentTaskSection,
+  docsSection,
+} from "./loop/prompt.ts";
+export type { PromptSection, PromptContext } from "./loop/prompt.ts";
+
+// ── MCP tools ──────────────────────────────────────────────────────────────
+export { createWorkspaceTools, WORKSPACE_TOOL_DEFS } from "./context/mcp/server.ts";
+export type { WorkspaceToolSet } from "./context/mcp/server.ts";
+export { createChannelTools } from "./context/mcp/channel.ts";
+export { createInboxTools } from "./context/mcp/inbox.ts";
+export { createTeamTools } from "./context/mcp/team.ts";
+export { createResourceTools } from "./context/mcp/resource.ts";
+
+// ── Utilities ──────────────────────────────────────────────────────────────
+export { nanoid, extractMentions } from "./utils.ts";
+
+// ── Types ──────────────────────────────────────────────────────────────────
+export type {
+  // Message & Channel
+  EventKind,
+  Priority,
+  InboxState,
+  ToolCallData,
+  Message,
+  InboxEntry,
+  // Instruction Queue
+  Instruction,
+  QueueConfig,
+  // Event Log
+  TimelineEvent,
+  // Resource
+  Resource,
+  // Agent Status
+  AgentStatus,
+  AgentStatusEntry,
+  // Document
+  Document,
+  // Storage
+  StorageBackend,
+  // Config
+  WorkspaceConfig,
+  // Adapter
+  ChannelAdapter,
+  ChannelBridgeInterface,
+  BridgeSubscriber,
+  // Runtime
+  WorkspaceRuntime,
+  ContextProvider,
+  EventLog,
+  InstructionQueueInterface,
+  // Store interfaces
+  ChannelStoreInterface,
+  InboxStoreInterface,
+  DocumentStoreInterface,
+  ResourceStoreInterface,
+  StatusStoreInterface,
+  TimelineStoreInterface,
+} from "./types.ts";
