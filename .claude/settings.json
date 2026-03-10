@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "command": "file=\"$CLAUDE_FILE_PATH\"; if [ -n \"$file\" ] && echo \"$file\" | grep -qE '\\.(ts|tsx|js|jsx|json|css|html)$'; then oxfmt --write \"$file\" 2>/dev/null; fi; exit 0"
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "command": "file=\"$CLAUDE_FILE_PATH\"; if [ -n \"$file\" ] && echo \"$file\" | grep -qE '(bun\\.lock|package-lock\\.json|yarn\\.lock|pnpm-lock\\.yaml)$'; then echo 'BLOCKED: Do not edit lock files directly. Use bun install instead.' && exit 1; fi; exit 0"
+      }
+    ]
+  }
+}
