@@ -774,7 +774,7 @@ console.log("T13: PASS");
 
 ## Phase 2: Multi-Agent Collaboration (LLM Required)
 
-These tests use real LLM backends to verify end-to-end multi-agent workflows.
+These tests use real LLM backends to verify end-to-end multi-agent workspaces.
 
 ---
 

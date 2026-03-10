@@ -58,7 +58,7 @@ Two composable primitives (factory pattern):
 
 ### Instance Tag (Multi-Instance Isolation)
 
-A workspace can be instantiated multiple times from the same workflow definition
+A workspace can be instantiated multiple times from the same workspace definition
 using `--tag`. Each tag creates a fully isolated workspace instance.
 
 ```
@@ -68,7 +68,7 @@ aw run review.yaml                 # instance 3: /tmp/agent-worker-review/
 ```
 
 **What tag isolates:** Everything — channels, inbox, documents, resources, status,
-timeline. Two instances of the same workflow share nothing at runtime.
+timeline. Two instances of the same workspace share nothing at runtime.
 
 **Tag in templates:** Available as `${{ workspace.tag }}` for interpolation in
 kickoff messages, setup commands, agent instructions, etc.
@@ -89,8 +89,8 @@ const workspace = await createWorkspace({
 
 **Use cases:**
 
-- Same review workflow running on multiple PRs simultaneously
-- Same deploy workflow for different environments (`--tag staging`, `--tag prod`)
+- Same review workspace running on multiple PRs simultaneously
+- Same deploy workspace for different environments (`--tag staging`, `--tag prod`)
 - Testing: spin up isolated instances without interference
 
 ### Channels (Named, Append-only)
@@ -417,7 +417,7 @@ import { createWorkspace, createWiredLoop } from "@agent-worker/workspace";
 // 1. Create shared infrastructure
 const workspace = await createWorkspace({
   name: "code-review",
-  tag: "pr-123", // optional: isolates this instance from other runs of the same workflow
+  tag: "pr-123", // optional: isolates this instance from other runs of the same workspace
   channels: ["general", "design", "code-review"],
   defaultChannel: "general",
   agents: ["designer", "reviewer"],
@@ -458,7 +458,7 @@ await workspace.shutdown();
    give agents natural noise filtering via join/leave. Each channel is independently
    queryable. Implementation cost is low (each channel = one JSONL file). Note: channels
    are orthogonal to instance tags — channels organize topics _within_ a workspace,
-   tags isolate entire workspace _instances_ of the same workflow.
+   tags isolate entire workspace _instances_ of the same workspace definition.
 
 2. **Independent inbox with selective ack** — the inbox is its own per-agent queue,
    not a cursor-based filtered view of the channel. This lets agents peek all pending
@@ -488,7 +488,7 @@ await workspace.shutdown();
 
 7. **Composable factory, not monolithic class** — `createWorkspace()` + `createWiredLoop()`
    are independent primitives. The daemon can create workspace infrastructure for both
-   standalone and multi-agent workflows. A test can create just a workspace without loops.
+   standalone and multi-agent workspaces. A test can create just a workspace without loops.
 
 8. **Composable prompt sections** — each prompt section (soul, memory, inbox, instructions)
    is an independent function returning content or null. Sections can be added/removed/reordered
@@ -632,7 +632,7 @@ with 100K messages ≈ 10MB index — acceptable for workspace lifetimes.
 B（channel=instance）会把 scope 复杂度渗透到几乎所有 store/tool 语义里，代价太高。
 若需要跨实例编排，走 C 的 coordinator 路径，不改实例边界语义。
 
-同一个 workflow 需要跑多个实例（如同时 review PR-123 和 PR-456）。三种方案：
+同一个 workspace 需要跑多个实例（如同时 review PR-123 和 PR-456）。三种方案：
 
 #### 方案 A：Instance Tag（moniro 方式，当前设计）
 
@@ -789,7 +789,7 @@ aw run coordinator.yaml --watch /tmp/aw-review-*/
 ```
 # 每个 workspace 实例在 contextDir 下暴露 instance.json
 {
-  "workflowName": "review",
+  "workspaceName": "review",
   "tag": "pr-123",
   "contextDir": "/tmp/aw-review-pr-123",
   "pid": 12345,
@@ -799,7 +799,7 @@ aw run coordinator.yaml --watch /tmp/aw-review-*/
 }
 
 # Coordinator 通过 glob /tmp/aw-review-*/instance.json 发现实例
-# 或通过 daemon API: GET /api/instances?workflow=review
+# 或通过 daemon API: GET /api/instances?workspace=review
 ```
 
 **Message envelope (coordinator → instance):**
@@ -922,7 +922,7 @@ Agent sees: [msg4, msg5]，msg3 在 deferred 列表里
 Key changes from v1 design, informed by reviewing moniro/workspace:
 
 - Flat channel list retained, now with explicit join/leave + per-channel JSONL
-- Instance tag from moniro retained — `--tag` for multi-instance isolation of same workflow
+- Instance tag from moniro retained — `--tag` for multi-instance isolation of same workspace
 - ~~No priority~~ → Three-lane InstructionQueue with cooperative preemption
 - ~~SharedMemory KV~~ → DocumentStore + ResourceStore (more structured)
 - ~~MessageBus + MentionRouter~~ → ChannelManager + InboxStore + MCP tools (simpler)

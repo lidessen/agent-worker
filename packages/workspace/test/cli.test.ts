@@ -295,8 +295,8 @@ describe("parseTarget", () => {
     // This is a design verification test
     const patterns = [
       { input: "alice", expected: "agent alice" },
-      { input: "alice@review", expected: "agent alice in workflow review" },
-      { input: "@review", expected: "workflow review" },
+      { input: "alice@review", expected: "agent alice in workspace review" },
+      { input: "@review", expected: "workspace review" },
       { input: "#general", expected: "channel general" },
     ];
 

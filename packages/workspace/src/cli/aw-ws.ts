@@ -5,7 +5,7 @@
  * Inspired by moniro/agent-worker CLI design.
  *
  * Usage:
- *   aw-ws run <file> [--tag <tag>]           Run a workflow (one-shot, exits when done)
+ *   aw-ws run <file> [--tag <tag>]           Run a workspace (one-shot, exits when done)
  *   aw-ws start <file> [--tag <tag>]         Start a persistent workspace
  *   aw-ws send <target> <message>            Send a message
  *   aw-ws peek [target]                      View conversation / channel messages
@@ -17,12 +17,12 @@
  *   aw-ws doc ls                             List shared documents
  *   aw-ws log [--follow] [--json]            View workspace events
  *   aw-ws stop [target]                      Stop workspace or agent
- *   aw-ws validate <file>                    Validate a workspace YAML
+ *   aw-ws validate <file>                    Validate a workspace config
  *
  * Target syntax:
  *   alice           → agent "alice" in current workspace
- *   alice@review    → agent "alice" in workflow "review"
- *   @review         → broadcast to workflow "review"
+ *   alice@review    → agent "alice" in workspace "review"
+ *   @review         → broadcast to workspace "review"
  *   #general        → channel "general"
  */
 import { WorkspaceDaemon } from "./daemon.ts";
@@ -57,15 +57,15 @@ function fmtTime(ts: number): string {
 
 interface Target {
   agent?: string;
-  workflow?: string;
+  workspace?: string;
   channel?: string;
 }
 
 /**
  * Parse target syntax:
  *   "alice"          → { agent: "alice" }
- *   "alice@review"   → { agent: "alice", workflow: "review" }
- *   "@review"        → { workflow: "review" }
+ *   "alice@review"   → { agent: "alice", workspace: "review" }
+ *   "@review"        → { workspace: "review" }
  *   "#general"       → { channel: "general" }
  */
 function parseTarget(raw: string): Target {
@@ -73,11 +73,11 @@ function parseTarget(raw: string): Target {
     return { channel: raw.slice(1) };
   }
   if (raw.startsWith("@")) {
-    return { workflow: raw.slice(1) };
+    return { workspace: raw.slice(1) };
   }
   if (raw.includes("@")) {
-    const [agent, workflow] = raw.split("@", 2);
-    return { agent, workflow };
+    const [agent, workspace] = raw.split("@", 2);
+    return { agent, workspace };
   }
   return { agent: raw };
 }
@@ -136,7 +136,7 @@ async function cmdStart(args: string[], oneShot: boolean): Promise<void> {
 
   if (!source) {
     console.error(
-      `${c.red}Usage:${c.reset} aw-ws ${oneShot ? "run" : "start"} <workspace.yaml> [--tag <tag>] [--var key=value] [--dry-run]`,
+      `${c.red}Usage:${c.reset} aw-ws ${oneShot ? "run" : "start"} <config.yaml> [--tag <tag>] [--var key=value] [--dry-run]`,
     );
     process.exit(1);
   }
@@ -738,7 +738,7 @@ async function cmdValidate(args: string[]): Promise<void> {
   const source = args.find((a) => !a.startsWith("-"));
 
   if (!source) {
-    console.error(`${c.red}Usage:${c.reset} aw-ws validate <workspace.yaml>`);
+    console.error(`${c.red}Usage:${c.reset} aw-ws validate <config.yaml>`);
     process.exit(1);
   }
 
@@ -749,7 +749,7 @@ async function cmdValidate(args: string[]): Promise<void> {
 
   try {
     const resolved = await loadWorkspaceDef(source, { skipSetup: true });
-    console.log(`${c.green}Valid${c.reset} workspace definition\n`);
+    console.log(`${c.green}Valid${c.reset} workspace config\n`);
     console.log(`  name:      ${c.cyan}${resolved.def.name}${c.reset}`);
     console.log(`  channels:  ${(resolved.def.channels ?? ["general"]).join(", ")}`);
     console.log(`  agents:`);
@@ -790,8 +790,8 @@ function printHelp(): void {
   console.log(`
 ${c.bold}${bin}${c.reset} — workspace CLI for agent-worker
 
-${c.bold}Workflow Commands:${c.reset}
-  ${c.cyan}run${c.reset} <file> [options]                  Run workflow (one-shot, exits when idle)
+${c.bold}Workspace Commands:${c.reset}
+  ${c.cyan}run${c.reset} <file> [options]                  Run workspace (one-shot, exits when idle)
   ${c.cyan}start${c.reset} <file> [options]                Start persistent workspace
     --tag <tag>                          Instance tag for isolation
     --var key=value                      Template variable (repeatable)
@@ -813,15 +813,15 @@ ${c.bold}Documents:${c.reset}
 
 ${c.bold}Debug:${c.reset}
   ${c.cyan}log${c.reset} [--follow] [--json]               View workspace events
-  ${c.cyan}validate${c.reset} <file>                       Validate a workspace YAML
+  ${c.cyan}validate${c.reset} <file>                       Validate a workspace config
 
 ${c.bold}Lifecycle:${c.reset}
   ${c.cyan}stop${c.reset}                                   Stop the running workspace
 
 ${c.bold}Target Syntax:${c.reset}
   alice                                   Agent "alice"
-  alice@review                            Agent "alice" in workflow "review"
-  @review                                 Broadcast to workflow
+  alice@review                            Agent "alice" in workspace "review"
+  @review                                 Broadcast to workspace
   #general                                Channel "general"
 
 ${c.bold}Examples:${c.reset}
