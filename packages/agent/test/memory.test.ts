@@ -28,8 +28,16 @@ describe("InMemoryMemoryStorage", () => {
 
   test("search with multiple keywords", async () => {
     const storage = new InMemoryMemoryStorage();
-    await storage.add({ text: "User prefers dark mode theme", source: "test", timestamp: Date.now() });
-    await storage.add({ text: "Project uses dark background", source: "test", timestamp: Date.now() });
+    await storage.add({
+      text: "User prefers dark mode theme",
+      source: "test",
+      timestamp: Date.now(),
+    });
+    await storage.add({
+      text: "Project uses dark background",
+      source: "test",
+      timestamp: Date.now(),
+    });
 
     const results = await storage.search("dark mode");
     expect(results).toHaveLength(2);
@@ -53,7 +61,11 @@ describe("MemoryManager", () => {
 
     await manager.extract(
       [
-        { role: "assistant", content: "The user wants to refactor the auth module to use JWT tokens. This is a critical security improvement." },
+        {
+          role: "assistant",
+          content:
+            "The user wants to refactor the auth module to use JWT tokens. This is a critical security improvement.",
+        },
       ],
       "test_run",
     );
@@ -69,10 +81,7 @@ describe("MemoryManager", () => {
       },
     });
 
-    await manager.extract(
-      [{ role: "user", content: "hello world" }],
-      "test",
-    );
+    await manager.extract([{ role: "user", content: "hello world" }], "test");
 
     const memories = await manager.storageBackend.list();
     expect(memories).toHaveLength(1);
@@ -133,5 +142,69 @@ describe("MemoryManager", () => {
     );
     const memories = await manager.storageBackend.list();
     expect(memories).toHaveLength(0);
+  });
+
+  test("simpleExtract ignores user turns", async () => {
+    const manager = new MemoryManager({ extractAt: "checkpoint" });
+    await manager.extract(
+      [
+        {
+          role: "user",
+          content: "This is a user message that should not be extracted as a memory.",
+        },
+      ],
+      "test",
+    );
+    const memories = await manager.storageBackend.list();
+    expect(memories).toHaveLength(0);
+  });
+
+  test("simpleExtract ignores short sentences", async () => {
+    const manager = new MemoryManager({ extractAt: "checkpoint" });
+    await manager.extract([{ role: "assistant", content: "OK. Done. Yes." }], "test");
+    const memories = await manager.storageBackend.list();
+    expect(memories).toHaveLength(0);
+  });
+
+  test("simpleExtract caps at 5 memories", async () => {
+    const manager = new MemoryManager({ extractAt: "checkpoint" });
+    const longContent = Array.from(
+      { length: 20 },
+      (_, i) => `This is a sufficiently long sentence number ${i} that should be extracted`,
+    ).join(". ");
+
+    await manager.extract([{ role: "assistant", content: longContent }], "test");
+    const memories = await manager.storageBackend.list();
+    expect(memories.length).toBeLessThanOrEqual(5);
+  });
+
+  test("search delegates to storage with custom limit", async () => {
+    const manager = new MemoryManager({ maxInjected: 5 });
+    for (let i = 0; i < 10; i++) {
+      await manager.storageBackend.add({
+        text: `memory about topic ${i}`,
+        source: "test",
+        timestamp: Date.now(),
+      });
+    }
+
+    const results = await manager.search("topic", 3);
+    expect(results.length).toBeLessThanOrEqual(3);
+  });
+
+  test("extract stores source metadata", async () => {
+    const manager = new MemoryManager({ extractAt: "checkpoint" });
+    await manager.extract(
+      [
+        {
+          role: "assistant",
+          content: "The deployment pipeline uses GitHub Actions for continuous integration.",
+        },
+      ],
+      "run_42",
+    );
+    const memories = await manager.storageBackend.list();
+    expect(memories.length).toBeGreaterThan(0);
+    expect(memories[0]!.source).toBe("run_42");
   });
 });

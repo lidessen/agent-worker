@@ -62,12 +62,12 @@ idle ───────────→ waiting ──────→ processi
 ```
 
 Five states:
+
 - **idle** — nothing to do, waiting for messages
 - **waiting** — messages arrived, debounce timer running (collecting more messages)
 - **processing** — consuming messages and/or completing todos
 - **error** — last run failed, can resume() or stop()
 - **stopped** — explicitly shut down, terminal
-
 
 ## Two paths: AI SDK vs CLI
 
@@ -89,6 +89,7 @@ CLI path (MCP bridge):
 ```
 
 Both paths use the **same state manager**. The difference is transport:
+
 - AI SDK: tool functions call state manager in-process
 - CLI: MCP server receives tool calls, forwards to state manager
 
@@ -114,6 +115,7 @@ agent MCP server
 ```
 
 Lifecycle:
+
 1. Agent creates the MCP server at `init()` time
 2. For CLI loops: server URL/transport is passed as an MCP connection
 3. For AI SDK loops: server is optional — direct tools are used by default
@@ -127,11 +129,11 @@ The inbox replaces the simple queue from earlier designs. Messages have `unread`
 
 ```ts
 interface InboxMessage {
-  id: string
-  content: string
-  from?: string          // sender identifier (user, agent name, system)
-  timestamp: number
-  status: "unread" | "read"
+  id: string;
+  content: string;
+  from?: string; // sender identifier (user, agent name, system)
+  timestamp: number;
+  status: "unread" | "read";
 }
 ```
 
@@ -143,6 +145,7 @@ At every checkpoint, the context engine injects an inbox peek. The peek is desig
 - **Long messages**: first `peekThreshold` chars + `...` + message ID. Stays `unread` until LLM calls `inbox.read(id)` to get full content
 
 Example prompt injection:
+
 ```
 📥 Inbox (3 unread):
 • [msg_1] from:user — "Fix the login bug" ✓
@@ -173,9 +176,9 @@ When the agent is **already processing**, new messages just land in the inbox. T
 ```ts
 interface InboxConfig {
   /** Debounce delay for wake-up. Default: 200ms */
-  debounceMs?: number
+  debounceMs?: number;
   /** Messages shorter than this are auto-read in peek. Default: 200 chars */
-  peekThreshold?: number
+  peekThreshold?: number;
 }
 ```
 
@@ -185,10 +188,10 @@ interface InboxConfig {
 
 The LLM interacts with the inbox via tools:
 
-| action | params | effect |
-|--------|--------|--------|
-| `peek` | — | Return inbox summary (same format as prompt injection, refreshed) |
-| `read` | `id` | Read full content of a message, mark as `read` |
+| action | params       | effect                                                                                    |
+| ------ | ------------ | ----------------------------------------------------------------------------------------- |
+| `peek` | —            | Return inbox summary (same format as prompt injection, refreshed)                         |
+| `read` | `id`         | Read full content of a message, mark as `read`                                            |
 | `wait` | `timeoutMs?` | Register a non-blocking reminder — notified when a new message arrives or timeout expires |
 
 Peek is also auto-injected into the prompt at each checkpoint, so the LLM doesn't need to call `peek` explicitly unless it wants to check for new messages mid-run.
@@ -227,8 +230,8 @@ This is built on the general-purpose `ReminderManager` — see the `agent_remind
 
 The LLM can send messages outward at any time. Where messages go is the caller's responsibility — the agent emits a `"send"` event with target and content.
 
-| action | params | effect |
-|--------|--------|--------|
+| action | params                        | effect                      |
+| ------ | ----------------------------- | --------------------------- |
 | `send` | `target`, `content`, `force?` | Send a message (with guard) |
 
 #### Send guard: check for new messages before sending
@@ -257,20 +260,21 @@ Todos are how the agent tracks its own train of thought across multiple runs. Th
 
 ```ts
 interface TodoItem {
-  id: string
-  text: string
-  status: "pending" | "done"
+  id: string;
+  text: string;
+  status: "pending" | "done";
 }
 ```
 
-| action | params | effect |
-|--------|--------|--------|
-| `add` | `text` | Add a new pending item |
-| `complete` | `id` | Mark item as done |
-| `clear` | — | Discard all todos (reset working memory) |
-| `list` | — | Return current state |
+| action     | params | effect                                   |
+| ---------- | ------ | ---------------------------------------- |
+| `add`      | `text` | Add a new pending item                   |
+| `complete` | `id`   | Mark item as done                        |
+| `clear`    | —      | Discard all todos (reset working memory) |
+| `list`     | —      | Return current state                     |
 
 Lifecycle:
+
 - Persists across runs — not scoped to a single message
 - New messages may cause the agent to rewrite or clear todos entirely
 - When `maxRuns` is hit, remaining todos are abandoned (agent goes idle or processes next message)
@@ -282,21 +286,21 @@ Persistent key-value store. LLM-controlled — it decides what to save and when 
 
 ```ts
 interface NotesStorage {
-  read(key: string): Promise<string | null>
-  write(key: string, content: string): Promise<void>
-  list(): Promise<string[]>
-  delete(key: string): Promise<void>
+  read(key: string): Promise<string | null>;
+  write(key: string, content: string): Promise<void>;
+  list(): Promise<string[]>;
+  delete(key: string): Promise<void>;
 }
 ```
 
 Default implementation: file-based (`{notesDir}/{key}.md`). User can provide a custom `NotesStorage` for database, API, or any other backend.
 
-| action | params | effect |
-|--------|--------|--------|
-| `write` | `key`, `content` | Persist a note |
-| `read` | `key` | Retrieve a note |
-| `list` | — | Return all note keys |
-| `delete` | `key` | Remove a note |
+| action   | params           | effect               |
+| -------- | ---------------- | -------------------- |
+| `write`  | `key`, `content` | Persist a note       |
+| `read`   | `key`            | Retrieve a note      |
+| `list`   | —                | Return all note keys |
+| `delete` | `key`            | Remove a note        |
 
 Notes persist across messages, across agent restarts. Simple CRUD — no relevance scoring, no automatic selection. The LLM reads what it needs.
 
@@ -306,17 +310,17 @@ Automatic working memory that the agent extracts and injects without explicit LL
 
 ```ts
 interface MemoryEntry {
-  id: string
-  text: string
-  source: string      // which message/run produced this
-  timestamp: number
+  id: string;
+  text: string;
+  source: string; // which message/run produced this
+  timestamp: number;
 }
 
 interface MemoryStorage {
-  add(entry: Omit<MemoryEntry, "id">): Promise<string>
-  search(query: string, limit?: number): Promise<MemoryEntry[]>
-  list(limit?: number): Promise<MemoryEntry[]>
-  remove(id: string): Promise<void>
+  add(entry: Omit<MemoryEntry, "id">): Promise<string>;
+  search(query: string, limit?: number): Promise<MemoryEntry[]>;
+  list(limit?: number): Promise<MemoryEntry[]>;
+  remove(id: string): Promise<void>;
 }
 ```
 
@@ -335,6 +339,7 @@ Key facts and decisions from this conversation:
 Compatible with any completion API — DeepSeek prefix completion, OpenAI completions, Anthropic, etc. The extraction model is configurable separately from the main agent model (use a cheap/fast model).
 
 Extraction strategies:
+
 - **"completion"** (default when enabled): prefix-completion call to extract memories
 - **"custom"**: user provides `extractMemories(turns: Turn[]) => Promise<string[]>`
 
@@ -348,6 +353,7 @@ Checkpoint (before each run / before each step):
 ```
 
 This is closer to how memory actually works — continuous encoding and association, not batch processing at the end. The agent is constantly:
+
 - **Encoding**: "this seems important, remember it" (extract from recent context)
 - **Associating**: "this reminds me of..." (recall by relevance to current focus)
 
@@ -356,7 +362,7 @@ The completion call is lightweight (small model, short prefix). If it's still to
 ```ts
 interface MemoryConfig {
   /** When to extract. Default: "checkpoint" */
-  extractAt?: "checkpoint" | "idle" | "never"
+  extractAt?: "checkpoint" | "idle" | "never";
   // ...
 }
 ```
@@ -370,6 +376,7 @@ Context is not a fixed window that truncates. It's a **budget-based assembly** t
 ### Checkpoints
 
 Context is reassembled at:
+
 1. **Before each run** — always (both AI SDK and CLI)
 2. **Before each step** — AI SDK only, if using step-level control
 
@@ -396,6 +403,7 @@ Total budget: maxContextTokens (configurable, default: 8000 tokens)
 ```
 
 Allocation order:
+
 1. **Fixed sections** (instructions, inbox peek, current focus, todos, note keys) — always included in full, all small
 2. **Memory** — up to `memoryBudget` tokens (default: 20% of remaining), most relevant first
 3. **Conversation history** — fills remaining budget, most recent turns first
@@ -409,6 +417,7 @@ If total exceeds budget, conversation history shrinks first, then memory. Fixed 
 **Compaction** (summarize old turns) is expensive (requires LLM call) and lossy (summary misses details the LLM might need).
 
 **Rolling** (budget-based reassembly) is better because:
+
 - Memory captures important facts from old conversations — they survive even when turns are dropped
 - Notes persist the LLM's explicit knowledge — they never age out
 - Each checkpoint re-evaluates what's relevant, not just what's recent
@@ -425,12 +434,12 @@ Agent stays on top of `@agent-worker/loop` — it never bypasses it. For step-le
 ```ts
 // AI SDK's PrepareStepFunction (already exists in ai@6.x)
 type PrepareStepFunction<TOOLS> = (options: {
-  steps: StepResult<TOOLS>[]     // steps executed so far
-  stepNumber: number
-  model: LanguageModel
-  messages: ModelMessage[]        // messages for this step
-  experimental_context: unknown
-}) => PrepareStepResult<TOOLS>
+  steps: StepResult<TOOLS>[]; // steps executed so far
+  stepNumber: number;
+  model: LanguageModel;
+  messages: ModelMessage[]; // messages for this step
+  experimental_context: unknown;
+}) => PrepareStepResult<TOOLS>;
 
 // PrepareStepResult — can override per step:
 //   model, system, messages, activeTools, toolChoice, providerOptions
@@ -443,7 +452,7 @@ AiSdkLoop exposes this as a pass-through option. The agent provides a `prepareSt
 interface AiSdkLoopOptions {
   // ... existing options ...
   /** AI SDK prepareStep — called before each step within a run. */
-  prepareStep?: PrepareStepFunction<ToolSet>
+  prepareStep?: PrepareStepFunction<ToolSet>;
 }
 ```
 
@@ -507,13 +516,14 @@ How tools reach the LLM depends on the loop type:
 
 ```ts
 interface ToolKitConfig {
-  tools?: ToolSet                    // user-defined AI SDK tools
-  mcp?: McpConnection[]              // external MCP servers
-  includeBuiltins?: boolean          // todo, notes, memory. Default: true
+  tools?: ToolSet; // user-defined AI SDK tools
+  mcp?: McpConnection[]; // external MCP servers
+  includeBuiltins?: boolean; // todo, notes, memory. Default: true
 }
 ```
 
 Tool sources, merged in order:
+
 1. **Built-in** — `agent_inbox`, `agent_send`, `agent_todo`, `agent_notes`, `agent_memory`
 2. **MCP tools** — fetched from connected MCP servers
 3. **User tools** — passed directly in config
@@ -526,14 +536,14 @@ CLI loops receive tools via the agent MCP server:
 
 ```ts
 // Agent starts MCP server exposing builtins
-const mcpServer = new AgentMcpServer(stateManager)
-await mcpServer.start()
+const mcpServer = new AgentMcpServer(stateManager);
+await mcpServer.start();
 
 // CLI loop is configured to connect to it
 const loop = new ClaudeCodeLoop({
   // The agent adds its MCP server to the CLI's MCP connections
   extraArgs: ["--mcp-config", mcpConfigPath],
-})
+});
 ```
 
 External MCP servers (user-provided) are also passed through to the CLI loop. The agent MCP server is just one more MCP connection from the CLI's perspective.
@@ -543,43 +553,45 @@ External MCP servers (user-provided) are also passed through to the CLI loop. Th
 Agent depends on a capability interface, not concrete loop classes. This decouples `@agent-worker/agent` from specific backends — adding a new loop runtime doesn't require changing agent types.
 
 ```ts
-type LoopCapability = "directTools" | "prepareStep"
+type LoopCapability = "directTools" | "prepareStep";
 
 interface AgentLoop {
-  supports: LoopCapability[]
-  run(prompt: string): LoopRun
-  cancel(): void
-  get status(): LoopStatus
-  preflight?(): Promise<PreflightResult>
-  cleanup?(): Promise<void>
+  supports: LoopCapability[];
+  run(prompt: string): LoopRun;
+  cancel(): void;
+  get status(): LoopStatus;
+  preflight?(): Promise<PreflightResult>;
+  cleanup?(): Promise<void>;
 
   // ── Capability surfaces (only present when declared in supports) ──
 
   /** Set tools for next run. Present when supports includes "directTools". */
-  setTools?(tools: ToolSet): void
+  setTools?(tools: ToolSet): void;
 
   /** Set prepareStep hook. Present when supports includes "prepareStep". */
-  setPrepareStep?(fn: PrepareStepFunction): void
+  setPrepareStep?(fn: PrepareStepFunction): void;
 
   /** Add MCP server config for CLI loops. Present when supports is empty (CLI). */
-  setMcpConfig?(configPath: string): void
+  setMcpConfig?(configPath: string): void;
 }
 ```
 
 Each loop declares what it supports and exposes the matching surface:
+
 - `AiSdkLoop`: `supports: ["directTools", "prepareStep"]` → implements `setTools()`, `setPrepareStep()`
 - `ClaudeCodeLoop`, `CodexLoop`, `CursorLoop`: `supports: []` → implements `setMcpConfig()`
 
 The agent calls these during `init()`:
+
 ```ts
 if (loop.supports.includes("directTools")) {
-  loop.setTools!(builtinTools)
+  loop.setTools!(builtinTools);
 }
 if (loop.supports.includes("prepareStep")) {
-  loop.setPrepareStep!(contextEngine.prepareStep)
+  loop.setPrepareStep!(contextEngine.prepareStep);
 }
 if (loop.setMcpConfig) {
-  loop.setMcpConfig!(agentMcpConfigPath)
+  loop.setMcpConfig!(agentMcpConfigPath);
 }
 ```
 
@@ -590,49 +602,49 @@ Extensible — new capabilities add new optional methods, no type union changes.
 ```ts
 interface AgentConfig {
   /** Display name */
-  name?: string
+  name?: string;
 
   /** System instructions prepended to every prompt */
-  instructions?: string
+  instructions?: string;
 
   /** Which loop backend to use */
-  loop: AgentLoop
+  loop: AgentLoop;
 
   /** Tool assembly config (AI SDK loops only) */
-  toolkit?: ToolKitConfig
+  toolkit?: ToolKitConfig;
 
   /** Max loop.run() calls per message. Default: 10 */
-  maxRuns?: number
+  maxRuns?: number;
 
   /** Inbox config */
-  inbox?: InboxConfig
+  inbox?: InboxConfig;
 
   /** Context engine config */
   context?: {
     /** Total token budget for assembled prompt. Default: 8000 */
-    maxTokens?: number
+    maxTokens?: number;
     /** Memory budget as fraction of remaining. Default: 0.20 */
-    memoryBudget?: number
+    memoryBudget?: number;
     /** Custom token estimator. Default: chars/4 */
-    tokenEstimator?: (text: string) => number
-  }
+    tokenEstimator?: (text: string) => number;
+  };
 
   /** Notes storage backend. Default: file-based */
-  notesStorage?: NotesStorage
+  notesStorage?: NotesStorage;
 
   /** Memory config. Optional — disabled when not provided */
   memory?: {
     /** Storage backend. Default: file-based */
-    storage?: MemoryStorage
+    storage?: MemoryStorage;
     /** Extraction model — completion API endpoint or model instance. */
-    extractionModel?: string | LanguageModel
+    extractionModel?: string | LanguageModel;
     /** Custom extraction function (alternative to model-based extraction) */
-    extractMemories?: (turns: Turn[]) => Promise<string[]>
+    extractMemories?: (turns: Turn[]) => Promise<string[]>;
     /** When to extract. Default: "checkpoint" */
-    extractAt?: "checkpoint" | "idle" | "never"
+    extractAt?: "checkpoint" | "idle" | "never";
     /** Max memories to inject per prompt. Default: 10 */
-    maxInjected?: number
-  }
+    maxInjected?: number;
+  };
 }
 ```
 
@@ -641,29 +653,29 @@ interface AgentConfig {
 ```ts
 class Agent {
   // ── Lifecycle ──
-  constructor(config: AgentConfig)
-  async init(): Promise<void>          // start MCP server, connect external MCP, assemble tools
-  async stop(): Promise<void>          // stop processing, stop MCP server, cleanup
+  constructor(config: AgentConfig);
+  async init(): Promise<void>; // start MCP server, connect external MCP, assemble tools
+  async stop(): Promise<void>; // stop processing, stop MCP server, cleanup
 
   // ── Messaging ──
-  push(message: string): void          // enqueue to inbox, debounced wake
-  push(message: Message): void         // with metadata (from, etc.)
+  push(message: string): void; // enqueue to inbox, debounced wake
+  push(message: Message): void; // with metadata (from, etc.)
 
   // ── State ──
-  get state(): AgentState              // idle | processing | error | stopped
-  get inbox(): readonly InboxMessage[] // all messages (read-only view)
-  get todos(): readonly TodoItem[]     // current todo state
-  get context(): readonly Turn[]       // conversation history
-  get notes(): NotesStorage            // access notes directly
+  get state(): AgentState; // idle | processing | error | stopped
+  get inbox(): readonly InboxMessage[]; // all messages (read-only view)
+  get todos(): readonly TodoItem[]; // current todo state
+  get context(): readonly Turn[]; // conversation history
+  get notes(): NotesStorage; // access notes directly
 
   // ── Events ──
-  on(event: "stateChange", fn: (state: AgentState) => void): void
-  on(event: "event", fn: (event: LoopEvent) => void): void
-  on(event: "runStart", fn: (info: RunInfo) => void): void
-  on(event: "runEnd", fn: (result: LoopResult) => void): void
-  on(event: "messageReceived", fn: (message: InboxMessage) => void): void
-  on(event: "send", fn: (target: string, content: string) => void): void
-  on(event: "contextAssembled", fn: (prompt: AssembledPrompt) => void): void
+  on(event: "stateChange", fn: (state: AgentState) => void): void;
+  on(event: "event", fn: (event: LoopEvent) => void): void;
+  on(event: "runStart", fn: (info: RunInfo) => void): void;
+  on(event: "runEnd", fn: (result: LoopResult) => void): void;
+  on(event: "messageReceived", fn: (message: InboxMessage) => void): void;
+  on(event: "send", fn: (target: string, content: string) => void): void;
+  on(event: "contextAssembled", fn: (prompt: AssembledPrompt) => void): void;
 }
 ```
 
@@ -730,9 +742,9 @@ packages/agent/
 ## Example usage
 
 ```ts
-import { Agent } from "@agent-worker/agent"
-import { AiSdkLoop } from "@agent-worker/loop"
-import { anthropic } from "@ai-sdk/anthropic"
+import { Agent } from "@agent-worker/agent";
+import { AiSdkLoop } from "@agent-worker/loop";
+import { anthropic } from "@ai-sdk/anthropic";
 
 // ── AI SDK with all features ──
 
@@ -745,13 +757,13 @@ const agent = new Agent({
   }),
   maxRuns: 5,
   memory: {
-    extractionModel: "deepseek:deepseek-chat",  // cheap model for memory extraction
+    extractionModel: "deepseek:deepseek-chat", // cheap model for memory extraction
   },
-})
+});
 
-await agent.init()
-agent.on("event", (e) => console.log(e))
-agent.push("Research the top 3 AI frameworks released in 2025")
+await agent.init();
+agent.on("event", (e) => console.log(e));
+agent.push("Research the top 3 AI frameworks released in 2025");
 
 // ── CLI loop with MCP bridge ──
 
@@ -764,12 +776,12 @@ const cliAgent = new Agent({
   maxRuns: 3,
   // Notes stored in project directory
   notesStorage: new FileNotesStorage({ dir: "./.agent-notes" }),
-})
+});
 
-await cliAgent.init()
+await cliAgent.init();
 // Agent starts MCP server, configures CLI to connect to it
 // LLM inside Claude Code can now use agent_todo, agent_notes, agent_memory tools
-cliAgent.push("Refactor the auth module to use JWT tokens")
+cliAgent.push("Refactor the auth module to use JWT tokens");
 
 // ── Custom storage backends ──
 
@@ -778,19 +790,35 @@ const customAgent = new Agent({
   instructions: "You are a customer support agent.",
   loop: new AiSdkLoop({ model: anthropic("claude-haiku-4-5-20251001") }),
   notesStorage: {
-    async read(key) { return db.notes.get(key) },
-    async write(key, content) { await db.notes.set(key, content) },
-    async list() { return db.notes.keys() },
-    async delete(key) { await db.notes.delete(key) },
+    async read(key) {
+      return db.notes.get(key);
+    },
+    async write(key, content) {
+      await db.notes.set(key, content);
+    },
+    async list() {
+      return db.notes.keys();
+    },
+    async delete(key) {
+      await db.notes.delete(key);
+    },
   },
   memory: {
     storage: {
-      async add(entry) { return vectorDb.insert(entry) },
-      async search(query, limit) { return vectorDb.search(query, limit) },
-      async list(limit) { return vectorDb.recent(limit) },
-      async remove(id) { await vectorDb.delete(id) },
+      async add(entry) {
+        return vectorDb.insert(entry);
+      },
+      async search(query, limit) {
+        return vectorDb.search(query, limit);
+      },
+      async list(limit) {
+        return vectorDb.recent(limit);
+      },
+      async remove(id) {
+        await vectorDb.delete(id);
+      },
     },
     extractionModel: "deepseek:deepseek-chat",
   },
-})
+});
 ```

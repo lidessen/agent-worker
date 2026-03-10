@@ -49,10 +49,7 @@ export class FileMemoryStorage implements MemoryStorage {
     // Score by number of matching keywords
     const scored = entries.map((entry) => {
       const textLower = entry.text.toLowerCase();
-      const score = words.reduce(
-        (s, word) => s + (textLower.includes(word) ? 1 : 0),
-        0,
-      );
+      const score = words.reduce((s, word) => s + (textLower.includes(word) ? 1 : 0), 0);
       return { entry, score };
     });
 

@@ -6,6 +6,7 @@
  */
 
 import { CursorLoop } from "../../src/loops/cursor.ts";
+import type { LoopStatus } from "../../src/types.ts";
 import {
   createTest,
   runSuite,
@@ -38,16 +39,24 @@ const tests = [
     const run = loop.run("Reply with exactly: HELLO_A2A_TEST");
 
     const events = await collectEvents(run);
-    const result = await run.result;
+    await run.result;
 
     const eventErrors = validateEvents(events);
     if (eventErrors.length > 0) {
-      return { status: "fail" as TestStatus, message: `Event errors: ${eventErrors.join("; ")}`, details: { eventErrors } };
+      return {
+        status: "fail" as TestStatus,
+        message: `Event errors: ${eventErrors.join("; ")}`,
+        details: { eventErrors },
+      };
     }
 
     const textEvents = events.filter((e) => e.type === "text");
     if (textEvents.length === 0) {
-      return { status: "fail" as TestStatus, message: "No text events emitted", details: { events } };
+      return {
+        status: "fail" as TestStatus,
+        message: "No text events emitted",
+        details: { events },
+      };
     }
 
     return { status: "pass" as TestStatus, message: `Got ${events.length} events` };
@@ -67,7 +76,10 @@ const tests = [
       return { status: "fail" as TestStatus, message: errors.join("; "), details: { result } };
     }
 
-    return { status: "pass" as TestStatus, message: `Valid result: ${result.events.length} events, ${result.durationMs}ms` };
+    return {
+      status: "pass" as TestStatus,
+      message: `Valid result: ${result.events.length} events, ${result.durationMs}ms`,
+    };
   }),
 
   // 4. Status transitions
@@ -75,15 +87,21 @@ const tests = [
     if (!available) return { status: "skip" as TestStatus, message: "CLI not available" };
 
     const loop = new CursorLoop();
-    if (loop.status !== "idle") return { status: "fail" as TestStatus, message: `Expected idle, got ${loop.status}` };
+    // Use helper to avoid TS narrowing across getter calls
+    const s = () => loop.status as LoopStatus;
+
+    if (s() !== "idle")
+      return { status: "fail" as TestStatus, message: `Expected idle, got ${s()}` };
 
     const run = loop.run("Reply: hi");
-    if (loop.status !== "running") return { status: "fail" as TestStatus, message: `Expected running, got ${loop.status}` };
+    if (s() !== "running")
+      return { status: "fail" as TestStatus, message: `Expected running, got ${s()}` };
 
     await collectEvents(run);
     await run.result;
 
-    if (loop.status !== "completed") return { status: "fail" as TestStatus, message: `Expected completed, got ${loop.status}` };
+    if (s() !== "completed")
+      return { status: "fail" as TestStatus, message: `Expected completed, got ${s()}` };
 
     return { status: "pass" as TestStatus, message: "idle → running → completed" };
   }),
@@ -99,7 +117,11 @@ const tests = [
 
     const start = Date.now();
     await collectEvents(run);
-    try { await run.result; } catch { /* may throw */ }
+    try {
+      await run.result;
+    } catch {
+      /* may throw */
+    }
     const elapsed = Date.now() - start;
 
     if (loop.status !== "cancelled") {

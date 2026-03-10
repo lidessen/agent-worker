@@ -13,10 +13,7 @@ export class SendGuard {
   private onSend: (target: string, content: string) => void;
   private inbox: Inbox;
 
-  constructor(
-    inbox: Inbox,
-    onSend: (target: string, content: string) => void,
-  ) {
+  constructor(inbox: Inbox, onSend: (target: string, content: string) => void) {
     this.inbox = inbox;
     this.onSend = onSend;
   }

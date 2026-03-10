@@ -53,8 +53,8 @@ export class ToolBridge {
 
     throw new Error(
       "ToolBridge: all transport strategies failed. " +
-      "Tried Unix socket (tmpdir, cwd) and TCP (127.0.0.1). " +
-      "Check filesystem permissions and available ports.",
+        "Tried Unix socket (tmpdir, cwd) and TCP (127.0.0.1). " +
+        "Check filesystem permissions and available ports.",
     );
   }
 
@@ -67,7 +67,9 @@ export class ToolBridge {
       try {
         const { unlink } = await import("node:fs/promises");
         await unlink(this._socketPath);
-      } catch { /* already removed or never created */ }
+      } catch {
+        /* already removed or never created */
+      }
       this._socketPath = null;
     }
     this._transport = null;
@@ -83,7 +85,9 @@ export class ToolBridge {
     try {
       const { unlink } = await import("node:fs/promises");
       await unlink(socketPath);
-    } catch { /* doesn't exist — expected */ }
+    } catch {
+      /* doesn't exist — expected */
+    }
 
     try {
       this.server = Bun.serve({ unix: socketPath, fetch });
@@ -102,7 +106,9 @@ export class ToolBridge {
     for (const _ of attempts) {
       try {
         this.server = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch });
-        this._transport = { type: "tcp", host: "127.0.0.1", port: this.server.port };
+        const port = this.server.port;
+        if (port === undefined) throw new Error("Server started but port is undefined");
+        this._transport = { type: "tcp", host: "127.0.0.1", port };
         return this._transport;
       } catch {
         // port: 0 failed, try again (OS might free one up)
@@ -129,7 +135,7 @@ export class ToolBridge {
       }
 
       try {
-        const args = await req.json();
+        const args = (await req.json()) as Record<string, unknown>;
         const result = await handler(args);
         return Response.json({ result });
       } catch (err) {

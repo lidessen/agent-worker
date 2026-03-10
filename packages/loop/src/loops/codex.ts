@@ -102,6 +102,35 @@ function mapCodexEvent(data: unknown): RawCliEvent {
         result: event.output,
       };
 
+    case "item.started":
+    case "item.completed": {
+      const item = (event.item as Record<string, unknown>) ?? {};
+      if (item.type === "mcp_tool_call") {
+        if (type === "item.started") {
+          return {
+            type: "tool_call_start",
+            name: (item.tool as string) ?? "unknown",
+            callId: (item.id as string) ?? "",
+            args: (item.arguments as Record<string, unknown>) ?? {},
+          };
+        }
+        // item.completed
+        const result = item.result as Record<string, unknown> | undefined;
+        const content = result?.content as Array<Record<string, unknown>> | undefined;
+        const text = (content?.[0]?.text as string) ?? "";
+        return {
+          type: "tool_call_end",
+          callId: (item.id as string) ?? "",
+          name: (item.tool as string) ?? "unknown",
+          result: text,
+        };
+      }
+      if (item.type === "agent_message" && typeof item.text === "string") {
+        return { type: "text", text: item.text };
+      }
+      return { type: "unknown", data: event };
+    }
+
     default:
       return { type: "unknown", data: event };
   }

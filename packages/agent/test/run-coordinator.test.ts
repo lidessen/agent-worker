@@ -8,7 +8,9 @@ import { ReminderManager } from "../src/reminder.ts";
 import type { AgentLoop } from "../src/types.ts";
 import type { LoopRun, LoopResult, LoopEvent, LoopStatus } from "@agent-worker/loop";
 
-function createMockLoop(response = "OK"): AgentLoop & { lastPrompt: string | null; runCount: number } {
+function createMockLoop(
+  response = "OK",
+): AgentLoop & { lastPrompt: string | null; runCount: number } {
   const mock: AgentLoop & { lastPrompt: string | null; runCount: number; _status: LoopStatus } = {
     supports: ["directTools"],
     lastPrompt: null,
@@ -217,12 +219,117 @@ describe("RunCoordinator", () => {
     inbox.push("msg1");
 
     let stopped = false;
-    setTimeout(() => { stopped = true; }, 10);
+    setTimeout(() => {
+      stopped = true;
+    }, 10);
 
     const outcome = await coordinator.processLoop({
       shouldStop: () => stopped,
     });
 
     expect(outcome).toBe("idle");
+  });
+
+  test("assembleForStep returns empty for step 0", async () => {
+    const { coordinator } = createCoordinator();
+    const result = await coordinator.assembleForStep({
+      steps: [],
+      stepNumber: 0,
+      model: {},
+      messages: [],
+      experimental_context: undefined,
+    });
+    expect(result).toEqual({});
+  });
+
+  test("assembleForStep returns system prompt for step > 0", async () => {
+    const { coordinator } = createCoordinator();
+    const result = await coordinator.assembleForStep({
+      steps: [{}],
+      stepNumber: 1,
+      model: {},
+      messages: [],
+      experimental_context: undefined,
+    });
+    expect(result.system).toBeDefined();
+    expect(result.system).toContain("Be helpful");
+  });
+
+  test("processLoop returns error when loop throws", async () => {
+    const err = new Error("loop failed");
+    const resultPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(err), 0);
+    });
+    // Prevent unhandled rejection since processLoop catches via iterator
+    resultPromise.catch(() => {});
+
+    const errorLoop: ReturnType<typeof createMockLoop> = {
+      ...createMockLoop(),
+      run() {
+        return {
+          async *[Symbol.asyncIterator]() {
+            throw err;
+          },
+          result: resultPromise,
+        };
+      },
+    };
+    const inbox = new Inbox({}, () => {});
+    const todos = new TodoManager();
+    const coordinator = new RunCoordinator({
+      loop: errorLoop,
+      inbox,
+      todos,
+      notes: new InMemoryNotesStorage(),
+      contextEngine: new ContextEngine(),
+      memory: null,
+      reminders: new ReminderManager(),
+      instructions: "Be helpful.",
+      maxRuns: 10,
+    });
+    inbox.push("trigger");
+
+    const outcome = await coordinator.processLoop({});
+    expect(outcome).toBe("error");
+  });
+
+  test("processLoop fires onEvent callback", async () => {
+    const loop = createMockLoop("OK");
+    const { coordinator, inbox } = createCoordinator(loop);
+    inbox.push("msg1");
+
+    const events: unknown[] = [];
+    await coordinator.processLoop({
+      onEvent: (e) => events.push(e),
+    });
+
+    expect(events.length).toBeGreaterThan(0);
+    expect(events[0]).toHaveProperty("type", "text");
+  });
+
+  test("processLoop fires onContextAssembled callback", async () => {
+    const loop = createMockLoop("OK");
+    const { coordinator, inbox } = createCoordinator(loop);
+    inbox.push("msg1");
+
+    let assembledPrompt: unknown = null;
+    await coordinator.processLoop({
+      onContextAssembled: (p) => {
+        assembledPrompt = p;
+      },
+    });
+
+    expect(assembledPrompt).not.toBeNull();
+    expect(assembledPrompt).toHaveProperty("system");
+    expect(assembledPrompt).toHaveProperty("turns");
+  });
+
+  test("buildTriggerContent for multiple messages", () => {
+    const { coordinator, inbox } = createCoordinator();
+    inbox.push("hello");
+    inbox.push("world");
+    const content = coordinator.buildTriggerContent("next_message");
+    expect(content).toContain("hello");
+    expect(content).toContain("world");
   });
 });

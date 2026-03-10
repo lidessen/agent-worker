@@ -86,13 +86,15 @@ export const BUILTIN_TOOLS: Record<string, ToolDef> = {
       action: z.enum(["set", "list", "cancel"]),
       label: z.string().optional().describe("Reminder label (for set action)"),
       timeoutMs: z.number().optional().describe("Timeout in ms (for set action)"),
-      description: z.string().optional().describe("Human-readable description of what you're waiting for"),
+      description: z
+        .string()
+        .optional()
+        .describe("Human-readable description of what you're waiting for"),
       id: z.string().optional().describe("Reminder ID (for cancel action)"),
     },
   },
   agent_memory: {
-    description:
-      "Search your memories. Read-only — memories are managed automatically.",
+    description: "Search your memories. Read-only — memories are managed automatically.",
     parameters: {
       query: z.string().describe("Search query"),
       limit: z.number().optional().describe("Max results (default: 10)"),
@@ -142,7 +144,9 @@ export function createToolHandlers(deps: ToolHandlerDeps): Record<string, ToolHa
     },
 
     agent_send: async ({ target, content, force }) => {
-      return JSON.stringify(sendGuard.send(target as string, content as string, force as boolean | undefined));
+      return JSON.stringify(
+        sendGuard.send(target as string, content as string, force as boolean | undefined),
+      );
     },
 
     agent_todo: async ({ action, text, id }) => {
@@ -203,7 +207,9 @@ export function createToolHandlers(deps: ToolHandlerDeps): Record<string, ToolHa
             label,
             message:
               "Reminder registered." +
-              (timeoutMs ? ` Will fire after ${timeoutMs}ms if not completed sooner.` : " No timeout — will persist until manually fired or cancelled.") +
+              (timeoutMs
+                ? ` Will fire after ${timeoutMs}ms if not completed sooner.`
+                : " No timeout — will persist until manually fired or cancelled.") +
               " Continue working — you'll be notified when it fires.",
           });
         }
@@ -212,7 +218,9 @@ export function createToolHandlers(deps: ToolHandlerDeps): Record<string, ToolHa
         case "cancel": {
           if (!id) return "Error: id required";
           const fired = reminders.fire(id as string, "completed", "Cancelled by agent");
-          return fired ? `Cancelled reminder ${id}` : `Error: reminder ${id} not found or already fired`;
+          return fired
+            ? `Cancelled reminder ${id}`
+            : `Error: reminder ${id} not found or already fired`;
         }
         default:
           return "Unknown action";

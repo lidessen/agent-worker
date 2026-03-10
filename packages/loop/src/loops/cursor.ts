@@ -20,7 +20,7 @@ export class CursorLoop {
 
     const loopRun = runCliLoop(
       {
-        command: "cursor",
+        command: "agent",
         args: buildArgs(prompt, this.options),
         mapEvent: mapCursorEvent,
         extractResult: extractCursorResult,
@@ -49,18 +49,23 @@ export class CursorLoop {
     }
   }
 
-  /** Check if cursor CLI is installed. Not a runtime test. */
+  /** Check if agent CLI (Cursor Agent) is installed. Not a runtime test. */
   async preflight(): Promise<PreflightResult> {
-    const cli = await checkCliAvailability("cursor");
+    const cli = await checkCliAvailability("agent");
     return { ok: cli.available, version: cli.version, error: cli.error };
   }
 }
 
 function buildArgs(prompt: string, opts: CursorLoopOptions): string[] {
-  const args = ["agent", "-p", prompt, "--output-format", "stream-json"];
+  // `agent` CLI: prompt is positional, `-p`/`--print` is a boolean flag for headless mode,
+  // `--yolo` skips workspace trust + auto-approves commands.
+  const args = ["-p", "--output-format", "stream-json", "--yolo"];
 
   if (opts.model) args.push("--model", opts.model);
   if (opts.extraArgs?.length) args.push(...opts.extraArgs);
+
+  // Prompt must come last (positional argument)
+  args.push(prompt);
 
   return args;
 }
@@ -89,6 +94,36 @@ function mapCursorEvent(data: unknown): RawCliEvent | RawCliEvent[] {
         }
       }
       return events.length === 1 ? events[0]! : events.length > 1 ? events : null;
+    }
+
+    case "tool_call": {
+      const subtype = event.subtype as string;
+      const toolCall = (event.tool_call as Record<string, unknown>) ?? {};
+      const mcpCall = (toolCall.mcpToolCall as Record<string, unknown>) ?? {};
+      const mcpArgs = (mcpCall.args as Record<string, unknown>) ?? {};
+      const callId = event.call_id as string | undefined;
+
+      if (subtype === "started") {
+        return {
+          type: "tool_call_start",
+          name: (mcpArgs.toolName as string) ?? (mcpArgs.name as string) ?? "unknown",
+          callId: callId ?? "",
+          args: (mcpArgs.args as Record<string, unknown>) ?? {},
+        };
+      }
+      if (subtype === "completed") {
+        const result = mcpCall.result as Record<string, unknown> | undefined;
+        const success = result?.success as Record<string, unknown> | undefined;
+        const content = success?.content as Array<Record<string, unknown>> | undefined;
+        const text = content?.[0]?.text as Record<string, unknown> | undefined;
+        return {
+          type: "tool_call_end",
+          name: (mcpArgs?.toolName as string) ?? "unknown",
+          callId: callId ?? "",
+          result: (text?.text as string) ?? "",
+        };
+      }
+      return { type: "unknown", data: event };
     }
 
     case "result": {

@@ -1,19 +1,10 @@
-import type {
-  CliLoopOptions,
-  LoopEvent,
-  LoopResult,
-  LoopRun,
-  TokenUsage,
-} from "../types.ts";
+import type { CliLoopOptions, LoopEvent, LoopResult, LoopRun, TokenUsage } from "../types.ts";
 import { createEventChannel } from "../types.ts";
 import { spawnCli } from "./cli.ts";
 import { createStreamParser } from "./stream-parser.ts";
 
 /** Internal event type that includes usage (not exposed to timeline) */
-export type RawCliEvent =
-  | LoopEvent
-  | { type: "usage"; usage: TokenUsage }
-  | null;
+export type RawCliEvent = LoopEvent | { type: "usage"; usage: TokenUsage } | null;
 
 export interface CliLoopConfig {
   command: string;
@@ -85,7 +76,9 @@ export function runCliLoop(
       }
 
       if (spawnResult.exitCode !== 0 && !callOptions.abortSignal?.aborted) {
-        const error = new Error(spawnResult.stderr || `Process exited with code ${spawnResult.exitCode}`);
+        const error = new Error(
+          spawnResult.stderr || `Process exited with code ${spawnResult.exitCode}`,
+        );
         emit({ type: "error", error });
         channel.error(error);
         throw error;

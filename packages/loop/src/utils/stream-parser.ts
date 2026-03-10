@@ -2,7 +2,7 @@
  * Line-buffered JSON stream parser for CLI runtimes.
  * CLI tools output one JSON object per line (JSON Lines / NDJSON).
  */
-export interface StreamParser<T = unknown> {
+export interface StreamParser<_T = unknown> {
   push(chunk: string): void;
   flush(): void;
 }

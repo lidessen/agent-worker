@@ -6,6 +6,7 @@
  */
 
 import { ClaudeCodeLoop } from "../../src/loops/claude-code.ts";
+import type { LoopStatus } from "../../src/types.ts";
 import {
   createTest,
   runSuite,
@@ -40,27 +41,43 @@ const tests = [
     const run = loop.run("Reply with exactly: HELLO_A2A_TEST");
 
     const events = await collectEvents(run);
-    const result = await run.result;
+    await run.result;
 
     // Validate event structure
     const eventErrors = validateEvents(events);
     if (eventErrors.length > 0) {
-      return { status: "fail" as TestStatus, message: `Event validation errors: ${eventErrors.join("; ")}`, details: { events, eventErrors } };
+      return {
+        status: "fail" as TestStatus,
+        message: `Event validation errors: ${eventErrors.join("; ")}`,
+        details: { events, eventErrors },
+      };
     }
 
     // Should have at least one text event
     const textEvents = events.filter((e) => e.type === "text");
     if (textEvents.length === 0) {
-      return { status: "fail" as TestStatus, message: "No text events emitted", details: { events } };
+      return {
+        status: "fail" as TestStatus,
+        message: "No text events emitted",
+        details: { events },
+      };
     }
 
     // Text should contain our marker
     const allText = textEvents.map((e) => (e as { type: "text"; text: string }).text).join(" ");
     if (!allText.includes("HELLO_A2A_TEST")) {
-      return { status: "fail" as TestStatus, message: `Expected text to contain HELLO_A2A_TEST, got: ${allText.slice(0, 200)}`, details: { allText } };
+      return {
+        status: "fail" as TestStatus,
+        message: `Expected text to contain HELLO_A2A_TEST, got: ${allText.slice(0, 200)}`,
+        details: { allText },
+      };
     }
 
-    return { status: "pass" as TestStatus, message: `Got ${events.length} events, text contains marker`, details: { eventCount: events.length } };
+    return {
+      status: "pass" as TestStatus,
+      message: `Got ${events.length} events, text contains marker`,
+      details: { eventCount: events.length },
+    };
   }),
 
   // 3. Result structure
@@ -77,7 +94,11 @@ const tests = [
 
     const resultErrors = validateResult(result);
     if (resultErrors.length > 0) {
-      return { status: "fail" as TestStatus, message: `Result validation errors: ${resultErrors.join("; ")}`, details: { result, resultErrors } };
+      return {
+        status: "fail" as TestStatus,
+        message: `Result validation errors: ${resultErrors.join("; ")}`,
+        details: { result, resultErrors },
+      };
     }
 
     return {
@@ -95,21 +116,33 @@ const tests = [
       permissionMode: "bypassPermissions",
     });
 
-    if (loop.status !== "idle") {
-      return { status: "fail" as TestStatus, message: `Initial status should be idle, got: ${loop.status}` };
+    // Use helper to avoid TS narrowing across getter calls
+    const s = () => loop.status as LoopStatus;
+
+    if (s() !== "idle") {
+      return {
+        status: "fail" as TestStatus,
+        message: `Initial status should be idle, got: ${s()}`,
+      };
     }
 
     const run = loop.run("Reply: hi");
 
-    if (loop.status !== "running") {
-      return { status: "fail" as TestStatus, message: `Status after run() should be running, got: ${loop.status}` };
+    if (s() !== "running") {
+      return {
+        status: "fail" as TestStatus,
+        message: `Status after run() should be running, got: ${s()}`,
+      };
     }
 
     await collectEvents(run);
     await run.result;
 
-    if (loop.status !== "completed") {
-      return { status: "fail" as TestStatus, message: `Status after completion should be completed, got: ${loop.status}` };
+    if (s() !== "completed") {
+      return {
+        status: "fail" as TestStatus,
+        message: `Status after completion should be completed, got: ${s()}`,
+      };
     }
 
     return { status: "pass" as TestStatus, message: "idle → running → completed" };
@@ -129,11 +162,18 @@ const tests = [
 
     const start = Date.now();
     await collectEvents(run);
-    try { await run.result; } catch { /* may throw on cancel */ }
+    try {
+      await run.result;
+    } catch {
+      /* may throw on cancel */
+    }
     const elapsed = Date.now() - start;
 
     if (loop.status !== "cancelled") {
-      return { status: "fail" as TestStatus, message: `Status after cancel should be cancelled, got: ${loop.status}` };
+      return {
+        status: "fail" as TestStatus,
+        message: `Status after cancel should be cancelled, got: ${loop.status}`,
+      };
     }
 
     if (elapsed > 10_000) {
@@ -158,13 +198,20 @@ const tests = [
 
     const starts = events.filter((e) => e.type === "tool_call_start");
     if (starts.length === 0) {
-      return { status: "fail" as TestStatus, message: "No tool_call_start events emitted", details: { events } };
+      return {
+        status: "fail" as TestStatus,
+        message: "No tool_call_start events emitted",
+        details: { events },
+      };
     }
 
     for (const tc of starts) {
       if (tc.type !== "tool_call_start") continue;
       if (typeof tc.name !== "string" || tc.name.length === 0) {
-        return { status: "fail" as TestStatus, message: `tool_call_start event has invalid name: ${tc.name}` };
+        return {
+          status: "fail" as TestStatus,
+          message: `tool_call_start event has invalid name: ${tc.name}`,
+        };
       }
     }
 

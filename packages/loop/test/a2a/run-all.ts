@@ -7,8 +7,6 @@
  *   bun packages/loop/test/a2a/run-all.ts claude-code ai-sdk  # specific runtimes
  */
 
-import { Glob } from "bun";
-
 const requested = new Set(process.argv.slice(2));
 const testDir = import.meta.dir;
 
@@ -19,9 +17,7 @@ const runtimes: { name: string; file: string }[] = [
   { name: "ai-sdk", file: "test-ai-sdk.ts" },
 ];
 
-const toRun = requested.size > 0
-  ? runtimes.filter((r) => requested.has(r.name))
-  : runtimes;
+const toRun = requested.size > 0 ? runtimes.filter((r) => requested.has(r.name)) : runtimes;
 
 if (toRun.length === 0) {
   console.error("No matching runtimes. Available:", runtimes.map((r) => r.name).join(", "));

@@ -5,7 +5,7 @@
  * event stream validity, status transitions, and cross-runtime behaviors.
  */
 
-import type { LoopEvent, LoopResult, LoopRun, LoopStatus, PreflightResult } from "../../src/types.ts";
+import type { LoopEvent, LoopResult, LoopRun, LoopStatus } from "../../src/types.ts";
 import { type TestStatus, collectEvents, validateEvents, validateResult } from "./harness.ts";
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -58,12 +58,14 @@ const CAPABILITIES: Record<string, RuntimeCapabilities> = {
 };
 
 export function runtimeCapabilities(runtime: string): RuntimeCapabilities {
-  return CAPABILITIES[runtime] ?? {
-    emitsToolCallEnd: false,
-    emitsCallId: false,
-    emitsThinking: false,
-    hasUsageTracking: false,
-  };
+  return (
+    CAPABILITIES[runtime] ?? {
+      emitsToolCallEnd: false,
+      emitsCallId: false,
+      emitsThinking: false,
+      hasUsageTracking: false,
+    }
+  );
 }
 
 // ── High-level contract assertions ──────────────────────────────────────────
@@ -73,7 +75,12 @@ export function runtimeCapabilities(runtime: string): RuntimeCapabilities {
  * Runs a prompt, validates events, result shape, and status transitions.
  */
 export async function assertLoopContract(
-  loop: { run(prompt: string): LoopRun; status: LoopStatus; cancel(): void; cleanup?(): Promise<void> },
+  loop: {
+    run(prompt: string): LoopRun;
+    status: LoopStatus;
+    cancel(): void;
+    cleanup?(): Promise<void>;
+  },
   prompt: string,
 ): Promise<AssertionResult> {
   const errors: string[] = [];
@@ -144,9 +151,7 @@ export function assertEventStream(events: LoopEvent[]): AssertionResult {
   }
 
   // Check for at least one content event (text or tool_call_start)
-  const hasContent = events.some(
-    (e) => e.type === "text" || e.type === "tool_call_start",
-  );
+  const hasContent = events.some((e) => e.type === "text" || e.type === "tool_call_start");
   if (!hasContent) {
     errors.push("No content events (text or tool_call_start)");
   }
@@ -177,8 +182,8 @@ export async function assertStatusTransitions(
   await loop.cleanup?.();
 
   const expected = ["idle", "running", "completed"];
-  const match = transitions.length === expected.length &&
-    transitions.every((s, i) => s === expected[i]);
+  const match =
+    transitions.length === expected.length && transitions.every((s, i) => s === expected[i]);
 
   if (!match) {
     return {
@@ -194,7 +199,12 @@ export async function assertStatusTransitions(
  * Tests cancel behavior: starts a long-running prompt, cancels after delay.
  */
 export async function assertCancellation(
-  loop: { run(prompt: string): LoopRun; status: LoopStatus; cancel(): void; cleanup?(): Promise<void> },
+  loop: {
+    run(prompt: string): LoopRun;
+    status: LoopStatus;
+    cancel(): void;
+    cleanup?(): Promise<void>;
+  },
   prompt: string,
   delayMs = 500,
   maxDurationMs = 10_000,
@@ -205,7 +215,11 @@ export async function assertCancellation(
 
   const start = Date.now();
   await collectEvents(run);
-  try { await run.result; } catch { /* expected on cancel */ }
+  try {
+    await run.result;
+  } catch {
+    /* expected on cancel */
+  }
   const elapsed = Date.now() - start;
 
   await loop.cleanup?.();
@@ -249,7 +263,8 @@ export function assertResultShape(result: LoopResult): AssertionResult {
 
   return {
     status: "pass",
-    message: `Result valid: ${result.events.length} events, ${result.durationMs}ms, ` +
+    message:
+      `Result valid: ${result.events.length} events, ${result.durationMs}ms, ` +
       `tokens: ${result.usage.totalTokens}`,
   };
 }
@@ -257,10 +272,7 @@ export function assertResultShape(result: LoopResult): AssertionResult {
 /**
  * Checks tool_call_start/end pairing. Accounts for runtimes that don't emit tool_call_end.
  */
-export function assertToolCallPairing(
-  events: LoopEvent[],
-  runtime: string,
-): AssertionResult {
+export function assertToolCallPairing(events: LoopEvent[], runtime: string): AssertionResult {
   const caps = runtimeCapabilities(runtime);
   const starts = events.filter((e) => e.type === "tool_call_start");
   const ends = events.filter((e) => e.type === "tool_call_end");
@@ -289,13 +301,17 @@ export function assertToolCallPairing(
   if (caps.emitsCallId) {
     const startIds = new Set(
       starts
-        .filter((e): e is Extract<LoopEvent, { type: "tool_call_start" }> => e.type === "tool_call_start")
+        .filter(
+          (e): e is Extract<LoopEvent, { type: "tool_call_start" }> => e.type === "tool_call_start",
+        )
         .map((e) => e.callId)
         .filter(Boolean),
     );
     const endIds = new Set(
       ends
-        .filter((e): e is Extract<LoopEvent, { type: "tool_call_end" }> => e.type === "tool_call_end")
+        .filter(
+          (e): e is Extract<LoopEvent, { type: "tool_call_end" }> => e.type === "tool_call_end",
+        )
         .map((e) => e.callId)
         .filter(Boolean),
     );
@@ -318,10 +334,7 @@ export function assertToolCallPairing(
 /**
  * Wraps a test function with a timeout.
  */
-export function withTestTimeout<T>(
-  fn: () => Promise<T>,
-  ms: number,
-): Promise<T> {
+export function withTestTimeout<T>(fn: () => Promise<T>, ms: number): Promise<T> {
   return Promise.race([
     fn(),
     new Promise<never>((_, reject) =>
@@ -377,7 +390,9 @@ export function extractToolNames(events: LoopEvent[]): string[] {
   return [
     ...new Set(
       events
-        .filter((e): e is Extract<LoopEvent, { type: "tool_call_start" }> => e.type === "tool_call_start")
+        .filter(
+          (e): e is Extract<LoopEvent, { type: "tool_call_start" }> => e.type === "tool_call_start",
+        )
         .map((e) => e.name),
     ),
   ];
@@ -412,10 +427,7 @@ export function assertTextContains(events: LoopEvent[], marker: string): Asserti
 /**
  * Asserts that usage numbers are reasonable (non-negative, consistent).
  */
-export function assertUsage(
-  result: LoopResult,
-  runtime: string,
-): AssertionResult {
+export function assertUsage(result: LoopResult, runtime: string): AssertionResult {
   const caps = runtimeCapabilities(runtime);
   const { usage } = result;
 
@@ -424,7 +436,10 @@ export function assertUsage(
     if (usage.inputTokens < 0 || usage.outputTokens < 0) {
       return { status: "fail", message: "Negative token counts" };
     }
-    return { status: "pass", message: `Usage: in=${usage.inputTokens} out=${usage.outputTokens} (tracking limited)` };
+    return {
+      status: "pass",
+      message: `Usage: in=${usage.inputTokens} out=${usage.outputTokens} (tracking limited)`,
+    };
   }
 
   if (usage.inputTokens === 0 && usage.outputTokens === 0) {

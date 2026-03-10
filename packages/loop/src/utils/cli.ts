@@ -120,18 +120,8 @@ export interface SpawnCliResult {
 /**
  * Spawn a CLI process with idle timeout and streaming output.
  */
-export async function spawnCli(
-  options: SpawnCliOptions,
-): Promise<SpawnCliResult> {
-  const {
-    command,
-    args,
-    cwd,
-    signal,
-    idleTimeout = 60_000,
-    onStdout,
-    onStderr,
-  } = options;
+export async function spawnCli(options: SpawnCliOptions): Promise<SpawnCliResult> {
+  const { command, args, cwd, signal, idleTimeout = 60_000, onStdout, onStderr } = options;
 
   const proc = Bun.spawn([command, ...args], {
     cwd,

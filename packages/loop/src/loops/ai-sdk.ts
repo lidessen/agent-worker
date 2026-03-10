@@ -1,6 +1,6 @@
 import { ToolLoopAgent, type ToolSet, type LanguageModel } from "ai";
 import { createBashTool, type CreateBashToolOptions, type BashToolkit } from "bash-tool";
-import type { LoopEvent, LoopResult, LoopRun, LoopStatus, TokenUsage, PreflightResult } from "../types.ts";
+import type { LoopEvent, LoopResult, LoopRun, LoopStatus, PreflightResult } from "../types.ts";
 import { createEventChannel } from "../types.ts";
 import { extractProvider, hasProviderKey } from "../utils/models.ts";
 
@@ -87,9 +87,7 @@ export class AiSdkLoop {
               type: "tool_call_start",
               name: tc.toolName,
               callId: tc.toolCallId,
-              args: ("input" in tc ? tc.input : undefined) as
-                | Record<string, unknown>
-                | undefined,
+              args: ("input" in tc ? tc.input : undefined) as Record<string, unknown> | undefined,
             });
           },
 
@@ -112,7 +110,8 @@ export class AiSdkLoop {
         });
 
         // Consume the stream to drive the agent loop
-        for await (const _ of streamResult.fullStream) {}
+        for await (const _ of streamResult.fullStream) {
+        }
 
         this._status = "completed";
         channel.end();
@@ -123,8 +122,7 @@ export class AiSdkLoop {
           usage: {
             inputTokens: totalUsage.inputTokens ?? 0,
             outputTokens: totalUsage.outputTokens ?? 0,
-            totalTokens:
-              (totalUsage.inputTokens ?? 0) + (totalUsage.outputTokens ?? 0),
+            totalTokens: (totalUsage.inputTokens ?? 0) + (totalUsage.outputTokens ?? 0),
           },
           durationMs: Date.now() - startTime,
         };
@@ -158,13 +156,17 @@ export class AiSdkLoop {
 
   /** Check if the environment looks configured (provider API key present). Not a runtime test. */
   async preflight(): Promise<PreflightResult> {
-    const modelStr = typeof this.options.model === "string"
-      ? this.options.model
-      : (this.options.model as { modelId?: string }).modelId ?? "";
+    const modelStr =
+      typeof this.options.model === "string"
+        ? this.options.model
+        : ((this.options.model as { modelId?: string }).modelId ?? "");
 
     const provider = extractProvider(modelStr);
     if (!provider) {
-      return { ok: false, error: "Unknown provider — model string should be like 'anthropic:claude-sonnet-4-6'" };
+      return {
+        ok: false,
+        error: "Unknown provider — model string should be like 'anthropic:claude-sonnet-4-6'",
+      };
     }
 
     if (!hasProviderKey(provider)) {

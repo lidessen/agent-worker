@@ -1,8 +1,4 @@
-import type {
-  Turn,
-  AssembledPrompt,
-  ContextConfig,
-} from "./types.ts";
+import type { Turn, AssembledPrompt, ContextConfig } from "./types.ts";
 import type { Inbox } from "./inbox.ts";
 import type { TodoManager } from "./todo.ts";
 import type { NotesStorage } from "./types.ts";
@@ -105,9 +101,7 @@ export class ContextEngine {
     }
 
     // Build final system with memory
-    const fullSystem = memoryText
-      ? `${system}\n\n${memoryText}`
-      : system;
+    const fullSystem = memoryText ? `${system}\n\n${memoryText}` : system;
 
     const totalTokens = this.estimateTokens(fullSystem) + historyTokens;
 

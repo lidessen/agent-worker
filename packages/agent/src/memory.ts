@@ -19,10 +19,7 @@ export class InMemoryMemoryStorage implements MemoryStorage {
 
     const scored = this.entries.map((entry) => {
       const textLower = entry.text.toLowerCase();
-      const score = words.reduce(
-        (s, word) => s + (textLower.includes(word) ? 1 : 0),
-        0,
-      );
+      const score = words.reduce((s, word) => s + (textLower.includes(word) ? 1 : 0), 0);
       return { entry, score };
     });
 

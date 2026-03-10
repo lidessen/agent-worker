@@ -4,20 +4,23 @@ import { Inbox } from "../src/inbox.ts";
 import { TodoManager } from "../src/todo.ts";
 import { InMemoryNotesStorage } from "../src/notes.ts";
 import { SendGuard } from "../src/send.ts";
+import { ReminderManager } from "../src/reminder.ts";
 
 function createBridge() {
   const inbox = new Inbox({}, () => {});
   const todos = new TodoManager();
   const notes = new InMemoryNotesStorage();
   const sendGuard = new SendGuard(inbox, () => {});
+  const reminders = new ReminderManager();
 
-  return new ToolBridge({ inbox, todos, notes, memory: null, sendGuard });
+  return new ToolBridge({ inbox, todos, notes, memory: null, sendGuard, reminders });
 }
 
 async function call(transport: BridgeTransport, tool: string, args: Record<string, unknown>) {
-  const url = transport.type === "unix"
-    ? `http://localhost/${tool}`
-    : `http://${transport.host}:${transport.port}/${tool}`;
+  const url =
+    transport.type === "unix"
+      ? `http://localhost/${tool}`
+      : `http://${transport.host}:${transport.port}/${tool}`;
   const fetchOpts: any = {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -31,9 +34,10 @@ async function call(transport: BridgeTransport, tool: string, args: Record<strin
 }
 
 async function rawFetch(transport: BridgeTransport, path: string, opts: RequestInit = {}) {
-  const url = transport.type === "unix"
-    ? `http://localhost${path}`
-    : `http://${transport.host}:${transport.port}${path}`;
+  const url =
+    transport.type === "unix"
+      ? `http://localhost${path}`
+      : `http://${transport.host}:${transport.port}${path}`;
   const fetchOpts: any = { ...opts };
   if (transport.type === "unix") {
     fetchOpts.unix = transport.socketPath;

@@ -127,7 +127,9 @@ export function createEventChannel<T>(): EventChannel<T> {
               if (done) {
                 return { value: undefined as unknown as T, done: true };
               }
-              await new Promise<void>((r) => { resolve = r; });
+              await new Promise<void>((r) => {
+                resolve = r;
+              });
             }
           },
         };

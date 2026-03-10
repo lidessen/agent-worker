@@ -54,11 +54,13 @@ bun test packages/loop/test/
 All from `packages/loop/test/a2a/harness.ts`:
 
 ### Test runner
+
 - `createTest(name, runtime, fn)` — Define a test, auto-captures timing and errors
 - `runSuite(runtime, tests)` — Run tests sequentially, print verdicts
 - `printReport(results)` — Summary across multiple suites, exit(1) if any failed
 
 ### Event helpers
+
 - `collectEvents(run)` — Drain LoopRun async iterable into array
 - `extractText(events)` — Join all text event content into one string
 - `extractToolStarts(events)` — Filter to `tool_call_start` events (typed)
@@ -67,22 +69,26 @@ All from `packages/loop/test/a2a/harness.ts`:
 - `assertHasEventType(events, type)` — Check at least one event of given type exists
 
 ### Validators
+
 - `assertPreflight(info)` — Check PreflightResult shape, return pass/skip/fail
 - `validateEvents(events)` — Validate all events have correct structure
 - `validateResult(result)` — Validate LoopResult shape (events, usage, durationMs)
 
 ### Utilities
+
 - `withTimeout(ms, fn)` — Race a promise against a timeout
 
 ## Loop APIs under test
 
 Each loop class exposes:
+
 - `preflight()` → `PreflightResult` — env/config check (CLI installed, API key present). Not a runtime verification.
 - `run(prompt)` → `LoopRun` — best-effort streaming of `LoopEvent` + `.result: Promise<LoopResult>`
 - `cancel()` — abort in-flight run
 - `status` — `"idle" | "running" | "completed" | "failed" | "cancelled"`
 
 ### Event types
+
 - `text` — text output
 - `thinking` — reasoning/chain-of-thought
 - `tool_call_start` — tool invocation begins (name, callId, args)
@@ -91,9 +97,11 @@ Each loop class exposes:
 - `unknown` — unrecognized event from provider
 
 ### Streaming semantics
+
 All loops stream events in real-time. AiSdkLoop uses `ToolLoopAgent.stream()` with `fullStream` for real-time text/thinking deltas, and callbacks for tool_call_start/end. CLI loops parse NDJSON streams as they arrive.
 
 ### Error propagation
+
 Errors propagate through the async iterator (thrown from `for await`), not just via `.result` rejection. Use `collectEventsSafe()` in test-utils if you need to drain events from an error path without the iterator throwing.
 
 ## Verdicts

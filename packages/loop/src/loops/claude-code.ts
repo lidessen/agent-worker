@@ -1,4 +1,4 @@
-import type { ClaudeCodeLoopOptions, LoopRun, LoopStatus, LoopEvent, TokenUsage, PreflightResult } from "../types.ts";
+import type { ClaudeCodeLoopOptions, LoopRun, LoopStatus, PreflightResult } from "../types.ts";
 import type { RawCliEvent } from "../utils/cli-loop.ts";
 import { checkCliAvailability, checkClaudeCodeAuth } from "../utils/cli.ts";
 import { runCliLoop } from "../utils/cli-loop.ts";

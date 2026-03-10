@@ -34,7 +34,7 @@ export function createBuiltinTools(deps: ToolHandlerDeps): ToolSet {
  */
 export function validateToolNamespace(
   userTools: ToolSet | undefined,
-  builtinTools: ToolSet,
+  _builtinTools: ToolSet,
 ): void {
   if (!userTools) return;
   for (const name of Object.keys(userTools)) {
@@ -51,10 +51,7 @@ export function validateToolNamespace(
 /**
  * Merge all tool sources: builtins + user tools.
  */
-export function mergeTools(
-  builtinTools: ToolSet,
-  userTools?: ToolSet,
-): ToolSet {
+export function mergeTools(builtinTools: ToolSet, userTools?: ToolSet): ToolSet {
   validateToolNamespace(userTools, builtinTools);
   return { ...builtinTools, ...userTools };
 }

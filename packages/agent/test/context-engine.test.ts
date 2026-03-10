@@ -3,6 +3,7 @@ import { ContextEngine } from "../src/context-engine.ts";
 import { Inbox } from "../src/inbox.ts";
 import { TodoManager } from "../src/todo.ts";
 import { InMemoryNotesStorage } from "../src/notes.ts";
+import { MemoryManager } from "../src/memory.ts";
 import { ReminderManager } from "../src/reminder.ts";
 
 describe("ContextEngine", () => {
@@ -52,17 +53,13 @@ describe("ContextEngine", () => {
 
   test("assemble shows focus for next_message", async () => {
     const engine = new ContextEngine({ maxTokens: 8000 });
-    const result = await engine.assemble(
-      createSources({ currentFocus: "next_message" }),
-    );
+    const result = await engine.assemble(createSources({ currentFocus: "next_message" }));
     expect(result.system).toContain("New messages arrived");
   });
 
   test("assemble shows focus for next_todo", async () => {
     const engine = new ContextEngine({ maxTokens: 8000 });
-    const result = await engine.assemble(
-      createSources({ currentFocus: "next_todo" }),
-    );
+    const result = await engine.assemble(createSources({ currentFocus: "next_todo" }));
     expect(result.system).toContain("pending todos");
   });
 
@@ -84,5 +81,86 @@ describe("ContextEngine", () => {
     const engine = new ContextEngine({ maxTokens: 8000 });
     const result = await engine.assemble(createSources());
     expect(result.tokenCount).toBeGreaterThan(0);
+  });
+
+  test("assemble shows focus for waiting_reminder", async () => {
+    const engine = new ContextEngine({ maxTokens: 8000 });
+    const result = await engine.assemble(createSources({ currentFocus: "waiting_reminder" }));
+    expect(result.system).toContain("Waiting for pending reminders");
+  });
+
+  test("assemble shows no focus for idle", async () => {
+    const engine = new ContextEngine({ maxTokens: 8000 });
+    const result = await engine.assemble(createSources({ currentFocus: "idle" }));
+    expect(result.system).not.toContain("Focus:");
+  });
+
+  test("assemble includes memory when provided", async () => {
+    const engine = new ContextEngine({ maxTokens: 8000 });
+    const memory = new MemoryManager({});
+    await memory.storageBackend.add({
+      text: "User prefers dark mode",
+      source: "test",
+      timestamp: Date.now(),
+    });
+
+    const result = await engine.assemble(
+      createSources({ memory, history: [{ role: "user", content: "dark mode" }] }),
+    );
+    expect(result.system).toContain("dark mode");
+    expect(result.system).toContain("🧠");
+  });
+
+  test("assemble uses custom token estimator", async () => {
+    let estimatorCalled = false;
+    const engine = new ContextEngine({
+      maxTokens: 8000,
+      tokenEstimator: (text) => {
+        estimatorCalled = true;
+        return text.length;
+      },
+    });
+    await engine.assemble(createSources());
+    expect(estimatorCalled).toBe(true);
+  });
+
+  test("assemble includes pending reminders", async () => {
+    const engine = new ContextEngine({ maxTokens: 8000 });
+    const reminders = new ReminderManager();
+    reminders.add("build_check", { description: "Wait for CI" });
+    const result = await engine.assemble(createSources({ reminders }));
+    expect(result.system).toContain("build_check");
+    expect(result.system).toContain("Wait for CI");
+    reminders.cancelAll();
+  });
+
+  test("assemble truncates memory when it exceeds budget", async () => {
+    const engine = new ContextEngine({ maxTokens: 300, memoryBudget: 0.1 });
+    const memory = new MemoryManager({});
+    const longText = "x".repeat(5000);
+    await memory.storageBackend.add({
+      text: longText,
+      source: "test",
+      timestamp: Date.now(),
+    });
+
+    const result = await engine.assemble(
+      createSources({ memory, history: [{ role: "user", content: "x" }] }),
+    );
+    // Memory should be truncated, not the full 5000 chars
+    expect(result.system.length).toBeLessThan(5000);
+  });
+
+  test("assemble keeps most recent turns when history exceeds budget", async () => {
+    const engine = new ContextEngine({ maxTokens: 300 });
+    const history = [
+      { role: "user" as const, content: "first message that is old" },
+      { role: "assistant" as const, content: "first response that is old" },
+      { role: "user" as const, content: "RECENT_MESSAGE" },
+      { role: "assistant" as const, content: "RECENT_RESPONSE" },
+    ];
+    const result = await engine.assemble(createSources({ history }));
+    const lastTurn = result.turns[result.turns.length - 1];
+    expect(lastTurn?.content).toContain("RECENT");
   });
 });

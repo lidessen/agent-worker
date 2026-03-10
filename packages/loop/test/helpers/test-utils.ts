@@ -59,7 +59,9 @@ export function getToolNames(events: LoopEvent[]): string[] {
   return [
     ...new Set(
       events
-        .filter((e): e is Extract<LoopEvent, { type: "tool_call_start" }> => e.type === "tool_call_start")
+        .filter(
+          (e): e is Extract<LoopEvent, { type: "tool_call_start" }> => e.type === "tool_call_start",
+        )
         .map((e) => e.name),
     ),
   ];

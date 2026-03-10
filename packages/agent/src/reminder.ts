@@ -15,7 +15,10 @@ let nextReminderId = 1;
 
 /** Sanitize user-provided text before injecting into prompts. */
 function sanitize(text: string): string {
-  return text.replace(/[\r\n]+/g, " ").replace(/[\u201c\u201d""]/g, "'").trim();
+  return text
+    .replace(/[\r\n]+/g, " ")
+    .replace(/[\u201c\u201d""]/g, "'")
+    .trim();
 }
 
 /**

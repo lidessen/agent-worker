@@ -69,7 +69,7 @@ describe("Inbox", () => {
     inbox.setReminders(reminders);
 
     // Set a reminder (like inbox wait would)
-    const { id } = reminders.add("inbox_wait", { timeoutMs: 5000 });
+    reminders.add("inbox_wait", { timeoutMs: 5000 });
     expect(reminders.hasPending).toBe(true);
 
     // Push a message — should fire the reminder

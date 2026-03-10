@@ -75,7 +75,7 @@ function createMockCliLoop(): AgentLoop & { mcpConfigPath: string | null } {
       return mock._status;
     },
 
-    run(prompt: string): LoopRun {
+    run(_prompt: string): LoopRun {
       mock._status = "running";
       const textEvent: LoopEvent = { type: "text", text: "cli response" };
       const result = Promise.resolve().then(() => {
@@ -87,12 +87,16 @@ function createMockCliLoop(): AgentLoop & { mcpConfigPath: string | null } {
         } satisfies LoopResult;
       });
       return {
-        async *[Symbol.asyncIterator]() { yield textEvent; },
+        async *[Symbol.asyncIterator]() {
+          yield textEvent;
+        },
         result,
       };
     },
 
-    cancel() { mock._status = "cancelled"; },
+    cancel() {
+      mock._status = "cancelled";
+    },
 
     setMcpConfig(configPath: string) {
       mock.mcpConfigPath = configPath;
@@ -112,7 +116,9 @@ describe("Agent", () => {
   test("init sets up tools for direct loop", async () => {
     const loop = createMockLoop();
     let toolsSet = false;
-    loop.setTools = () => { toolsSet = true; };
+    loop.setTools = () => {
+      toolsSet = true;
+    };
 
     const agent = new Agent({ loop });
     await agent.init();
@@ -217,6 +223,50 @@ describe("Agent", () => {
     expect(agent.init()).rejects.toThrow("reserved prefix");
   });
 
+  test("off removes event listener", async () => {
+    const agent = new Agent({
+      loop: createMockLoop(),
+      inbox: { debounceMs: 10 },
+    });
+    await agent.init();
+
+    const states: AgentState[] = [];
+    const handler = (s: AgentState) => states.push(s);
+
+    agent.on("stateChange", handler);
+    agent.push("first");
+    await new Promise((r) => setTimeout(r, 200));
+
+    const countAfterFirst = states.length;
+    expect(countAfterFirst).toBeGreaterThan(0);
+
+    agent.off("stateChange", handler);
+    agent.push("second");
+    await new Promise((r) => setTimeout(r, 200));
+
+    // No additional state changes should have been captured after off()
+    expect(states.length).toBe(countAfterFirst);
+  });
+
+  test("multiple listeners on same event", async () => {
+    const agent = new Agent({
+      loop: createMockLoop(),
+      inbox: { debounceMs: 10 },
+    });
+    await agent.init();
+
+    let count1 = 0;
+    let count2 = 0;
+    agent.on("stateChange", () => count1++);
+    agent.on("stateChange", () => count2++);
+
+    agent.push("test");
+    await new Promise((r) => setTimeout(r, 200));
+
+    expect(count1).toBeGreaterThan(0);
+    expect(count1).toBe(count2);
+  });
+
   test("runStart and runEnd events are emitted", async () => {
     const agent = new Agent({
       loop: createMockLoop(),
@@ -226,8 +276,12 @@ describe("Agent", () => {
 
     let started = false;
     let ended = false;
-    agent.on("runStart", () => { started = true; });
-    agent.on("runEnd", () => { ended = true; });
+    agent.on("runStart", () => {
+      started = true;
+    });
+    agent.on("runEnd", () => {
+      ended = true;
+    });
 
     agent.push("test");
     await new Promise((r) => setTimeout(r, 200));

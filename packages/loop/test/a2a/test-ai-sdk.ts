@@ -8,6 +8,7 @@
  */
 
 import { AiSdkLoop } from "../../src/loops/ai-sdk.ts";
+import type { LoopStatus } from "../../src/types.ts";
 import {
   createTest,
   runSuite,
@@ -52,7 +53,10 @@ const tests = [
     const toolNames = Object.keys(loop.tools);
     const hasBash = toolNames.some((n) => n.toLowerCase().includes("bash"));
     if (!hasBash) {
-      return { status: "fail" as TestStatus, message: `Expected bash tool, got: ${toolNames.join(", ")}` };
+      return {
+        status: "fail" as TestStatus,
+        message: `Expected bash tool, got: ${toolNames.join(", ")}`,
+      };
     }
 
     await loop.cleanup();
@@ -67,11 +71,15 @@ const tests = [
     const run = loop.run("Reply with exactly: HELLO_A2A_TEST");
 
     const events = await collectEvents(run);
-    const result = await run.result;
+    await run.result;
 
     const eventErrors = validateEvents(events);
     if (eventErrors.length > 0) {
-      return { status: "fail" as TestStatus, message: `Event errors: ${eventErrors.join("; ")}`, details: { eventErrors } };
+      return {
+        status: "fail" as TestStatus,
+        message: `Event errors: ${eventErrors.join("; ")}`,
+        details: { eventErrors },
+      };
     }
 
     const textEvents = events.filter((e) => e.type === "text");
@@ -81,11 +89,17 @@ const tests = [
 
     const allText = textEvents.map((e) => (e as { type: "text"; text: string }).text).join(" ");
     if (!allText.includes("HELLO_A2A_TEST")) {
-      return { status: "fail" as TestStatus, message: `Text missing marker: ${allText.slice(0, 200)}` };
+      return {
+        status: "fail" as TestStatus,
+        message: `Text missing marker: ${allText.slice(0, 200)}`,
+      };
     }
 
     await loop.cleanup();
-    return { status: "pass" as TestStatus, message: `${events.length} events, text contains marker` };
+    return {
+      status: "pass" as TestStatus,
+      message: `${events.length} events, text contains marker`,
+    };
   }),
 
   // 4. Result structure
@@ -106,7 +120,11 @@ const tests = [
     // AI SDK should always have usage info
     if (result.usage.inputTokens === 0 && result.usage.outputTokens === 0) {
       await loop.cleanup();
-      return { status: "fail" as TestStatus, message: "Usage is all zeros", details: { usage: result.usage } };
+      return {
+        status: "fail" as TestStatus,
+        message: "Usage is all zeros",
+        details: { usage: result.usage },
+      };
     }
 
     await loop.cleanup();
@@ -122,15 +140,21 @@ const tests = [
 
     const loop = new AiSdkLoop({ model: MODEL, includeBashTools: false });
 
-    if (loop.status !== "idle") return { status: "fail" as TestStatus, message: `Expected idle, got ${loop.status}` };
+    // Use helper to avoid TS narrowing across getter calls
+    const s = () => loop.status as LoopStatus;
+
+    if (s() !== "idle")
+      return { status: "fail" as TestStatus, message: `Expected idle, got ${s()}` };
 
     const run = loop.run("Reply: hi");
-    if (loop.status !== "running") return { status: "fail" as TestStatus, message: `Expected running, got ${loop.status}` };
+    if (s() !== "running")
+      return { status: "fail" as TestStatus, message: `Expected running, got ${s()}` };
 
     await collectEvents(run);
     await run.result;
 
-    if (loop.status !== "completed") return { status: "fail" as TestStatus, message: `Expected completed, got ${loop.status}` };
+    if (s() !== "completed")
+      return { status: "fail" as TestStatus, message: `Expected completed, got ${s()}` };
 
     await loop.cleanup();
     return { status: "pass" as TestStatus, message: "idle → running → completed" };
@@ -141,13 +165,19 @@ const tests = [
     if (!apiKeyAvailable) return { status: "skip" as TestStatus, message: "No API key" };
 
     const loop = new AiSdkLoop({ model: MODEL, includeBashTools: false });
-    const run = loop.run("Write a very long essay about the entire history of mathematics, covering every century in detail");
+    const run = loop.run(
+      "Write a very long essay about the entire history of mathematics, covering every century in detail",
+    );
 
     setTimeout(() => loop.cancel(), 500);
 
     const start = Date.now();
     await collectEvents(run);
-    try { await run.result; } catch { /* expected */ }
+    try {
+      await run.result;
+    } catch {
+      /* expected */
+    }
     const elapsed = Date.now() - start;
 
     if (loop.status !== "cancelled") {

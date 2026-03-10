@@ -1,5 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { z } from "zod";
 import {
   BUILTIN_TOOLS,
   createToolHandlers,
@@ -9,6 +10,44 @@ import {
 import type { BridgeTransport } from "./tool-bridge.ts";
 
 export type AgentMcpServerDeps = ToolHandlerDeps;
+
+/**
+ * Register a tool on the MCP server from a ToolDef.
+ *
+ * Uses the 3-arg tool() overload (no schema in generics) to avoid TS2589,
+ * then patches inputSchema on the returned RegisteredTool. The MCP SDK's
+ * generic overloads cause excessively deep type instantiation when given
+ * Record<string, ZodTypeAny>.
+ */
+function registerToolForDef(
+  server: McpServer,
+  name: string,
+  def: import("../tool-registry.ts").ToolDef,
+  handler: import("../tool-registry.ts").ToolHandler,
+): void {
+  const registered = server.tool(name, def.description, async (extra) => {
+    const args =
+      (extra as { params?: { arguments?: Record<string, unknown> } }).params?.arguments ?? {};
+    const text = await handler(args);
+    return { content: [{ type: "text" as const, text }] };
+  });
+  // Attach the input schema so MCP clients can discover tool parameters.
+  // Assign via bracket notation to avoid TS2589 deep type instantiation
+  // that occurs when TypeScript resolves z.ZodTypeAny against AnySchema.
+  (registered as Record<string, unknown>)["inputSchema"] = buildObjectSchema(def.parameters);
+}
+
+/** Build a ZodObject without triggering TS2589 deep type instantiation. */
+function buildObjectSchema(params: Record<string, z.ZodTypeAny>): z.ZodTypeAny {
+  // Use ZodObject constructor directly to avoid z.object()'s deep generic inference
+  // on Record<string, ZodTypeAny>.
+  return new z.ZodObject({
+    shape: () => params,
+    unknownKeys: "strip",
+    catchall: z.ZodNever.create(),
+    typeName: z.ZodFirstPartyTypeKind.ZodObject,
+  });
+}
 
 /**
  * MCP server that exposes agent built-in tools to CLI loops.
@@ -46,10 +85,10 @@ export class AgentMcpServer {
       const handler = handlers[name];
       if (!handler) continue;
 
-      this.server.tool(name, def.description, def.parameters, async (args) => {
-        const text = await handler(args);
-        return { content: [{ type: "text" as const, text }] };
-      });
+      // Register each tool individually. We call registerTool via a helper
+      // function to prevent TS2589 from deeply resolving the generic params
+      // against Record<string, ZodTypeAny>.
+      registerToolForDef(this.server, name, def, handler);
     }
   }
 
@@ -110,16 +149,28 @@ export class AgentMcpServer {
 
   /** Stop the server and clean up temp files */
   async stop(): Promise<void> {
-    try { await this.server.close(); } catch { /* may not be connected */ }
+    try {
+      await this.server.close();
+    } catch {
+      /* may not be connected */
+    }
 
     // Clean up temp files
     const { unlink } = await import("node:fs/promises");
     if (this.configPath) {
-      try { await unlink(this.configPath); } catch { /* ignore */ }
+      try {
+        await unlink(this.configPath);
+      } catch {
+        /* ignore */
+      }
       this.configPath = null;
     }
     if (this.entryPath) {
-      try { await unlink(this.entryPath); } catch { /* ignore */ }
+      try {
+        await unlink(this.entryPath);
+      } catch {
+        /* ignore */
+      }
       this.entryPath = null;
     }
   }
@@ -134,8 +185,9 @@ export class AgentMcpServer {
   /** Full proxy script with all built-in tools routed through the bridge. */
   private buildProxyScript(transport: BridgeTransport, hasMemory: boolean): string {
     // Generate the correct fetch call based on transport type
-    const fetchBlock = transport.type === "unix"
-      ? `const BRIDGE_SOCKET = "${transport.socketPath}";
+    const fetchBlock =
+      transport.type === "unix"
+        ? `const BRIDGE_SOCKET = "${transport.socketPath}";
 
 async function callBridge(tool: string, args: Record<string, unknown>): Promise<string> {
   const res = await fetch(\`http://localhost/\${tool}\`, {
@@ -148,7 +200,7 @@ async function callBridge(tool: string, args: Record<string, unknown>): Promise<
   if (data.error) throw new Error(data.error);
   return data.result ?? "";
 }`
-      : `const BRIDGE_URL = "http://${transport.host}:${transport.port}";
+        : `const BRIDGE_URL = "http://${transport.host}:${transport.port}";
 
 async function callBridge(tool: string, args: Record<string, unknown>): Promise<string> {
   const res = await fetch(\`\${BRIDGE_URL}/\${tool}\`, {

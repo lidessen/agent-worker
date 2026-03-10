@@ -1,11 +1,5 @@
 import type { LoopEvent, LoopResult } from "@agent-worker/loop";
-import type {
-  AgentLoop,
-  NotesStorage,
-  Turn,
-  RunInfo,
-  AssembledPrompt,
-} from "./types.ts";
+import type { AgentLoop, NotesStorage, Turn, RunInfo, AssembledPrompt } from "./types.ts";
 import type { Inbox } from "./inbox.ts";
 import type { TodoManager } from "./todo.ts";
 import type { ContextEngine } from "./context-engine.ts";
@@ -166,8 +160,14 @@ export class RunCoordinator {
         // inbox_wait fired by a new message) don't need extra
         // notification — the triggering event is already visible.
         if (result.reason === "timeout") {
-          const safeLabel = result.label.replace(/[\r\n]+/g, " ").replace(/[\u201c\u201d""]/g, "'").trim();
-          const safeMsg = result.message?.replace(/[\r\n]+/g, " ").replace(/[\u201c\u201d""]/g, "'").trim();
+          const safeLabel = result.label
+            .replace(/[\r\n]+/g, " ")
+            .replace(/[\u201c\u201d""]/g, "'")
+            .trim();
+          const safeMsg = result.message
+            ?.replace(/[\r\n]+/g, " ")
+            .replace(/[\u201c\u201d""]/g, "'")
+            .trim();
           this.deps.inbox.push({
             content: `⏰ Reminder timed out: [${result.id}] "${safeLabel}"${safeMsg ? ` — ${safeMsg}` : ""}`,
             from: "system",
@@ -193,20 +193,14 @@ export class RunCoordinator {
       callbacks.onRunStart?.({ runNumber: runCount, trigger: decision });
 
       try {
-        const { loopResult, assembled } = await this.executeRun(
-          decision,
-          callbacks.onEvent,
-        );
+        const { loopResult, assembled } = await this.executeRun(decision, callbacks.onEvent);
 
         callbacks.onContextAssembled?.(assembled);
         callbacks.onRunEnd?.(loopResult);
 
         // Memory extraction at checkpoint
         if (this.deps.memory?.shouldExtract("checkpoint")) {
-          await this.deps.memory.extract(
-            this.history.slice(-5),
-            `run_${runCount}`,
-          );
+          await this.deps.memory.extract(this.history.slice(-5), `run_${runCount}`);
         }
       } catch {
         return "error";

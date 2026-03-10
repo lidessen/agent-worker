@@ -7,7 +7,7 @@ export class FileNotesStorage implements NotesStorage {
 
   private path(key: string): string {
     // Sanitize key to prevent path traversal
-    const safe = key.replace(/[^a-zA-Z0-9_\-\.]/g, "_");
+    const safe = key.replace(/[^a-zA-Z0-9_\-.]/g, "_");
     return join(this.dir, `${safe}.md`);
   }
 

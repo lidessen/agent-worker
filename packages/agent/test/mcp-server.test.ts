@@ -4,6 +4,7 @@ import { Inbox } from "../src/inbox.ts";
 import { TodoManager } from "../src/todo.ts";
 import { InMemoryNotesStorage } from "../src/notes.ts";
 import { SendGuard } from "../src/send.ts";
+import { ReminderManager } from "../src/reminder.ts";
 import type { BridgeTransport } from "../src/bridge/tool-bridge.ts";
 
 function createDeps() {
@@ -11,8 +12,9 @@ function createDeps() {
   const todos = new TodoManager();
   const notes = new InMemoryNotesStorage();
   const sendGuard = new SendGuard(inbox, () => {});
+  const reminders = new ReminderManager();
 
-  return { inbox, todos, notes, memory: null, sendGuard };
+  return { inbox, todos, notes, memory: null, sendGuard, reminders };
 }
 
 const DUMMY_UNIX: BridgeTransport = { type: "unix", socketPath: "/tmp/test-bridge.sock" };

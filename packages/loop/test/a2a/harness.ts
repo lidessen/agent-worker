@@ -85,7 +85,9 @@ export function printReport(results: SuiteResult[]) {
   console.log("\n" + "═".repeat(60));
   for (const r of results) {
     const total = r.verdicts.length;
-    console.log(`${r.runtime}: ${r.passed}/${total} passed, ${r.failed} failed, ${r.skipped} skipped`);
+    console.log(
+      `${r.runtime}: ${r.passed}/${total} passed, ${r.failed} failed, ${r.skipped} skipped`,
+    );
   }
   console.log("═".repeat(60));
 
@@ -148,13 +150,16 @@ export function validateEvents(events: LoopEvent[]): string[] {
         if (typeof e.text !== "string") errors.push(`Event[${i}] thinking: text is not a string`);
         break;
       case "tool_call_start":
-        if (typeof e.name !== "string") errors.push(`Event[${i}] tool_call_start: name is not a string`);
+        if (typeof e.name !== "string")
+          errors.push(`Event[${i}] tool_call_start: name is not a string`);
         break;
       case "tool_call_end":
-        if (typeof e.name !== "string") errors.push(`Event[${i}] tool_call_end: name is not a string`);
+        if (typeof e.name !== "string")
+          errors.push(`Event[${i}] tool_call_end: name is not a string`);
         break;
       case "error":
-        if (!(e.error instanceof Error)) errors.push(`Event[${i}] error: error is not an Error instance`);
+        if (!(e.error instanceof Error))
+          errors.push(`Event[${i}] error: error is not an Error instance`);
         break;
       case "unknown":
         // unknown is always valid
@@ -232,9 +237,12 @@ export function validateResult(result: LoopResult): string[] {
   if (!result.usage) {
     errors.push("result.usage is missing");
   } else {
-    if (typeof result.usage.inputTokens !== "number") errors.push("usage.inputTokens is not a number");
-    if (typeof result.usage.outputTokens !== "number") errors.push("usage.outputTokens is not a number");
-    if (typeof result.usage.totalTokens !== "number") errors.push("usage.totalTokens is not a number");
+    if (typeof result.usage.inputTokens !== "number")
+      errors.push("usage.inputTokens is not a number");
+    if (typeof result.usage.outputTokens !== "number")
+      errors.push("usage.outputTokens is not a number");
+    if (typeof result.usage.totalTokens !== "number")
+      errors.push("usage.totalTokens is not a number");
   }
 
   return errors;

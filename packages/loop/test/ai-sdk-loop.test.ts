@@ -17,7 +17,7 @@ describe("AiSdkLoop", () => {
     expect(loop.status).toBe("idle");
   });
 
-  test("run transitions to running status", () => {
+  test("run transitions to running status", async () => {
     const loop = new AiSdkLoop({
       model: "anthropic:claude-sonnet-4-20250514" as any,
       includeBashTools: false,
@@ -28,6 +28,13 @@ describe("AiSdkLoop", () => {
 
     // Cancel immediately so it doesn't actually call the API
     loop.cancel();
+
+    // Await the result to handle the cancellation error
+    try {
+      await run.result;
+    } catch {
+      // Expected: cancellation causes AbortError
+    }
   });
 
   test("cleanup is safe to call multiple times", async () => {
