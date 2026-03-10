@@ -49,18 +49,17 @@ export { nanoid, extractMentions } from "./utils.ts";
 
 // ── Config (YAML) ─────────────────────────────────────────────────────
 export {
-  loadWorkspaceYaml,
-  parseWorkspaceYaml,
+  loadWorkspaceDef,
+  parseWorkspaceDef,
   toWorkspaceConfig,
   interpolate,
   runSetupSteps,
 } from "./config/index.ts";
 export type {
-  WorkspaceYamlConfig,
-  AgentYamlConfig,
+  WorkspaceDef,
+  AgentDef,
   SetupStep,
-  ContextYamlConfig,
-  LoadedWorkspaceConfig,
+  ResolvedWorkspace,
   LoadOptions,
 } from "./config/index.ts";
 

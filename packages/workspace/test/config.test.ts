@@ -1,9 +1,9 @@
 import { test, expect, describe } from "bun:test";
 import {
-  parseWorkspaceYaml,
+  parseWorkspaceDef,
   interpolate,
   runSetupSteps,
-  loadWorkspaceYaml,
+  loadWorkspaceDef,
   toWorkspaceConfig,
 } from "../src/config/index.ts";
 import { MemoryStorage, FileStorage } from "../src/context/storage.ts";
@@ -45,22 +45,22 @@ describe("interpolate", () => {
   });
 });
 
-// ── parseWorkspaceYaml ────────────────────────────────────────────────────
+// ── parseWorkspaceDef ─────────────────────────────────────────────────────
 
-describe("parseWorkspaceYaml", () => {
+describe("parseWorkspaceDef", () => {
   test("parses minimal config", () => {
-    const yaml = parseWorkspaceYaml(`
+    const def = parseWorkspaceDef(`
 name: test
 agents:
   alice:
     model: claude-sonnet-4-5
 `);
-    expect(yaml.name).toBe("test");
-    expect(yaml.agents.alice.model).toBe("claude-sonnet-4-5");
+    expect(def.name).toBe("test");
+    expect(def.agents.alice.model).toBe("claude-sonnet-4-5");
   });
 
   test("parses full config with all fields", () => {
-    const yaml = parseWorkspaceYaml(`
+    const def = parseWorkspaceDef(`
 name: code-review
 channels:
   - general
@@ -70,55 +70,49 @@ agents:
   reviewer:
     backend: claude
     model: claude-sonnet-4-5
-    system_prompt: |
+    instructions: |
       You are a code reviewer.
   coder:
     model: claude-sonnet-4-5
-    system_prompt: Fix issues.
+    instructions: Fix issues.
     channels:
       - design
-context:
-  provider: memory
+storage: memory
 setup:
   - shell: echo hello
     as: greeting
 kickoff: |
   \${{ greeting }}
   @reviewer please review.
-queue:
-  immediate_quota: 3
-smart_send_threshold: 2000
 `);
-    expect(yaml.name).toBe("code-review");
-    expect(yaml.channels).toEqual(["general", "design"]);
-    expect(yaml.default_channel).toBe("general");
-    expect(Object.keys(yaml.agents)).toEqual(["reviewer", "coder"]);
-    expect(yaml.agents.reviewer.backend).toBe("claude");
-    expect(yaml.agents.reviewer.system_prompt).toContain("code reviewer");
-    expect(yaml.agents.coder.channels).toEqual(["design"]);
-    expect(yaml.context?.provider).toBe("memory");
-    expect(yaml.setup).toHaveLength(1);
-    expect(yaml.setup![0].shell).toBe("echo hello");
-    expect(yaml.setup![0].as).toBe("greeting");
-    expect(yaml.kickoff).toBeDefined();
-    expect(yaml.queue?.immediate_quota).toBe(3);
-    expect(yaml.smart_send_threshold).toBe(2000);
+    expect(def.name).toBe("code-review");
+    expect(def.channels).toEqual(["general", "design"]);
+    expect(def.default_channel).toBe("general");
+    expect(Object.keys(def.agents)).toEqual(["reviewer", "coder"]);
+    expect(def.agents.reviewer.backend).toBe("claude");
+    expect(def.agents.reviewer.instructions).toContain("code reviewer");
+    expect(def.agents.coder.channels).toEqual(["design"]);
+    expect(def.storage).toBe("memory");
+    expect(def.setup).toHaveLength(1);
+    expect(def.setup![0].shell).toBe("echo hello");
+    expect(def.setup![0].as).toBe("greeting");
+    expect(def.kickoff).toBeDefined();
   });
 
   test("throws on missing name", () => {
-    expect(() => parseWorkspaceYaml("agents:\n  a:\n    model: x")).toThrow(
+    expect(() => parseWorkspaceDef("agents:\n  a:\n    model: x")).toThrow(
       "'name' is required",
     );
   });
 
   test("throws on missing agents", () => {
-    expect(() => parseWorkspaceYaml("name: test")).toThrow(
+    expect(() => parseWorkspaceDef("name: test")).toThrow(
       "'agents' map is required",
     );
   });
 
   test("throws on non-object input", () => {
-    expect(() => parseWorkspaceYaml("just a string")).toThrow(
+    expect(() => parseWorkspaceDef("just a string")).toThrow(
       "expected an object",
     );
   });
@@ -137,8 +131,6 @@ describe("runSetupSteps", () => {
       { shell: "echo world", as: "name" },
       { shell: 'echo "hello $name"', as: "full" },
     ]);
-    // Note: shell variable $name won't resolve, but template ${{ name }} would
-    // This tests that multiple steps run sequentially
     expect(vars.name).toBe("world");
     expect(vars.full).toBeDefined();
   });
@@ -163,11 +155,11 @@ describe("runSetupSteps", () => {
   });
 });
 
-// ── loadWorkspaceYaml ─────────────────────────────────────────────────────
+// ── loadWorkspaceDef ──────────────────────────────────────────────────────
 
-describe("loadWorkspaceYaml", () => {
+describe("loadWorkspaceDef", () => {
   test("loads from raw YAML content", async () => {
-    const result = await loadWorkspaceYaml(
+    const result = await loadWorkspaceDef(
       `
 name: test
 agents:
@@ -178,12 +170,12 @@ kickoff: "@alice say hello"
       { skipSetup: true },
     );
 
-    expect(result.yaml.name).toBe("test");
+    expect(result.def.name).toBe("test");
     expect(result.kickoff).toBe("@alice say hello");
   });
 
   test("interpolates workspace.tag in kickoff", async () => {
-    const result = await loadWorkspaceYaml(
+    const result = await loadWorkspaceDef(
       `
 name: review
 agents:
@@ -198,7 +190,7 @@ kickoff: "Review PR \${{ workspace.tag }}"
   });
 
   test("interpolates workspace.name in kickoff", async () => {
-    const result = await loadWorkspaceYaml(
+    const result = await loadWorkspaceDef(
       `
 name: my-workspace
 agents:
@@ -213,7 +205,7 @@ kickoff: "Running \${{ workspace.name }}"
   });
 
   test("runs setup and interpolates vars in kickoff", async () => {
-    const result = await loadWorkspaceYaml(`
+    const result = await loadWorkspaceDef(`
 name: test
 agents:
   checker:
@@ -224,12 +216,12 @@ setup:
 kickoff: "The answer is \${{ answer }}"
 `);
 
-    expect(result.setupVars.answer).toBe("42");
+    expect(result.vars.answer).toBe("42");
     expect(result.kickoff).toBe("The answer is 42");
   });
 
   test("passes extra vars through", async () => {
-    const result = await loadWorkspaceYaml(
+    const result = await loadWorkspaceDef(
       `
 name: test
 agents:
@@ -247,8 +239,8 @@ kickoff: "env=\${{ env }}"
 // ── toWorkspaceConfig ─────────────────────────────────────────────────────
 
 describe("toWorkspaceConfig", () => {
-  test("converts to WorkspaceConfig with memory storage", async () => {
-    const loaded = await loadWorkspaceYaml(
+  test("converts with memory storage", async () => {
+    const resolved = await loadWorkspaceDef(
       `
 name: test
 agents:
@@ -260,13 +252,12 @@ channels:
   - general
   - design
 default_channel: general
-context:
-  provider: memory
+storage: memory
 `,
       { skipSetup: true },
     );
 
-    const config = toWorkspaceConfig(loaded);
+    const config = toWorkspaceConfig(resolved);
     expect(config.name).toBe("test");
     expect(config.agents).toEqual(["alice", "bob"]);
     expect(config.channels).toEqual(["general", "design"]);
@@ -275,7 +266,7 @@ context:
   });
 
   test("converts with file storage and tag", async () => {
-    const loaded = await loadWorkspaceYaml(
+    const resolved = await loadWorkspaceDef(
       `
 name: review
 agents:
@@ -285,50 +276,9 @@ agents:
       { tag: "pr-42", skipSetup: true },
     );
 
-    const config = toWorkspaceConfig(loaded, { tag: "pr-42" });
+    const config = toWorkspaceConfig(resolved, { tag: "pr-42" });
     expect(config.name).toBe("review");
     expect(config.tag).toBe("pr-42");
     expect(config.storage).toBeInstanceOf(FileStorage);
-  });
-
-  test("converts queue config from snake_case to camelCase", async () => {
-    const loaded = await loadWorkspaceYaml(
-      `
-name: test
-agents:
-  a:
-    model: x
-queue:
-  immediate_quota: 3
-  normal_quota: 6
-  max_background_wait: 10000
-  max_preemptions: 5
-`,
-      { skipSetup: true },
-    );
-
-    const config = toWorkspaceConfig(loaded);
-    expect(config.queueConfig).toEqual({
-      immediateQuota: 3,
-      normalQuota: 6,
-      maxBackgroundWait: 10000,
-      maxPreemptions: 5,
-    });
-  });
-
-  test("passes smartSendThreshold", async () => {
-    const loaded = await loadWorkspaceYaml(
-      `
-name: test
-agents:
-  a:
-    model: x
-smart_send_threshold: 2000
-`,
-      { skipSetup: true },
-    );
-
-    const config = toWorkspaceConfig(loaded);
-    expect(config.smartSendThreshold).toBe(2000);
   });
 });

@@ -1,14 +1,13 @@
 export type {
-  WorkspaceYamlConfig,
-  AgentYamlConfig,
+  WorkspaceDef,
+  AgentDef,
   SetupStep,
-  ContextYamlConfig,
-  LoadedWorkspaceConfig,
+  ResolvedWorkspace,
 } from "./types.ts";
 
 export {
-  loadWorkspaceYaml,
-  parseWorkspaceYaml,
+  loadWorkspaceDef,
+  parseWorkspaceDef,
   toWorkspaceConfig,
   interpolate,
   runSetupSteps,
