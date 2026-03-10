@@ -138,9 +138,14 @@ async function createLoop(
         languageModel = openai(modelId);
         break;
       }
+      case "deepseek": {
+        const { deepseek } = await import("@ai-sdk/deepseek");
+        languageModel = deepseek(modelId);
+        break;
+      }
       default:
         throw new Error(
-          `Unsupported provider "${provider}". Use anthropic:<model> or openai:<model>.`,
+          `Unsupported provider "${provider}". Use anthropic:<model>, openai:<model>, or deepseek:<model>.`,
         );
     }
 
