@@ -52,14 +52,19 @@ export {
   loadWorkspaceDef,
   parseWorkspaceDef,
   toWorkspaceConfig,
+  resolveModel,
   interpolate,
   runSetupSteps,
 } from "./config/index.ts";
 export type {
   WorkspaceDef,
   AgentDef,
+  ModelSpec,
+  ModelDef,
   SetupStep,
   ResolvedWorkspace,
+  ResolvedAgent,
+  ResolvedModel,
   LoadOptions,
 } from "./config/index.ts";
 

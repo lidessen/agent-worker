@@ -1,6 +1,7 @@
 import { test, expect, describe } from "bun:test";
 import {
   parseWorkspaceDef,
+  resolveModel,
   interpolate,
   runSetupSteps,
   loadWorkspaceDef,
@@ -45,6 +46,59 @@ describe("interpolate", () => {
   });
 });
 
+// ── resolveModel ──────────────────────────────────────────────────────────
+
+describe("resolveModel", () => {
+  test("simple string model", () => {
+    const m = resolveModel("claude-sonnet-4-5");
+    expect(m.id).toBe("claude-sonnet-4-5");
+    expect(m.provider).toBeUndefined();
+    expect(m.full).toBe("claude-sonnet-4-5");
+  });
+
+  test("provider:model string shorthand", () => {
+    const m = resolveModel("anthropic:claude-sonnet-4-5");
+    expect(m.id).toBe("claude-sonnet-4-5");
+    expect(m.provider).toBe("anthropic");
+    expect(m.full).toBe("anthropic:claude-sonnet-4-5");
+  });
+
+  test("openai provider:model", () => {
+    const m = resolveModel("openai:gpt-4o");
+    expect(m.id).toBe("gpt-4o");
+    expect(m.provider).toBe("openai");
+    expect(m.full).toBe("openai:gpt-4o");
+  });
+
+  test("object form with id only", () => {
+    const m = resolveModel({ id: "claude-sonnet-4-5" });
+    expect(m.id).toBe("claude-sonnet-4-5");
+    expect(m.provider).toBeUndefined();
+    expect(m.full).toBe("claude-sonnet-4-5");
+  });
+
+  test("object form with provider", () => {
+    const m = resolveModel({ id: "claude-sonnet-4-5", provider: "anthropic" });
+    expect(m.id).toBe("claude-sonnet-4-5");
+    expect(m.provider).toBe("anthropic");
+    expect(m.full).toBe("anthropic:claude-sonnet-4-5");
+  });
+
+  test("object form with parameters", () => {
+    const m = resolveModel({
+      id: "claude-sonnet-4-5",
+      provider: "anthropic",
+      temperature: 0.7,
+      max_tokens: 4096,
+    });
+    expect(m.id).toBe("claude-sonnet-4-5");
+    expect(m.provider).toBe("anthropic");
+    expect(m.full).toBe("anthropic:claude-sonnet-4-5");
+    expect(m.temperature).toBe(0.7);
+    expect(m.max_tokens).toBe(4096);
+  });
+});
+
 // ── parseWorkspaceDef ─────────────────────────────────────────────────────
 
 describe("parseWorkspaceDef", () => {
@@ -68,12 +122,16 @@ channels:
 default_channel: general
 agents:
   reviewer:
-    backend: claude
+    runtime: claude-code
     model: claude-sonnet-4-5
     instructions: |
       You are a code reviewer.
   coder:
-    model: claude-sonnet-4-5
+    runtime: ai-sdk
+    model:
+      id: claude-sonnet-4-5
+      provider: anthropic
+      temperature: 0.3
     instructions: Fix issues.
     channels:
       - design
@@ -89,8 +147,14 @@ kickoff: |
     expect(def.channels).toEqual(["general", "design"]);
     expect(def.default_channel).toBe("general");
     expect(Object.keys(def.agents)).toEqual(["reviewer", "coder"]);
-    expect(def.agents.reviewer.backend).toBe("claude");
+    expect(def.agents.reviewer.runtime).toBe("claude-code");
     expect(def.agents.reviewer.instructions).toContain("code reviewer");
+    expect(def.agents.coder.runtime).toBe("ai-sdk");
+    expect(def.agents.coder.model).toEqual({
+      id: "claude-sonnet-4-5",
+      provider: "anthropic",
+      temperature: 0.3,
+    });
     expect(def.agents.coder.channels).toEqual(["design"]);
     expect(def.storage).toBe("memory");
     expect(def.setup).toHaveLength(1);
@@ -172,6 +236,62 @@ kickoff: "@alice say hello"
 
     expect(result.def.name).toBe("test");
     expect(result.kickoff).toBe("@alice say hello");
+  });
+
+  test("resolves agents with string model", async () => {
+    const result = await loadWorkspaceDef(
+      `
+name: test
+agents:
+  alice:
+    runtime: claude-code
+    model: sonnet
+`,
+      { skipSetup: true },
+    );
+
+    expect(result.agents).toHaveLength(1);
+    expect(result.agents[0].name).toBe("alice");
+    expect(result.agents[0].runtime).toBe("claude-code");
+    expect(result.agents[0].model?.id).toBe("sonnet");
+    expect(result.agents[0].model?.full).toBe("sonnet");
+  });
+
+  test("resolves agents with provider:model shorthand", async () => {
+    const result = await loadWorkspaceDef(
+      `
+name: test
+agents:
+  bob:
+    runtime: ai-sdk
+    model: anthropic:claude-sonnet-4-5
+`,
+      { skipSetup: true },
+    );
+
+    expect(result.agents[0].model?.id).toBe("claude-sonnet-4-5");
+    expect(result.agents[0].model?.provider).toBe("anthropic");
+    expect(result.agents[0].model?.full).toBe("anthropic:claude-sonnet-4-5");
+  });
+
+  test("resolves agents with object model", async () => {
+    const result = await loadWorkspaceDef(
+      `
+name: test
+agents:
+  coder:
+    model:
+      id: gpt-4o
+      provider: openai
+      temperature: 0.5
+`,
+      { skipSetup: true },
+    );
+
+    expect(result.agents[0].model?.id).toBe("gpt-4o");
+    expect(result.agents[0].model?.provider).toBe("openai");
+    expect(result.agents[0].model?.full).toBe("openai:gpt-4o");
+    expect(result.agents[0].model?.temperature).toBe(0.5);
   });
 
   test("interpolates workspace.tag in kickoff", async () => {
