@@ -47,6 +47,23 @@ export { createResourceTools } from "./context/mcp/resource.ts";
 // ── Utilities ──────────────────────────────────────────────────────────────
 export { nanoid, extractMentions } from "./utils.ts";
 
+// ── Config (YAML) ─────────────────────────────────────────────────────
+export {
+  loadWorkspaceYaml,
+  parseWorkspaceYaml,
+  toWorkspaceConfig,
+  interpolate,
+  runSetupSteps,
+} from "./config/index.ts";
+export type {
+  WorkspaceYamlConfig,
+  AgentYamlConfig,
+  SetupStep,
+  ContextYamlConfig,
+  LoadedWorkspaceConfig,
+  LoadOptions,
+} from "./config/index.ts";
+
 // ── Types ──────────────────────────────────────────────────────────────────
 export type {
   // Message & Channel
