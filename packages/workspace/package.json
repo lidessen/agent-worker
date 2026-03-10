@@ -7,6 +7,8 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@agent-worker/agent": "workspace:*"
+    "@agent-worker/agent": "workspace:*",
+    "@ai-sdk/deepseek": "^2.0.24",
+    "ai": "^6.0.116"
   }
 }
