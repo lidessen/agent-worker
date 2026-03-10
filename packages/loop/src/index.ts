@@ -25,7 +25,12 @@ export type {
 export { createEventChannel } from "./types.ts";
 
 // ── Utilities ───────────────────────────────────────────────────────────────
-export { checkCliAvailability, type CliCheckResult } from "./utils/cli.ts";
+export {
+  checkCliAvailability,
+  checkClaudeCodeAuth,
+  checkCodexAuth,
+  type CliCheckResult,
+} from "./utils/cli.ts";
 export { runCliLoop, type CliLoopConfig } from "./utils/cli-loop.ts";
 export { createStreamParser } from "./utils/stream-parser.ts";
 export { extractProvider, hasProviderKey } from "./utils/models.ts";

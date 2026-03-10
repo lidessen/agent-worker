@@ -53,6 +53,9 @@ export {
   parseWorkspaceDef,
   toWorkspaceConfig,
   resolveModel,
+  resolveRuntime,
+  discoverCliRuntime,
+  detectAiSdkModel,
   interpolate,
   runSetupSteps,
 } from "./config/index.ts";
@@ -65,6 +68,7 @@ export type {
   ResolvedWorkspace,
   ResolvedAgent,
   ResolvedModel,
+  RuntimeResolution,
   LoadOptions,
 } from "./config/index.ts";
 
