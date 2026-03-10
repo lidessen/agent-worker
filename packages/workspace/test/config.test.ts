@@ -13,15 +13,13 @@ import { MemoryStorage, FileStorage } from "../src/context/storage.ts";
 
 describe("interpolate", () => {
   test("replaces simple variables", () => {
-    expect(interpolate("hello ${{ name }}", { name: "world" })).toBe(
-      "hello world",
-    );
+    expect(interpolate("hello ${{ name }}", { name: "world" })).toBe("hello world");
   });
 
   test("replaces dotted variables", () => {
-    expect(
-      interpolate("tag=${{ workspace.tag }}", { "workspace.tag": "pr-123" }),
-    ).toBe("tag=pr-123");
+    expect(interpolate("tag=${{ workspace.tag }}", { "workspace.tag": "pr-123" })).toBe(
+      "tag=pr-123",
+    );
   });
 
   test("preserves unresolved templates", () => {
@@ -29,15 +27,11 @@ describe("interpolate", () => {
   });
 
   test("handles multiple replacements", () => {
-    expect(
-      interpolate("${{ a }} and ${{ b }}", { a: "foo", b: "bar" }),
-    ).toBe("foo and bar");
+    expect(interpolate("${{ a }} and ${{ b }}", { a: "foo", b: "bar" })).toBe("foo and bar");
   });
 
   test("handles no templates", () => {
-    expect(interpolate("no templates here", { x: "y" })).toBe(
-      "no templates here",
-    );
+    expect(interpolate("no templates here", { x: "y" })).toBe("no templates here");
   });
 
   test("handles whitespace variations in template syntax", () => {
@@ -164,21 +158,15 @@ kickoff: |
   });
 
   test("throws on missing name", () => {
-    expect(() => parseWorkspaceDef("agents:\n  a:\n    model: x")).toThrow(
-      "'name' is required",
-    );
+    expect(() => parseWorkspaceDef("agents:\n  a:\n    model: x")).toThrow("'name' is required");
   });
 
   test("throws on missing agents", () => {
-    expect(() => parseWorkspaceDef("name: test")).toThrow(
-      "'agents' map is required",
-    );
+    expect(() => parseWorkspaceDef("name: test")).toThrow("'agents' map is required");
   });
 
   test("throws on non-object input", () => {
-    expect(() => parseWorkspaceDef("just a string")).toThrow(
-      "expected an object",
-    );
+    expect(() => parseWorkspaceDef("just a string")).toThrow("expected an object");
   });
 });
 
@@ -200,17 +188,14 @@ describe("runSetupSteps", () => {
   });
 
   test("interpolates templates in commands", async () => {
-    const vars = await runSetupSteps(
-      [{ shell: "echo ${{ prefix }}-suffix", as: "result" }],
-      { prefix: "hello" },
-    );
+    const vars = await runSetupSteps([{ shell: "echo ${{ prefix }}-suffix", as: "result" }], {
+      prefix: "hello",
+    });
     expect(vars.result).toBe("hello-suffix");
   });
 
   test("throws on command failure", async () => {
-    await expect(
-      runSetupSteps([{ shell: "exit 1" }]),
-    ).rejects.toThrow("Setup step failed");
+    await expect(runSetupSteps([{ shell: "exit 1" }])).rejects.toThrow("Setup step failed");
   });
 
   test("runs step without as (no capture)", async () => {

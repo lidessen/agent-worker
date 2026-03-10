@@ -7,11 +7,7 @@ import type {
   Priority,
   EventLog,
 } from "../types.ts";
-import {
-  assemblePrompt,
-  DEFAULT_SECTIONS,
-  type PromptSection,
-} from "./prompt.ts";
+import { assemblePrompt, DEFAULT_SECTIONS, type PromptSection } from "./prompt.ts";
 
 export interface AgentLoopConfig {
   name: string;
@@ -54,11 +50,7 @@ export class WorkspaceAgentLoop {
     this.running = true;
 
     await this.config.provider.status.set(this.config.name, "running");
-    await this.config.eventLog.log(
-      this.config.name,
-      "system",
-      "Agent loop started",
-    );
+    await this.config.eventLog.log(this.config.name, "system", "Agent loop started");
 
     this.loop();
   }
@@ -74,11 +66,7 @@ export class WorkspaceAgentLoop {
     this.wakeResolve?.();
 
     await this.config.provider.status.set(this.config.name, "stopped");
-    await this.config.eventLog.log(
-      this.config.name,
-      "system",
-      "Agent loop stopped",
-    );
+    await this.config.eventLog.log(this.config.name, "system", "Agent loop stopped");
   }
 
   /** Wake the loop immediately (interrupt poll wait). */
@@ -126,11 +114,7 @@ export class WorkspaceAgentLoop {
       try {
         await this.tick();
       } catch (err) {
-        await this.config.eventLog.log(
-          this.config.name,
-          "system",
-          `Loop error: ${err}`,
-        );
+        await this.config.eventLog.log(this.config.name, "system", `Loop error: ${err}`);
       }
 
       if (!this.running) break;
@@ -142,23 +126,15 @@ export class WorkspaceAgentLoop {
 
   private async tick(): Promise<void> {
     // 1. Check inbox for new messages → enqueue as instructions
-    const inboxEntries = await this.config.provider.inbox.peek(
-      this.config.name,
-    );
+    const inboxEntries = await this.config.provider.inbox.peek(this.config.name);
 
     for (const entry of inboxEntries) {
       // Resolve message content
-      const msg = await this.config.provider.channels.getMessage(
-        entry.channel,
-        entry.messageId,
-      );
+      const msg = await this.config.provider.channels.getMessage(entry.channel, entry.messageId);
       if (!msg) continue;
 
       // Mark as seen
-      await this.config.provider.inbox.markSeen(
-        this.config.name,
-        entry.messageId,
-      );
+      await this.config.provider.inbox.markSeen(this.config.name, entry.messageId);
 
       // Create instruction from inbox entry (if not already queued)
       const existing = this.config.queue.peek(this.config.name);
@@ -188,9 +164,7 @@ export class WorkspaceAgentLoop {
     );
 
     // 3. Build prompt
-    const currentInbox = await this.config.provider.inbox.peek(
-      this.config.name,
-    );
+    const currentInbox = await this.config.provider.inbox.peek(this.config.name);
     const prompt = await this.buildPrompt(currentInbox, instruction.content);
 
     // 4. Execute
@@ -199,17 +173,10 @@ export class WorkspaceAgentLoop {
 
       // 5. Ack inbox entry
       if (instruction.messageId) {
-        await this.config.provider.inbox.ack(
-          this.config.name,
-          instruction.messageId,
-        );
+        await this.config.provider.inbox.ack(this.config.name, instruction.messageId);
       }
     } catch (err) {
-      await this.config.eventLog.log(
-        this.config.name,
-        "system",
-        `Instruction failed: ${err}`,
-      );
+      await this.config.eventLog.log(this.config.name, "system", `Instruction failed: ${err}`);
     }
 
     await this.config.provider.status.set(this.config.name, "idle");

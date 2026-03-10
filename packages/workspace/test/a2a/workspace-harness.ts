@@ -20,11 +20,7 @@ import {
   DEFAULT_SECTIONS,
   nanoid,
 } from "../../src/index.ts";
-import type {
-  Instruction,
-  ContextProvider,
-  InboxEntry,
-} from "../../src/types.ts";
+import type { Instruction, ContextProvider, InboxEntry } from "../../src/types.ts";
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -45,8 +41,7 @@ function assert(condition: boolean, msg = "assertion failed"): void {
 type TestFn = () => Promise<void>;
 
 const tests = new Map<string, TestFn>();
-const results: Array<{ id: string; status: "PASS" | "FAIL"; error?: string; ms: number }> =
-  [];
+const results: Array<{ id: string; status: "PASS" | "FAIL"; error?: string; ms: number }> = [];
 
 function test(id: string, fn: TestFn): void {
   tests.set(id, fn);
@@ -192,10 +187,7 @@ test("T4", async () => {
   const remaining = await ws.contextProvider.inbox.peek("bob");
   assert(remaining.length === 1, `expected 1 remaining, got ${remaining.length}`);
   assert(remaining[0].messageId === task3.messageId, "only task3 pending");
-  assert(
-    !(await ws.contextProvider.inbox.hasEntry("bob", task2.messageId)),
-    "acked entry removed",
-  );
+  assert(!(await ws.contextProvider.inbox.hasEntry("bob", task2.messageId)), "acked entry removed");
 
   await ws.shutdown();
 });
@@ -228,18 +220,30 @@ test("T6", async () => {
   const queue = new InstructionQueue();
 
   queue.enqueue({
-    id: nanoid(), agentName: "alice", messageId: "m1",
-    channel: "general", content: "bg", priority: "background",
+    id: nanoid(),
+    agentName: "alice",
+    messageId: "m1",
+    channel: "general",
+    content: "bg",
+    priority: "background",
     enqueuedAt: new Date().toISOString(),
   });
   queue.enqueue({
-    id: nanoid(), agentName: "alice", messageId: "m2",
-    channel: "general", content: "normal", priority: "normal",
+    id: nanoid(),
+    agentName: "alice",
+    messageId: "m2",
+    channel: "general",
+    content: "normal",
+    priority: "normal",
     enqueuedAt: new Date().toISOString(),
   });
   queue.enqueue({
-    id: nanoid(), agentName: "alice", messageId: "m3",
-    channel: "general", content: "urgent", priority: "immediate",
+    id: nanoid(),
+    agentName: "alice",
+    messageId: "m3",
+    channel: "general",
+    content: "urgent",
+    priority: "immediate",
     enqueuedAt: new Date().toISOString(),
   });
 
@@ -259,15 +263,23 @@ test("T7", async () => {
   const queue = new InstructionQueue({ immediateQuota: 4, normalQuota: 6 });
 
   queue.enqueue({
-    id: nanoid(), agentName: "alice", messageId: "bg",
-    channel: "general", content: "background", priority: "background",
+    id: nanoid(),
+    agentName: "alice",
+    messageId: "bg",
+    channel: "general",
+    content: "background",
+    priority: "background",
     enqueuedAt: new Date().toISOString(),
   });
 
   for (let i = 0; i < 6; i++) {
     queue.enqueue({
-      id: nanoid(), agentName: "alice", messageId: `imm-${i}`,
-      channel: "general", content: `immediate-${i}`, priority: "immediate",
+      id: nanoid(),
+      agentName: "alice",
+      messageId: `imm-${i}`,
+      channel: "general",
+      content: `immediate-${i}`,
+      priority: "immediate",
       enqueuedAt: new Date().toISOString(),
     });
   }
@@ -275,8 +287,12 @@ test("T7", async () => {
   // Also add some normal tasks so bandwidth policy can kick in
   for (let i = 0; i < 2; i++) {
     queue.enqueue({
-      id: nanoid(), agentName: "alice", messageId: `norm-${i}`,
-      channel: "general", content: `normal-${i}`, priority: "normal",
+      id: nanoid(),
+      agentName: "alice",
+      messageId: `norm-${i}`,
+      channel: "general",
+      content: `normal-${i}`,
+      priority: "normal",
       enqueuedAt: new Date().toISOString(),
     });
   }
@@ -334,10 +350,7 @@ test("T9", async () => {
   assert((await docs.read("spec.md")) === "# Spec v2", "write overwrites");
 
   await docs.append("spec.md", "\n## Section 2", "alice");
-  assert(
-    (await docs.read("spec.md")) === "# Spec v2\n## Section 2",
-    "append works",
-  );
+  assert((await docs.read("spec.md")) === "# Spec v2\n## Section 2", "append works");
 
   await docs.create("readme.md", "# README", "alice");
   const list = await docs.list();
@@ -490,11 +503,7 @@ test("T14", async () => {
     pollInterval: 500,
     onInstruction: async (_prompt, instruction) => {
       processed.push(`alice: ${instruction.content.slice(0, 40)}`);
-      await ws.contextProvider.smartSend(
-        "general",
-        "alice",
-        "@bob Got it! Processing.",
-      );
+      await ws.contextProvider.smartSend("general", "alice", "@bob Got it! Processing.");
     },
   });
 
@@ -590,8 +599,12 @@ test("T17", async () => {
   const queue = new InstructionQueue();
 
   queue.enqueue({
-    id: nanoid(), agentName: "alice", messageId: "urgent",
-    channel: "general", content: "urgent fix", priority: "immediate",
+    id: nanoid(),
+    agentName: "alice",
+    messageId: "urgent",
+    channel: "general",
+    content: "urgent fix",
+    priority: "immediate",
     enqueuedAt: new Date().toISOString(),
   });
 
@@ -599,8 +612,12 @@ test("T17", async () => {
 
   const queue2 = new InstructionQueue();
   queue2.enqueue({
-    id: nanoid(), agentName: "alice", messageId: "normal",
-    channel: "general", content: "normal task", priority: "normal",
+    id: nanoid(),
+    agentName: "alice",
+    messageId: "normal",
+    channel: "general",
+    content: "normal task",
+    priority: "normal",
     enqueuedAt: new Date().toISOString(),
   });
   assert(queue2.shouldYield("alice") === false, "should not yield for normal");
@@ -692,7 +709,5 @@ switch (arg) {
     }
 }
 
-console.log(
-  `\n${c.bold}Workspace A2A Tests${c.reset} — running ${toRun.length} test(s)\n`,
-);
+console.log(`\n${c.bold}Workspace A2A Tests${c.reset} — running ${toRun.length} test(s)\n`);
 await run(toRun);

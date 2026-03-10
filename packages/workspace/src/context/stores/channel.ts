@@ -1,9 +1,5 @@
 import { nanoid } from "../../utils.ts";
-import type {
-  Message,
-  StorageBackend,
-  ChannelStoreInterface,
-} from "../../types.ts";
+import type { Message, StorageBackend, ChannelStoreInterface } from "../../types.ts";
 
 type MessageListener = (message: Message) => void;
 
@@ -34,10 +30,7 @@ export class ChannelStore implements ChannelStoreInterface {
     return [...this.channels];
   }
 
-  async append(
-    channel: string,
-    partial: Omit<Message, "id" | "timestamp">,
-  ): Promise<Message> {
+  async append(channel: string, partial: Omit<Message, "id" | "timestamp">): Promise<Message> {
     if (!this.channels.has(channel)) {
       this.channels.add(channel);
     }
@@ -48,28 +41,20 @@ export class ChannelStore implements ChannelStoreInterface {
       timestamp: new Date().toISOString(),
     };
 
-    await this.storage.appendLine(
-      this.channelPath(channel),
-      JSON.stringify(message),
-    );
+    await this.storage.appendLine(this.channelPath(channel), JSON.stringify(message));
 
     this.messageIndex.set(message.id, channel);
     this.emit(message);
     return message;
   }
 
-  async read(
-    channel: string,
-    opts?: { since?: string; limit?: number },
-  ): Promise<Message[]> {
+  async read(channel: string, opts?: { since?: string; limit?: number }): Promise<Message[]> {
     const lines = await this.storage.readLines(this.channelPath(channel));
     let messages = lines.map((line) => JSON.parse(line) as Message);
 
     if (opts?.since) {
       const sinceTime = new Date(opts.since).getTime();
-      messages = messages.filter(
-        (m) => new Date(m.timestamp).getTime() > sinceTime,
-      );
+      messages = messages.filter((m) => new Date(m.timestamp).getTime() > sinceTime);
     }
 
     if (opts?.limit) {
@@ -84,10 +69,7 @@ export class ChannelStore implements ChannelStoreInterface {
     return messages;
   }
 
-  async getMessage(
-    channel: string,
-    messageId: string,
-  ): Promise<Message | null> {
+  async getMessage(channel: string, messageId: string): Promise<Message | null> {
     const lines = await this.storage.readLines(this.channelPath(channel));
     for (const line of lines) {
       const msg = JSON.parse(line) as Message;
@@ -130,16 +112,9 @@ export class ChannelStore implements ChannelStoreInterface {
   }
 
   /** Get all messages mentioning a specific agent in a channel. */
-  async getMessagesForAgent(
-    channel: string,
-    agentName: string,
-  ): Promise<Message[]> {
+  async getMessagesForAgent(channel: string, agentName: string): Promise<Message[]> {
     const messages = await this.read(channel);
-    return messages.filter(
-      (m) =>
-        m.mentions.includes(agentName) ||
-        m.to === agentName,
-    );
+    return messages.filter((m) => m.mentions.includes(agentName) || m.to === agentName);
   }
 
   // ── EventEmitter ────────────────────────────────────────────────────────

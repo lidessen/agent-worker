@@ -1,8 +1,4 @@
-import type {
-  ContextProvider,
-  InboxEntry,
-  StatusStoreInterface,
-} from "../types.ts";
+import type { ContextProvider, InboxEntry, StatusStoreInterface } from "../types.ts";
 
 export type PromptSection = (ctx: PromptContext) => Promise<string | null>;
 
@@ -37,16 +33,10 @@ export const inboxSection: PromptSection = async (ctx) => {
 
   const lines: string[] = [];
   for (const entry of ctx.inboxEntries) {
-    const msg = await ctx.provider.channels.getMessage(
-      entry.channel,
-      entry.messageId,
-    );
+    const msg = await ctx.provider.channels.getMessage(entry.channel, entry.messageId);
     if (!msg) continue;
-    const priority =
-      entry.priority !== "normal" ? ` [${entry.priority}]` : "";
-    lines.push(
-      `- [${msg.id}] #${entry.channel} from:@${msg.from}${priority}: "${msg.content}"`,
-    );
+    const priority = entry.priority !== "normal" ? ` [${entry.priority}]` : "";
+    lines.push(`- [${msg.id}] #${entry.channel} from:@${msg.from}${priority}: "${msg.content}"`);
   }
 
   return `## Inbox (${lines.length} pending)\n\n${lines.join("\n")}`;

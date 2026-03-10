@@ -1,4 +1,9 @@
-import type { WorkspaceConfig, ContextProvider, EventLog, InstructionQueueInterface } from "./types.ts";
+import type {
+  WorkspaceConfig,
+  ContextProvider,
+  EventLog,
+  InstructionQueueInterface,
+} from "./types.ts";
 import { Workspace } from "./workspace.ts";
 import { WorkspaceAgentLoop, type AgentLoopConfig } from "./loop/loop.ts";
 import { createWorkspaceTools, type WorkspaceToolSet } from "./context/mcp/server.ts";
@@ -6,9 +11,7 @@ import type { Instruction } from "./types.ts";
 
 // ── createWorkspace ────────────────────────────────────────────────────────
 
-export async function createWorkspace(
-  config: WorkspaceConfig,
-): Promise<Workspace> {
+export async function createWorkspace(config: WorkspaceConfig): Promise<Workspace> {
   const workspace = new Workspace(config);
 
   // Register agents
@@ -56,10 +59,7 @@ export function createWiredLoop(config: WiredLoopConfig): WorkspaceAgentLoop {
 // ── createAgentTools ───────────────────────────────────────────────────────
 
 /** Create the full workspace tool set for a specific agent. */
-export function createAgentTools(
-  agentName: string,
-  runtime: Workspace,
-): WorkspaceToolSet {
+export function createAgentTools(agentName: string, runtime: Workspace): WorkspaceToolSet {
   const channels = runtime.getAgentChannels(agentName);
   return createWorkspaceTools(agentName, runtime.contextProvider, channels);
 }

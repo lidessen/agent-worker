@@ -52,6 +52,7 @@ Top-level container. Owns all agents, shared context, and optional platform brid
 Handles lifecycle (`init` / `stop`) and wires everything together.
 
 Two composable primitives (factory pattern):
+
 1. `createWorkspace()` — context + MCP + event log (the shared infrastructure)
 2. `createWiredLoop()` — backend + workspace dir + loop (per agent)
 
@@ -81,12 +82,13 @@ kickoff: "@reviewer Please review PR ${{ workspace.tag }}"
 ```ts
 const workspace = await createWorkspace({
   name: "review",
-  tag: "pr-123",  // → contextDir: /tmp/agent-worker-review-pr-123/
+  tag: "pr-123", // → contextDir: /tmp/agent-worker-review-pr-123/
   // ...
 });
 ```
 
 **Use cases:**
+
 - Same review workflow running on multiple PRs simultaneously
 - Same deploy workflow for different environments (`--tag staging`, `--tag prod`)
 - Testing: spin up isolated instances without interference
@@ -98,12 +100,14 @@ channels to receive messages posted there. Channels provide natural topic isolat
 with built-in subscription semantics.
 
 **Default behavior:**
+
 - Every workspace has a `defaultChannel` (typically `"general"`)
 - Agents auto-join the default channel on registration
 - Agents can join/leave channels at any time via tools
 - Each channel is independently queryable
 
 **Why multi-channel:**
+
 - Channels serve as topic namespaces (`#design`, `#code-review`, `#ops`)
 - Agents only receive messages from channels they've joined — natural noise filtering
 - Channel history is isolated — querying `#design` doesn't require filtering through unrelated messages
@@ -113,19 +117,20 @@ with built-in subscription semantics.
 
 ```ts
 interface Message {
-  id: string;              // nanoid
-  timestamp: string;       // ISO
-  from: string;            // agent name or "system"
-  channel: string;         // which channel this was posted to
+  id: string; // nanoid
+  timestamp: string; // ISO
+  from: string; // agent name or "system"
+  channel: string; // which channel this was posted to
   content: string;
-  mentions: string[];      // extracted @mentions
-  to?: string;             // DM recipient (private to sender + recipient)
-  kind?: EventKind;        // "message" | "tool_call" | "system" | "output" | "debug"
+  mentions: string[]; // extracted @mentions
+  to?: string; // DM recipient (private to sender + recipient)
+  kind?: EventKind; // "message" | "tool_call" | "system" | "output" | "debug"
   toolCall?: ToolCallData; // metadata when kind="tool_call"
 }
 ```
 
 **Visibility rules:**
+
 - Channel messages: visible to all agents who have joined that channel
 - DMs (`to` field): visible only to sender and recipient (channel-independent)
 - System/debug/output: filtered out of agent inbox (operational noise)
@@ -140,6 +145,7 @@ view of the channel. When a channel message @mentions an agent or matches their
 subscriptions, a reference is enqueued into their inbox.
 
 **Why independent inbox over cursor-based:**
+
 - **Selective ack:** Agent can process message #3 before message #1 — not forced
   into sequential order. A simple confirmation doesn't have to wait behind a complex task.
 - **Peek all pending:** Agent can see everything waiting and make its own scheduling
@@ -151,6 +157,7 @@ subscriptions, a reference is enqueued into their inbox.
   inferred from channel position.
 
 **How it works:**
+
 1. Channel emits a `"message"` event on append
 2. InboxStore listens, checks: does this message @mention agent X? Is agent X
    a member of this channel?
@@ -163,22 +170,24 @@ subscriptions, a reference is enqueued into their inbox.
 
 ```ts
 interface InboxEntry {
-  messageId: string;       // references Message.id in channel
-  channel: string;         // which channel the message lives in
-  priority: Priority;      // immediate | normal | background
-  state: InboxState;       // pending | seen | deferred
-  enqueuedAt: string;      // ISO timestamp
-  deferredUntil?: string;  // optional: defer expiry
+  messageId: string; // references Message.id in channel
+  channel: string; // which channel the message lives in
+  priority: Priority; // immediate | normal | background
+  state: InboxState; // pending | seen | deferred
+  enqueuedAt: string; // ISO timestamp
+  deferredUntil?: string; // optional: defer expiry
 }
 ```
 
 **Inbox entry lifecycle:**
+
 ```
 pending → seen (loop picked it up) → acked (removed from inbox)
                                    → deferred (returns to pending, optional expiry)
 ```
 
 **GC rules:**
+
 - `acked` entries are removed immediately
 - `deferred` entries return to `pending` after optional expiry (or on next poll if no expiry)
 - On workspace init, `markRunStart()` clears all stale entries from previous runs
@@ -190,11 +199,11 @@ previous runs. Only new messages trigger work.
 
 Three-lane priority queue inspired by React Fiber lanes:
 
-| Priority      | Source                     | Behavior                    |
-|---------------|----------------------------|-----------------------------|
-| `immediate`   | DM, @mention (high)        | Process next, preempt bg    |
-| `normal`      | @mention (normal), direct  | FIFO within lane            |
-| `background`  | Channel broadcast, wakeup  | Yield to higher priority    |
+| Priority     | Source                    | Behavior                 |
+| ------------ | ------------------------- | ------------------------ |
+| `immediate`  | DM, @mention (high)       | Process next, preempt bg |
+| `normal`     | @mention (normal), direct | FIFO within lane         |
+| `background` | Channel broadcast, wakeup | Yield to higher priority |
 
 **Cooperative preemption:** A running background task checks `shouldYield()` —
 if a higher-priority instruction arrives, the current task saves progress and
@@ -203,6 +212,7 @@ re-queues itself. The higher-priority instruction runs first.
 **Preempted instructions** carry progress state so they resume where they left off.
 
 **Starvation protection:**
+
 - Background instructions that have waited longer than `maxBackgroundWait` (default: 5min)
   are promoted to `normal` priority
 - After N consecutive preemptions (default: 3), a background task is promoted to
@@ -211,6 +221,7 @@ re-queues itself. The higher-priority instruction runs first.
   on subsequent retries (immediate→normal→background)
 
 **Lane bandwidth policy:**
+
 - After every 4 consecutive `immediate` dispatches, the queue MUST dispatch
   1 `normal` task if any are pending (prevents normal starvation under immediate storm)
 - After every 8 consecutive `immediate + normal` dispatches, the queue MUST dispatch
@@ -221,26 +232,26 @@ re-queues itself. The higher-priority instruction runs first.
 
 **SLO metrics (for monitoring and testing):**
 
-| Metric                        | Target          | Description                          |
-|-------------------------------|-----------------|--------------------------------------|
-| `immediate_wait_p95`          | < 2s            | Time from enqueue to processing      |
-| `normal_wait_p95`             | < 30s           | Time from enqueue to processing      |
-| `background_wait_p95`         | < 5min          | Time from enqueue to processing      |
-| `background_starvation_count` | 0               | Tasks exceeding maxBackgroundWait     |
-| `preemption_count`            | tracked         | Frequency of cooperative preemptions  |
+| Metric                        | Target  | Description                          |
+| ----------------------------- | ------- | ------------------------------------ |
+| `immediate_wait_p95`          | < 2s    | Time from enqueue to processing      |
+| `normal_wait_p95`             | < 30s   | Time from enqueue to processing      |
+| `background_wait_p95`         | < 5min  | Time from enqueue to processing      |
+| `background_starvation_count` | 0       | Tasks exceeding maxBackgroundWait    |
+| `preemption_count`            | tracked | Frequency of cooperative preemptions |
 
 ### ContextProvider (Composite)
 
 The ContextProvider interface is satisfied by composing independent stores:
 
-| Store          | Concern                                        | Storage         |
-|----------------|------------------------------------------------|-----------------|
-| `ChannelStore` | Per-channel append-only JSONL + EventEmitter    | JSONL file/ch   |
-| `InboxStore`   | Per-agent refs (messageId+state), not content    | JSONL file/agent|
-| `DocumentStore`| Shared team documents (read/write/append)       | Raw text files  |
-| `ResourceStore`| Content-addressed blobs for large content       | Per-resource file|
-| `StatusStore`  | Agent state tracking (idle/running/stopped)     | JSON file       |
-| `TimelineStore`| Per-agent JSONL event log                       | JSONL file      |
+| Store           | Concern                                       | Storage           |
+| --------------- | --------------------------------------------- | ----------------- |
+| `ChannelStore`  | Per-channel append-only JSONL + EventEmitter  | JSONL file/ch     |
+| `InboxStore`    | Per-agent refs (messageId+state), not content | JSONL file/agent  |
+| `DocumentStore` | Shared team documents (read/write/append)     | Raw text files    |
+| `ResourceStore` | Content-addressed blobs for large content     | Per-resource file |
+| `StatusStore`   | Agent state tracking (idle/running/stopped)   | JSON file         |
+| `TimelineStore` | Per-agent JSONL event log                     | JSONL file        |
 
 Each store owns its own concern and persistence. `smartSend` is the only
 cross-store orchestration (channel + resource).
@@ -269,13 +280,13 @@ to the same MCP endpoint. This works with any backend — SDK, Claude CLI, Codex
 
 **Tool categories:**
 
-| Category      | Tools                                              |
-|---------------|----------------------------------------------------|
-| **Channel**   | `channel_send`, `channel_read`, `channel_list`, `channel_join`, `channel_leave` |
-| **Inbox**     | `my_inbox`, `my_inbox_ack`, `my_inbox_defer`, `my_status_set` |
-| **Team**      | `team_members`, `team_doc_read/write/append/list/create` |
-| **Resource**  | `resource_create`, `resource_read`                 |
-| **Proposal**  | `team_proposal_create`, `team_vote`, `team_proposal_status/cancel` |
+| Category     | Tools                                                                           |
+| ------------ | ------------------------------------------------------------------------------- |
+| **Channel**  | `channel_send`, `channel_read`, `channel_list`, `channel_join`, `channel_leave` |
+| **Inbox**    | `my_inbox`, `my_inbox_ack`, `my_inbox_defer`, `my_status_set`                   |
+| **Team**     | `team_members`, `team_doc_read/write/append/list/create`                        |
+| **Resource** | `resource_create`, `resource_read`                                              |
+| **Proposal** | `team_proposal_create`, `team_vote`, `team_proposal_status/cancel`              |
 
 **Agent identity:** Extracted from MCP session. Each agent gets its own session
 with the same MCP server — the server knows who's calling.
@@ -329,6 +340,7 @@ poll inbox → classify priority → dequeue instruction
 ```
 
 **Features:**
+
 - Polling with configurable interval (default: 5s)
 - `wake()` — interrupt poll wait for immediate processing
 - `sendDirect()` — synchronous request-response (bypasses poll loop)
@@ -344,13 +356,13 @@ function returning content or null. Sections can be added/removed/reordered.
 
 Unified event entry point. Records all notable events across the workspace:
 
-| Kind          | Description                                   |
-|---------------|-----------------------------------------------|
-| `message`     | Agent-to-agent communication                  |
-| `tool_call`   | Tool invocation (MCP, SDK, or backend native) |
-| `system`      | Operational log (lifecycle, warnings)          |
-| `output`      | Backend streaming text                         |
-| `debug`       | Debug-level detail (only shown with --debug)   |
+| Kind        | Description                                   |
+| ----------- | --------------------------------------------- |
+| `message`   | Agent-to-agent communication                  |
+| `tool_call` | Tool invocation (MCP, SDK, or backend native) |
+| `system`    | Operational log (lifecycle, warnings)         |
+| `output`    | Backend streaming text                        |
+| `debug`     | Debug-level detail (only shown with --debug)  |
 
 EventLog writes to TimelineStore only — never to channels. Channels are
 exclusively for agent-to-agent `message` kind events (see Invariants #12-14
@@ -405,13 +417,11 @@ import { createWorkspace, createWiredLoop } from "@agent-worker/workspace";
 // 1. Create shared infrastructure
 const workspace = await createWorkspace({
   name: "code-review",
-  tag: "pr-123",  // optional: isolates this instance from other runs of the same workflow
+  tag: "pr-123", // optional: isolates this instance from other runs of the same workflow
   channels: ["general", "design", "code-review"],
   defaultChannel: "general",
   agents: ["designer", "reviewer"],
-  adapters: [
-    new TelegramAdapter({ botToken: "...", chatId: "..." }),
-  ],
+  adapters: [new TelegramAdapter({ botToken: "...", chatId: "..." })],
 });
 
 // 2. Create per-agent loops
@@ -447,8 +457,8 @@ await workspace.shutdown();
 1. **Named channels for topic isolation** — multiple channels (`#design`, `#code-review`)
    give agents natural noise filtering via join/leave. Each channel is independently
    queryable. Implementation cost is low (each channel = one JSONL file). Note: channels
-   are orthogonal to instance tags — channels organize topics *within* a workspace,
-   tags isolate entire workspace *instances* of the same workflow.
+   are orthogonal to instance tags — channels organize topics _within_ a workspace,
+   tags isolate entire workspace _instances_ of the same workflow.
 
 2. **Independent inbox with selective ack** — the inbox is its own per-agent queue,
    not a cursor-based filtered view of the channel. This lets agents peek all pending
@@ -540,13 +550,13 @@ System-wide constraints that all implementations must respect.
 
 **Routing table:**
 
-| Event kind   | → Channel | → Timeline/EventLog | Notes                           |
-|--------------|-----------|--------------------|---------------------------------|
-| `message`    | YES       | NO                 | Agent-to-agent, the core data   |
-| `tool_call`  | NO        | YES                | Operational, per-agent timeline  |
-| `system`     | NO        | YES                | Lifecycle, warnings              |
-| `output`     | NO        | YES                | Backend streaming text           |
-| `debug`      | NO        | YES                | Only with --debug flag           |
+| Event kind  | → Channel | → Timeline/EventLog | Notes                           |
+| ----------- | --------- | ------------------- | ------------------------------- |
+| `message`   | YES       | NO                  | Agent-to-agent, the core data   |
+| `tool_call` | NO        | YES                 | Operational, per-agent timeline |
+| `system`    | NO        | YES                 | Lifecycle, warnings             |
+| `output`    | NO        | YES                 | Backend streaming text          |
+| `debug`     | NO        | YES                 | Only with --debug flag          |
 
 ## Crash Recovery
 
@@ -560,6 +570,7 @@ All JSONL stores use **append-with-fsync**: write full line + `\n`, then fsync.
 A partial line (crash mid-write) is detected on startup and truncated.
 
 **Write order for message delivery:**
+
 1. Append message to channel JSONL (fsync)
 2. Append inbox entry to agent's inbox JSONL (fsync)
 
@@ -644,12 +655,14 @@ aw run review.yaml --tag pr-456  → /tmp/aw-review-pr-456/ (独立进程)
 ```
 
 **优点：**
+
 - 最简单 — 隔离靠文件系统目录，零额外抽象
 - 故障隔离 — 一个实例挂了不影响其他
 - Agent 身份清晰 — 每个实例有自己的 "designer"，独立 context window
 - 生命周期简单 — 关掉一个实例 = kill 一个进程
 
 **缺点：**
+
 - 跨实例协调不可能 — pr-123 的 agent 无法感知 pr-456 的存在
 - 资源重复 — 每个实例独立加载模型、启动 MCP server
 - 无法共享知识 — 团队规范、代码风格等每个实例各存一份
@@ -688,12 +701,14 @@ aw run review.yaml --instances pr-123,pr-456
 ```
 
 **优点：**
+
 - 跨实例协调原生支持 — supervisor 加入多个 channel 即可
 - 共享知识不重复 — workspace-level documents 所有 channel 可见
 - 资源效率 — 一个进程、一个 MCP server
 - 概念更少 — channel 统一了"话题"和"实例"两个概念
 
 **缺点：**
+
 - **Agent 身份问题** — "designer" 是一个 agent 还是多个？
   - 如果一个 agent 加入多个 channel → LLM context window 是单线程的，无法同时思考两个 PR，context 互相污染
   - 如果每个 channel 独立启一个 agent loop → 本质上就是方案 A 换了个名字，但更复杂
@@ -737,12 +752,14 @@ aw run coordinator.yaml --watch /tmp/aw-review-*/
 ```
 
 **优点：**
+
 - 保留方案 A 的简单性和隔离性
 - 跨实例协调可选（不需要时零开销）
 - 不需要 store 双层化
 - 协调器本身也是一个 workspace，复用全部基础设施
 
 **缺点：**
+
 - 跨实例协调是"外挂"的，不如方案 B 自然
 - 协调器和实例之间的通信需要额外协议（文件、HTTP、IPC）
 - 对简单场景（"只是想让 supervisor 看看两个 PR"）过于重型
@@ -751,15 +768,15 @@ aw run coordinator.yaml --watch /tmp/aw-review-*/
 
 #### 决策维度
 
-| 维度 | 方案 A (tag) | 方案 B (channel=instance) | 方案 C (tag+coordinator) |
-|------|-------------|--------------------------|--------------------------|
-| 实现复杂度 | 低 | 高（store 双层化） | 中（需要协调协议） |
-| 隔离性 | 强（进程级） | 弱（共享进程） | 强 |
-| 跨实例协调 | 不支持 | 原生 | 可选外挂 |
-| Agent 身份 | 清晰（1:1） | 模糊（1:N?） | 清晰 |
-| 资源效率 | 低（N 个进程） | 高（1 个进程） | 低 |
-| 概念数量 | tag + channel | channel only | tag + channel + coordinator |
-| 生命周期管理 | 简单 | 复杂 | 简单 |
+| 维度         | 方案 A (tag)   | 方案 B (channel=instance) | 方案 C (tag+coordinator)    |
+| ------------ | -------------- | ------------------------- | --------------------------- |
+| 实现复杂度   | 低             | 高（store 双层化）        | 中（需要协调协议）          |
+| 隔离性       | 强（进程级）   | 弱（共享进程）            | 强                          |
+| 跨实例协调   | 不支持         | 原生                      | 可选外挂                    |
+| Agent 身份   | 清晰（1:1）    | 模糊（1:N?）              | 清晰                        |
+| 资源效率     | 低（N 个进程） | 高（1 个进程）            | 低                          |
+| 概念数量     | tag + channel  | channel only              | tag + channel + coordinator |
+| 生命周期管理 | 简单           | 复杂                      | 简单                        |
 
 **已决定 → A。** 若需跨实例编排，走 C 的 coordinator 路径（future enhancement）。
 
@@ -768,6 +785,7 @@ aw run coordinator.yaml --watch /tmp/aw-review-*/
 最小协议草案，防止后续实现分叉。标记为 non-v1，仅做方向约束。
 
 **Instance discovery:**
+
 ```
 # 每个 workspace 实例在 contextDir 下暴露 instance.json
 {
@@ -785,14 +803,15 @@ aw run coordinator.yaml --watch /tmp/aw-review-*/
 ```
 
 **Message envelope (coordinator → instance):**
+
 ```ts
 interface CoordinatorMessage {
-  id: string;              // nanoid, 幂等键
+  id: string; // nanoid, 幂等键
   from: "coordinator";
-  targetTag: string;       // which instance
-  targetChannel: string;   // which channel within instance
+  targetTag: string; // which instance
+  targetChannel: string; // which channel within instance
   content: string;
-  idempotencyKey: string;  // = id, 重复投递不产生副作用
+  idempotencyKey: string; // = id, 重复投递不产生副作用
 }
 ```
 
@@ -801,11 +820,13 @@ interface CoordinatorMessage {
 simpler and sufficient for single-machine; HTTP-based needed for distributed.
 
 **Ack/retry:**
+
 - Coordinator 维护 sent log: `{ messageId, targetTag, sentAt, acked: boolean }`
 - Instance 处理后通过 StatusStore 暴露 ack（或 coordinator 轮询 channel 看到回复）
 - Retry: 指数退避，最多 3 次，基于 idempotencyKey 去重
 
 **Non-goals for coordinator protocol:**
+
 - 不做分布式事务
 - 不保证跨实例消息顺序
 - 不做实例健康检查（依赖 OS 进程状态）
@@ -815,6 +836,7 @@ simpler and sufficient for single-machine; HTTP-based needed for distributed.
 ### OD-2: Inbox — independent queue vs cursor-based filtered view [RESOLVED → A]
 
 **决策：方案 A（独立 inbox queue），配合三条工程约束：**
+
 1. Channel message 不可变（append-only，见 Invariants #1）
 2. Inbox 保存 messageId + state，不复制正文（见 Invariants #4）
 3. defer/ack 的状态机和 GC 规则已明确（见 Invariants #6，Inbox 节的 GC rules）
@@ -836,11 +858,13 @@ Agent inbox: [msg2, msg4]  ← 独立队列，可以先处理 msg4 再处理 msg
 ```
 
 **优点：**
+
 - 灵活 — agent 自主决定处理顺序
 - Selective ack — 跳过复杂任务先处理简单确认
 - Defer — "现在不处理，稍后再看"
 
 **缺点：**
+
 - 数据冗余 — 消息在 channel 和 inbox 中各存一份
 - 一致性风险 — channel 消息被修改/删除后 inbox 副本怎么办？（虽然 channel 是 append-only 的，但仍是两份数据）
 - 实现复杂度 — inbox 是独立的 JSONL 文件，需要自己的写入/读取/GC 逻辑
@@ -856,11 +880,13 @@ Agent sees: [msg3, msg4, msg5] filtered by @mention
 ```
 
 **优点：**
+
 - 单一数据源 — channel 是唯一真相，零冗余
 - 实现简单 — 只需维护一个 cursor position
 - 一致性保证 — 不存在两份数据不同步的问题
 
 **缺点：**
+
 - 严格顺序 — 不能跳过 msg3 先处理 msg5
 - 无法 defer — cursor 只能前进不能后退
 - 阻塞 — 一条复杂消息堵住后面所有简单消息
@@ -877,11 +903,13 @@ Agent sees: [msg4, msg5]，msg3 在 deferred 列表里
 ```
 
 **优点：**
+
 - 单一数据源（同 B）
 - 支持 skip/defer（部分解决 B 的刚性问题）
 - 实现比方案 A 简单（不需要独立 store）
 
 **缺点：**
+
 - 仍然不能自由排序（只能 skip，不能"先处理 msg5 再处理 msg4"）
 - Skip set 需要持久化和 GC
 

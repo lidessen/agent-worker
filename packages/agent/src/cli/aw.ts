@@ -68,10 +68,7 @@ async function loadMeta(): Promise<{
   return JSON.parse(await Bun.file(META_PATH).text());
 }
 
-async function daemonFetch(
-  path: string,
-  options?: RequestInit,
-): Promise<Response> {
+async function daemonFetch(path: string, options?: RequestInit): Promise<Response> {
   const meta = await loadMeta();
   return fetch(`http://localhost${path}`, {
     ...options,
@@ -159,7 +156,9 @@ async function createLoop(
 
   if (runtime === "claude-code") {
     const { ClaudeCodeLoop } = await import("@agent-worker/loop");
-    const loop = new ClaudeCodeLoop({ model: model as import("@agent-worker/loop").ClaudeCodeModel });
+    const loop = new ClaudeCodeLoop({
+      model: model as import("@agent-worker/loop").ClaudeCodeModel,
+    });
     return Object.assign(loop, { supports: [] as const });
   }
 
@@ -200,7 +199,11 @@ function createMockLoop(): import("../types.ts").AgentLoop {
         _status = "completed";
         return {
           events: [textEvent],
-          usage: { inputTokens: prompt.length / 4, outputTokens: 50, totalTokens: prompt.length / 4 + 50 },
+          usage: {
+            inputTokens: prompt.length / 4,
+            outputTokens: 50,
+            totalTokens: prompt.length / 4 + 50,
+          },
           durationMs: delayMs,
         };
       });
@@ -276,7 +279,9 @@ async function cmdStart(args: string[]): Promise<void> {
     try {
       const { unlink } = await import("node:fs/promises");
       await unlink(META_PATH);
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     process.exit(0);
   };
 
@@ -321,7 +326,7 @@ async function cmdSend(args: string[]): Promise<void> {
   }
 
   const delayInfo = messages.some((m) => m.delayMs)
-    ? ` (with delays: ${messages.map((m) => m.delayMs ? `+${m.delayMs}ms` : "0ms").join(", ")})`
+    ? ` (with delays: ${messages.map((m) => (m.delayMs ? `+${m.delayMs}ms` : "0ms")).join(", ")})`
     : "";
   console.log(`${c.green}Sent ${data.sent} message(s)${c.reset}${delayInfo}`);
   console.log(`  agent state: ${c.cyan}${data.state}${c.reset}`);
@@ -342,7 +347,9 @@ async function cmdRecv(args: string[]): Promise<void> {
   let cursor = 0;
   try {
     cursor = parseInt(await Bun.file(cursorPath).text(), 10) || 0;
-  } catch { /* first read */ }
+  } catch {
+    /* first read */
+  }
 
   const deadline = Date.now() + waitMs;
 
@@ -393,7 +400,9 @@ async function cmdLog(args: string[]): Promise<void> {
   let cursor = 0;
   try {
     cursor = parseInt(await Bun.file(cursorPath).text(), 10) || 0;
-  } catch { /* first read */ }
+  } catch {
+    /* first read */
+  }
 
   const typeColors: Record<string, string> = {
     state_change: c.green,
@@ -451,9 +460,7 @@ async function cmdLog(args: string[]): Promise<void> {
               console.log(`${ts} ${tag} ${entry.error}`);
               break;
             case "context_assembled":
-              console.log(
-                `${ts} ${tag} ${entry.tokenCount} tokens, ${entry.turnCount} turns`,
-              );
+              console.log(`${ts} ${tag} ${entry.tokenCount} tokens, ${entry.turnCount} turns`);
               break;
             default:
               console.log(`${ts} ${tag} ${JSON.stringify(entry)}`);
@@ -492,7 +499,8 @@ async function cmdState(): Promise<void> {
     console.log(`  ${c.dim}(empty)${c.reset}`);
   }
   for (const msg of data.inbox) {
-    const status = msg.status === "unread" ? `${c.yellow}UNREAD${c.reset}` : `${c.dim}read${c.reset}`;
+    const status =
+      msg.status === "unread" ? `${c.yellow}UNREAD${c.reset}` : `${c.dim}read${c.reset}`;
     console.log(`  [${msg.id}] ${status} from=${msg.from ?? "-"} "${msg.content}"`);
   }
 
@@ -519,7 +527,9 @@ async function cmdStop(): Promise<void> {
     await unlink(META_PATH);
     await unlink(`${AW_DIR}/recv-cursor`).catch(() => {});
     await unlink(`${AW_DIR}/log-cursor`).catch(() => {});
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
 function printHelp(): void {

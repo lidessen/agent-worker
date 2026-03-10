@@ -18,11 +18,7 @@ export class ChannelBridge implements ChannelBridgeInterface {
     });
   }
 
-  async send(
-    channel: string,
-    from: string,
-    content: string,
-  ): Promise<Message> {
+  async send(channel: string, from: string, content: string): Promise<Message> {
     const mentions = extractMentions(content);
     return this.channels.append(channel, {
       from,

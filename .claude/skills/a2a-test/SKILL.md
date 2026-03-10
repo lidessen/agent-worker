@@ -78,7 +78,7 @@ Each loop class exposes:
 ### Runtime capability matrix
 
 | Capability       | AiSdkLoop | ClaudeCodeLoop | CodexLoop | CursorLoop |
-|------------------|-----------|----------------|-----------|------------|
+| ---------------- | --------- | -------------- | --------- | ---------- |
 | tool_call_end    | Yes       | Yes            | Yes       | No         |
 | callId in events | Yes       | Yes            | No        | Yes        |
 | thinking events  | Yes       | No             | No        | No         |

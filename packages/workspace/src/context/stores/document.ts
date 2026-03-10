@@ -15,11 +15,7 @@ export class DocumentStore implements DocumentStoreInterface {
     return this.storage.readFile(this.docPath(name));
   }
 
-  async write(
-    name: string,
-    content: string,
-    updatedBy: string,
-  ): Promise<void> {
+  async write(name: string, content: string, updatedBy: string): Promise<void> {
     await this.storage.writeFile(this.docPath(name), content);
     await this.storage.writeFile(
       this.metaPath(name),
@@ -27,11 +23,7 @@ export class DocumentStore implements DocumentStoreInterface {
     );
   }
 
-  async append(
-    name: string,
-    content: string,
-    updatedBy: string,
-  ): Promise<void> {
+  async append(name: string, content: string, updatedBy: string): Promise<void> {
     const existing = (await this.storage.readFile(this.docPath(name))) ?? "";
     await this.write(name, existing + content, updatedBy);
   }
@@ -40,11 +32,7 @@ export class DocumentStore implements DocumentStoreInterface {
     return this.storage.listFiles("documents");
   }
 
-  async create(
-    name: string,
-    content: string,
-    createdBy: string,
-  ): Promise<void> {
+  async create(name: string, content: string, createdBy: string): Promise<void> {
     const existing = await this.storage.readFile(this.docPath(name));
     if (existing !== null) {
       throw new Error(`Document "${name}" already exists`);

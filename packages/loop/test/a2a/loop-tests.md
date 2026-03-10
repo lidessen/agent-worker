@@ -4,6 +4,7 @@ Interactive CLI-based tests for verifying loop implementations against real LLM 
 Each runtime (AiSdkLoop, ClaudeCodeLoop, CodexLoop, CursorLoop) should be tested independently.
 
 > A2A tests are manual/interactive. Each test case specifies:
+>
 > - **Input:** exact CLI commands
 > - **Expected:** observable output pattern (grep-able)
 > - **Timeout:** max wait before marking as fail
@@ -43,12 +44,12 @@ aw recv --json > "a2a-artifacts/${TEST_ID}_recv.json"
 
 ### T1.1: Preflight — API key detection
 
-| Field    | Value |
-|----------|-------|
+| Field    | Value                                                  |
+| -------- | ------------------------------------------------------ |
 | Input    | `aw start --model anthropic:claude-haiku-4-5-20251001` |
-| Expected | Daemon starts successfully; no API key errors |
-| Timeout  | 5s |
-| Retry    | No |
+| Expected | Daemon starts successfully; no API key errors          |
+| Timeout  | 5s                                                     |
+| Retry    | No                                                     |
 
 ```sh
 aw start --model anthropic:claude-haiku-4-5-20251001
@@ -65,6 +66,7 @@ aw start --model anthropic:claude-haiku-4-5-20251001 2>&1 | grep -i "error\|key\
 ```
 
 **Pass criteria:**
+
 - With key: daemon starts, `state` shows agent state
 - Without key: error message about missing API key, daemon does not start
 
@@ -72,12 +74,12 @@ aw start --model anthropic:claude-haiku-4-5-20251001 2>&1 | grep -i "error\|key\
 
 ### T1.2: Simple prompt — text response with marker
 
-| Field    | Value |
-|----------|-------|
+| Field    | Value                                          |
+| -------- | ---------------------------------------------- |
 | Input    | `aw send "Reply with exactly: HELLO_A2A_TEST"` |
 | Expected | `recv` output contains string `HELLO_A2A_TEST` |
-| Timeout  | 10s |
-| Retry    | Yes (LLM may not follow instructions exactly) |
+| Timeout  | 10s                                            |
+| Retry    | Yes (LLM may not follow instructions exactly)  |
 
 ```sh
 aw start --model anthropic:claude-haiku-4-5-20251001
@@ -88,18 +90,19 @@ aw stop
 ```
 
 **Pass criteria:**
+
 - `grep` exits 0 (marker found in response)
 
 ---
 
 ### T1.3: Event stream structure
 
-| Field    | Value |
-|----------|-------|
-| Input    | `aw send "Say OK"` |
+| Field    | Value                                        |
+| -------- | -------------------------------------------- |
+| Input    | `aw send "Say OK"`                           |
 | Expected | All JSON log entries have valid `type` field |
-| Timeout  | 10s |
-| Retry    | No |
+| Timeout  | 10s                                          |
+| Retry    | No                                           |
 
 ```sh
 aw start --model anthropic:claude-haiku-4-5-20251001
@@ -123,6 +126,7 @@ print('OK: all events valid')
 ```
 
 **Pass criteria:**
+
 - Validation script prints `OK: all events valid`
 - No events with missing `type`
 
@@ -130,12 +134,12 @@ print('OK: all events valid')
 
 ### T1.4: Result structure — usage tracking
 
-| Field    | Value |
-|----------|-------|
-| Input    | `aw send "Reply: OK"` |
+| Field    | Value                                                    |
+| -------- | -------------------------------------------------------- |
+| Input    | `aw send "Reply: OK"`                                    |
 | Expected | `run_end` log entry has `durationMs` > 0, non-zero usage |
-| Timeout  | 10s |
-| Retry    | No |
+| Timeout  | 10s                                                      |
+| Retry    | No                                                       |
 
 ```sh
 aw start --model anthropic:claude-haiku-4-5-20251001
@@ -147,6 +151,7 @@ aw stop
 ```
 
 **Pass criteria (check `run_end` entry):**
+
 - `durationMs` > 0
 - `usage.inputTokens` > 0
 - `usage.outputTokens` > 0
@@ -155,12 +160,12 @@ aw stop
 
 ### T1.5: Status transitions
 
-| Field    | Value |
-|----------|-------|
-| Input    | `aw send "Reply: hi"` with `log --follow` |
+| Field    | Value                                          |
+| -------- | ---------------------------------------------- |
+| Input    | `aw send "Reply: hi"` with `log --follow`      |
 | Expected | Log shows state_change sequence ending in idle |
-| Timeout  | 15s |
-| Retry    | No |
+| Timeout  | 15s                                            |
+| Retry    | No                                             |
 
 ```sh
 aw start --model anthropic:claude-haiku-4-5-20251001
@@ -178,6 +183,7 @@ grep "state_change\|run_start\|run_end" /tmp/a2a_t15_log.txt
 ```
 
 **Pass criteria:**
+
 1. `run_start` appears in log
 2. `run_end` appears after `run_start`
 3. Final state_change shows `idle`
@@ -187,12 +193,12 @@ grep "state_change\|run_start\|run_end" /tmp/a2a_t15_log.txt
 
 ### T1.6: Cancel mid-run
 
-| Field    | Value |
-|----------|-------|
-| Input    | Send long prompt, stop after 1s |
+| Field    | Value                                       |
+| -------- | ------------------------------------------- |
+| Input    | Send long prompt, stop after 1s             |
 | Expected | Daemon stops within 5s, no orphan processes |
-| Timeout  | 10s |
-| Retry    | No |
+| Timeout  | 10s                                         |
+| Retry    | No                                          |
 
 ```sh
 aw start --model anthropic:claude-haiku-4-5-20251001
@@ -204,6 +210,7 @@ pgrep -f "aw.*start" | wc -l    # should be 0
 ```
 
 **Pass criteria:**
+
 - `aw stop` completes in < 5s
 - No orphan `aw` processes
 
@@ -211,12 +218,12 @@ pgrep -f "aw.*start" | wc -l    # should be 0
 
 ### T1.7: Cleanup idempotent
 
-| Field    | Value |
-|----------|-------|
-| Input    | `aw stop` twice |
+| Field    | Value                     |
+| -------- | ------------------------- |
+| Input    | `aw stop` twice           |
 | Expected | Second stop doesn't crash |
-| Timeout  | 5s |
-| Retry    | No |
+| Timeout  | 5s                        |
+| Retry    | No                        |
 
 ```sh
 aw start --model anthropic:claude-haiku-4-5-20251001
@@ -226,18 +233,19 @@ echo "exit code: $?"
 ```
 
 **Pass criteria:**
+
 - Second `aw stop` prints "no daemon" or similar, no crash
 
 ---
 
 ### T1.8: OpenAI backend
 
-| Field    | Value |
-|----------|-------|
+| Field    | Value                          |
+| -------- | ------------------------------ |
 | Input    | Same as T1.2 with OpenAI model |
-| Expected | `recv` contains marker |
-| Timeout  | 15s |
-| Retry    | Yes |
+| Expected | `recv` contains marker         |
+| Timeout  | 15s                            |
+| Retry    | Yes                            |
 
 ```sh
 aw start --model openai:gpt-4.1-nano
@@ -247,6 +255,7 @@ aw stop
 ```
 
 **Pass criteria:**
+
 - `grep` exits 0
 
 ---
@@ -255,12 +264,12 @@ aw stop
 
 ### T2.1: CLI availability
 
-| Field    | Value |
-|----------|-------|
-| Input    | `claude --version` |
+| Field    | Value                 |
+| -------- | --------------------- |
+| Input    | `claude --version`    |
 | Expected | Prints version string |
-| Timeout  | 5s |
-| Retry    | No |
+| Timeout  | 5s                    |
+| Retry    | No                    |
 
 ```sh
 claude --version    # If fails, skip all T2.x tests
@@ -270,12 +279,12 @@ claude --version    # If fails, skip all T2.x tests
 
 ### T2.2: Simple prompt
 
-| Field    | Value |
-|----------|-------|
+| Field    | Value                                          |
+| -------- | ---------------------------------------------- |
 | Input    | `aw send "Reply with exactly: HELLO_A2A_TEST"` |
-| Expected | `recv` contains `HELLO_A2A_TEST` |
-| Timeout  | 20s |
-| Retry    | Yes |
+| Expected | `recv` contains `HELLO_A2A_TEST`               |
+| Timeout  | 20s                                            |
+| Retry    | Yes                                            |
 
 ```sh
 aw start --runtime claude-code --model sonnet
@@ -288,12 +297,12 @@ aw stop
 
 ### T2.3: Result structure
 
-| Field    | Value |
-|----------|-------|
-| Input    | `aw send "Reply with: OK"` |
+| Field    | Value                                          |
+| -------- | ---------------------------------------------- |
+| Input    | `aw send "Reply with: OK"`                     |
 | Expected | `run_end` has `durationMs` > 0, non-zero usage |
-| Timeout  | 20s |
-| Retry    | No |
+| Timeout  | 20s                                            |
+| Retry    | No                                             |
 
 ```sh
 aw start --runtime claude-code --model sonnet
@@ -304,6 +313,7 @@ aw stop
 ```
 
 **Pass criteria:**
+
 - `run_end` has `durationMs` > 0
 - `usage.inputTokens` > 0
 
@@ -311,12 +321,12 @@ aw stop
 
 ### T2.4: Status transitions
 
-| Field    | Value |
-|----------|-------|
+| Field    | Value                                     |
+| -------- | ----------------------------------------- |
 | Input    | `aw send "Reply: hi"` with `log --follow` |
-| Expected | run_start → run_end → idle |
-| Timeout  | 25s |
-| Retry    | No |
+| Expected | run_start → run_end → idle                |
+| Timeout  | 25s                                       |
+| Retry    | No                                        |
 
 ```sh
 aw start --runtime claude-code --model sonnet
@@ -333,12 +343,12 @@ grep "run_start\|run_end\|state_change" /tmp/a2a_t24_log.txt
 
 ### T2.5: Cancel
 
-| Field    | Value |
-|----------|-------|
+| Field    | Value                      |
+| -------- | -------------------------- |
 | Input    | Long prompt, stop after 2s |
-| Expected | Daemon stops cleanly |
-| Timeout  | 10s |
-| Retry    | No |
+| Expected | Daemon stops cleanly       |
+| Timeout  | 10s                        |
+| Retry    | No                         |
 
 ```sh
 aw start --runtime claude-code --model sonnet
@@ -351,12 +361,12 @@ time aw stop
 
 ### T2.6: Tool call events
 
-| Field    | Value |
-|----------|-------|
-| Input    | Ask to run bash command |
+| Field    | Value                                                   |
+| -------- | ------------------------------------------------------- |
+| Input    | Ask to run bash command                                 |
 | Expected | `log` has `tool_call_start` with name containing "bash" |
-| Timeout  | 25s |
-| Retry    | Yes (LLM may not call tool) |
+| Timeout  | 25s                                                     |
+| Retry    | Yes (LLM may not call tool)                             |
 
 ```sh
 aw start --runtime claude-code --model sonnet
@@ -367,6 +377,7 @@ aw stop
 ```
 
 **Pass criteria:**
+
 - At least one `tool_call_start` with name containing "bash" (case-insensitive)
 - Matching `tool_call_end` exists
 
@@ -376,12 +387,12 @@ aw stop
 
 ### T3.1: CLI availability
 
-| Field    | Value |
-|----------|-------|
+| Field    | Value             |
+| -------- | ----------------- |
 | Input    | `codex --version` |
-| Expected | Prints version |
-| Timeout  | 5s |
-| Retry    | No |
+| Expected | Prints version    |
+| Timeout  | 5s                |
+| Retry    | No                |
 
 ```sh
 codex --version    # If fails, skip all T3.x tests
@@ -391,12 +402,12 @@ codex --version    # If fails, skip all T3.x tests
 
 ### T3.2: Simple prompt
 
-| Field    | Value |
-|----------|-------|
+| Field    | Value                                          |
+| -------- | ---------------------------------------------- |
 | Input    | `aw send "Reply with exactly: HELLO_A2A_TEST"` |
-| Expected | `recv` contains text response |
-| Timeout  | 20s |
-| Retry    | Yes |
+| Expected | `recv` contains text response                  |
+| Timeout  | 20s                                            |
+| Retry    | Yes                                            |
 
 ```sh
 aw start --runtime codex
@@ -411,12 +422,12 @@ aw stop
 
 ### T3.3: Result structure
 
-| Field    | Value |
-|----------|-------|
-| Input    | `aw send "Reply with: OK"` |
+| Field    | Value                          |
+| -------- | ------------------------------ |
+| Input    | `aw send "Reply with: OK"`     |
 | Expected | `run_end` has `durationMs` > 0 |
-| Timeout  | 20s |
-| Retry    | No |
+| Timeout  | 20s                            |
+| Retry    | No                             |
 
 ```sh
 aw start --runtime codex
@@ -432,12 +443,12 @@ aw stop
 
 ### T3.4: Status transitions
 
-| Field    | Value |
-|----------|-------|
+| Field    | Value                                     |
+| -------- | ----------------------------------------- |
 | Input    | `aw send "Reply: hi"` with `log --follow` |
-| Expected | run_start → run_end sequence |
-| Timeout  | 25s |
-| Retry    | No |
+| Expected | run_start → run_end sequence              |
+| Timeout  | 25s                                       |
+| Retry    | No                                        |
 
 ```sh
 aw start --runtime codex
@@ -454,12 +465,12 @@ grep "run_start\|run_end" /tmp/a2a_t34_log.txt
 
 ### T3.5: Cancel
 
-| Field    | Value |
-|----------|-------|
+| Field    | Value                      |
+| -------- | -------------------------- |
 | Input    | Long prompt, stop after 1s |
-| Expected | Daemon stops cleanly |
-| Timeout  | 10s |
-| Retry    | No |
+| Expected | Daemon stops cleanly       |
+| Timeout  | 10s                        |
+| Retry    | No                         |
 
 ```sh
 aw start --runtime codex
@@ -474,12 +485,12 @@ time aw stop
 
 ### T4.1: CLI availability
 
-| Field    | Value |
-|----------|-------|
+| Field    | Value              |
+| -------- | ------------------ |
 | Input    | `cursor --version` |
-| Expected | Prints version |
-| Timeout  | 5s |
-| Retry    | No |
+| Expected | Prints version     |
+| Timeout  | 5s                 |
+| Retry    | No                 |
 
 ```sh
 cursor --version    # If fails, skip all T4.x tests
@@ -489,12 +500,12 @@ cursor --version    # If fails, skip all T4.x tests
 
 ### T4.2: Simple prompt
 
-| Field    | Value |
-|----------|-------|
+| Field    | Value                                          |
+| -------- | ---------------------------------------------- |
 | Input    | `aw send "Reply with exactly: HELLO_A2A_TEST"` |
-| Expected | `recv` contains text response |
-| Timeout  | 20s |
-| Retry    | Yes |
+| Expected | `recv` contains text response                  |
+| Timeout  | 20s                                            |
+| Retry    | Yes                                            |
 
 ```sh
 aw start --runtime cursor
@@ -507,12 +518,12 @@ aw stop
 
 ### T4.3: Result structure
 
-| Field    | Value |
-|----------|-------|
-| Input    | `aw send "Reply with: OK"` |
+| Field    | Value                          |
+| -------- | ------------------------------ |
+| Input    | `aw send "Reply with: OK"`     |
 | Expected | `run_end` has `durationMs` > 0 |
-| Timeout  | 20s |
-| Retry    | No |
+| Timeout  | 20s                            |
+| Retry    | No                             |
 
 ```sh
 aw start --runtime cursor
@@ -528,12 +539,12 @@ aw stop
 
 ### T4.4: Status transitions
 
-| Field    | Value |
-|----------|-------|
+| Field    | Value                                |
+| -------- | ------------------------------------ |
 | Input    | Same as T3.4 with `--runtime cursor` |
-| Expected | run_start → run_end sequence |
-| Timeout  | 25s |
-| Retry    | No |
+| Expected | run_start → run_end sequence         |
+| Timeout  | 25s                                  |
+| Retry    | No                                   |
 
 ```sh
 aw start --runtime cursor
@@ -550,12 +561,12 @@ grep "run_start\|run_end" /tmp/a2a_t44_log.txt
 
 ### T4.5: Cancel
 
-| Field    | Value |
-|----------|-------|
+| Field    | Value                      |
+| -------- | -------------------------- |
 | Input    | Long prompt, stop after 1s |
-| Expected | Daemon stops cleanly |
-| Timeout  | 10s |
-| Retry    | No |
+| Expected | Daemon stops cleanly       |
+| Timeout  | 10s                        |
+| Retry    | No                         |
 
 ```sh
 aw start --runtime cursor
@@ -570,12 +581,12 @@ time aw stop
 
 ### T5.1: Preflight
 
-| Field    | Value |
-|----------|-------|
+| Field    | Value                                     |
+| -------- | ----------------------------------------- |
 | Input    | `aw start --model deepseek:deepseek-chat` |
-| Expected | Daemon starts if DEEPSEEK_API_KEY is set |
-| Timeout  | 5s |
-| Retry    | No |
+| Expected | Daemon starts if DEEPSEEK_API_KEY is set  |
+| Timeout  | 5s                                        |
+| Retry    | No                                        |
 
 ```sh
 echo "DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:+(set)}"
@@ -588,12 +599,12 @@ aw stop
 
 ### T5.2: Inbox → Reply → Ack cycle
 
-| Field    | Value |
-|----------|-------|
-| Input    | `aw send "Check your inbox and respond to all pending messages"` |
+| Field    | Value                                                                |
+| -------- | -------------------------------------------------------------------- |
+| Input    | `aw send "Check your inbox and respond to all pending messages"`     |
 | Expected | Log shows my_inbox → channel_send → my_inbox_ack tool calls in order |
-| Timeout  | 30s |
-| Retry    | Yes (LLM may call tools in different order) |
+| Timeout  | 30s                                                                  |
+| Retry    | Yes (LLM may call tools in different order)                          |
 
 ```sh
 aw start --model deepseek:deepseek-chat
@@ -607,6 +618,7 @@ grep '"tool_call_start"' /tmp/a2a_t52_log.json | grep -o '"name":"[^"]*"'
 ```
 
 **Pass criteria:**
+
 - `my_inbox` appears before `channel_send`
 - `channel_send` appears before `my_inbox_ack`
 - All tool calls properly paired (start/end count equal)
@@ -615,12 +627,12 @@ grep '"tool_call_start"' /tmp/a2a_t52_log.json | grep -o '"name":"[^"]*"'
 
 ### T5.3: Tool call pairing
 
-| Field    | Value |
-|----------|-------|
-| Input    | `aw send "Check inbox."` |
+| Field    | Value                                                |
+| -------- | ---------------------------------------------------- |
+| Input    | `aw send "Check inbox."`                             |
 | Expected | Equal count of `tool_call_start` and `tool_call_end` |
-| Timeout  | 20s |
-| Retry    | No |
+| Timeout  | 20s                                                  |
+| Retry    | No                                                   |
 
 ```sh
 aw start --model deepseek:deepseek-chat
@@ -640,7 +652,7 @@ echo "starts=$STARTS ends=$ENDS"
 ## 6. Runtime Capability Matrix
 
 | Capability       | AiSdkLoop | ClaudeCodeLoop | CodexLoop | CursorLoop |
-|------------------|-----------|----------------|-----------|------------|
+| ---------------- | --------- | -------------- | --------- | ---------- |
 | tool_call_end    | Yes       | Yes            | Yes       | No         |
 | callId in events | Yes       | Yes            | No        | Yes        |
 | thinking events  | Yes       | No             | No        | No         |
@@ -649,7 +661,7 @@ echo "starts=$STARTS ends=$ENDS"
 ## Timeout Reference
 
 | Runtime     | Simple prompt | Tool call | Cancel |
-|-------------|---------------|-----------|--------|
+| ----------- | ------------- | --------- | ------ |
 | ai-sdk      | 10s           | 20s       | 10s    |
 | claude-code | 20s           | 25s       | 10s    |
 | codex       | 20s           | 25s       | 10s    |
@@ -663,10 +675,10 @@ Record: pass (P), fail (F), skip (S), flaky (FL).
 Include artifact path for failed/flaky results.
 
 | Test  | ai-sdk (anthropic) | ai-sdk (openai) | claude-code | codex | cursor | deepseek | Artifact |
-|-------|--------------------|-----------------|-------------|-------|--------|----------|----------|
-| T*.1  |                    |                 |             |       |        |          |          |
-| T*.2  |                    |                 |             |       |        |          |          |
-| T*.3  |                    |                 |             |       |        |          |          |
-| T*.4  |                    |                 |             |       |        |          |          |
-| T*.5  |                    |                 |             |       |        |          |          |
-| T*.6  |                    | N/A             |             | N/A   | N/A    | N/A      |          |
+| ----- | ------------------ | --------------- | ----------- | ----- | ------ | -------- | -------- |
+| T\*.1 |                    |                 |             |       |        |          |          |
+| T\*.2 |                    |                 |             |       |        |          |          |
+| T\*.3 |                    |                 |             |       |        |          |          |
+| T\*.4 |                    |                 |             |       |        |          |          |
+| T\*.5 |                    |                 |             |       |        |          |          |
+| T\*.6 |                    | N/A             |             | N/A   | N/A    | N/A      |          |

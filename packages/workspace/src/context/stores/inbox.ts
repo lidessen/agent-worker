@@ -1,8 +1,4 @@
-import type {
-  InboxEntry,
-  StorageBackend,
-  InboxStoreInterface,
-} from "../../types.ts";
+import type { InboxEntry, StorageBackend, InboxStoreInterface } from "../../types.ts";
 
 export class InboxStore implements InboxStoreInterface {
   /** In-memory inbox per agent: messageId → InboxEntry */
@@ -29,10 +25,7 @@ export class InboxStore implements InboxStoreInterface {
     if (inbox.has(entry.messageId)) return;
 
     inbox.set(entry.messageId, entry);
-    await this.storage.appendLine(
-      this.inboxPath(agentName),
-      JSON.stringify(entry),
-    );
+    await this.storage.appendLine(this.inboxPath(agentName), JSON.stringify(entry));
   }
 
   async peek(agentName: string): Promise<InboxEntry[]> {
@@ -60,8 +53,7 @@ export class InboxStore implements InboxStoreInterface {
     }
 
     return result.sort(
-      (a, b) =>
-        new Date(a.enqueuedAt).getTime() - new Date(b.enqueuedAt).getTime(),
+      (a, b) => new Date(a.enqueuedAt).getTime() - new Date(b.enqueuedAt).getTime(),
     );
   }
 
@@ -71,11 +63,7 @@ export class InboxStore implements InboxStoreInterface {
     await this.persistInbox(agentName);
   }
 
-  async defer(
-    agentName: string,
-    messageId: string,
-    until?: string,
-  ): Promise<void> {
+  async defer(agentName: string, messageId: string, until?: string): Promise<void> {
     const inbox = this.getAgentInbox(agentName);
     const entry = inbox.get(messageId);
     if (!entry) return;
