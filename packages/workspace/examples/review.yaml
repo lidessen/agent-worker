@@ -1,4 +1,4 @@
-# Code review workflow
+# Code review workspace
 # Two agents: reviewer finds issues, coder fixes them
 name: code-review
 
