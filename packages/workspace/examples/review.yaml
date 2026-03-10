@@ -1,0 +1,32 @@
+# Code review workflow
+# Two agents: reviewer finds issues, coder fixes them
+name: code-review
+
+agents:
+  reviewer:
+    backend: claude
+    model: claude-sonnet-4-5
+    system_prompt: |
+      You are a code reviewer. Review changes for quality, bugs, and best practices.
+      When you find issues, @coder to fix them.
+
+  coder:
+    backend: claude
+    model: claude-sonnet-4-5
+    system_prompt: |
+      You are a coder. Fix issues found by the reviewer.
+      After fixing, @reviewer to verify.
+
+channels:
+  - general
+  - code-review
+
+setup:
+  - shell: git diff HEAD~1
+    as: diff
+
+kickoff: |
+  PR diff:
+  ${{ diff }}
+
+  @reviewer please review these changes.

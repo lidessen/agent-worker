@@ -1,0 +1,19 @@
+# Simple chat: two agents having a conversation
+name: chat
+
+agents:
+  alice:
+    backend: claude
+    model: claude-sonnet-4-5
+    system_prompt: You are Alice. Curious and always asking questions.
+
+  bob:
+    backend: claude
+    system_prompt: You are Bob. Knowledgeable and patient.
+
+context:
+  provider: memory
+
+kickoff: |
+  @alice Ask @bob a question about how AI agents collaborate.
+  @bob Answer clearly, then ask @alice a follow-up.
