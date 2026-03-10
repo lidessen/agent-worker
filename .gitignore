@@ -6,6 +6,9 @@ out
 dist
 *.tgz
 
+# a2a test artifacts
+a2a-artifacts
+
 # code coverage
 coverage
 *.lcov
