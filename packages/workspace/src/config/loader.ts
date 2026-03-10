@@ -2,6 +2,9 @@ import { parse as parseYaml } from "yaml";
 import type {
   WorkspaceDef,
   ResolvedWorkspace,
+  ResolvedAgent,
+  ResolvedModel,
+  ModelSpec,
   SetupStep,
 } from "./types.ts";
 import type { WorkspaceConfig } from "../types.ts";
@@ -22,6 +25,38 @@ export function interpolate(
   return template.replace(TEMPLATE_RE, (match, key: string) => {
     return vars[key] ?? match; // leave unresolved templates as-is
   });
+}
+
+// ── Model resolution ──────────────────────────────────────────────────────
+
+/**
+ * Resolve a ModelSpec (string or object) into a normalized ResolvedModel.
+ *
+ * Supports:
+ * - `"claude-sonnet-4-5"` → { id: "claude-sonnet-4-5", full: "claude-sonnet-4-5" }
+ * - `"anthropic:claude-sonnet-4-5"` → { id: "claude-sonnet-4-5", provider: "anthropic", full: "anthropic:claude-sonnet-4-5" }
+ * - `{ id: "claude-sonnet-4-5", provider: "anthropic", temperature: 0.7 }` → resolved object
+ */
+export function resolveModel(spec: ModelSpec): ResolvedModel {
+  if (typeof spec === "string") {
+    const colonIdx = spec.indexOf(":");
+    if (colonIdx > 0) {
+      const provider = spec.slice(0, colonIdx);
+      const id = spec.slice(colonIdx + 1);
+      return { id, provider, full: spec };
+    }
+    return { id: spec, full: spec };
+  }
+
+  // Object form
+  const full = spec.provider ? `${spec.provider}:${spec.id}` : spec.id;
+  return {
+    id: spec.id,
+    provider: spec.provider,
+    full,
+    temperature: spec.temperature,
+    max_tokens: spec.max_tokens,
+  };
 }
 
 // ── Setup step runner ─────────────────────────────────────────────────────
@@ -118,6 +153,17 @@ export async function loadWorkspaceDef(
 
   const def = parseWorkspaceDef(content);
 
+  // Resolve agents
+  const agents: ResolvedAgent[] = Object.entries(def.agents).map(
+    ([name, agentDef]) => ({
+      name,
+      runtime: agentDef.runtime,
+      model: agentDef.model ? resolveModel(agentDef.model) : undefined,
+      instructions: agentDef.instructions,
+      channels: agentDef.channels,
+    }),
+  );
+
   // Build template vars
   const baseVars: Record<string, string> = {
     ...opts.vars,
@@ -139,7 +185,7 @@ export async function loadWorkspaceDef(
   // Interpolate kickoff
   const kickoff = def.kickoff ? interpolate(def.kickoff, allVars) : undefined;
 
-  return { def, vars: setupVars, kickoff };
+  return { def, agents, vars: setupVars, kickoff };
 }
 
 // ── Convert to WorkspaceConfig ────────────────────────────────────────────
@@ -169,7 +215,7 @@ export function toWorkspaceConfig(
     tag: opts.tag,
     channels: def.channels,
     defaultChannel: def.default_channel,
-    agents: Object.keys(def.agents),
+    agents: resolved.agents.map((a) => a.name),
     storage,
   };
 }

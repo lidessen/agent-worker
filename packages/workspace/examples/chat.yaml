@@ -3,12 +3,12 @@ name: chat
 
 agents:
   alice:
-    backend: claude
-    model: claude-sonnet-4-5
+    runtime: cursor
+    model: sonnet-4.5
     instructions: You are Alice. Curious and always asking questions.
 
   bob:
-    backend: claude
+    runtime: claude-code
     instructions: You are Bob. Knowledgeable and patient.
 
 storage: memory
