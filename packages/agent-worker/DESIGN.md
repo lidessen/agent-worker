@@ -301,6 +301,7 @@ aw send <target> "message" [+Ns "message2" ...]
   --from <name>               # sender name
 
 aw recv <target> [options]    # Read responses (SSE stream)
+  --timeout <seconds>         # disconnect after N seconds of no new events (default: 60)
   --json                      # raw JSONL output
 
 ```
