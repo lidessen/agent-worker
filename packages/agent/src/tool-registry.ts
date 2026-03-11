@@ -253,16 +253,20 @@ export function zodParamsToSource(params: Record<string, ZodTypeAny>): string {
 
 function zodTypeToSource(schema: ZodTypeAny): string {
   const def = schema._def;
+  // zod v4 uses `type` instead of `typeName`, with lowercase names
+  const kind = def.typeName ?? def.type;
 
-  if (def.typeName === "ZodOptional") {
+  if (kind === "ZodOptional" || kind === "optional") {
     return `${zodTypeToSource(def.innerType)}.optional()`;
   }
-  if (def.typeName === "ZodString") return "z.string()";
-  if (def.typeName === "ZodNumber") return "z.number()";
-  if (def.typeName === "ZodBoolean") return "z.boolean()";
-  if (def.typeName === "ZodEnum") {
-    return `z.enum(${JSON.stringify(def.values)})`;
+  if (kind === "ZodString" || kind === "string") return "z.string()";
+  if (kind === "ZodNumber" || kind === "number") return "z.number()";
+  if (kind === "ZodBoolean" || kind === "boolean") return "z.boolean()";
+  if (kind === "ZodEnum" || kind === "enum") {
+    // zod v4 uses `entries` (object) instead of `values` (array)
+    const values = def.values ?? Object.keys(def.entries ?? {});
+    return `z.enum(${JSON.stringify(values)})`;
   }
 
-  throw new Error(`zodTypeToSource: unsupported type "${def.typeName}"`);
+  throw new Error(`zodTypeToSource: unsupported type "${kind}"`);
 }
