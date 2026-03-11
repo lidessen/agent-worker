@@ -281,7 +281,11 @@ aw create <name> [options]    # Create standalone agent
   --env KEY=VALUE             #   env overrides (repeatable)
   --runner host|sandbox       #   execution environment
 
-aw start <config.yaml>        # Start workspace from YAML
+aw run <config.yaml>          # Run workspace one-shot (exits when done)
+  --tag <tag>                 #   instance tag
+  --var KEY=VALUE             #   template variables (repeatable)
+
+aw start <config.yaml>        # Start persistent workspace
   --tag <tag>                 #   instance tag (e.g. pr-42)
   --var KEY=VALUE             #   template variables (repeatable)
 
@@ -300,7 +304,6 @@ aw recv <target> [options]    # CLI-only: poll for responses
   --wait <seconds>            # poll until response (default: 0)
   --json                      # raw JSONL output
 
-aw run <target> "prompt"      # send + wait for response (synchronous)
 ```
 
 `recv` and `run --wait` use SSE streams when available, falling back to cursor polling. The HTTP API does not block on non-SSE endpoints.
@@ -464,8 +467,8 @@ packages/agent-worker/src/
       info.ts               # aw info
       rm.ts                 # aw rm
       send.ts               # aw send
-      recv.ts               # aw recv (CLI polling loop)
-      run.ts                # aw run (= send + recv)
+      recv.ts               # aw recv (SSE / polling)
+      run.ts                # aw run (one-shot workspace)
       state.ts              # aw state
       peek.ts               # aw peek
       log.ts                # aw log (CLI polling for --follow)
