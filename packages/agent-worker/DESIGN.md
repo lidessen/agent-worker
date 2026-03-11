@@ -122,7 +122,31 @@ The HTTP API exposes **scoped** reads:
 - `/workspaces/:key/events?cursor=N` — that workspace's events only
 - `/events?cursor=N` — global (all events, for dashboard/debug)
 
-The CLI's `--wait` and `--follow` polling is purely client-side: the CLI polls the cursor-based HTTP endpoints in a loop. The HTTP API itself is stateless.
+### Polling vs SSE
+
+Each cursor-based endpoint has a corresponding SSE stream endpoint for real-time push:
+
+| Polling (cursor) | SSE (stream) |
+|-------------------|-------------|
+| `GET /agents/:name/responses?cursor=N` | `GET /agents/:name/responses/stream` |
+| `GET /agents/:name/events?cursor=N` | `GET /agents/:name/events/stream` |
+| `GET /workspaces/:key/events?cursor=N` | `GET /workspaces/:key/events/stream` |
+| `GET /events?cursor=N` | `GET /events/stream` |
+
+SSE endpoints return `text/event-stream`. Each event is a JSON-encoded line:
+
+```
+data: {"ts":1710000000,"type":"text","text":"Hello"}
+
+data: {"ts":1710000001,"type":"run_end","durationMs":1200,"tokens":150}
+```
+
+Clients can pass `?cursor=N` to replay from a byte offset before switching to live push. Without `cursor`, only new events are streamed.
+
+The CLI prefers SSE when available:
+- `aw recv --wait` → SSE on `/agents/:name/responses/stream`, close on first response batch
+- `aw log --follow` → SSE on the appropriate `/stream` endpoint
+- Falls back to cursor polling if SSE connection fails
 
 ## Runtime Configuration
 
@@ -280,7 +304,7 @@ aw run <target> "prompt"      # send + recv --wait 30 (convenience)
   --wait <seconds>            # override wait time (default: 30)
 ```
 
-`recv` and `run --wait` are CLI-level polling loops over the stateless HTTP cursor API. The HTTP API does not block.
+`recv` and `run --wait` use SSE streams when available, falling back to cursor polling. The HTTP API does not block on non-SSE endpoints.
 
 ### Inspection
 
@@ -311,6 +335,7 @@ All routes under daemon. CLI calls these via `AwClient`.
 GET  /health                         → { status, pid, uptime, agents, workspaces }
 POST /shutdown                       → { shutting_down: true }
 GET  /events?cursor=N                → { entries: DaemonEvent[], cursor: number }
+GET  /events/stream                  → SSE: all daemon events
 ```
 
 ### Agents
@@ -326,9 +351,11 @@ POST   /agents/:name/send           → send message(s)
          body: { messages: [{ content, from?, delayMs? }] }
          → { sent: number, state: string }
 
-GET    /agents/:name/responses?cursor=N → { entries: ResponseEntry[], cursor: number }
-GET    /agents/:name/events?cursor=N    → { entries: AgentEvent[], cursor: number }
-GET    /agents/:name/state              → { state, inbox, todos, history }
+GET    /agents/:name/responses?cursor=N   → { entries: ResponseEntry[], cursor: number }
+GET    /agents/:name/responses/stream    → SSE: real-time responses
+GET    /agents/:name/events?cursor=N     → { entries: AgentEvent[], cursor: number }
+GET    /agents/:name/events/stream       → SSE: real-time agent events
+GET    /agents/:name/state               → { state, inbox, todos, history }
 
 POST   /agents/:name/run            → synchronous run (send + collect response)
          body: { message: string, from?: string }
@@ -352,7 +379,8 @@ GET    /workspaces/:key/peek         → conversation history
          query: ?channel=<name>&cursor=N
          → { entries: ChannelMessage[], cursor: number }
 
-GET    /workspaces/:key/events?cursor=N → { entries: WorkspaceEvent[], cursor: number }
+GET    /workspaces/:key/events?cursor=N   → { entries: WorkspaceEvent[], cursor: number }
+GET    /workspaces/:key/events/stream    → SSE: real-time workspace events
 ```
 
 ### Shared documents
@@ -392,6 +420,11 @@ export class AwClient {
   readAgentEvents(name: string, cursor?: number): Promise<EventsResult>;
   getAgentState(name: string): Promise<AgentStateResult>;
   runAgent(name: string, message: string, from?: string): Promise<RunResult>;
+
+  // SSE streams (return AsyncIterable that yields parsed events)
+  streamResponses(name: string, cursor?: number): AsyncIterable<ResponseEntry>;
+  streamAgentEvents(name: string, cursor?: number): AsyncIterable<AgentEvent>;
+  streamEvents(cursor?: number): AsyncIterable<DaemonEvent>;
 
   // Workspaces
   listWorkspaces(): Promise<WorkspaceInfo[]>;
