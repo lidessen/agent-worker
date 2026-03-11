@@ -30,6 +30,18 @@
         "@ai-sdk/openai": "^3.0.41",
       },
     },
+    "packages/agent-worker": {
+      "name": "agent-worker",
+      "version": "0.0.1",
+      "bin": {
+        "aw": "./src/cli.ts",
+      },
+      "dependencies": {
+        "@agent-worker/agent": "workspace:*",
+        "@agent-worker/loop": "workspace:*",
+        "@agent-worker/workspace": "workspace:*",
+      },
+    },
     "packages/loop": {
       "name": "@agent-worker/loop",
       "version": "0.0.1",
@@ -198,6 +210,8 @@
     "@vercel/oidc": ["@vercel/oidc@3.1.0", "", {}, "sha512-Fw28YZpRnA3cAHHDlkt7xQHiJ0fcL+NRcIqsocZQUSmbzeIKRpwttJjik5ZGanXP+vlA4SbTg+AbA3bP363l+w=="],
 
     "accepts": ["accepts@2.0.0", "", { "dependencies": { "mime-types": "^3.0.0", "negotiator": "^1.0.0" } }, "sha512-5cvg6CtKwfgdmVqY1WIiXKc3Q1bkRqGLi+2W/6ao+6Y7gu/RCwRuAhGEzh5B4KlszSuTLgZYuqFqo5bImjNKng=="],
+
+    "agent-worker": ["agent-worker@workspace:packages/agent-worker"],
 
     "ai": ["ai@6.0.116", "", { "dependencies": { "@ai-sdk/gateway": "3.0.66", "@ai-sdk/provider": "3.0.8", "@ai-sdk/provider-utils": "4.0.19", "@opentelemetry/api": "1.9.0" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-7yM+cTmyRLeNIXwt4Vj+mrrJgVQ9RMIW5WO0ydoLoYkewIvsMcvUmqS4j2RJTUXaF1HphwmSKUMQ/HypNRGOmA=="],
 
