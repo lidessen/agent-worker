@@ -1,16 +1,27 @@
 import type { AgentConfig } from "@agent-worker/agent";
+import type { EventBus } from "@agent-worker/shared";
 import type { CreateAgentInput, ManagedAgentInfo, DaemonEvent } from "./types.ts";
 import { ManagedAgent } from "./managed-agent.ts";
 
 /**
  * AgentRegistry manages agent lifecycle within the daemon.
  * Agents can be config-loaded or ephemeral (created via API).
+ *
+ * When a shared EventBus is provided, agents emit structured events
+ * directly to the bus. The legacy setEventSink path is kept for
+ * backward compatibility.
  */
 export class AgentRegistry {
   private agents = new Map<string, ManagedAgent>();
+  private _bus?: EventBus;
   private _onEvent?: (event: DaemonEvent) => void;
 
-  /** Set the event sink for all agents in this registry. */
+  /** Set the shared event bus. Agents created after this call will use it. */
+  setBus(bus: EventBus): void {
+    this._bus = bus;
+  }
+
+  /** Legacy: set a callback-based event sink. Prefer setBus(). */
   setEventSink(onEvent: (event: DaemonEvent) => void): void {
     this._onEvent = onEvent;
   }
@@ -31,21 +42,33 @@ export class AgentRegistry {
       name: input.name,
       kind: input.kind ?? "ephemeral",
       config,
+      bus: this._bus,
     });
 
-    if (this._onEvent) {
+    // Legacy path: wire callback-based events if no bus
+    if (!this._bus && this._onEvent) {
       handle.wireEvents(this._onEvent);
     }
 
     await handle.init();
     this.agents.set(input.name, handle);
 
-    this._onEvent?.({
-      ts: Date.now(),
-      type: "agent_created",
-      agent: input.name,
-      kind: handle.kind,
-    });
+    // Emit creation event
+    if (this._bus) {
+      this._bus.emit({
+        type: "agent.created",
+        source: "daemon",
+        agent: input.name,
+        kind: handle.kind,
+      });
+    } else {
+      this._onEvent?.({
+        ts: Date.now(),
+        type: "agent_created",
+        agent: input.name,
+        kind: handle.kind,
+      });
+    }
 
     return handle;
   }
@@ -78,11 +101,19 @@ export class AgentRegistry {
     await handle.stop();
     this.agents.delete(name);
 
-    this._onEvent?.({
-      ts: Date.now(),
-      type: "agent_removed",
-      agent: name,
-    });
+    if (this._bus) {
+      this._bus.emit({
+        type: "agent.removed",
+        source: "daemon",
+        agent: name,
+      });
+    } else {
+      this._onEvent?.({
+        ts: Date.now(),
+        type: "agent_removed",
+        agent: name,
+      });
+    }
   }
 
   /** Stop all agents. */

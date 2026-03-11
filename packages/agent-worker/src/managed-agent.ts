@@ -1,11 +1,16 @@
 import { Agent } from "@agent-worker/agent";
 import type { AgentConfig, AgentState } from "@agent-worker/agent";
 import type { LoopEvent, LoopResult } from "@agent-worker/loop";
+import type { EventBus } from "@agent-worker/shared";
 import type { AgentKind, ManagedAgentInfo, DaemonEvent } from "./types.ts";
 
 /**
  * ManagedAgent wraps an Agent instance with lifecycle metadata
  * and event forwarding for the daemon layer.
+ *
+ * When a shared EventBus is provided, the Agent emits structured events
+ * directly to the bus — no manual translation needed here.
+ * The legacy wireEvents() path is preserved for non-bus usage.
  */
 export class ManagedAgent {
   readonly name: string;
@@ -14,20 +19,33 @@ export class ManagedAgent {
   readonly agent: Agent;
 
   private _workspace?: string;
-  private _onEvent?: (event: DaemonEvent) => void;
 
-  constructor(opts: { name: string; kind: AgentKind; config: AgentConfig; workspace?: string }) {
+  constructor(opts: {
+    name: string;
+    kind: AgentKind;
+    config: AgentConfig;
+    workspace?: string;
+    bus?: EventBus;
+  }) {
     this.name = opts.name;
     this.kind = opts.kind;
     this.createdAt = Date.now();
     this._workspace = opts.workspace;
-    this.agent = new Agent({ ...opts.config, name: opts.name });
+
+    // Inject bus into Agent config so it emits structured events directly
+    const config: AgentConfig = {
+      ...opts.config,
+      name: opts.name,
+      bus: opts.bus ?? opts.config.bus,
+    };
+    this.agent = new Agent(config);
   }
 
-  /** Wire daemon-level event forwarding. */
+  /**
+   * Legacy: wire daemon-level event forwarding via callback.
+   * Prefer using the EventBus path (pass `bus` to constructor) instead.
+   */
   wireEvents(onEvent: (event: DaemonEvent) => void): void {
-    this._onEvent = onEvent;
-
     this.agent.on("stateChange", (state: AgentState) => {
       onEvent({ ts: Date.now(), type: "agent_state_change", agent: this.name, state });
     });

@@ -23,7 +23,9 @@
  *
  *   GET  /events                 — read event log (cursor-based)
  */
-import type { DaemonConfig, DaemonInfo, DaemonEvent } from "./types.ts";
+import type { DaemonConfig, DaemonInfo } from "./types.ts";
+import { EventBus } from "@agent-worker/shared";
+import type { BusEvent } from "@agent-worker/shared";
 import { AgentRegistry } from "./agent-registry.ts";
 import { WorkspaceRegistry } from "./workspace-registry.ts";
 import { DaemonEventLog } from "./event-log.ts";
@@ -34,6 +36,7 @@ export class Daemon {
   private readonly agents: AgentRegistry;
   private readonly workspaces: WorkspaceRegistry;
   private readonly eventLog: DaemonEventLog;
+  private readonly _bus: EventBus;
   private readonly config: Required<DaemonConfig>;
   private startedAt = 0;
 
@@ -46,14 +49,19 @@ export class Daemon {
       token: config.token ?? generateToken(),
     };
 
+    this._bus = new EventBus();
     this.agents = new AgentRegistry();
     this.workspaces = new WorkspaceRegistry(dataDir);
     this.eventLog = new DaemonEventLog(dataDir);
 
-    // Wire event sinks
-    const sink = (event: DaemonEvent) => this.eventLog.append(event.type, event);
-    this.agents.setEventSink(sink);
-    this.workspaces.setEventSink(sink);
+    // Wire event bus → registries (agents & workspaces emit to bus)
+    this.agents.setBus(this._bus);
+    this.workspaces.setBus(this._bus);
+
+    // Wire event bus → JSONL event log (single consumer persists all events)
+    this._bus.on((event: BusEvent) => {
+      this.eventLog.append(event.type, event);
+    });
   }
 
   /** Start the daemon server. Returns connection info. */
@@ -81,7 +89,9 @@ export class Daemon {
 
     await writeDaemonInfo(info, this.config.dataDir);
 
-    this.eventLog.append("daemon_started", {
+    this._bus.emit({
+      type: "daemon.started",
+      source: "daemon",
       host: this.config.host,
       port: actualPort,
     });
@@ -91,7 +101,7 @@ export class Daemon {
 
   /** Graceful shutdown. */
   async shutdown(): Promise<void> {
-    this.eventLog.append("daemon_stopped");
+    this._bus.emit({ type: "daemon.stopped", source: "daemon" });
 
     await this.agents.stopAll();
     await this.workspaces.stopAll();
@@ -115,6 +125,11 @@ export class Daemon {
 
   get events(): DaemonEventLog {
     return this.eventLog;
+  }
+
+  /** Shared event bus. Subscribe for real-time streaming or add custom consumers. */
+  get bus(): EventBus {
+    return this._bus;
   }
 
   get port(): number {
@@ -379,7 +394,7 @@ export class Daemon {
       return Response.json({ error: "content is required" }, { status: 400 });
     }
 
-    const channel = body.channel ?? (handle.resolved.def.default_channel ?? "general");
+    const channel = body.channel ?? handle.resolved.def.default_channel ?? "general";
     await handle.send(channel, body.from ?? "user", body.content);
     return Response.json({ sent: true, channel });
   }

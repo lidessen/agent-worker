@@ -52,3 +52,6 @@ export type { LoopRun, LoopEvent, LoopResult, LoopStatus } from "@agent-worker/l
 
 export { Workspace, createWorkspace, createWiredLoop } from "@agent-worker/workspace";
 export type { WorkspaceDef, ResolvedWorkspace, ResolvedAgent } from "@agent-worker/workspace";
+
+export { EventBus, bus } from "@agent-worker/shared";
+export type { BusEvent, EventLevel, EventFilter, EventSubscription } from "@agent-worker/shared";

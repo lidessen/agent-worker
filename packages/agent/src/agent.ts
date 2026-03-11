@@ -8,6 +8,7 @@ import type {
   TodoItem,
   Turn,
 } from "./types.ts";
+import type { EventBus } from "@agent-worker/shared";
 import { Inbox } from "./inbox.ts";
 import { TodoManager } from "./todo.ts";
 import { InMemoryNotesStorage } from "./notes.ts";
@@ -37,12 +38,16 @@ export class Agent {
   private readonly reminders: ReminderManager;
   private readonly coordinator: RunCoordinator;
   private readonly wiring: LoopWiring;
+  private readonly bus?: EventBus;
+  private readonly agentName: string;
 
   private listeners = new Map<EventName, Set<Function>>();
   private processingPromise: Promise<void> | null = null;
 
   constructor(config: AgentConfig) {
     this.config = config;
+    this.bus = config.bus;
+    this.agentName = config.name ?? "agent";
 
     // Subsystems
     this.inbox = new Inbox(config.inbox, () => this.onWake());
@@ -158,12 +163,20 @@ export class Agent {
     }
   }
 
+  // ── Bus (structured events) ───────────────────────────────────────────
+
+  /** Emit a structured event to the shared bus, if one is configured. */
+  private busEmit(type: string, data?: Record<string, unknown>): void {
+    this.bus?.emit({ type, source: "agent", agent: this.agentName, ...data });
+  }
+
   // ── Internal: state machine ────────────────────────────────────────────
 
   private setState(state: AgentState): void {
     if (this._state === state) return;
     this._state = state;
     this.emit("stateChange", state);
+    this.busEmit("agent.state_change", { state });
   }
 
   private onWake(): void {
@@ -176,11 +189,55 @@ export class Agent {
     if (this._state === "stopped") return;
     this.setState("processing");
 
+    // Generate a correlation ID for this processing cycle
+    const runId = crypto.randomUUID();
+
     this.processingPromise = this.coordinator
       .processLoop({
-        onRunStart: (info) => this.emit("runStart", info),
-        onRunEnd: (result) => this.emit("runEnd", result),
-        onEvent: (event) => this.emit("event", event),
+        onRunStart: (info) => {
+          this.emit("runStart", info);
+          this.busEmit("agent.run_start", {
+            runId,
+            runNumber: info.runNumber,
+            trigger: info.trigger,
+          });
+        },
+        onRunEnd: (result) => {
+          this.emit("runEnd", result);
+          this.busEmit("agent.run_end", {
+            runId,
+            tokens: result.usage.totalTokens,
+            durationMs: result.durationMs,
+          });
+        },
+        onEvent: (event) => {
+          this.emit("event", event);
+          // Forward loop events to bus with structured types
+          if (event.type === "text") {
+            this.busEmit("agent.text", { runId, text: event.text });
+          } else if (event.type === "tool_call_start") {
+            this.busEmit("agent.tool_call", {
+              runId,
+              tool: event.name,
+              callId: event.callId,
+              args: event.args,
+            });
+          } else if (event.type === "tool_call_end") {
+            this.busEmit("agent.tool_result", {
+              runId,
+              tool: event.name,
+              callId: event.callId,
+              durationMs: event.durationMs,
+              error: event.error,
+            });
+          } else if (event.type === "error") {
+            this.busEmit("agent.error", {
+              runId,
+              error: String(event.error),
+              level: "error",
+            });
+          }
+        },
         onContextAssembled: (prompt) => this.emit("contextAssembled", prompt),
         shouldStop: () => this._state === "stopped",
       })
