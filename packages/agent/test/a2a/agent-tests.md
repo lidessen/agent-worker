@@ -34,12 +34,20 @@ cursor --version
 
 ## Saving test artifacts
 
+> **Important:** `aw recv` uses a persistent cursor — once messages are consumed,
+> a second `aw recv` returns only _new_ messages. To save artifacts, use `tee`
+> during the first `recv` call (shown below). Do NOT run a separate `aw recv`
+> after the test, as it will likely be empty.
+
 ```sh
 mkdir -p a2a-artifacts
-# After each test:
 TEST_ID="T2_anthropic_$(date +%Y%m%d_%H%M%S)"
+
+# Capture recv output during the test itself (via tee):
+aw recv --wait 10 --json | tee "a2a-artifacts/${TEST_ID}_recv.json"
+
+# After the test, save log + state:
 aw log --json > "a2a-artifacts/${TEST_ID}_log.json"
-aw recv --json > "a2a-artifacts/${TEST_ID}_recv.json"
 aw state > "a2a-artifacts/${TEST_ID}_state.txt"
 ```
 
