@@ -7,17 +7,17 @@ import {
 } from "@agent-worker/workspace";
 import type { Workspace, WorkspaceAgentLoop, ResolvedAgent } from "@agent-worker/workspace";
 import type { AiSdkLoop } from "@agent-worker/loop";
-import type { CreateWorkspaceInput, WorkspaceHandleInfo, DaemonEvent } from "./types.ts";
-import { WorkspaceHandle } from "./workspace-handle.ts";
+import type { CreateWorkspaceInput, ManagedWorkspaceInfo, DaemonEvent } from "./types.ts";
+import { ManagedWorkspace } from "./managed-workspace.ts";
 
 /**
  * WorkspaceRegistry manages workspace lifecycle within the daemon.
  * Includes a lazy-created default "global" workspace.
  */
 export class WorkspaceRegistry {
-  private workspaces = new Map<string, WorkspaceHandle>();
+  private workspaces = new Map<string, ManagedWorkspace>();
   private _onEvent?: (event: DaemonEvent) => void;
-  private _defaultWorkspace: WorkspaceHandle | null = null;
+  private _defaultWorkspace: ManagedWorkspace | null = null;
   private _dataDir: string;
 
   constructor(dataDir: string) {
@@ -29,7 +29,7 @@ export class WorkspaceRegistry {
   }
 
   /** Get or create the default global workspace (for standalone agents). */
-  async ensureDefault(): Promise<WorkspaceHandle> {
+  async ensureDefault(): Promise<ManagedWorkspace> {
     if (this._defaultWorkspace) return this._defaultWorkspace;
 
     const globalYaml = `
@@ -43,7 +43,7 @@ storage_dir: ${this._dataDir}
     const config = toWorkspaceConfig(resolved);
     const workspace = await createWorkspace(config);
 
-    this._defaultWorkspace = new WorkspaceHandle({
+    this._defaultWorkspace = new ManagedWorkspace({
       workspace,
       resolved,
       loops: [],
@@ -54,7 +54,7 @@ storage_dir: ${this._dataDir}
   }
 
   /** Create a workspace from YAML source. */
-  async create(input: CreateWorkspaceInput): Promise<WorkspaceHandle> {
+  async create(input: CreateWorkspaceInput): Promise<ManagedWorkspace> {
     const resolved = await loadWorkspaceDef(input.source, {
       tag: input.tag,
       vars: input.vars,
@@ -108,7 +108,7 @@ storage_dir: ${this._dataDir}
       loops.push(loop);
     }
 
-    const handle = new WorkspaceHandle({
+    const handle = new ManagedWorkspace({
       workspace,
       resolved,
       loops,
@@ -129,12 +129,12 @@ storage_dir: ${this._dataDir}
   }
 
   /** Get a workspace by key ("name" or "name:tag"). */
-  get(key: string): WorkspaceHandle | undefined {
+  get(key: string): ManagedWorkspace | undefined {
     return this.workspaces.get(key);
   }
 
   /** List all workspaces (excluding default). */
-  list(): WorkspaceHandleInfo[] {
+  list(): ManagedWorkspaceInfo[] {
     return Array.from(this.workspaces.values()).map((h) => h.info);
   }
 

@@ -1,13 +1,13 @@
 import type { AgentConfig } from "@agent-worker/agent";
-import type { CreateAgentInput, AgentHandleInfo, DaemonEvent } from "./types.ts";
-import { AgentHandle } from "./agent-handle.ts";
+import type { CreateAgentInput, ManagedAgentInfo, DaemonEvent } from "./types.ts";
+import { ManagedAgent } from "./managed-agent.ts";
 
 /**
  * AgentRegistry manages agent lifecycle within the daemon.
  * Agents can be config-loaded or ephemeral (created via API).
  */
 export class AgentRegistry {
-  private agents = new Map<string, AgentHandle>();
+  private agents = new Map<string, ManagedAgent>();
   private _onEvent?: (event: DaemonEvent) => void;
 
   /** Set the event sink for all agents in this registry. */
@@ -16,7 +16,7 @@ export class AgentRegistry {
   }
 
   /** Create and register a new agent. */
-  async create(input: CreateAgentInput): Promise<AgentHandle> {
+  async create(input: CreateAgentInput): Promise<ManagedAgent> {
     if (this.agents.has(input.name)) {
       throw new Error(`Agent "${input.name}" already exists`);
     }
@@ -27,7 +27,7 @@ export class AgentRegistry {
       loop: input.loop!,
     };
 
-    const handle = new AgentHandle({
+    const handle = new ManagedAgent({
       name: input.name,
       kind: input.kind ?? "ephemeral",
       config,
@@ -51,7 +51,7 @@ export class AgentRegistry {
   }
 
   /** Get an agent by name. */
-  get(name: string): AgentHandle | undefined {
+  get(name: string): ManagedAgent | undefined {
     return this.agents.get(name);
   }
 
@@ -61,7 +61,7 @@ export class AgentRegistry {
   }
 
   /** List all agents. */
-  list(): AgentHandleInfo[] {
+  list(): ManagedAgentInfo[] {
     return Array.from(this.agents.values()).map((h) => h.info);
   }
 

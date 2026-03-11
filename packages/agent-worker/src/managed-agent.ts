@@ -1,13 +1,13 @@
 import { Agent } from "@agent-worker/agent";
 import type { AgentConfig, AgentState } from "@agent-worker/agent";
 import type { LoopEvent, LoopResult } from "@agent-worker/loop";
-import type { AgentKind, AgentHandleInfo, DaemonEvent } from "./types.ts";
+import type { AgentKind, ManagedAgentInfo, DaemonEvent } from "./types.ts";
 
 /**
- * AgentHandle wraps an Agent instance with lifecycle metadata
+ * ManagedAgent wraps an Agent instance with lifecycle metadata
  * and event forwarding for the daemon layer.
  */
-export class AgentHandle {
+export class ManagedAgent {
   readonly name: string;
   readonly kind: AgentKind;
   readonly createdAt: number;
@@ -87,7 +87,7 @@ export class AgentHandle {
     return this.agent.state;
   }
 
-  get info(): AgentHandleInfo {
+  get info(): ManagedAgentInfo {
     return {
       name: this.name,
       kind: this.kind,

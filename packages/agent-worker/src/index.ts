@@ -5,9 +5,9 @@ export { Daemon, startDaemon } from "./daemon.ts";
 export { AgentRegistry } from "./agent-registry.ts";
 export { WorkspaceRegistry } from "./workspace-registry.ts";
 
-// ── Handles ───────────────────────────────────────────────────────────────
-export { AgentHandle } from "./agent-handle.ts";
-export { WorkspaceHandle } from "./workspace-handle.ts";
+// ── Managed instances ─────────────────────────────────────────────────────
+export { ManagedAgent } from "./managed-agent.ts";
+export { ManagedWorkspace } from "./managed-workspace.ts";
 
 // ── Event log ─────────────────────────────────────────────────────────────
 export { DaemonEventLog } from "./event-log.ts";
@@ -33,9 +33,9 @@ export type {
   DaemonEvent,
   DaemonEventType,
   AgentKind,
-  AgentHandleInfo,
+  ManagedAgentInfo,
   CreateAgentInput,
-  WorkspaceHandleInfo,
+  ManagedWorkspaceInfo,
   CreateWorkspaceInput,
   RunnerKind,
   RunnerConfig,

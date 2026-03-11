@@ -24,11 +24,11 @@ export interface DaemonInfo {
   startedAt: number;
 }
 
-// ── Agent handle ──────────────────────────────────────────────────────────
+// ── Managed agent ─────────────────────────────────────────────────────────
 
 export type AgentKind = "config" | "ephemeral";
 
-export interface AgentHandleInfo {
+export interface ManagedAgentInfo {
   name: string;
   kind: AgentKind;
   state: AgentState;
@@ -48,9 +48,9 @@ export interface CreateAgentInput {
   kind?: AgentKind;
 }
 
-// ── Workspace handle ──────────────────────────────────────────────────────
+// ── Managed workspace ─────────────────────────────────────────────────────
 
-export interface WorkspaceHandleInfo {
+export interface ManagedWorkspaceInfo {
   name: string;
   tag?: string;
   agents: string[];
