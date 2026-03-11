@@ -144,8 +144,8 @@ data: {"ts":1710000001,"type":"run_end","durationMs":1200,"tokens":150}
 Clients can pass `?cursor=N` to replay from a byte offset before switching to live push. Without `cursor`, only new events are streamed.
 
 The CLI prefers SSE when available:
-- `aw recv` → SSE on `/agents/:name/responses/stream`, prints first response then closes
 - `aw log --follow` → SSE on the appropriate `/stream` endpoint
+- `aw read` → shared SSE connection on `/agents/:name/responses/stream`, consumes N responses (default 1) then returns.
 - Falls back to cursor polling if SSE connection fails
 
 ## Runtime Configuration
@@ -300,13 +300,13 @@ aw rm <target>                # Remove agent or stop workspace
 aw send <target> "message" [+Ns "message2" ...]
   --from <name>               # sender name
 
-aw recv <target> [options]    # Wait for one response, print it, exit
-  --timeout <seconds>         # max wait time (default: 60)
-  --json                      # raw JSONL output
+aw read <target> [N]          # Read N responses (default: 1)
+  --wait <duration>           # max total wait time, e.g. 30s, 5m (default: 60s)
+  --json                      # one JSON object per line (JSONL)
 
 ```
 
-`recv` connects to the responses SSE stream, prints the first response, then exits. `--timeout` caps the wait. This is a CLI convenience for the send → wait → read pattern.
+`read` consumes N responses from a shared SSE connection, prints each as it arrives, then returns. Defaults to 1 — the common send → read pattern. `--wait` caps the total wait time across all N responses.
 
 ### Inspection
 
@@ -467,7 +467,7 @@ packages/agent-worker/src/
       info.ts               # aw info
       rm.ts                 # aw rm
       send.ts               # aw send
-      recv.ts               # aw recv (SSE / polling)
+      read.ts               # aw read (SSE / polling)
       run.ts                # aw run (one-shot workspace)
       state.ts              # aw state
       peek.ts               # aw peek
