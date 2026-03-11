@@ -1,7 +1,8 @@
 import type { Workspace } from "@agent-worker/workspace";
 import type { WorkspaceAgentLoop } from "@agent-worker/workspace";
 import type { ResolvedWorkspace } from "@agent-worker/workspace";
-import type { ManagedWorkspaceInfo, DaemonEvent } from "./types.ts";
+import type { EventBus } from "@agent-worker/shared";
+import type { ManagedWorkspaceInfo } from "./types.ts";
 
 /**
  * ManagedWorkspace wraps a Workspace + its agent loops with lifecycle management.
@@ -15,14 +16,14 @@ export class ManagedWorkspace {
   readonly resolved: ResolvedWorkspace;
   readonly loops: WorkspaceAgentLoop[];
 
-  private _onEvent?: (event: DaemonEvent) => void;
+  private _bus?: EventBus;
 
   constructor(opts: {
     workspace: Workspace;
     resolved: ResolvedWorkspace;
     loops: WorkspaceAgentLoop[];
     tag?: string;
-    onEvent?: (event: DaemonEvent) => void;
+    bus?: EventBus;
   }) {
     this.name = opts.resolved.def.name;
     this.tag = opts.tag;
@@ -30,7 +31,7 @@ export class ManagedWorkspace {
     this.workspace = opts.workspace;
     this.resolved = opts.resolved;
     this.loops = opts.loops;
-    this._onEvent = opts.onEvent;
+    this._bus = opts.bus;
   }
 
   /** Unique key: "name" or "name:tag". */
@@ -61,9 +62,9 @@ export class ManagedWorkspace {
     if (!this.resolved.kickoff) return;
     const channel = this.resolved.def.default_channel ?? "general";
     await this.workspace.contextProvider.smartSend(channel, "user", this.resolved.kickoff);
-    this._onEvent?.({
-      ts: Date.now(),
-      type: "workspace_kickoff",
+    this._bus?.emit({
+      type: "workspace.kickoff",
+      source: "workspace",
       workspace: this.key,
       channel,
       content: this.resolved.kickoff.slice(0, 200),
@@ -83,9 +84,9 @@ export class ManagedWorkspace {
       }
     }
     await this.workspace.shutdown();
-    this._onEvent?.({
-      ts: Date.now(),
-      type: "workspace_stopped",
+    this._bus?.emit({
+      type: "workspace.stopped",
+      source: "workspace",
       workspace: this.key,
     });
   }

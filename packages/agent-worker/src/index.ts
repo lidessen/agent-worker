@@ -31,7 +31,6 @@ export type {
   DaemonConfig,
   DaemonInfo,
   DaemonEvent,
-  DaemonEventType,
   AgentKind,
   ManagedAgentInfo,
   CreateAgentInput,

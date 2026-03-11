@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import type { DaemonEvent, DaemonEventType } from "./types.ts";
+import type { DaemonEvent } from "./types.ts";
 
 /**
  * Daemon-level JSONL event log.
@@ -18,7 +18,7 @@ export class DaemonEventLog {
     this.byteOffset = 0;
   }
 
-  append(type: DaemonEventType, data?: Record<string, unknown>): void {
+  append(type: string, data?: Record<string, unknown>): void {
     const entry: DaemonEvent = { ts: Date.now(), type, ...data };
     const line = JSON.stringify(entry) + "\n";
     const bytes = new TextEncoder().encode(line);
