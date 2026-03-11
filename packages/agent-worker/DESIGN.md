@@ -144,7 +144,7 @@ data: {"ts":1710000001,"type":"run_end","durationMs":1200,"tokens":150}
 Clients can pass `?cursor=N` to replay from a byte offset before switching to live push. Without `cursor`, only new events are streamed.
 
 The CLI prefers SSE when available:
-- `aw recv --wait` → SSE on `/agents/:name/responses/stream`, close on first response batch
+- `aw recv` → SSE on `/agents/:name/responses/stream`, prints as events arrive
 - `aw log --follow` → SSE on the appropriate `/stream` endpoint
 - Falls back to cursor polling if SSE connection fails
 
@@ -300,13 +300,12 @@ aw rm <target>                # Remove agent or stop workspace
 aw send <target> "message" [+Ns "message2" ...]
   --from <name>               # sender name
 
-aw recv <target> [options]    # CLI-only: poll for responses
-  --wait <seconds>            # poll until response (default: 0)
+aw recv <target> [options]    # Read responses (SSE stream)
   --json                      # raw JSONL output
 
 ```
 
-`recv` and `run --wait` use SSE streams when available, falling back to cursor polling. The HTTP API does not block on non-SSE endpoints.
+`recv` connects to the SSE stream and prints responses as they arrive. Falls back to cursor polling if SSE is unavailable.
 
 ### Inspection
 
