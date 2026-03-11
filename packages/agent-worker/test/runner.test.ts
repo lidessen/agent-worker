@@ -24,7 +24,8 @@ describe("HostRunner", () => {
   test("respects cwd", async () => {
     const runner = new HostRunner({ cwd: "/tmp" });
     const result = await runner.exec("pwd");
-    expect(result.stdout.trim()).toBe("/tmp");
+    // macOS: /tmp is a symlink to /private/tmp
+    expect(result.stdout.trim()).toMatch(/^(\/private)?\/tmp$/);
   });
 });
 

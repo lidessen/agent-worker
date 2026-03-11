@@ -8,7 +8,7 @@
  *   POST /shutdown               — graceful shutdown
  *
  *   GET  /agents                 — list agents
- *   POST /agents                 — create ephemeral agent
+ *   POST /agents                 — create ephemeral agent (not yet implemented)
  *   GET  /agents/:name           — get agent info
  *   DELETE /agents/:name         — remove ephemeral agent
  *

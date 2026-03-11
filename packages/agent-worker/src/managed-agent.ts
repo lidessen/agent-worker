@@ -68,11 +68,20 @@ export class ManagedAgent {
     this.agent.push(message);
   }
 
+  private _runQueue: Promise<{ text: string; events: LoopEvent[] }> = Promise.resolve({ text: "", events: [] });
+
   /**
    * Send a message and collect the text response.
-   * Resolves when the agent finishes processing.
+   * Serialized: concurrent calls are queued so events never mix.
    */
   async run(message: string, from?: string): Promise<{ text: string; events: LoopEvent[] }> {
+    const prev = this._runQueue;
+    const next = prev.catch(() => {}).then(() => this._doRun(message, from));
+    this._runQueue = next;
+    return next;
+  }
+
+  private async _doRun(message: string, from?: string): Promise<{ text: string; events: LoopEvent[] }> {
     const events: LoopEvent[] = [];
     const textParts: string[] = [];
 
