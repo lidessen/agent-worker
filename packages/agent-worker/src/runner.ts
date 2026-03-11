@@ -31,10 +31,7 @@ export class HostRunner implements AgentRunner {
     this.cwd = config?.cwd ?? process.cwd();
   }
 
-  async exec(
-    command: string,
-    opts?: { cwd?: string; timeout?: number },
-  ): Promise<ExecResult> {
+  async exec(command: string, opts?: { cwd?: string; timeout?: number }): Promise<ExecResult> {
     const proc = Bun.spawn(["sh", "-c", command], {
       cwd: opts?.cwd ?? this.cwd,
       stdout: "pipe",
@@ -72,10 +69,7 @@ export class SandboxRunner implements AgentRunner {
     // Future: Docker/Firecracker/V8 isolate config
   }
 
-  async exec(
-    _command: string,
-    _opts?: { cwd?: string; timeout?: number },
-  ): Promise<ExecResult> {
+  async exec(_command: string, _opts?: { cwd?: string; timeout?: number }): Promise<ExecResult> {
     throw new Error("Sandbox runner is not yet implemented");
   }
 

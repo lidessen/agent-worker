@@ -165,6 +165,8 @@ export interface AgentConfig {
   notesStorage?: NotesStorage;
   /** Memory config. Optional — disabled when not provided */
   memory?: MemoryConfig;
+  /** Shared event bus. When provided, Agent emits structured BusEvents directly. */
+  bus?: import("@agent-worker/shared").EventBus;
 }
 
 // ── Message input ──────────────────────────────────────────────────────────

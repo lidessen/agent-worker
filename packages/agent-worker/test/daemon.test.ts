@@ -223,8 +223,8 @@ describe("Daemon", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.entries.length).toBeGreaterThanOrEqual(1);
-    // First event should be daemon_started
-    const startEvent = body.entries.find((e: any) => e.type === "daemon_started");
+    // First event should be daemon.started (bus-emitted)
+    const startEvent = body.entries.find((e: any) => e.type === "daemon.started");
     expect(startEvent).toBeDefined();
   });
 

@@ -7,15 +7,19 @@ import {
 } from "@agent-worker/workspace";
 import type { Workspace, WorkspaceAgentLoop, ResolvedAgent } from "@agent-worker/workspace";
 import type { AiSdkLoop } from "@agent-worker/loop";
+import type { EventBus } from "@agent-worker/shared";
 import type { CreateWorkspaceInput, ManagedWorkspaceInfo, DaemonEvent } from "./types.ts";
 import { ManagedWorkspace } from "./managed-workspace.ts";
 
 /**
  * WorkspaceRegistry manages workspace lifecycle within the daemon.
  * Includes a lazy-created default "global" workspace.
+ *
+ * Supports both EventBus (preferred) and legacy callback-based event sink.
  */
 export class WorkspaceRegistry {
   private workspaces = new Map<string, ManagedWorkspace>();
+  private _bus?: EventBus;
   private _onEvent?: (event: DaemonEvent) => void;
   private _defaultWorkspace: ManagedWorkspace | null = null;
   private _dataDir: string;
@@ -24,8 +28,27 @@ export class WorkspaceRegistry {
     this._dataDir = dataDir;
   }
 
+  /** Set the shared event bus. */
+  setBus(bus: EventBus): void {
+    this._bus = bus;
+  }
+
+  /** Legacy: set a callback-based event sink. Prefer setBus(). */
   setEventSink(onEvent: (event: DaemonEvent) => void): void {
     this._onEvent = onEvent;
+  }
+
+  /** Emit a workspace-scoped event to bus or legacy sink. */
+  private emitEvent(
+    type: string,
+    data: Record<string, unknown>,
+    legacyType?: DaemonEvent["type"],
+  ): void {
+    if (this._bus) {
+      this._bus.emit({ type, source: "workspace", ...data });
+    } else if (this._onEvent) {
+      this._onEvent({ ts: Date.now(), type: (legacyType ?? type) as DaemonEvent["type"], ...data });
+    }
   }
 
   /** Get or create the default global workspace (for standalone agents). */
@@ -71,37 +94,37 @@ storage_dir: ${this._dataDir}
     // Create loops for each agent
     const loops: WorkspaceAgentLoop[] = [];
     for (const agent of resolved.agents) {
-      const runner = await this.createRunner(agent, workspace, resolved);
+      const runner = await this.createRunner(agent, workspace, resolved, key);
       const loop = createWiredLoop({
         name: agent.name,
         instructions: agent.instructions,
         runtime: workspace,
         pollInterval: 2000,
         onInstruction: async (prompt, instruction) => {
-          this._onEvent?.({
-            ts: Date.now(),
-            type: "agent_run_start",
-            workspace: key,
-            agent: agent.name,
-            instruction: instruction.content.slice(0, 200),
-          });
+          const runId = crypto.randomUUID();
+          this.emitEvent(
+            "workspace.agent_run_start",
+            {
+              workspace: key,
+              agent: agent.name,
+              runId,
+              instruction: instruction.content.slice(0, 200),
+            },
+            "agent_run_start",
+          );
           try {
             await runner(prompt, instruction);
-            this._onEvent?.({
-              ts: Date.now(),
-              type: "agent_run_end",
-              workspace: key,
-              agent: agent.name,
-              status: "ok",
-            });
+            this.emitEvent(
+              "workspace.agent_run_end",
+              { workspace: key, agent: agent.name, runId, status: "ok" },
+              "agent_run_end",
+            );
           } catch (err) {
-            this._onEvent?.({
-              ts: Date.now(),
-              type: "agent_error",
-              workspace: key,
-              agent: agent.name,
-              error: String(err),
-            });
+            this.emitEvent(
+              "workspace.agent_error",
+              { workspace: key, agent: agent.name, runId, error: String(err), level: "error" },
+              "agent_error",
+            );
           }
         },
       });
@@ -118,12 +141,11 @@ storage_dir: ${this._dataDir}
 
     this.workspaces.set(key, handle);
 
-    this._onEvent?.({
-      ts: Date.now(),
-      type: "workspace_created",
-      workspace: key,
-      agents: resolved.agents.map((a) => a.name),
-    });
+    this.emitEvent(
+      "workspace.created",
+      { workspace: key, agents: resolved.agents.map((a) => a.name) },
+      "workspace_created",
+    );
 
     return handle;
   }
@@ -166,11 +188,13 @@ storage_dir: ${this._dataDir}
     agent: ResolvedAgent,
     workspace: Workspace,
     resolved: import("@agent-worker/workspace").ResolvedWorkspace,
-  ): Promise<(prompt: string, instruction: import("@agent-worker/workspace").Instruction) => Promise<void>> {
+    workspaceKey: string,
+  ): Promise<
+    (prompt: string, instruction: import("@agent-worker/workspace").Instruction) => Promise<void>
+  > {
     return async (prompt, instruction) => {
       if (!agent.runtime || agent.runtime === "mock") {
-        const channel =
-          instruction.channel || (resolved.def.default_channel ?? "general");
+        const channel = instruction.channel || (resolved.def.default_channel ?? "general");
         await workspace.contextProvider.smartSend(
           channel,
           agent.name,
@@ -193,12 +217,11 @@ storage_dir: ${this._dataDir}
       const run = loop.run(prompt);
       for await (const event of run) {
         if (event.type === "text") {
-          this._onEvent?.({
-            ts: Date.now(),
-            type: "agent_text",
-            agent: agent.name,
-            text: event.text.slice(0, 500),
-          });
+          this.emitEvent(
+            "workspace.agent_text",
+            { workspace: workspaceKey, agent: agent.name, text: event.text.slice(0, 500) },
+            "agent_text",
+          );
         }
       }
 
@@ -208,8 +231,7 @@ storage_dir: ${this._dataDir}
       if (textEvents.length > 0) {
         const text = textEvents.map((e) => (e as any).text).join("");
         if (text.length > 0) {
-          const channel =
-            instruction.channel || (resolved.def.default_channel ?? "general");
+          const channel = instruction.channel || (resolved.def.default_channel ?? "general");
           await workspace.contextProvider.smartSend(channel, agent.name, text);
         }
       }
