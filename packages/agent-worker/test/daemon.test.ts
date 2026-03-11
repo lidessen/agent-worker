@@ -157,7 +157,7 @@ describe("Daemon", () => {
     expect(getBody.name).toBe("test-agent");
   });
 
-  test("sends async message via /send", async () => {
+  test("sends async message via /agents/:name/send", async () => {
     const dataDir = tmpDataDir();
     daemon = new Daemon({ port: 0, dataDir });
     const info = await daemon.start();
@@ -171,18 +171,18 @@ describe("Daemon", () => {
       },
     });
 
-    const res = await fetch(`http://${info.host}:${info.port}/send`, {
+    const res = await fetch(`http://${info.host}:${info.port}/agents/alice/send`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${info.token}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ agent: "alice", message: "Hello" }),
+      body: JSON.stringify({ messages: [{ content: "Hello" }] }),
     });
 
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.sent).toBe(true);
+    expect(body.sent).toBe(1);
   });
 
   test("removes ephemeral agent via DELETE", async () => {
@@ -226,6 +226,118 @@ describe("Daemon", () => {
     // First event should be daemon.started (bus-emitted)
     const startEvent = body.entries.find((e: any) => e.type === "daemon.started");
     expect(startEvent).toBeDefined();
+  });
+
+  test("sends messages via /agents/:name/send", async () => {
+    const dataDir = tmpDataDir();
+    daemon = new Daemon({ port: 0, dataDir });
+    const info = await daemon.start();
+
+    await daemon.agentRegistry.create({
+      name: "bob",
+      config: { name: "bob", instructions: "You are Bob.", loop: createMockLoop("Hey!") },
+    });
+
+    const res = await fetch(`http://${info.host}:${info.port}/agents/bob/send`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${info.token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ messages: [{ content: "Hello Bob" }] }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.sent).toBe(1);
+  });
+
+  test("runs message via /agents/:name/run", async () => {
+    const dataDir = tmpDataDir();
+    daemon = new Daemon({ port: 0, dataDir });
+    const info = await daemon.start();
+
+    await daemon.agentRegistry.create({
+      name: "carol",
+      config: { name: "carol", instructions: "You are Carol.", loop: createMockLoop("Carol says hi"), inbox: { debounceMs: 0 } },
+    });
+
+    const res = await fetch(`http://${info.host}:${info.port}/agents/carol/run`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${info.token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ message: "Hello Carol" }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.text).toBe("Carol says hi");
+    expect(body.eventCount).toBeGreaterThan(0);
+  });
+
+  test("reads per-agent responses and events", async () => {
+    const dataDir = tmpDataDir();
+    daemon = new Daemon({ port: 0, dataDir });
+    const info = await daemon.start();
+
+    await daemon.agentRegistry.create({
+      name: "dave",
+      config: { name: "dave", instructions: "You are Dave.", loop: createMockLoop("Dave here"), inbox: { debounceMs: 0 } },
+    });
+
+    // Run a message to generate responses + events
+    await fetch(`http://${info.host}:${info.port}/agents/dave/run`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${info.token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ message: "Hi Dave" }),
+    });
+
+    // Read responses
+    const respRes = await fetch(`http://${info.host}:${info.port}/agents/dave/responses?cursor=0`, {
+      headers: { Authorization: `Bearer ${info.token}` },
+    });
+    expect(respRes.status).toBe(200);
+    const respBody = await respRes.json();
+    expect(respBody.entries.length).toBeGreaterThan(0);
+    expect(respBody.entries.some((e: any) => e.type === "text" && e.text === "Dave here")).toBe(true);
+    expect(respBody.cursor).toBeGreaterThan(0);
+
+    // Read events
+    const evtRes = await fetch(`http://${info.host}:${info.port}/agents/dave/events?cursor=0`, {
+      headers: { Authorization: `Bearer ${info.token}` },
+    });
+    expect(evtRes.status).toBe(200);
+    const evtBody = await evtRes.json();
+    expect(evtBody.entries.length).toBeGreaterThan(0);
+    // Should have state_change, message_received, run_start, run_end events
+    const types = evtBody.entries.map((e: any) => e.type);
+    expect(types).toContain("message_received");
+    expect(types).toContain("run_start");
+    expect(types).toContain("run_end");
+
+    // Incremental read with cursor should return empty
+    const incRes = await fetch(`http://${info.host}:${info.port}/agents/dave/responses?cursor=${respBody.cursor}`, {
+      headers: { Authorization: `Bearer ${info.token}` },
+    });
+    const incBody = await incRes.json();
+    expect(incBody.entries).toEqual([]);
+  });
+
+  test("reads agent state via /agents/:name/state", async () => {
+    const dataDir = tmpDataDir();
+    daemon = new Daemon({ port: 0, dataDir });
+    const info = await daemon.start();
+
+    await daemon.agentRegistry.create({
+      name: "eve",
+      config: { name: "eve", instructions: "You are Eve.", loop: createMockLoop("Eve here") },
+    });
+
+    const res = await fetch(`http://${info.host}:${info.port}/agents/eve/state`, {
+      headers: { Authorization: `Bearer ${info.token}` },
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.state).toBeDefined();
+    expect(Array.isArray(body.inbox)).toBe(true);
+    expect(Array.isArray(body.todos)).toBe(true);
+    expect(typeof body.history).toBe("number");
   });
 
   test("shutdown via POST /shutdown", async () => {
