@@ -7,13 +7,15 @@
  *   GET  /health                 — daemon status
  *   POST /shutdown               — graceful shutdown
  *
- *   GET  /agents                 — list agents
- *   POST /agents                 — create ephemeral agent (not yet implemented)
- *   GET  /agents/:name           — get agent info
- *   DELETE /agents/:name         — remove ephemeral agent
- *
- *   POST /run                    — send message to agent, get response
- *   POST /send                   — async message to agent inbox
+ *   GET  /agents                       — list agents
+ *   POST /agents                       — create agent (not yet implemented)
+ *   GET  /agents/:name                 — get agent info
+ *   DELETE /agents/:name               — remove agent
+ *   POST   /agents/:name/send           — send message(s) to agent
+ *   POST   /agents/:name/run           — send + wait for response
+ *   GET    /agents/:name/responses     — incremental response log (cursor-based)
+ *   GET    /agents/:name/events        — incremental event log (cursor-based)
+ *   GET    /agents/:name/state         — agent state, inbox, todos
  *
  *   GET  /workspaces             — list workspaces
  *   POST /workspaces             — create workspace from YAML
@@ -54,8 +56,9 @@ export class Daemon {
     this.workspaces = new WorkspaceRegistry(dataDir);
     this.eventLog = new DaemonEventLog(dataDir);
 
-    // Wire event bus → registries (agents & workspaces emit to bus)
+    // Wire registries
     this.agents.setBus(this._bus);
+    this.agents.setDataDir(dataDir);
     this.workspaces.setBus(this._bus);
 
     // Wire event bus → JSONL event log (single consumer persists all events)
@@ -171,19 +174,20 @@ export class Daemon {
         return await this.handleCreateAgent(req);
       }
 
-      const agentMatch = path.match(/^\/agents\/([^/]+)$/);
+      const agentMatch = path.match(/^\/agents\/([^/]+)(\/.*)?$/);
       if (agentMatch) {
         const name = decodeURIComponent(agentMatch[1]!);
-        if (method === "GET") return this.handleGetAgent(name);
-        if (method === "DELETE") return await this.handleRemoveAgent(name);
-      }
+        const sub = agentMatch[2] ?? "";
 
-      // Run / Send
-      if (path === "/run" && method === "POST") {
-        return await this.handleRun(req);
-      }
-      if (path === "/send" && method === "POST") {
-        return await this.handleSend(req);
+        if (!sub) {
+          if (method === "GET") return this.handleGetAgent(name);
+          if (method === "DELETE") return await this.handleRemoveAgent(name);
+        }
+        if (sub === "/send" && method === "POST") return await this.handleAgentSend(name, req);
+        if (sub === "/run" && method === "POST") return await this.handleAgentRun(name, req);
+        if (sub === "/responses" && method === "GET") return await this.handleAgentResponses(name, url);
+        if (sub === "/events" && method === "GET") return await this.handleAgentEvents(name, url);
+        if (sub === "/state" && method === "GET") return this.handleAgentState(name);
       }
 
       // Workspaces
@@ -289,49 +293,93 @@ export class Daemon {
     }
   }
 
-  // ── Run / Send ──────────────────────────────────────────────────────────
+  // ── Agent sub-routes ────────────────────────────────────────────────────
 
-  private async handleRun(req: Request): Promise<Response> {
+  private async handleAgentSend(name: string, req: Request): Promise<Response> {
+    const handle = this.agents.get(name);
+    if (!handle) {
+      return Response.json({ error: `Agent "${name}" not found` }, { status: 404 });
+    }
+
     const body = (await req.json()) as {
-      agent: string;
-      message: string;
+      messages: Array<{ content: string; from?: string; delayMs?: number }>;
     };
 
-    if (!body.agent || !body.message) {
-      return Response.json({ error: "agent and message are required" }, { status: 400 });
+    if (!body.messages?.length) {
+      return Response.json({ error: "messages array is required" }, { status: 400 });
     }
 
-    const handle = this.agents.get(body.agent);
+    let sent = 0;
+    for (const msg of body.messages) {
+      if (msg.delayMs && msg.delayMs > 0) {
+        await new Promise((r) => setTimeout(r, msg.delayMs));
+      }
+      handle.push({ content: msg.content, from: msg.from });
+      sent++;
+    }
+
+    return Response.json({ sent, state: handle.state });
+  }
+
+  private async handleAgentRun(name: string, req: Request): Promise<Response> {
+    const handle = this.agents.get(name);
     if (!handle) {
-      return Response.json({ error: `Agent "${body.agent}" not found` }, { status: 404 });
+      return Response.json({ error: `Agent "${name}" not found` }, { status: 404 });
     }
 
-    const result = await handle.run(body.message);
+    const body = (await req.json()) as { message: string; from?: string };
+    if (!body.message) {
+      return Response.json({ error: "message is required" }, { status: 400 });
+    }
+
+    const result = await handle.run(body.message, body.from);
     return Response.json({
-      agent: body.agent,
       text: result.text,
       eventCount: result.events.length,
     });
   }
 
-  private async handleSend(req: Request): Promise<Response> {
-    const body = (await req.json()) as {
-      agent: string;
-      message: string;
-      from?: string;
-    };
-
-    if (!body.agent || !body.message) {
-      return Response.json({ error: "agent and message are required" }, { status: 400 });
-    }
-
-    const handle = this.agents.get(body.agent);
+  private async handleAgentResponses(name: string, url: URL): Promise<Response> {
+    const handle = this.agents.get(name);
     if (!handle) {
-      return Response.json({ error: `Agent "${body.agent}" not found` }, { status: 404 });
+      return Response.json({ error: `Agent "${name}" not found` }, { status: 404 });
     }
+    const cursor = parseInt(url.searchParams.get("cursor") ?? "0", 10);
+    const result = await handle.readResponses(cursor);
+    return Response.json(result);
+  }
 
-    handle.push({ content: body.message, from: body.from });
-    return Response.json({ sent: true, state: handle.state });
+  private async handleAgentEvents(name: string, url: URL): Promise<Response> {
+    const handle = this.agents.get(name);
+    if (!handle) {
+      return Response.json({ error: `Agent "${name}" not found` }, { status: 404 });
+    }
+    const cursor = parseInt(url.searchParams.get("cursor") ?? "0", 10);
+    const result = await handle.readEvents(cursor);
+    return Response.json(result);
+  }
+
+  private handleAgentState(name: string): Response {
+    const handle = this.agents.get(name);
+    if (!handle) {
+      return Response.json({ error: `Agent "${name}" not found` }, { status: 404 });
+    }
+    return Response.json({
+      state: handle.state,
+      inbox: handle.agent.inboxMessages.map((m) => ({
+        id: m.id,
+        status: m.status,
+        from: m.from,
+        content: m.content,
+        timestamp: m.timestamp,
+      })),
+      todos: handle.agent.todos.map((t) => ({
+        id: t.id,
+        status: t.status,
+        text: t.text,
+      })),
+      history: handle.agent.context.length,
+    });
   }
 
   // ── Workspaces ──────────────────────────────────────────────────────────

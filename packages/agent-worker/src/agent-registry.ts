@@ -12,10 +12,16 @@ import { ManagedAgent } from "./managed-agent.ts";
 export class AgentRegistry {
   private agents = new Map<string, ManagedAgent>();
   private _bus?: EventBus;
+  private _dataDir?: string;
 
   /** Set the shared event bus. Agents created after this call will use it. */
   setBus(bus: EventBus): void {
     this._bus = bus;
+  }
+
+  /** Set the data directory for per-agent storage. */
+  setDataDir(dataDir: string): void {
+    this._dataDir = dataDir;
   }
 
   /** Create and register a new agent. */
@@ -35,6 +41,7 @@ export class AgentRegistry {
       kind: input.kind ?? "ephemeral",
       config,
       bus: this._bus,
+      dataDir: this._dataDir,
     });
 
     await handle.init();

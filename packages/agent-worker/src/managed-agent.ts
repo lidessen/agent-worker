@@ -1,14 +1,15 @@
+import { join } from "node:path";
+import { mkdirSync, writeFileSync, appendFileSync } from "node:fs";
 import { Agent } from "@agent-worker/agent";
 import type { AgentConfig, AgentState } from "@agent-worker/agent";
 import type { LoopEvent, LoopResult } from "@agent-worker/loop";
 import type { EventBus } from "@agent-worker/shared";
-import type { AgentKind, ManagedAgentInfo } from "./types.ts";
+import { readFrom, parseJsonl } from "@agent-worker/shared";
+import type { AgentKind, ManagedAgentInfo, DaemonEvent } from "./types.ts";
 
 /**
- * ManagedAgent wraps an Agent instance with lifecycle metadata
- * and event forwarding for the daemon layer.
- *
- * The Agent emits structured events directly to the shared EventBus.
+ * ManagedAgent wraps an Agent instance with lifecycle metadata,
+ * per-agent JSONL storage, and event forwarding for the daemon layer.
  */
 export class ManagedAgent {
   readonly name: string;
@@ -17,6 +18,8 @@ export class ManagedAgent {
   readonly agent: Agent;
 
   private _workspace?: string;
+  private _responsesPath?: string;
+  private _eventsPath?: string;
 
   constructor(opts: {
     name: string;
@@ -24,11 +27,22 @@ export class ManagedAgent {
     config: AgentConfig;
     workspace?: string;
     bus?: EventBus;
+    dataDir?: string;
   }) {
     this.name = opts.name;
     this.kind = opts.kind;
     this.createdAt = Date.now();
     this._workspace = opts.workspace;
+
+    // Set up per-agent storage
+    if (opts.dataDir) {
+      const agentDir = join(opts.dataDir, "agents", opts.name);
+      mkdirSync(agentDir, { recursive: true });
+      this._responsesPath = join(agentDir, "responses.jsonl");
+      this._eventsPath = join(agentDir, "events.jsonl");
+      writeFileSync(this._responsesPath, "");
+      writeFileSync(this._eventsPath, "");
+    }
 
     // Inject bus into Agent config so it emits structured events directly
     const config: AgentConfig = {
@@ -41,6 +55,94 @@ export class ManagedAgent {
 
   async init(): Promise<void> {
     await this.agent.init();
+    this._wireEventListeners();
+  }
+
+  /** Wire Agent events → per-agent JSONL files. */
+  private _wireEventListeners(): void {
+    if (!this._responsesPath || !this._eventsPath) return;
+
+    this.agent.on("stateChange", (state: AgentState) => {
+      this._appendEvent({ type: "state_change", state });
+    });
+
+    this.agent.on("messageReceived", (msg) => {
+      this._appendEvent({
+        type: "message_received",
+        id: msg.id,
+        from: msg.from,
+        content: msg.content,
+      });
+    });
+
+    this.agent.on("runStart", (info) => {
+      this._appendEvent({ type: "run_start", runNumber: info.runNumber, trigger: info.trigger });
+    });
+
+    this.agent.on("runEnd", (result) => {
+      this._appendEvent({
+        type: "run_end",
+        durationMs: result.durationMs,
+        tokens: result.usage.totalTokens,
+      });
+    });
+
+    this.agent.on("event", (event: LoopEvent) => {
+      if (event.type === "text") {
+        this._appendResponse({ type: "text", text: event.text });
+      } else if (event.type === "tool_call_start") {
+        this._appendEvent({ type: "tool_call_start", name: event.name, args: event.args });
+      } else if (event.type === "tool_call_end") {
+        this._appendEvent({
+          type: "tool_call_end",
+          name: event.name,
+          result: event.result,
+          durationMs: event.durationMs,
+        });
+      } else if (event.type === "thinking") {
+        this._appendEvent({ type: "thinking", text: event.text });
+      } else if (event.type === "error") {
+        this._appendEvent({ type: "error", error: String(event.error) });
+      }
+    });
+
+    this.agent.on("send", (target, content) => {
+      this._appendResponse({ type: "send", target, content });
+    });
+
+    this.agent.on("contextAssembled", (prompt) => {
+      this._appendEvent({
+        type: "context_assembled",
+        tokenCount: prompt.tokenCount,
+        turnCount: prompt.turns.length,
+      });
+    });
+  }
+
+  private _appendResponse(entry: Record<string, unknown>): void {
+    if (!this._responsesPath) return;
+    const line = JSON.stringify({ ts: Date.now(), ...entry }) + "\n";
+    appendFileSync(this._responsesPath, line);
+  }
+
+  private _appendEvent(entry: Record<string, unknown>): void {
+    if (!this._eventsPath) return;
+    const line = JSON.stringify({ ts: Date.now(), ...entry }) + "\n";
+    appendFileSync(this._eventsPath, line);
+  }
+
+  /** Read responses from byte offset. */
+  async readResponses(cursor = 0): Promise<{ entries: DaemonEvent[]; cursor: number }> {
+    if (!this._responsesPath) return { entries: [], cursor: 0 };
+    const { data, cursor: newCursor } = await readFrom(this._responsesPath, cursor);
+    return { entries: parseJsonl<DaemonEvent>(data), cursor: newCursor };
+  }
+
+  /** Read events from byte offset. */
+  async readEvents(cursor = 0): Promise<{ entries: DaemonEvent[]; cursor: number }> {
+    if (!this._eventsPath) return { entries: [], cursor: 0 };
+    const { data, cursor: newCursor } = await readFrom(this._eventsPath, cursor);
+    return { entries: parseJsonl<DaemonEvent>(data), cursor: newCursor };
   }
 
   async stop(): Promise<void> {
