@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@agent-worker/loop": "workspace:*",
+    "@agent-worker/shared": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.27.1",
     "ai": "^6.0.116",
     "zod": "^4.3.6"

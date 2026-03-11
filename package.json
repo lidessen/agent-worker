@@ -1,5 +1,5 @@
 {
-  "name": "agent-worker",
+  "name": "@agent-worker/monorepo",
   "private": true,
   "workspaces": [
     "packages/*"

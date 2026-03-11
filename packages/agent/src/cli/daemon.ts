@@ -12,6 +12,7 @@ import { tmpdir } from "node:os";
 import { Agent } from "../agent.ts";
 import type { AgentConfig, AgentState } from "../types.ts";
 import type { LoopEvent } from "@agent-worker/loop";
+import { readFrom, parseJsonl, appendJsonl } from "@agent-worker/shared";
 
 export interface DaemonConfig {
   /** Agent configuration */
@@ -22,68 +23,12 @@ export interface DaemonConfig {
   socketPath?: string;
 }
 
-interface JsonlEntry {
-  ts: number;
-  [key: string]: unknown;
-}
-
-/**
- * Append-only jsonl writer with byte-offset tracking.
- */
-class JsonlWriter {
-  private fd: number | null = null;
-  private byteOffset = 0;
-  readonly path: string;
-
-  constructor(path: string) {
-    this.path = path;
-  }
-
-  async init(): Promise<void> {
-    // Truncate or create the file
-    await Bun.write(this.path, "");
-    this.byteOffset = 0;
-  }
-
-  append(entry: JsonlEntry): void {
-    const line = JSON.stringify(entry) + "\n";
-    const bytes = Buffer.from(line);
-    this.byteOffset += bytes.length;
-    // Fire-and-forget append
-    Bun.write(Bun.file(this.path), appendBuffer(this.path, bytes));
-  }
-
-  get offset(): number {
-    return this.byteOffset;
-  }
-}
-
-/** Read file from byte offset to end */
-async function readFrom(path: string, cursor: number): Promise<{ data: string; cursor: number }> {
-  const file = Bun.file(path);
-  const size = file.size;
-  if (cursor >= size) {
-    return { data: "", cursor: size };
-  }
-  const buf = await file.slice(cursor, size).text();
-  return { data: buf, cursor: size };
-}
-
-/** Append buffer to file (read existing + concat) */
-async function appendBuffer(path: string, buf: Buffer): Promise<Buffer> {
-  const existing = await Bun.file(path).arrayBuffer();
-  const combined = Buffer.concat([Buffer.from(existing), buf]);
-  return combined;
-}
-
 export class AwDaemon {
   private agent: Agent | null = null;
   private server: ReturnType<typeof Bun.serve> | null = null;
   private responsesPath: string;
   private eventsPath: string;
   private socketPath: string;
-  private responsesOffset = 0;
-  private eventsOffset = 0;
 
   constructor(private config: DaemonConfig) {
     const dir = config.dataDir ?? tmpdir();
@@ -172,24 +117,11 @@ export class AwDaemon {
   }
 
   private appendResponse(entry: Record<string, unknown>): void {
-    const line = JSON.stringify({ ts: Date.now(), ...entry }) + "\n";
-    const buf = new TextEncoder().encode(line);
-    this.responsesOffset += buf.length;
-    // Append to file
-    const file = Bun.file(this.responsesPath);
-    file.arrayBuffer().then((existing) => {
-      Bun.write(this.responsesPath, Buffer.concat([Buffer.from(existing), Buffer.from(buf)]));
-    });
+    appendJsonl(this.responsesPath, entry);
   }
 
   private appendEvent(entry: Record<string, unknown>): void {
-    const line = JSON.stringify({ ts: Date.now(), ...entry }) + "\n";
-    const buf = new TextEncoder().encode(line);
-    this.eventsOffset += buf.length;
-    const file = Bun.file(this.eventsPath);
-    file.arrayBuffer().then((existing) => {
-      Bun.write(this.eventsPath, Buffer.concat([Buffer.from(existing), Buffer.from(buf)]));
-    });
+    appendJsonl(this.eventsPath, entry);
   }
 
   private async startServer(): Promise<void> {
@@ -255,25 +187,13 @@ export class AwDaemon {
   private async handleRecv(url: URL): Promise<Response> {
     const cursor = parseInt(url.searchParams.get("cursor") ?? "0", 10);
     const { data, cursor: newCursor } = await readFrom(this.responsesPath, cursor);
-
-    const lines = data
-      .split("\n")
-      .filter(Boolean)
-      .map((line) => JSON.parse(line));
-
-    return Response.json({ entries: lines, cursor: newCursor });
+    return Response.json({ entries: parseJsonl(data), cursor: newCursor });
   }
 
   private async handleLog(url: URL): Promise<Response> {
     const cursor = parseInt(url.searchParams.get("cursor") ?? "0", 10);
     const { data, cursor: newCursor } = await readFrom(this.eventsPath, cursor);
-
-    const lines = data
-      .split("\n")
-      .filter(Boolean)
-      .map((line) => JSON.parse(line));
-
-    return Response.json({ entries: lines, cursor: newCursor });
+    return Response.json({ entries: parseJsonl(data), cursor: newCursor });
   }
 
   private handleState(): Response {

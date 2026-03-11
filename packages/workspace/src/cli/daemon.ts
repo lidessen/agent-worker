@@ -23,6 +23,7 @@ import type { WorkspaceAgentLoop } from "../loop/loop.ts";
 import type { ResolvedWorkspace, ResolvedAgent } from "../config/types.ts";
 import type { LoadOptions } from "../config/loader.ts";
 import type { Instruction } from "../types.ts";
+import { readFrom, parseJsonl, appendJsonl } from "@agent-worker/shared";
 
 export interface WorkspaceDaemonConfig {
   /** Path to workspace YAML file, or raw YAML content. */
@@ -38,15 +39,6 @@ export interface WorkspaceDaemonConfig {
     agent: ResolvedAgent,
     workspace: Workspace,
   ) => (prompt: string, instruction: Instruction) => Promise<void>;
-}
-
-/** Read file from byte offset to end. */
-async function readFrom(path: string, cursor: number): Promise<{ data: string; cursor: number }> {
-  const file = Bun.file(path);
-  const size = file.size;
-  if (cursor >= size) return { data: "", cursor: size };
-  const buf = await file.slice(cursor, size).text();
-  return { data: buf, cursor: size };
 }
 
 export class WorkspaceDaemon {
@@ -277,12 +269,7 @@ export class WorkspaceDaemon {
   }
 
   private appendEvent(entry: Record<string, unknown>): void {
-    const line = JSON.stringify({ ts: Date.now(), ...entry }) + "\n";
-    const buf = new TextEncoder().encode(line);
-    const file = Bun.file(this.eventsPath);
-    file.arrayBuffer().then((existing) => {
-      Bun.write(this.eventsPath, Buffer.concat([Buffer.from(existing), Buffer.from(buf)]));
-    });
+    appendJsonl(this.eventsPath, entry);
   }
 
   private async startServer(): Promise<void> {
@@ -449,12 +436,7 @@ export class WorkspaceDaemon {
   private async handleLog(url: URL): Promise<Response> {
     const cursor = parseInt(url.searchParams.get("cursor") ?? "0", 10);
     const { data, cursor: newCursor } = await readFrom(this.eventsPath, cursor);
-    const lines = data
-      .split("\n")
-      .filter(Boolean)
-      .map((line) => JSON.parse(line));
-
-    return Response.json({ entries: lines, cursor: newCursor });
+    return Response.json({ entries: parseJsonl(data), cursor: newCursor });
   }
 
   private async handleDocs(): Promise<Response> {

@@ -1,10 +1,10 @@
 import { test, expect, describe, afterEach } from "bun:test";
-import { ToolBridge, type BridgeTransport } from "../src/bridge/tool-bridge.ts";
-import { Inbox } from "../src/inbox.ts";
-import { TodoManager } from "../src/todo.ts";
-import { InMemoryNotesStorage } from "../src/notes.ts";
-import { SendGuard } from "../src/send.ts";
-import { ReminderManager } from "../src/reminder.ts";
+import { ToolBridge, type BridgeTransport } from "../../src/bridge/tool-bridge.ts";
+import { Inbox } from "../../src/inbox.ts";
+import { TodoManager } from "../../src/todo.ts";
+import { InMemoryNotesStorage } from "../../src/notes.ts";
+import { SendGuard } from "../../src/send.ts";
+import { ReminderManager } from "../../src/reminder.ts";
 
 function createBridge() {
   const inbox = new Inbox({}, () => {});

@@ -1,11 +1,11 @@
 import { test, expect, describe } from "bun:test";
-import { AgentMcpServer } from "../src/bridge/mcp-server.ts";
-import { Inbox } from "../src/inbox.ts";
-import { TodoManager } from "../src/todo.ts";
-import { InMemoryNotesStorage } from "../src/notes.ts";
-import { SendGuard } from "../src/send.ts";
-import { ReminderManager } from "../src/reminder.ts";
-import type { BridgeTransport } from "../src/bridge/tool-bridge.ts";
+import { AgentMcpServer } from "../../src/bridge/mcp-server.ts";
+import { Inbox } from "../../src/inbox.ts";
+import { TodoManager } from "../../src/todo.ts";
+import { InMemoryNotesStorage } from "../../src/notes.ts";
+import { SendGuard } from "../../src/send.ts";
+import { ReminderManager } from "../../src/reminder.ts";
+import type { BridgeTransport } from "../../src/bridge/tool-bridge.ts";
 
 function createDeps() {
   const inbox = new Inbox({}, () => {});
