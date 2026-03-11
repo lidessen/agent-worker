@@ -26,17 +26,24 @@ aw start --runtime claude-code --model sonnet
 
 ## Saving test artifacts
 
-After each test, persist results for traceability:
+After each test, persist results for traceability.
+
+> **Important:** `aw recv` uses a persistent cursor — once messages are consumed,
+> a second `aw recv` returns only _new_ messages. To save artifacts, use `tee`
+> during the first `recv` call (shown below). Do NOT run a separate `aw recv`
+> after the test, as it will likely be empty.
 
 ```sh
-# Save log + recv to timestamped artifact
+mkdir -p a2a-artifacts
 TEST_ID="T1_$(date +%Y%m%d_%H%M%S)"
+
+# Capture recv output during the test itself (via tee):
+aw recv --wait 10 --json | tee "a2a-artifacts/${TEST_ID}_recv.json"
+
+# After the test, save log + state:
 aw log --json > "a2a-artifacts/${TEST_ID}_log.json"
-aw recv --json > "a2a-artifacts/${TEST_ID}_recv.json"
 aw state > "a2a-artifacts/${TEST_ID}_state.txt"
 ```
-
-Create the artifacts directory once: `mkdir -p a2a-artifacts`
 
 ---
 
@@ -359,4 +366,4 @@ Record pass (P), fail (F), skip (S), or flaky (FL) with artifact path.
 | codex       | (default)                          |     |     |     |     |     |     |     |     |     |     |     |     |
 | cursor      | (default)                          |     |     |     |     |     |     |     |     |     |     |     |     |
 
-**Artifact naming:** `a2a-artifacts/<TEST_ID>_<runtime>_<YYYYMMDD_HHMMSS>_{log,recv,state}.json`
+**Artifact naming:** `a2a-artifacts/<TEST_ID>_<runtime>_<YYYYMMDD_HHMMSS>_{log,recv,state}.{json,txt}`
