@@ -8,19 +8,18 @@ import {
 import type { Workspace, WorkspaceAgentLoop, ResolvedAgent } from "@agent-worker/workspace";
 import type { AiSdkLoop } from "@agent-worker/loop";
 import type { EventBus } from "@agent-worker/shared";
-import type { CreateWorkspaceInput, ManagedWorkspaceInfo, DaemonEvent } from "./types.ts";
+import type { CreateWorkspaceInput, ManagedWorkspaceInfo } from "./types.ts";
 import { ManagedWorkspace } from "./managed-workspace.ts";
 
 /**
  * WorkspaceRegistry manages workspace lifecycle within the daemon.
  * Includes a lazy-created default "global" workspace.
  *
- * Supports both EventBus (preferred) and legacy callback-based event sink.
+ * Emits structured events to the shared EventBus.
  */
 export class WorkspaceRegistry {
   private workspaces = new Map<string, ManagedWorkspace>();
   private _bus?: EventBus;
-  private _onEvent?: (event: DaemonEvent) => void;
   private _defaultWorkspace: ManagedWorkspace | null = null;
   private _dataDir: string;
 
@@ -33,22 +32,9 @@ export class WorkspaceRegistry {
     this._bus = bus;
   }
 
-  /** Legacy: set a callback-based event sink. Prefer setBus(). */
-  setEventSink(onEvent: (event: DaemonEvent) => void): void {
-    this._onEvent = onEvent;
-  }
-
-  /** Emit a workspace-scoped event to bus or legacy sink. */
-  private emitEvent(
-    type: string,
-    data: Record<string, unknown>,
-    legacyType?: DaemonEvent["type"],
-  ): void {
-    if (this._bus) {
-      this._bus.emit({ type, source: "workspace", ...data });
-    } else if (this._onEvent) {
-      this._onEvent({ ts: Date.now(), type: (legacyType ?? type) as DaemonEvent["type"], ...data });
-    }
+  /** Emit a workspace-scoped event to the bus. */
+  private emitEvent(type: string, data: Record<string, unknown>): void {
+    this._bus?.emit({ type, source: "workspace", ...data });
   }
 
   /** Get or create the default global workspace (for standalone agents). */
@@ -70,7 +56,7 @@ storage_dir: ${this._dataDir}
       workspace,
       resolved,
       loops: [],
-      onEvent: this._onEvent,
+      bus: this._bus,
     });
 
     return this._defaultWorkspace;
@@ -110,20 +96,17 @@ storage_dir: ${this._dataDir}
               runId,
               instruction: instruction.content.slice(0, 200),
             },
-            "agent_run_start",
           );
           try {
             await runner(prompt, instruction);
             this.emitEvent(
               "workspace.agent_run_end",
               { workspace: key, agent: agent.name, runId, status: "ok" },
-              "agent_run_end",
             );
           } catch (err) {
             this.emitEvent(
               "workspace.agent_error",
               { workspace: key, agent: agent.name, runId, error: String(err), level: "error" },
-              "agent_error",
             );
           }
         },
@@ -136,7 +119,7 @@ storage_dir: ${this._dataDir}
       resolved,
       loops,
       tag: input.tag,
-      onEvent: this._onEvent,
+      bus: this._bus,
     });
 
     this.workspaces.set(key, handle);
@@ -144,7 +127,6 @@ storage_dir: ${this._dataDir}
     this.emitEvent(
       "workspace.created",
       { workspace: key, agents: resolved.agents.map((a) => a.name) },
-      "workspace_created",
     );
 
     return handle;
@@ -220,7 +202,6 @@ storage_dir: ${this._dataDir}
           this.emitEvent(
             "workspace.agent_text",
             { workspace: workspaceKey, agent: agent.name, text: event.text.slice(0, 500) },
-            "agent_text",
           );
         }
       }

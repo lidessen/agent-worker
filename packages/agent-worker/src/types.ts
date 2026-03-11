@@ -97,24 +97,8 @@ export interface RunResponse {
 
 // ── Daemon events ─────────────────────────────────────────────────────────
 
-export type DaemonEventType =
-  | "daemon_started"
-  | "daemon_stopped"
-  | "agent_created"
-  | "agent_removed"
-  | "agent_state_change"
-  | "agent_run_start"
-  | "agent_run_end"
-  | "agent_text"
-  | "agent_tool_call"
-  | "agent_error"
-  | "workspace_created"
-  | "workspace_stopped"
-  | "workspace_kickoff"
-  | "error";
-
 export interface DaemonEvent {
   ts: number;
-  type: DaemonEventType;
+  type: string;
   [key: string]: unknown;
 }

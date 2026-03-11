@@ -2,15 +2,13 @@ import { Agent } from "@agent-worker/agent";
 import type { AgentConfig, AgentState } from "@agent-worker/agent";
 import type { LoopEvent, LoopResult } from "@agent-worker/loop";
 import type { EventBus } from "@agent-worker/shared";
-import type { AgentKind, ManagedAgentInfo, DaemonEvent } from "./types.ts";
+import type { AgentKind, ManagedAgentInfo } from "./types.ts";
 
 /**
  * ManagedAgent wraps an Agent instance with lifecycle metadata
  * and event forwarding for the daemon layer.
  *
- * When a shared EventBus is provided, the Agent emits structured events
- * directly to the bus — no manual translation needed here.
- * The legacy wireEvents() path is preserved for non-bus usage.
+ * The Agent emits structured events directly to the shared EventBus.
  */
 export class ManagedAgent {
   readonly name: string;
@@ -39,56 +37,6 @@ export class ManagedAgent {
       bus: opts.bus ?? opts.config.bus,
     };
     this.agent = new Agent(config);
-  }
-
-  /**
-   * Legacy: wire daemon-level event forwarding via callback.
-   * Prefer using the EventBus path (pass `bus` to constructor) instead.
-   */
-  wireEvents(onEvent: (event: DaemonEvent) => void): void {
-    this.agent.on("stateChange", (state: AgentState) => {
-      onEvent({ ts: Date.now(), type: "agent_state_change", agent: this.name, state });
-    });
-
-    this.agent.on("runStart", (info) => {
-      onEvent({
-        ts: Date.now(),
-        type: "agent_run_start",
-        agent: this.name,
-        runNumber: info.runNumber,
-        trigger: info.trigger,
-      });
-    });
-
-    this.agent.on("runEnd", (result: LoopResult) => {
-      onEvent({
-        ts: Date.now(),
-        type: "agent_run_end",
-        agent: this.name,
-        tokens: result.usage.totalTokens,
-      });
-    });
-
-    this.agent.on("event", (event: LoopEvent) => {
-      if (event.type === "text") {
-        onEvent({ ts: Date.now(), type: "agent_text", agent: this.name, text: event.text });
-      } else if (event.type === "tool_call_start") {
-        onEvent({
-          ts: Date.now(),
-          type: "agent_tool_call",
-          agent: this.name,
-          tool: event.name,
-          args: event.args,
-        });
-      } else if (event.type === "error") {
-        onEvent({
-          ts: Date.now(),
-          type: "agent_error",
-          agent: this.name,
-          error: String(event.error),
-        });
-      }
-    });
   }
 
   async init(): Promise<void> {
