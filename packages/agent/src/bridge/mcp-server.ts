@@ -41,12 +41,11 @@ function registerToolForDef(
 function buildObjectSchema(params: Record<string, z.ZodTypeAny>): z.ZodTypeAny {
   // Use ZodObject constructor directly to avoid z.object()'s deep generic inference
   // on Record<string, ZodTypeAny>.
-  // Compatible with both zod v3 (typeName/ZodNever.create) and v4 (type/z.never()).
   return new z.ZodObject({
     shape: () => params,
     unknownKeys: "strip",
     catchall: z.never(),
-    typeName: (z as any).ZodFirstPartyTypeKind?.ZodObject ?? "ZodObject",
+    typeName: "ZodObject",
   });
 }
 
