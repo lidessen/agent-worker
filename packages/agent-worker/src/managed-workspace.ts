@@ -1,12 +1,12 @@
 import type { Workspace } from "@agent-worker/workspace";
 import type { WorkspaceAgentLoop } from "@agent-worker/workspace";
 import type { ResolvedWorkspace } from "@agent-worker/workspace";
-import type { WorkspaceHandleInfo, DaemonEvent } from "./types.ts";
+import type { ManagedWorkspaceInfo, DaemonEvent } from "./types.ts";
 
 /**
- * WorkspaceHandle wraps a Workspace + its agent loops with lifecycle management.
+ * ManagedWorkspace wraps a Workspace + its agent loops with lifecycle management.
  */
-export class WorkspaceHandle {
+export class ManagedWorkspace {
   readonly name: string;
   readonly tag?: string;
   readonly createdAt: number;
@@ -38,7 +38,7 @@ export class WorkspaceHandle {
     return this.tag ? `${this.name}:${this.tag}` : this.name;
   }
 
-  get info(): WorkspaceHandleInfo {
+  get info(): ManagedWorkspaceInfo {
     const channels = this.workspace.contextProvider.channels.listChannels();
     return {
       name: this.name,
