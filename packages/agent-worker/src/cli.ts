@@ -3,7 +3,7 @@
  * aw — agent-worker CLI entry point.
  *
  * Commands:
- *   aw up [-p PORT] [-f]     Start daemon (background or foreground)
+ *   aw up [-p PORT]          Start daemon (foreground)
  *   aw down                  Stop daemon
  *   aw status                Daemon status
  *   aw ls                    List agents
@@ -17,7 +17,6 @@ const command = args[0];
 async function main() {
   switch (command) {
     case "up": {
-      const foreground = args.includes("-f") || args.includes("--foreground");
       const portIdx = args.indexOf("-p");
       const port = portIdx >= 0 ? parseInt(args[portIdx + 1]!, 10) : 0;
 
@@ -99,7 +98,7 @@ async function main() {
       console.log(`Usage: aw <command>
 
 Commands:
-  up [-p PORT] [-f]   Start daemon
+  up [-p PORT]        Start daemon (foreground)
   down                Stop daemon
   status              Daemon status
   ls                  List agents
