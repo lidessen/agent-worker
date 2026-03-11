@@ -22,18 +22,16 @@ async function main() {
       const port = portIdx >= 0 ? parseInt(args[portIdx + 1]!, 10) : 0;
 
       console.log("Starting agent-worker daemon...");
-      const { info } = await startDaemon({ port });
+      const { daemon, info } = await startDaemon({ port });
       console.log(`Daemon running on http://${info.host}:${info.port}`);
       console.log(`PID: ${info.pid}`);
       console.log(`Token: ${info.token}`);
+      console.log("Running in foreground (use Ctrl+C to stop)");
 
-      if (!foreground) {
-        console.log("Running in foreground (use Ctrl+C to stop)");
-      }
-
-      // Keep process alive
-      process.on("SIGINT", () => {
+      // Graceful shutdown on SIGINT
+      process.on("SIGINT", async () => {
         console.log("\nShutting down...");
+        await daemon.shutdown();
         process.exit(0);
       });
       break;

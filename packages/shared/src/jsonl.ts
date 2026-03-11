@@ -1,3 +1,5 @@
+import { appendFileSync } from "node:fs";
+
 /** Read a file from a byte offset to end. Returns text and new cursor position. */
 export async function readFrom(
   path: string,
@@ -21,9 +23,5 @@ export function parseJsonl<T = Record<string, unknown>>(data: string): T[] {
 /** Append a timestamped JSON entry to a file. Fire-and-forget. */
 export function appendJsonl(path: string, entry: Record<string, unknown>): void {
   const line = JSON.stringify({ ts: Date.now(), ...entry }) + "\n";
-  const buf = new TextEncoder().encode(line);
-  const file = Bun.file(path);
-  file.arrayBuffer().then((existing) => {
-    Bun.write(path, Buffer.concat([Buffer.from(existing), Buffer.from(buf)]));
-  });
+  appendFileSync(path, line);
 }

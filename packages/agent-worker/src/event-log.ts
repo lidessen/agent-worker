@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { appendFileSync } from "node:fs";
 import type { DaemonEvent } from "./types.ts";
 
 /**
@@ -23,13 +24,7 @@ export class DaemonEventLog {
     const line = JSON.stringify(entry) + "\n";
     const bytes = new TextEncoder().encode(line);
     this.byteOffset += bytes.length;
-    // Fire-and-forget append
-    const path = this.path;
-    Bun.file(path)
-      .arrayBuffer()
-      .then((existing) => {
-        Bun.write(path, Buffer.concat([Buffer.from(existing), Buffer.from(bytes)]));
-      });
+    appendFileSync(this.path, line);
   }
 
   /** Read entries from a byte offset. Returns new cursor position. */
