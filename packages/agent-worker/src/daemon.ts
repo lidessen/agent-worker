@@ -12,7 +12,6 @@
  *   GET  /agents/:name                 — get agent info
  *   DELETE /agents/:name               — remove agent
  *   POST   /agents/:name/send           — send message(s) to agent
- *   POST   /agents/:name/run           — send + wait for response
  *   GET    /agents/:name/responses     — incremental response log (cursor-based)
  *   GET    /agents/:name/events        — incremental event log (cursor-based)
  *   GET    /agents/:name/state         — agent state, inbox, todos
@@ -184,7 +183,6 @@ export class Daemon {
           if (method === "DELETE") return await this.handleRemoveAgent(name);
         }
         if (sub === "/send" && method === "POST") return await this.handleAgentSend(name, req);
-        if (sub === "/run" && method === "POST") return await this.handleAgentRun(name, req);
         if (sub === "/responses" && method === "GET") return await this.handleAgentResponses(name, url);
         if (sub === "/events" && method === "GET") return await this.handleAgentEvents(name, url);
         if (sub === "/state" && method === "GET") return this.handleAgentState(name);
@@ -319,24 +317,6 @@ export class Daemon {
     }
 
     return Response.json({ sent, state: handle.state });
-  }
-
-  private async handleAgentRun(name: string, req: Request): Promise<Response> {
-    const handle = this.agents.get(name);
-    if (!handle) {
-      return Response.json({ error: `Agent "${name}" not found` }, { status: 404 });
-    }
-
-    const body = (await req.json()) as { message: string; from?: string };
-    if (!body.message) {
-      return Response.json({ error: "message is required" }, { status: 400 });
-    }
-
-    const result = await handle.run(body.message, body.from);
-    return Response.json({
-      text: result.text,
-      eventCount: result.events.length,
-    });
   }
 
   private async handleAgentResponses(name: string, url: URL): Promise<Response> {

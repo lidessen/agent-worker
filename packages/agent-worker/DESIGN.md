@@ -300,8 +300,7 @@ aw recv <target> [options]    # CLI-only: poll for responses
   --wait <seconds>            # poll until response (default: 0)
   --json                      # raw JSONL output
 
-aw run <target> "prompt"      # send + recv --wait 30 (convenience)
-  --wait <seconds>            # override wait time (default: 30)
+aw run <target> "prompt"      # send + wait for response (synchronous)
 ```
 
 `recv` and `run --wait` use SSE streams when available, falling back to cursor polling. The HTTP API does not block on non-SSE endpoints.
@@ -357,9 +356,6 @@ GET    /agents/:name/events?cursor=N     → { entries: AgentEvent[], cursor: nu
 GET    /agents/:name/events/stream       → SSE: real-time agent events
 GET    /agents/:name/state               → { state, inbox, todos, history }
 
-POST   /agents/:name/run            → synchronous run (send + collect response)
-         body: { message: string, from?: string }
-         → { text: string, events: LoopEvent[] }
 ```
 
 ### Workspaces
@@ -419,8 +415,6 @@ export class AwClient {
   readResponses(name: string, cursor?: number): Promise<ResponsesResult>;
   readAgentEvents(name: string, cursor?: number): Promise<EventsResult>;
   getAgentState(name: string): Promise<AgentStateResult>;
-  runAgent(name: string, message: string, from?: string): Promise<RunResult>;
-
   // SSE streams (return AsyncIterable that yields parsed events)
   streamResponses(name: string, cursor?: number): AsyncIterable<ResponseEntry>;
   streamAgentEvents(name: string, cursor?: number): AsyncIterable<AgentEvent>;

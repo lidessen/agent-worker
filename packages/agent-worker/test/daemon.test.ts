@@ -249,28 +249,6 @@ describe("Daemon", () => {
     expect(body.sent).toBe(1);
   });
 
-  test("runs message via /agents/:name/run", async () => {
-    const dataDir = tmpDataDir();
-    daemon = new Daemon({ port: 0, dataDir });
-    const info = await daemon.start();
-
-    await daemon.agentRegistry.create({
-      name: "carol",
-      config: { name: "carol", instructions: "You are Carol.", loop: createMockLoop("Carol says hi"), inbox: { debounceMs: 0 } },
-    });
-
-    const res = await fetch(`http://${info.host}:${info.port}/agents/carol/run`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${info.token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ message: "Hello Carol" }),
-    });
-
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.text).toBe("Carol says hi");
-    expect(body.eventCount).toBeGreaterThan(0);
-  });
-
   test("reads per-agent responses and events", async () => {
     const dataDir = tmpDataDir();
     daemon = new Daemon({ port: 0, dataDir });
@@ -281,12 +259,15 @@ describe("Daemon", () => {
       config: { name: "dave", instructions: "You are Dave.", loop: createMockLoop("Dave here"), inbox: { debounceMs: 0 } },
     });
 
-    // Run a message to generate responses + events
-    await fetch(`http://${info.host}:${info.port}/agents/dave/run`, {
+    // Send a message and wait for processing
+    await fetch(`http://${info.host}:${info.port}/agents/dave/send`, {
       method: "POST",
       headers: { Authorization: `Bearer ${info.token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ message: "Hi Dave" }),
+      body: JSON.stringify({ messages: [{ content: "Hi Dave" }] }),
     });
+
+    // Wait for agent to process
+    await Bun.sleep(200);
 
     // Read responses
     const respRes = await fetch(`http://${info.host}:${info.port}/agents/dave/responses?cursor=0`, {
