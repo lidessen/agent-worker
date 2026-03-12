@@ -77,8 +77,9 @@ export class WorkspaceDaemon {
     const workspace = await createWorkspace(wsConfig);
     this.workspace = workspace;
 
-    // Register agents to their custom channels
+    // Register agents, ensure sandbox directories, and create loops
     for (const agent of resolved.agents) {
+      // Join custom channels
       if (agent.channels?.length) {
         const { tools } = createAgentTools(agent.name, workspace);
         for (const ch of agent.channels) {
@@ -87,10 +88,12 @@ export class WorkspaceDaemon {
           }
         }
       }
-    }
 
-    // Create per-agent loops
-    for (const agent of resolved.agents) {
+      // Ensure sandbox directories exist (once at init, not per-instruction)
+      const { dirs } = createAgentTools(agent.name, workspace);
+      if (dirs.workspaceSandboxDir) mkdirSync(dirs.workspaceSandboxDir, { recursive: true });
+      if (dirs.sandboxDir) mkdirSync(dirs.sandboxDir, { recursive: true });
+
       const runner = this.config.createRunner
         ? this.config.createRunner(agent, workspace)
         : this.createDefaultRunner(agent);
@@ -187,11 +190,8 @@ export class WorkspaceDaemon {
         return;
       }
 
-      // Wire workspace tools and ensure sandbox directories
-      const { tools, dirs } = createAgentTools(agent.name, this.workspace!);
-      const { mkdirSync } = await import("node:fs");
-      if (dirs.workspaceSandboxDir) mkdirSync(dirs.workspaceSandboxDir, { recursive: true });
-      if (dirs.sandboxDir) mkdirSync(dirs.sandboxDir, { recursive: true });
+      // Wire workspace tools (sandbox dirs already created at init)
+      const { tools } = createAgentTools(agent.name, this.workspace!);
       if (loop.setTools) {
         loop.setTools(tools as any);
       }
