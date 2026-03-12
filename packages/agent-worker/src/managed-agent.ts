@@ -27,7 +27,12 @@ export class ManagedAgent {
     config: AgentConfig;
     workspace?: string;
     bus?: EventBus;
-    dataDir?: string;
+    /**
+     * Explicit directory for this agent's JSONL storage.
+     * - Global agents: `<dataDir>/agents/<name>`
+     * - Workspace agents: `<dataDir>/workspaces/<key>/agents/<name>`
+     */
+    agentDir?: string;
   }) {
     this.name = opts.name;
     this.kind = opts.kind;
@@ -35,11 +40,10 @@ export class ManagedAgent {
     this._workspace = opts.workspace;
 
     // Set up per-agent storage
-    if (opts.dataDir) {
-      const agentDir = join(opts.dataDir, "agents", opts.name);
-      mkdirSync(agentDir, { recursive: true });
-      this._responsesPath = join(agentDir, "responses.jsonl");
-      this._eventsPath = join(agentDir, "events.jsonl");
+    if (opts.agentDir) {
+      mkdirSync(opts.agentDir, { recursive: true });
+      this._responsesPath = join(opts.agentDir, "responses.jsonl");
+      this._eventsPath = join(opts.agentDir, "events.jsonl");
       writeFileSync(this._responsesPath, "");
       writeFileSync(this._eventsPath, "");
     }

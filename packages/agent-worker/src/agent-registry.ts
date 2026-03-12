@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import type { AgentConfig } from "@agent-worker/agent";
 import type { EventBus } from "@agent-worker/shared";
 import type { CreateAgentInput, ManagedAgentInfo } from "./types.ts";
@@ -6,6 +7,10 @@ import { ManagedAgent } from "./managed-agent.ts";
 /**
  * AgentRegistry manages agent lifecycle within the daemon.
  * Agents can be config-loaded or ephemeral (created via API).
+ *
+ * Storage is scoped by workspace:
+ * - Global agents  → `<dataDir>/agents/<name>/`
+ * - Workspace agents → `<dataDir>/workspaces/<wsKey>/agents/<name>/`
  *
  * Agents emit structured events to the shared EventBus.
  */
@@ -22,6 +27,18 @@ export class AgentRegistry {
   /** Set the data directory for per-agent storage. */
   setDataDir(dataDir: string): void {
     this._dataDir = dataDir;
+  }
+
+  /** Compute the storage directory for an agent based on its workspace scope. */
+  private agentDir(name: string, workspace?: string): string | undefined {
+    if (!this._dataDir) return undefined;
+    if (workspace) {
+      // Workspace-scoped: workspaces/<key>/agents/<name>
+      const wsDir = workspace.replace(/:/g, "--");
+      return join(this._dataDir, "workspaces", wsDir, "agents", name);
+    }
+    // Global: agents/<name>
+    return join(this._dataDir, "agents", name);
   }
 
   /** Create and register a new agent. */
@@ -44,8 +61,9 @@ export class AgentRegistry {
       name: input.name,
       kind: input.kind ?? "ephemeral",
       config,
+      workspace: input.workspace,
       bus: this._bus,
-      dataDir: this._dataDir,
+      agentDir: this.agentDir(input.name, input.workspace),
     });
 
     await handle.init();
