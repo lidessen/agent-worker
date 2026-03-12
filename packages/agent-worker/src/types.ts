@@ -60,6 +60,7 @@ export interface ManagedWorkspaceInfo {
   tag?: string;
   agents: string[];
   channels: string[];
+  default_channel: string;
   createdAt: number;
   mode: WorkspaceMode;
   status: WorkspaceStatus;

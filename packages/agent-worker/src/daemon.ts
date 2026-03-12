@@ -40,6 +40,7 @@ import { EventBus } from "@agent-worker/shared";
 import type { BusEvent } from "@agent-worker/shared";
 import { AgentRegistry } from "./agent-registry.ts";
 import { WorkspaceRegistry } from "./workspace-registry.ts";
+import { ManagedWorkspace } from "./managed-workspace.ts";
 import { DaemonEventLog } from "./event-log.ts";
 import { createLoopFromConfig } from "./loop-factory.ts";
 import { writeDaemonInfo, removeDaemonInfo, generateToken, defaultDataDir } from "./discovery.ts";
@@ -474,6 +475,30 @@ export class Daemon {
 
   // ── Workspaces ──────────────────────────────────────────────────────────
 
+  /**
+   * Resolve a workspace key to a handle. If the bare name matches multiple
+   * tagged instances, returns a 409 Conflict response. If not found, 404.
+   */
+  private resolveWorkspace(key: string): ManagedWorkspace | Response {
+    const handle = this.workspaces.get(key);
+    if (handle) return handle;
+
+    // Check if there are tagged variants
+    const matches = this.workspaces.list().filter(
+      (ws) => ws.name === key && ws.tag,
+    );
+    if (matches.length > 0) {
+      return Response.json(
+        {
+          error: `Multiple instances of "${key}" exist`,
+          instances: matches.map((m) => (m.tag ? `${m.name}:${m.tag}` : m.name)),
+        },
+        { status: 409 },
+      );
+    }
+    return Response.json({ error: `Workspace "${key}" not found` }, { status: 404 });
+  }
+
   private handleListWorkspaces(): Response {
     return Response.json({ workspaces: this.workspaces.list() });
   }
@@ -501,32 +526,15 @@ export class Daemon {
   }
 
   private handleGetWorkspace(key: string): Response {
-    // If bare name matches multiple tagged instances, return 409
-    const handle = this.workspaces.get(key);
-    if (!handle) {
-      // Check if there are tagged variants
-      const matches = this.workspaces.list().filter(
-        (ws) => ws.name === key && ws.tag,
-      );
-      if (matches.length > 0) {
-        return Response.json(
-          {
-            error: `Multiple instances of "${key}" exist`,
-            instances: matches.map((m) => (m.tag ? `${m.name}:${m.tag}` : m.name)),
-          },
-          { status: 409 },
-        );
-      }
-      return Response.json({ error: `Workspace "${key}" not found` }, { status: 404 });
-    }
-    return Response.json(handle.info);
+    const resolved = this.resolveWorkspace(key);
+    if (resolved instanceof Response) return resolved;
+    return Response.json(resolved.info);
   }
 
   private async handleWorkspaceWait(key: string, url: URL): Promise<Response> {
-    const handle = this.workspaces.get(key);
-    if (!handle) {
-      return Response.json({ error: `Workspace "${key}" not found` }, { status: 404 });
-    }
+    const resolved = this.resolveWorkspace(key);
+    if (resolved instanceof Response) return resolved;
+    const handle = resolved;
 
     const timeoutStr = url.searchParams.get("timeout") ?? "60s";
     const timeoutMs = parseDuration(timeoutStr);
@@ -564,10 +572,9 @@ export class Daemon {
   }
 
   private async handleWorkspaceSend(key: string, req: Request): Promise<Response> {
-    const handle = this.workspaces.get(key);
-    if (!handle) {
-      return Response.json({ error: `Workspace "${key}" not found` }, { status: 404 });
-    }
+    const resolved = this.resolveWorkspace(key);
+    if (resolved instanceof Response) return resolved;
+    const handle = resolved;
 
     const body = (await req.json()) as {
       content: string;
@@ -609,10 +616,9 @@ export class Daemon {
   // ── Workspace status & inbox ─────────────────────────────────────────
 
   private handleWorkspaceStatus(key: string): Response {
-    const handle = this.workspaces.get(key);
-    if (!handle) {
-      return Response.json({ error: `Workspace "${key}" not found` }, { status: 404 });
-    }
+    const resolved = this.resolveWorkspace(key);
+    if (resolved instanceof Response) return resolved;
+    const handle = resolved;
 
     const channels = handle.workspace.contextProvider.channels.listChannels();
     return Response.json({
@@ -634,19 +640,17 @@ export class Daemon {
   }
 
   private handleListChannels(key: string): Response {
-    const handle = this.workspaces.get(key);
-    if (!handle) {
-      return Response.json({ error: `Workspace "${key}" not found` }, { status: 404 });
-    }
+    const resolved = this.resolveWorkspace(key);
+    if (resolved instanceof Response) return resolved;
+    const handle = resolved;
     const channels = handle.workspace.contextProvider.channels.listChannels();
     return Response.json({ channels });
   }
 
   private async handleWorkspaceInbox(key: string, agentName: string): Promise<Response> {
-    const handle = this.workspaces.get(key);
-    if (!handle) {
-      return Response.json({ error: `Workspace "${key}" not found` }, { status: 404 });
-    }
+    const resolved = this.resolveWorkspace(key);
+    if (resolved instanceof Response) return resolved;
+    const handle = resolved;
 
     const inbox = handle.workspace.contextProvider.inbox;
     const entries = await inbox.peek(agentName);
@@ -665,10 +669,9 @@ export class Daemon {
   // ── Workspace channels ─────────────────────────────────────────────────
 
   private async handleWorkspaceChannel(key: string, ch: string, url: URL): Promise<Response> {
-    const handle = this.workspaces.get(key);
-    if (!handle) {
-      return Response.json({ error: `Workspace "${key}" not found` }, { status: 404 });
-    }
+    const resolved = this.resolveWorkspace(key);
+    if (resolved instanceof Response) return resolved;
+    const handle = resolved;
 
     const limit = parseInt(url.searchParams.get("limit") ?? "50", 10);
     const since = url.searchParams.get("since") ?? undefined;
@@ -695,10 +698,9 @@ export class Daemon {
   }
 
   private handleWorkspaceChannelStream(key: string, ch: string, _url: URL): Response {
-    const handle = this.workspaces.get(key);
-    if (!handle) {
-      return Response.json({ error: `Workspace "${key}" not found` }, { status: 404 });
-    }
+    const resolved = this.resolveWorkspace(key);
+    if (resolved instanceof Response) return resolved;
+    const handle = resolved;
 
     return this.createSSEStream((push) => {
       const listener = (msg: any) => {
@@ -722,10 +724,9 @@ export class Daemon {
   // ── Workspace events ───────────────────────────────────────────────────
 
   private async handleWorkspaceEvents(key: string, url: URL): Promise<Response> {
-    const handle = this.workspaces.get(key);
-    if (!handle) {
-      return Response.json({ error: `Workspace "${key}" not found` }, { status: 404 });
-    }
+    const resolved = this.resolveWorkspace(key);
+    if (resolved instanceof Response) return resolved;
+    const handle = resolved;
 
     const cursor = parseInt(url.searchParams.get("cursor") ?? "0", 10);
     // Filter daemon events to those related to this workspace
@@ -738,10 +739,9 @@ export class Daemon {
   }
 
   private handleWorkspaceEventsStream(key: string): Response {
-    const handle = this.workspaces.get(key);
-    if (!handle) {
-      return Response.json({ error: `Workspace "${key}" not found` }, { status: 404 });
-    }
+    const resolved = this.resolveWorkspace(key);
+    if (resolved instanceof Response) return resolved;
+    const handle = resolved;
 
     const wsKey = handle.key;
     return this.createSSEStream((push) => {
@@ -757,10 +757,9 @@ export class Daemon {
   // ── Workspace documents ────────────────────────────────────────────────
 
   private async handleListDocs(key: string): Promise<Response> {
-    const handle = this.workspaces.get(key);
-    if (!handle) {
-      return Response.json({ error: `Workspace "${key}" not found` }, { status: 404 });
-    }
+    const resolved = this.resolveWorkspace(key);
+    if (resolved instanceof Response) return resolved;
+    const handle = resolved;
 
     const docs = handle.workspace.contextProvider.documents;
     const names = await docs.list();
@@ -768,10 +767,9 @@ export class Daemon {
   }
 
   private async handleReadDoc(key: string, docName: string): Promise<Response> {
-    const handle = this.workspaces.get(key);
-    if (!handle) {
-      return Response.json({ error: `Workspace "${key}" not found` }, { status: 404 });
-    }
+    const resolved = this.resolveWorkspace(key);
+    if (resolved instanceof Response) return resolved;
+    const handle = resolved;
 
     const docs = handle.workspace.contextProvider.documents;
     const content = await docs.read(docName);
@@ -782,10 +780,9 @@ export class Daemon {
   }
 
   private async handleWriteDoc(key: string, docName: string, req: Request): Promise<Response> {
-    const handle = this.workspaces.get(key);
-    if (!handle) {
-      return Response.json({ error: `Workspace "${key}" not found` }, { status: 404 });
-    }
+    const resolved = this.resolveWorkspace(key);
+    if (resolved instanceof Response) return resolved;
+    const handle = resolved;
 
     const body = (await req.json()) as { content: string };
     if (body.content === undefined) {
@@ -798,10 +795,9 @@ export class Daemon {
   }
 
   private async handleAppendDoc(key: string, docName: string, req: Request): Promise<Response> {
-    const handle = this.workspaces.get(key);
-    if (!handle) {
-      return Response.json({ error: `Workspace "${key}" not found` }, { status: 404 });
-    }
+    const resolved = this.resolveWorkspace(key);
+    if (resolved instanceof Response) return resolved;
+    const handle = resolved;
 
     const body = (await req.json()) as { content: string };
     if (body.content === undefined) {

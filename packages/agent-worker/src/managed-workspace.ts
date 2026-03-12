@@ -53,6 +53,10 @@ export class ManagedWorkspace {
     return this._status;
   }
 
+  get defaultChannel(): string {
+    return this.resolved.def.default_channel ?? "general";
+  }
+
   get info(): ManagedWorkspaceInfo {
     const channels = this.workspace.contextProvider.channels.listChannels();
     return {
@@ -60,6 +64,7 @@ export class ManagedWorkspace {
       tag: this.tag,
       agents: this.resolved.agents.map((a) => a.name),
       channels,
+      default_channel: this.defaultChannel,
       createdAt: this.createdAt,
       mode: this.mode,
       status: this._status,
