@@ -55,8 +55,9 @@ storage: file
 `;
 
     const resolved = await loadWorkspaceDef(globalYaml);
+    // Global workspace stores at root level (channels/, inbox/ directly under dataDir)
     const config = toWorkspaceConfig(resolved, {
-      storageDir: this.workspaceDir("global"),
+      storageDir: this._dataDir,
     });
     const workspace = await createWorkspace(config);
 

@@ -114,27 +114,27 @@ When a bare agent name is used (e.g. `alice`), it resolves to the global workspa
 
 ## Storage Model
 
-All daemon state lives under a single data directory (`~/.agent-worker/` by default). Everything is scoped — global agents and workspace-scoped agents never mix, and each workspace is a self-contained directory.
+All daemon state lives under a single data directory (`~/.agent-worker/` by default). The root level is the global scope; declarative workspaces are namespaced under `workspaces/<key>/`.
 
 ```
 ~/.agent-worker/
   daemon.json                          # discovery file (pid, port, token)
   events.jsonl                         # global daemon event log
 
-  agents/                              # ── global agents only ──
+  # ── global scope (root level) ──
+  agents/                              # global agent JSONL logs
     alice/
       responses.jsonl                  # text output + send events
       events.jsonl                     # agent-level events (state, run, tool, thinking)
+  channels/                            # global workspace channels
+    general.jsonl
+  inbox/                               # global workspace inbox
+    alice.jsonl
 
+  # ── declarative workspaces ──
   workspaces/
-    global/                            # implicit workspace for standalone agents
-      channels/
-        general.jsonl
-      inbox/
-        alice.jsonl
-
-    review/                            # untagged declarative workspace
-      agents/                          # ── workspace-scoped agents ──
+    review/                            # untagged workspace (self-contained)
+      agents/                          # workspace-scoped agent logs
         reviewer/
           responses.jsonl
           events.jsonl
@@ -161,14 +161,19 @@ All daemon state lives under a single data directory (`~/.agent-worker/` by defa
 
 | Stream | Content | Written by |
 |--------|---------|-----------|
-| `agents/<name>/responses.jsonl` | text output, send events — **global agents only** | ManagedAgent event handler |
-| `agents/<name>/events.jsonl` | state_change, run_start, run_end, tool_call_*, thinking, error — **global agents only** | ManagedAgent event handler |
-| `workspaces/<key>/agents/<name>/responses.jsonl` | text output, send events — **workspace-scoped agents** | ManagedAgent event handler |
-| `workspaces/<key>/agents/<name>/events.jsonl` | state_change, run_start, run_end, tool_call_*, thinking, error — **workspace-scoped agents** | ManagedAgent event handler |
-| `workspaces/<key>/channels/<ch>.jsonl` | channel messages (from, content, ts) | Workspace channel store |
+| **Global scope** | | |
+| `agents/<name>/responses.jsonl` | text output, send events | ManagedAgent |
+| `agents/<name>/events.jsonl` | state_change, run_start, run_end, tool_call_*, thinking, error | ManagedAgent |
+| `channels/<ch>.jsonl` | global workspace channel messages | Workspace channel store |
+| `inbox/<name>.jsonl` | global workspace inbox entries | Workspace inbox store |
+| **Per-workspace scope** | | |
+| `workspaces/<key>/agents/<name>/responses.jsonl` | text output, send events | ManagedAgent |
+| `workspaces/<key>/agents/<name>/events.jsonl` | state_change, run_start, run_end, tool_call_*, thinking, error | ManagedAgent |
+| `workspaces/<key>/channels/<ch>.jsonl` | channel messages | Workspace channel store |
 | `workspaces/<key>/inbox/<name>.jsonl` | per-agent inbox entries | Workspace inbox store |
 | `workspaces/<key>/timeline/<name>.jsonl` | per-agent timeline events | Workspace timeline store |
-| `events.jsonl` | everything (global, for daemon-level `/events`) | EventBus subscriber |
+| **Daemon-wide** | | |
+| `events.jsonl` | all events (for daemon-level `/events`) | EventBus subscriber |
 
 All files are append-only JSONL. Cursor = byte offset. Survives daemon restart (files persist, daemon re-reads on startup).
 
