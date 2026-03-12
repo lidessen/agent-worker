@@ -28,8 +28,8 @@ export async function peek(args: string[]): Promise<void> {
         console.log(`[${msg.from}] ${msg.content}`);
       }
     } else if (target.agent) {
-      // Read agent responses from start
-      const result = await client.readResponses(target.agent, { cursor: 0 });
+      // Read agent responses from start (optionally scoped to workspace)
+      const result = await client.readResponses(target.agent, { cursor: 0, workspace: target.workspace });
       for (const entry of result.entries) {
         if ((entry as any).text) {
           console.log((entry as any).text);

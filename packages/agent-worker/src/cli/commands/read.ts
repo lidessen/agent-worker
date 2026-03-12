@@ -37,8 +37,8 @@ export async function read(args: string[]): Promise<void> {
         if (Date.now() >= deadline) break;
       }
     } else if (target.agent) {
-      // Agent responses stream
-      const stream = await client.streamResponses(target.agent);
+      // Agent responses stream (optionally scoped to workspace)
+      const stream = await client.streamResponses(target.agent, { workspace: target.workspace });
       for await (const entry of stream) {
         printEntry(entry, json);
         if (++received >= count) break;

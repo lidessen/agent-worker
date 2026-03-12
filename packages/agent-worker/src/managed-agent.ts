@@ -20,6 +20,8 @@ export class ManagedAgent {
   private _workspace?: string;
   private _responsesPath?: string;
   private _eventsPath?: string;
+  private _inboxPath?: string;
+  private _timelinePath?: string;
 
   constructor(opts: {
     name: string;
@@ -44,8 +46,12 @@ export class ManagedAgent {
       mkdirSync(opts.agentDir, { recursive: true });
       this._responsesPath = join(opts.agentDir, "responses.jsonl");
       this._eventsPath = join(opts.agentDir, "events.jsonl");
+      this._inboxPath = join(opts.agentDir, "inbox.jsonl");
+      this._timelinePath = join(opts.agentDir, "timeline.jsonl");
       if (!existsSync(this._responsesPath)) writeFileSync(this._responsesPath, "");
       if (!existsSync(this._eventsPath)) writeFileSync(this._eventsPath, "");
+      if (!existsSync(this._inboxPath)) writeFileSync(this._inboxPath, "");
+      if (!existsSync(this._timelinePath)) writeFileSync(this._timelinePath, "");
     }
 
     // Inject bus into Agent config so it emits structured events directly
@@ -68,6 +74,7 @@ export class ManagedAgent {
 
     this.agent.on("stateChange", (state: AgentState) => {
       this._appendEvent({ type: "state_change", state });
+      this._appendTimeline({ type: "state_change", state });
     });
 
     this.agent.on("messageReceived", (msg) => {
@@ -77,10 +84,17 @@ export class ManagedAgent {
         from: msg.from,
         content: msg.content,
       });
+      this._appendInbox({
+        type: "received",
+        id: msg.id,
+        from: msg.from,
+        content: msg.content,
+      });
     });
 
     this.agent.on("runStart", (info) => {
       this._appendEvent({ type: "run_start", runNumber: info.runNumber, trigger: info.trigger });
+      this._appendTimeline({ type: "run_start", runNumber: info.runNumber, trigger: info.trigger });
     });
 
     this.agent.on("runEnd", (result) => {
@@ -89,6 +103,7 @@ export class ManagedAgent {
         durationMs: result.durationMs,
         tokens: result.usage.totalTokens,
       });
+      this._appendTimeline({ type: "run_end", durationMs: result.durationMs, tokens: result.usage.totalTokens });
     });
 
     this.agent.on("event", (event: LoopEvent) => {
@@ -112,6 +127,7 @@ export class ManagedAgent {
 
     this.agent.on("send", (target, content) => {
       this._appendResponse({ type: "send", target, content });
+      this._appendTimeline({ type: "send", target, content });
     });
 
     this.agent.on("contextAssembled", (prompt) => {
@@ -135,6 +151,18 @@ export class ManagedAgent {
     appendFileSync(this._eventsPath, line);
   }
 
+  private _appendInbox(entry: Record<string, unknown>): void {
+    if (!this._inboxPath) return;
+    const line = JSON.stringify({ ts: Date.now(), ...entry }) + "\n";
+    appendFileSync(this._inboxPath, line);
+  }
+
+  private _appendTimeline(entry: Record<string, unknown>): void {
+    if (!this._timelinePath) return;
+    const line = JSON.stringify({ ts: Date.now(), ...entry }) + "\n";
+    appendFileSync(this._timelinePath, line);
+  }
+
   /** Read responses from byte offset. */
   async readResponses(cursor = 0): Promise<{ entries: DaemonEvent[]; cursor: number }> {
     if (!this._responsesPath) return { entries: [], cursor: 0 };
@@ -146,6 +174,20 @@ export class ManagedAgent {
   async readEvents(cursor = 0): Promise<{ entries: DaemonEvent[]; cursor: number }> {
     if (!this._eventsPath) return { entries: [], cursor: 0 };
     const { data, cursor: newCursor } = await readFrom(this._eventsPath, cursor);
+    return { entries: parseJsonl<DaemonEvent>(data), cursor: newCursor };
+  }
+
+  /** Read inbox from byte offset. */
+  async readInbox(cursor = 0): Promise<{ entries: DaemonEvent[]; cursor: number }> {
+    if (!this._inboxPath) return { entries: [], cursor: 0 };
+    const { data, cursor: newCursor } = await readFrom(this._inboxPath, cursor);
+    return { entries: parseJsonl<DaemonEvent>(data), cursor: newCursor };
+  }
+
+  /** Read timeline from byte offset. */
+  async readTimeline(cursor = 0): Promise<{ entries: DaemonEvent[]; cursor: number }> {
+    if (!this._timelinePath) return { entries: [], cursor: 0 };
+    const { data, cursor: newCursor } = await readFrom(this._timelinePath, cursor);
     return { entries: parseJsonl<DaemonEvent>(data), cursor: newCursor };
   }
 
@@ -171,6 +213,7 @@ export class ManagedAgent {
 
   /** Send a message to this agent's inbox. */
   push(message: { content: string; from?: string }): void {
+    this._appendInbox({ type: "push", from: message.from, content: message.content });
     this.agent.push(message);
   }
 

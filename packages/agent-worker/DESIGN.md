@@ -463,8 +463,14 @@ POST   /workspaces/:key/send        → send to workspace
          body: { content, from?, agent?, channel? }
          → { sent: true, routed_to: string }
 
-GET    /workspaces/:key/channels/:ch?cursor=N&agent=<name>
-         → { entries: ChannelMessage[], cursor: number }
+GET    /workspaces/:key/status           → workspace status + agent summary
+GET    /workspaces/:key/channels         → { channels: string[] }
+GET    /workspaces/:key/inbox/:agent     → { agent, entries: InboxEntry[] }
+
+GET    /workspaces/:key/channels/:ch?limit=N&since=<iso>&agent=<name>
+         → { channel: string, messages: ChannelMessage[] }
+         limit: max messages (default 50)
+         since: ISO timestamp filter
          agent: optional filter (messages from/to agent)
 GET    /workspaces/:key/channels/:ch/stream?agent=<name>
          → SSE: real-time channel messages (optionally filtered)
@@ -495,36 +501,41 @@ export class AwClient {
   /** Connect using daemon discovery file (~/.agent-worker/daemon.json). */
   static async discover(dataDir?: string): Promise<AwClient>;
 
+  /** Create from DaemonInfo directly. */
+  static fromInfo(info: DaemonInfo): AwClient;
+
   // Daemon
   health(): Promise<HealthInfo>;
   shutdown(): Promise<void>;
-  readEvents(cursor?: number): Promise<EventsResult>;
+  readEvents(cursor?: number): Promise<CursorResult<DaemonEvent>>;
+  streamEvents(cursor?: number): Promise<AsyncIterable<DaemonEvent>>;
 
   // Agents
-  listAgents(): Promise<AgentInfo[]>;
-  createAgent(name: string, runtime: RuntimeConfig): Promise<AgentInfo>;
-  getAgent(name: string): Promise<AgentInfo>;
+  listAgents(): Promise<ManagedAgentInfo[]>;
+  createAgent(name: string, runtime: RuntimeConfig): Promise<ManagedAgentInfo>;
+  getAgent(name: string): Promise<ManagedAgentInfo>;
   removeAgent(name: string): Promise<void>;
-  sendToAgent(name: string, messages: SendMessage[]): Promise<SendResult>;
-  readResponses(name: string, opts?: { cursor?: number; workspace?: string }): Promise<ResponsesResult>;
-  readAgentEvents(name: string, cursor?: number): Promise<EventsResult>;
+  sendToAgent(name: string, messages: Array<{ content: string; from?: string; delayMs?: number }>): Promise<SendResult>;
+  readResponses(name: string, opts?: { cursor?: number; workspace?: string }): Promise<CursorResult<DaemonEvent>>;
+  readAgentEvents(name: string, cursor?: number): Promise<CursorResult<DaemonEvent>>;
   getAgentState(name: string): Promise<AgentStateResult>;
-  // SSE streams (return AsyncIterable that yields parsed events)
-  streamResponses(name: string, opts?: { cursor?: number; workspace?: string }): AsyncIterable<ResponseEntry>;
-  streamAgentEvents(name: string, cursor?: number): AsyncIterable<AgentEvent>;
-  streamEvents(cursor?: number): AsyncIterable<DaemonEvent>;
+  streamResponses(name: string, opts?: { cursor?: number; workspace?: string }): Promise<AsyncIterable<DaemonEvent>>;
+  streamAgentEvents(name: string, cursor?: number): Promise<AsyncIterable<DaemonEvent>>;
 
   // Workspaces
-  listWorkspaces(): Promise<WorkspaceInfo[]>;
-  startWorkspace(source: string, opts?: { tag?: string; vars?: Record<string, string>; mode?: "service" | "task" }): Promise<WorkspaceInfo>;
-  waitWorkspace(key: string, timeout?: string): Promise<{ status: string; result?: WorkspaceResult }>;
-  getWorkspace(key: string): Promise<WorkspaceInfo>;
+  listWorkspaces(): Promise<ManagedWorkspaceInfo[]>;
+  startWorkspace(source: string, opts?: { tag?: string; vars?: Record<string, string>; mode?: "service" | "task" }): Promise<ManagedWorkspaceInfo>;
+  waitWorkspace(key: string, timeout?: string): Promise<{ status: string; result?: Record<string, unknown> }>;
+  getWorkspace(key: string): Promise<ManagedWorkspaceInfo>;
+  getWorkspaceStatus(key: string): Promise<Record<string, unknown>>;
+  listChannels(key: string): Promise<string[]>;
+  peekInbox(key: string, agent: string): Promise<any[]>;
   stopWorkspace(key: string): Promise<void>;
   sendToWorkspace(key: string, opts: { content: string; from?: string; agent?: string; channel?: string }): Promise<SendResult>;
-  readChannel(key: string, channel: string, opts?: { cursor?: number; agent?: string }): Promise<ChannelResult>;
-  streamChannel(key: string, channel: string, opts?: { cursor?: number; agent?: string }): AsyncIterable<ChannelMessage>;
-  readWorkspaceEvents(key: string, cursor?: number): Promise<EventsResult>;
-  streamWorkspaceEvents(key: string, cursor?: number): AsyncIterable<WorkspaceEvent>;
+  readChannel(key: string, channel: string, opts?: { limit?: number; since?: string; agent?: string }): Promise<{ channel: string; messages: ChannelMessage[] }>;
+  streamChannel(key: string, channel: string, opts?: { agent?: string }): Promise<AsyncIterable<DaemonEvent>>;
+  readWorkspaceEvents(key: string, cursor?: number): Promise<CursorResult<DaemonEvent>>;
+  streamWorkspaceEvents(key: string, cursor?: number): Promise<AsyncIterable<DaemonEvent>>;
 
   // Documents
   listDocs(workspace: string): Promise<DocInfo[]>;

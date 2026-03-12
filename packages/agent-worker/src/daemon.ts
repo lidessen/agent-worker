@@ -537,11 +537,16 @@ export class Daemon {
       const status = handle.checkCompletion();
       if (status !== "running") {
         handle.complete(status);
+        const result = {
+          workspace: handle.key,
+          agents: handle.resolved.agents.map((a) => a.name),
+          mode: handle.mode,
+        };
         // Auto-remove task workspaces on completion
         if (handle.mode === "task") {
           try { await this.workspaces.remove(key); } catch { /* already removed */ }
         }
-        return Response.json({ status });
+        return Response.json({ status, result });
       }
       await new Promise((r) => setTimeout(r, 500));
     }
@@ -758,8 +763,8 @@ export class Daemon {
     }
 
     const docs = handle.workspace.contextProvider.documents;
-    const list = await docs.list();
-    return Response.json({ docs: list });
+    const names = await docs.list();
+    return Response.json({ docs: names.map((name: string) => ({ name })) });
   }
 
   private async handleReadDoc(key: string, docName: string): Promise<Response> {
