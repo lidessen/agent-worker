@@ -122,56 +122,57 @@ All daemon state lives under a single data directory (`~/.agent-worker/` by defa
   events.jsonl                         # global daemon event log
 
   # ── global scope (root level) ──
-  agents/                              # global agent JSONL logs
+  agents/                              # all per-agent data grouped by name
     alice/
       responses.jsonl                  # text output + send events
       events.jsonl                     # agent-level events (state, run, tool, thinking)
+      inbox.jsonl                      # agent inbox
+      timeline.jsonl                   # agent timeline
   channels/                            # global workspace channels
     general.jsonl
-  inbox/                               # global workspace inbox
-    alice.jsonl
 
   # ── declarative workspaces ──
   workspaces/
     review/                            # untagged workspace (self-contained)
-      agents/                          # workspace-scoped agent logs
+      agents/
         reviewer/
           responses.jsonl
           events.jsonl
+          inbox.jsonl
+          timeline.jsonl
       channels/
         general.jsonl                  # channel message log
         design.jsonl
-      inbox/
-        reviewer.jsonl                 # per-agent inbox
-      timeline/
-        reviewer.jsonl                 # per-agent event log
 
     review--pr-42/                     # tagged: ":" encoded as "--" on disk
       agents/
         reviewer/
           responses.jsonl
           events.jsonl
+          inbox.jsonl
+          timeline.jsonl
       channels/
         general.jsonl
-      inbox/
-        reviewer.jsonl
 ```
 
 ### What goes where
+
+All per-agent data lives under `agents/<name>/` — whether at root level (global) or under a workspace.
 
 | Stream | Content | Written by |
 |--------|---------|-----------|
 | **Global scope** | | |
 | `agents/<name>/responses.jsonl` | text output, send events | ManagedAgent |
 | `agents/<name>/events.jsonl` | state_change, run_start, run_end, tool_call_*, thinking, error | ManagedAgent |
+| `agents/<name>/inbox.jsonl` | inbox entries | Workspace inbox store |
+| `agents/<name>/timeline.jsonl` | timeline events | Workspace timeline store |
 | `channels/<ch>.jsonl` | global workspace channel messages | Workspace channel store |
-| `inbox/<name>.jsonl` | global workspace inbox entries | Workspace inbox store |
 | **Per-workspace scope** | | |
 | `workspaces/<key>/agents/<name>/responses.jsonl` | text output, send events | ManagedAgent |
 | `workspaces/<key>/agents/<name>/events.jsonl` | state_change, run_start, run_end, tool_call_*, thinking, error | ManagedAgent |
+| `workspaces/<key>/agents/<name>/inbox.jsonl` | inbox entries | Workspace inbox store |
+| `workspaces/<key>/agents/<name>/timeline.jsonl` | timeline events | Workspace timeline store |
 | `workspaces/<key>/channels/<ch>.jsonl` | channel messages | Workspace channel store |
-| `workspaces/<key>/inbox/<name>.jsonl` | per-agent inbox entries | Workspace inbox store |
-| `workspaces/<key>/timeline/<name>.jsonl` | per-agent timeline events | Workspace timeline store |
 | **Daemon-wide** | | |
 | `events.jsonl` | all events (for daemon-level `/events`) | EventBus subscriber |
 

@@ -5,7 +5,7 @@ export class TimelineStore implements TimelineStoreInterface {
   constructor(private readonly storage: StorageBackend) {}
 
   private timelinePath(agentName: string): string {
-    return `timeline/${agentName}.jsonl`;
+    return `agents/${agentName}/timeline.jsonl`;
   }
 
   async append(partial: Omit<TimelineEvent, "id" | "timestamp">): Promise<TimelineEvent> {
