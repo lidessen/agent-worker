@@ -1,3 +1,4 @@
+import { writeFileSync } from "node:fs";
 import type { Workspace } from "@agent-worker/workspace";
 import type { WorkspaceAgentLoop } from "@agent-worker/workspace";
 import type { ResolvedWorkspace } from "@agent-worker/workspace";
@@ -19,6 +20,7 @@ export class ManagedWorkspace {
 
   private _bus?: EventBus;
   private _status: WorkspaceStatus = "running";
+  private _statusPath?: string;
 
   constructor(opts: {
     workspace: Workspace;
@@ -27,6 +29,8 @@ export class ManagedWorkspace {
     tag?: string;
     mode?: WorkspaceMode;
     bus?: EventBus;
+    /** Path to status.json for persistence. */
+    statusPath?: string;
   }) {
     this.name = opts.resolved.def.name;
     this.tag = opts.tag;
@@ -36,6 +40,8 @@ export class ManagedWorkspace {
     this.resolved = opts.resolved;
     this.loops = opts.loops;
     this._bus = opts.bus;
+    this._statusPath = opts.statusPath;
+    this._persistStatus();
   }
 
   /** Unique key: "name" or "name:tag". */
@@ -98,9 +104,27 @@ export class ManagedWorkspace {
     return "completed";
   }
 
+  /** Persist current status to status.json. */
+  private _persistStatus(): void {
+    if (!this._statusPath) return;
+    const data = {
+      workspace: this.key,
+      status: this._status,
+      agents: this.resolved.agents.map((a) => ({
+        name: a.name,
+        runtime: a.runtime ?? "mock",
+      })),
+      updatedAt: Date.now(),
+    };
+    try {
+      writeFileSync(this._statusPath, JSON.stringify(data, null, 2) + "\n");
+    } catch { /* best effort */ }
+  }
+
   /** Mark this workspace as completed or failed. */
   complete(status: "completed" | "failed"): void {
     this._status = status;
+    this._persistStatus();
     this._bus?.emit({
       type: `workspace.${status}`,
       source: "workspace",

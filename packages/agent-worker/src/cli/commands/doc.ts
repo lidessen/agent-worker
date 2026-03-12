@@ -19,8 +19,8 @@ export async function doc(args: string[]): Promise<void> {
         if (docs.length === 0) {
           console.log("No documents");
         } else {
-          for (const name of docs) {
-            console.log(name);
+          for (const doc of docs) {
+            console.log(doc.name);
           }
         }
         break;

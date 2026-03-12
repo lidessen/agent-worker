@@ -117,7 +117,7 @@ describe("Unified daemon (workspace routes)", () => {
 
     // List docs (should have 1)
     const docs2 = await client.listDocs("test-ws");
-    expect(docs2).toContain("spec.md");
+    expect(docs2.map((d) => d.name)).toContain("spec.md");
   });
 
   test("lists channels", async () => {

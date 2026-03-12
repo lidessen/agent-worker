@@ -66,6 +66,7 @@ storage: file
       resolved,
       loops: [],
       bus: this._bus,
+      statusPath: join(this._dataDir, "status.json"),
     });
 
     return this._defaultWorkspace;
@@ -130,6 +131,7 @@ storage: file
       loops.push(loop);
     }
 
+    const actualStorageDir = storageDir ?? this.workspaceDir(key);
     const handle = new ManagedWorkspace({
       workspace,
       resolved,
@@ -137,6 +139,7 @@ storage: file
       tag: input.tag,
       mode: input.mode,
       bus: this._bus,
+      statusPath: join(actualStorageDir, "status.json"),
     });
 
     this.workspaces.set(key, handle);

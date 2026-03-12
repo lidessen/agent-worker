@@ -262,7 +262,7 @@ export class AwClient {
     });
   }
 
-  async waitWorkspace(key: string, timeout?: string): Promise<{ status: string }> {
+  async waitWorkspace(key: string, timeout?: string): Promise<{ status: string; result?: Record<string, unknown> }> {
     const q = timeout ? `?timeout=${timeout}` : "";
     return this.request(`/workspaces/${encodeURIComponent(key)}/wait${q}`);
   }
@@ -346,8 +346,8 @@ export class AwClient {
 
   // ── Documents ───────────────────────────────────────────────────────
 
-  async listDocs(workspace: string): Promise<string[]> {
-    const res = await this.request<{ docs: string[] }>(
+  async listDocs(workspace: string): Promise<DocInfo[]> {
+    const res = await this.request<{ docs: DocInfo[] }>(
       `/workspaces/${encodeURIComponent(workspace)}/docs`,
     );
     return res.docs;
