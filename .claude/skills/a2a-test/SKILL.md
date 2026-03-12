@@ -17,35 +17,40 @@ All a2a test procedures are documented as markdown:
 
 ## How to run
 
-A2A tests are run manually using the `aw` CLI:
+A2A tests are run manually using the unified `aw` CLI (packages/agent-worker/src/cli/index.ts):
 
 ```bash
-# 1. Start the daemon (pick a runtime/model)
-aw start --model anthropic:claude-haiku-4-5-20251001
-aw start --runtime claude-code --model sonnet
-aw start --runtime codex
-aw start --runtime cursor
+# 1. Start the daemon
+aw up
 
-# 2. Send messages and observe behavior
-aw send "Reply with exactly: HELLO_A2A_TEST"
-aw recv          # View responses
-aw log --json    # View debug events
-aw state         # View agent state
+# 2. Create an agent with a specific runtime
+aw create test-agent --runtime ai-sdk --model anthropic:claude-haiku-4-5-20251001
+aw create test-agent --runtime claude-code --model sonnet
+aw create test-agent --runtime codex
+aw create test-agent --runtime cursor
+aw create test-agent --runtime mock   # test without API keys
 
-# 3. Stop the daemon
-aw stop
+# 3. Send messages and observe behavior
+aw send test-agent "Reply with exactly: HELLO_A2A_TEST"
+aw read test-agent     # View responses
+aw log --json          # View debug events
+aw state test-agent    # View agent state
+
+# 4. Clean up
+aw rm test-agent       # Remove agent
+aw down                # Stop daemon
 ```
 
 ## Test flow
 
 For each runtime, verify in order:
 
-1. **Preflight** — Daemon starts successfully (API key / CLI available)
+1. **Preflight** — Daemon starts successfully (`aw up`), agent created (`aw create`)
 2. **Simple prompt** — Send a trivial prompt, verify text response contains marker
 3. **Event structure** — `aw log --json` entries have correct type/shape
 4. **Result structure** — `run_end` has durationMs > 0, usage tracking (where supported)
-5. **Status transitions** — `aw log --follow` shows idle → processing → idle
-6. **Cancel** — `aw stop` during processing terminates cleanly
+5. **Status transitions** — `aw log -f` shows idle → processing → idle
+6. **Cancel** — `aw rm` during processing terminates cleanly
 7. **Tool calls** — `tool_call_start`/`tool_call_end` pairing (where supported)
 
 ## Unit tests (separate from a2a)

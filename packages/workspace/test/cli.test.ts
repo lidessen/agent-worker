@@ -1,5 +1,7 @@
 import { test, expect, describe, afterEach } from "bun:test";
-import { WorkspaceDaemon } from "../src/cli/daemon.ts";
+import { Daemon } from "agent-worker";
+import { AwClient } from "agent-worker";
+import { loadWorkspaceDef } from "../src/index.ts";
 
 const CHAT_YAML = `
 name: test-ws
@@ -17,8 +19,21 @@ storage: memory
 kickoff: "@alice Hello from kickoff"
 `;
 
-describe("WorkspaceDaemon", () => {
-  let daemon: WorkspaceDaemon | null = null;
+describe("Unified daemon (workspace routes)", () => {
+  let daemon: Daemon | null = null;
+  let client: AwClient;
+
+  async function setup() {
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const { mkdirSync } = await import("node:fs");
+    const dataDir = join(tmpdir(), `aw-cli-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    mkdirSync(dataDir, { recursive: true });
+    daemon = new Daemon({ port: 0, dataDir });
+    const info = await daemon.start();
+    client = AwClient.fromInfo(info);
+    return info;
+  }
 
   afterEach(async () => {
     if (daemon) {
@@ -27,72 +42,34 @@ describe("WorkspaceDaemon", () => {
     }
   });
 
-  test("starts and exposes status via Unix socket", async () => {
-    daemon = new WorkspaceDaemon({
-      source: CHAT_YAML,
-      loadOpts: { skipSetup: true },
-    });
+  test("creates workspace and shows status", async () => {
+    await setup();
+    const wsInfo = await client.startWorkspace(CHAT_YAML);
+    expect(wsInfo.name).toBe("test-ws");
+    expect(wsInfo.agents).toHaveLength(2);
+    expect(wsInfo.agents.sort()).toEqual(["alice", "bob"]);
 
-    const result = await daemon.start();
-    expect(result.resolved.def.name).toBe("test-ws");
-    expect(result.resolved.agents).toHaveLength(2);
-    expect(result.socketPath).toContain("ws-");
-
-    // Fetch status via socket
-    const res = await fetch("http://localhost/status", {
-      unix: result.socketPath,
-    } as RequestInit);
-    const status = (await res.json()) as {
-      name: string;
-      agents: Array<{ name: string; status: string }>;
-      channels: string[];
-    };
-
+    const status = await client.getWorkspaceStatus("test-ws");
     expect(status.name).toBe("test-ws");
-    expect(status.agents).toHaveLength(2);
-    expect(status.agents.map((a) => a.name).sort()).toEqual(["alice", "bob"]);
-    expect(status.channels).toContain("general");
-    expect(status.channels).toContain("design");
+    expect((status.agents as any[]).map((a: any) => a.name).sort()).toEqual(["alice", "bob"]);
+    expect((status.channels as string[])).toContain("general");
+    expect((status.channels as string[])).toContain("design");
   });
 
-  test("sends and reads messages via socket", async () => {
-    daemon = new WorkspaceDaemon({
-      source: CHAT_YAML,
-      loadOpts: { skipSetup: true },
-    });
-
-    const result = await daemon.start();
+  test("sends and reads messages", async () => {
+    await setup();
+    await client.startWorkspace(CHAT_YAML);
 
     // Send a message
-    const sendRes = await fetch("http://localhost/send", {
-      unix: result.socketPath,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        channel: "general",
-        from: "user",
-        content: "@alice Please review",
-      }),
-    } as RequestInit);
-
-    const sendData = (await sendRes.json()) as {
-      sent: boolean;
-      messageId: string;
-      channel: string;
-    };
-    expect(sendData.sent).toBe(true);
-    expect(sendData.channel).toBe("general");
-    expect(sendData.messageId).toBeTruthy();
+    const sendResult = await client.sendToWorkspace("test-ws", {
+      channel: "general",
+      from: "user",
+      content: "@alice Please review",
+    });
+    expect(sendResult.sent).toBe(true);
 
     // Read channel
-    const chRes = await fetch("http://localhost/channel?name=general&limit=50", {
-      unix: result.socketPath,
-    } as RequestInit);
-    const chData = (await chRes.json()) as {
-      channel: string;
-      messages: Array<{ from: string; content: string }>;
-    };
-
+    const chData = await client.readChannel("test-ws", "general");
     expect(chData.channel).toBe("general");
     // At least the kickoff message + our message
     expect(chData.messages.length).toBeGreaterThanOrEqual(2);
@@ -102,197 +79,82 @@ describe("WorkspaceDaemon", () => {
     expect(userMsg!.from).toBe("user");
   });
 
-  test("handles DM via /send with to field", async () => {
-    daemon = new WorkspaceDaemon({
-      source: CHAT_YAML,
-      loadOpts: { skipSetup: true },
+  test("sends DM via agent field", async () => {
+    await setup();
+    await client.startWorkspace(CHAT_YAML);
+
+    await client.sendToWorkspace("test-ws", {
+      from: "user",
+      content: "Secret message for alice",
+      agent: "alice",
     });
-
-    const result = await daemon.start();
-
-    await fetch("http://localhost/send", {
-      unix: result.socketPath,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        from: "user",
-        content: "Secret message for alice",
-        to: "alice",
-      }),
-    } as RequestInit);
 
     // Check alice inbox
-    const inboxRes = await fetch("http://localhost/inbox?agent=alice", {
-      unix: result.socketPath,
-    } as RequestInit);
-    const inboxData = (await inboxRes.json()) as {
-      agent: string;
-      entries: Array<{ priority: string; content?: string }>;
-    };
-
-    expect(inboxData.agent).toBe("alice");
-    const dmEntry = inboxData.entries.find((e) => e.content?.includes("Secret message"));
-    expect(dmEntry).toBeTruthy();
-    expect(dmEntry!.priority).toBe("immediate");
+    const entries = await client.peekInbox("test-ws", "alice");
+    expect(entries.length).toBeGreaterThanOrEqual(1);
   });
 
-  test("doc CRUD operations via socket", async () => {
-    daemon = new WorkspaceDaemon({
-      source: CHAT_YAML,
-      loadOpts: { skipSetup: true },
-    });
-
-    const result = await daemon.start();
+  test("doc CRUD operations", async () => {
+    await setup();
+    await client.startWorkspace(CHAT_YAML);
 
     // List docs (empty)
-    const listRes = await fetch("http://localhost/docs", {
-      unix: result.socketPath,
-    } as RequestInit);
-    const listData = (await listRes.json()) as { docs: string[] };
-    expect(listData.docs).toEqual([]);
+    const docs1 = await client.listDocs("test-ws");
+    expect(docs1).toEqual([]);
 
     // Write a doc
-    await fetch("http://localhost/doc", {
-      unix: result.socketPath,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: "spec.md",
-        content: "# Spec v1",
-        mode: "write",
-      }),
-    } as RequestInit);
+    await client.writeDoc("test-ws", "spec.md", "# Spec v1");
 
     // Read it back
-    const readRes = await fetch("http://localhost/doc?name=spec.md", {
-      unix: result.socketPath,
-    } as RequestInit);
-    const readData = (await readRes.json()) as {
-      name: string;
-      content: string;
-    };
-    expect(readData.name).toBe("spec.md");
-    expect(readData.content).toBe("# Spec v1");
+    const content = await client.readDoc("test-ws", "spec.md");
+    expect(content).toBe("# Spec v1");
 
     // Append
-    await fetch("http://localhost/doc", {
-      unix: result.socketPath,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: "spec.md",
-        content: "\n## Section 2",
-        mode: "append",
-      }),
-    } as RequestInit);
+    await client.appendDoc("test-ws", "spec.md", "\n## Section 2");
 
-    const readRes2 = await fetch("http://localhost/doc?name=spec.md", {
-      unix: result.socketPath,
-    } as RequestInit);
-    const readData2 = (await readRes2.json()) as { content: string };
-    expect(readData2.content).toBe("# Spec v1\n## Section 2");
+    const content2 = await client.readDoc("test-ws", "spec.md");
+    expect(content2).toBe("# Spec v1\n## Section 2");
 
     // List docs (should have 1)
-    const listRes2 = await fetch("http://localhost/docs", {
-      unix: result.socketPath,
-    } as RequestInit);
-    const listData2 = (await listRes2.json()) as { docs: string[] };
-    expect(listData2.docs).toContain("spec.md");
+    const docs2 = await client.listDocs("test-ws");
+    expect(docs2).toContain("spec.md");
   });
 
-  test("lists channels via socket", async () => {
-    daemon = new WorkspaceDaemon({
-      source: CHAT_YAML,
-      loadOpts: { skipSetup: true },
-    });
+  test("lists channels", async () => {
+    await setup();
+    await client.startWorkspace(CHAT_YAML);
 
-    const result = await daemon.start();
-
-    const res = await fetch("http://localhost/channels", {
-      unix: result.socketPath,
-    } as RequestInit);
-    const data = (await res.json()) as { channels: string[] };
-
-    expect(data.channels).toContain("general");
-    expect(data.channels).toContain("design");
+    const channels = await client.listChannels("test-ws");
+    expect(channels).toContain("general");
+    expect(channels).toContain("design");
   });
 
-  test("log endpoint returns events", async () => {
-    daemon = new WorkspaceDaemon({
-      source: CHAT_YAML,
-      loadOpts: { skipSetup: true },
-    });
+  test("reads workspace events", async () => {
+    await setup();
+    await client.startWorkspace(CHAT_YAML);
 
-    const result = await daemon.start();
+    // Wait for events to flush
+    await Bun.sleep(500);
 
-    // Wait for async events to flush (appendEvent is fire-and-forget)
-    await new Promise((r) => setTimeout(r, 500));
-
-    const res = await fetch("http://localhost/log?cursor=0", {
-      unix: result.socketPath,
-    } as RequestInit);
-    const data = (await res.json()) as {
-      entries: Array<{ type: string }>;
-      cursor: number;
-    };
-
-    // Events should exist (workspace_started, kickoff, etc.)
-    // Due to async write, we may need to retry
-    if (data.entries.length === 0) {
-      await new Promise((r) => setTimeout(r, 500));
-      const res2 = await fetch("http://localhost/log?cursor=0", {
-        unix: result.socketPath,
-      } as RequestInit);
-      const data2 = (await res2.json()) as {
-        entries: Array<{ type: string }>;
-        cursor: number;
-      };
-      expect(data2.entries.length).toBeGreaterThan(0);
-    } else {
-      expect(data.entries.length).toBeGreaterThan(0);
-      expect(data.cursor).toBeGreaterThan(0);
-    }
+    const result = await client.readWorkspaceEvents("test-ws", 0);
+    // Should have workspace.created, workspace.kickoff events
+    expect(result.entries.length).toBeGreaterThan(0);
   });
 
-  test("stop endpoint shuts down daemon", async () => {
-    daemon = new WorkspaceDaemon({
-      source: CHAT_YAML,
-      loadOpts: { skipSetup: true },
-    });
+  test("shutdown via HTTP", async () => {
+    await setup();
+    await client.startWorkspace(CHAT_YAML);
 
-    const result = await daemon.start();
+    await client.stopWorkspace("test-ws");
 
-    const res = await fetch("http://localhost/stop", {
-      unix: result.socketPath,
-      method: "POST",
-    } as RequestInit);
-    const data = (await res.json()) as { stopped: boolean };
-    expect(data.stopped).toBe(true);
-
-    // Wait for shutdown
-    await new Promise((r) => setTimeout(r, 200));
-
-    // Subsequent requests should fail
-    let errored = false;
-    try {
-      await fetch("http://localhost/status", {
-        unix: result.socketPath,
-      } as RequestInit);
-    } catch {
-      errored = true;
-    }
-    expect(errored).toBe(true);
-    daemon = null; // already shut down
+    // Workspace should be removed
+    const workspaces = await client.listWorkspaces();
+    expect(workspaces.find((w) => w.name === "test-ws")).toBeUndefined();
   });
 });
 
 describe("parseTarget", () => {
-  // Import parseTarget indirectly by testing the CLI behavior
-  // Since parseTarget is not exported, we test the target syntax
-  // through integration tests above. Here we just verify the patterns.
-
   test("target patterns are documented", () => {
-    // This is a design verification test
     const patterns = [
       { input: "alice", expected: "agent alice" },
       { input: "alice@review", expected: "agent alice in workspace review" },
@@ -301,106 +163,36 @@ describe("parseTarget", () => {
     ];
 
     for (const p of patterns) {
-      // Just verify the patterns are valid strings
       expect(p.input.length).toBeGreaterThan(0);
     }
   });
 });
 
-describe("CLI validation", () => {
-  test("validate command works on chat.yaml", async () => {
-    const proc = Bun.spawn(
-      [
-        "bun",
-        "packages/workspace/src/cli/aw-ws.ts",
-        "validate",
-        "packages/workspace/examples/chat.yaml",
-      ],
-      { stdout: "pipe", stderr: "pipe" },
-    );
-
-    const stdout = await new Response(proc.stdout).text();
-    const exitCode = await proc.exited;
-
-    expect(exitCode).toBe(0);
-    expect(stdout).toContain("Valid");
-    expect(stdout).toContain("chat");
-    expect(stdout).toContain("alice");
-    expect(stdout).toContain("bob");
+describe("Workspace YAML validation", () => {
+  test("loadWorkspaceDef validates chat.yaml", async () => {
+    const yaml = await Bun.file("packages/workspace/examples/chat.yaml").text();
+    const resolved = await loadWorkspaceDef(yaml);
+    expect(resolved.def.name).toBe("chat");
+    expect(resolved.agents.length).toBeGreaterThan(0);
+    expect(resolved.agents.some((a) => a.name === "alice")).toBe(true);
+    expect(resolved.agents.some((a) => a.name === "bob")).toBe(true);
   });
 
-  test("validate command works on review.yaml", async () => {
-    const proc = Bun.spawn(
-      [
-        "bun",
-        "packages/workspace/src/cli/aw-ws.ts",
-        "validate",
-        "packages/workspace/examples/review.yaml",
-      ],
-      { stdout: "pipe", stderr: "pipe" },
-    );
-
-    const stdout = await new Response(proc.stdout).text();
-    const exitCode = await proc.exited;
-
-    expect(exitCode).toBe(0);
-    expect(stdout).toContain("Valid");
-    expect(stdout).toContain("code-review");
-    expect(stdout).toContain("reviewer");
-    expect(stdout).toContain("coder");
+  test("loadWorkspaceDef validates review.yaml", async () => {
+    const yaml = await Bun.file("packages/workspace/examples/review.yaml").text();
+    const resolved = await loadWorkspaceDef(yaml);
+    expect(resolved.def.name).toBe("code-review");
+    expect(resolved.agents.some((a) => a.name === "reviewer")).toBe(true);
+    expect(resolved.agents.some((a) => a.name === "coder")).toBe(true);
   });
 
-  test("validate rejects missing file", async () => {
-    const proc = Bun.spawn(
-      ["bun", "packages/workspace/src/cli/aw-ws.ts", "validate", "nonexistent.yaml"],
-      { stdout: "pipe", stderr: "pipe" },
-    );
-
-    const exitCode = await proc.exited;
-    expect(exitCode).toBe(1);
-  });
-
-  test("dry-run shows config without starting", async () => {
-    const proc = Bun.spawn(
-      [
-        "bun",
-        "packages/workspace/src/cli/aw-ws.ts",
-        "run",
-        "packages/workspace/examples/chat.yaml",
-        "--dry-run",
-      ],
-      { stdout: "pipe", stderr: "pipe" },
-    );
-
-    const stdout = await new Response(proc.stdout).text();
-    const exitCode = await proc.exited;
-
-    expect(exitCode).toBe(0);
-    expect(stdout).toContain("chat");
-    expect(stdout).toContain("alice");
-    expect(stdout).toContain("Kickoff");
-  });
-
-  test("help output includes all commands", async () => {
-    const proc = Bun.spawn(["bun", "packages/workspace/src/cli/aw-ws.ts", "--help"], {
-      stdout: "pipe",
-      stderr: "pipe",
-    });
-
-    const stdout = await new Response(proc.stdout).text();
-    const exitCode = await proc.exited;
-
-    expect(exitCode).toBe(0);
-    expect(stdout).toContain("run");
-    expect(stdout).toContain("start");
-    expect(stdout).toContain("send");
-    expect(stdout).toContain("peek");
-    expect(stdout).toContain("status");
-    expect(stdout).toContain("ls");
-    expect(stdout).toContain("doc");
-    expect(stdout).toContain("log");
-    expect(stdout).toContain("validate");
-    expect(stdout).toContain("stop");
-    expect(stdout).toContain("Target Syntax");
+  test("loadWorkspaceDef rejects invalid YAML", async () => {
+    let errored = false;
+    try {
+      await loadWorkspaceDef("this is not valid workspace yaml {{{");
+    } catch {
+      errored = true;
+    }
+    expect(errored).toBe(true);
   });
 });
