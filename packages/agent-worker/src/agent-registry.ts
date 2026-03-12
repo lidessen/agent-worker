@@ -29,12 +29,21 @@ export class AgentRegistry {
     this._dataDir = dataDir;
   }
 
+  /** Validate a path segment to prevent directory traversal. */
+  private static validateSegment(value: string, label: string): void {
+    if (!value || value.includes("..") || value.includes("/") || value.includes("\\")) {
+      throw new Error(`Invalid ${label}: "${value}" contains path traversal characters`);
+    }
+  }
+
   /** Compute the storage directory for an agent based on its workspace scope. */
   private agentDir(name: string, workspace?: string): string | undefined {
     if (!this._dataDir) return undefined;
+    AgentRegistry.validateSegment(name, "agent name");
     if (workspace) {
       // Workspace-scoped: workspaces/<key>/agents/<name>
       const wsDir = workspace.replace(/:/g, "--");
+      AgentRegistry.validateSegment(wsDir, "workspace key");
       return join(this._dataDir, "workspaces", wsDir, "agents", name);
     }
     // Global: agents/<name>

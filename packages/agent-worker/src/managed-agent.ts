@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { mkdirSync, writeFileSync, appendFileSync } from "node:fs";
+import { mkdirSync, existsSync, writeFileSync, appendFileSync } from "node:fs";
 import { Agent } from "@agent-worker/agent";
 import type { AgentConfig, AgentState } from "@agent-worker/agent";
 import type { LoopEvent, LoopResult } from "@agent-worker/loop";
@@ -39,13 +39,13 @@ export class ManagedAgent {
     this.createdAt = Date.now();
     this._workspace = opts.workspace;
 
-    // Set up per-agent storage
+    // Set up per-agent storage (preserve existing files across restarts)
     if (opts.agentDir) {
       mkdirSync(opts.agentDir, { recursive: true });
       this._responsesPath = join(opts.agentDir, "responses.jsonl");
       this._eventsPath = join(opts.agentDir, "events.jsonl");
-      writeFileSync(this._responsesPath, "");
-      writeFileSync(this._eventsPath, "");
+      if (!existsSync(this._responsesPath)) writeFileSync(this._responsesPath, "");
+      if (!existsSync(this._eventsPath)) writeFileSync(this._eventsPath, "");
     }
 
     // Inject bus into Agent config so it emits structured events directly
