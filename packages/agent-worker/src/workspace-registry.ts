@@ -88,10 +88,15 @@ storage: file
     const config = toWorkspaceConfig(resolved, { tag: input.tag, storageDir });
     const workspace = await createWorkspace(config);
 
-    // Create loops for each agent
+    // Ensure sandbox directories exist and create loops for each agent
     const loops: WorkspaceAgentLoop[] = [];
+    const { mkdirSync } = await import("node:fs");
     for (const agent of resolved.agents) {
-      const runner = await this.createRunner(agent, workspace, resolved, key);
+      const { tools, dirs } = createAgentTools(agent.name, workspace);
+      if (dirs.workspaceSandboxDir) mkdirSync(dirs.workspaceSandboxDir, { recursive: true });
+      if (dirs.sandboxDir) mkdirSync(dirs.sandboxDir, { recursive: true });
+
+      const runner = await this.createRunner(agent, workspace, resolved, key, tools);
       const loop = createWiredLoop({
         name: agent.name,
         instructions: agent.instructions,
@@ -182,6 +187,7 @@ storage: file
     workspace: Workspace,
     resolved: import("@agent-worker/workspace").ResolvedWorkspace,
     workspaceKey: string,
+    tools: import("@agent-worker/workspace").WorkspaceToolSet,
   ): Promise<
     (prompt: string, instruction: import("@agent-worker/workspace").Instruction) => Promise<void>
   > {
@@ -200,17 +206,6 @@ storage: file
       const loop = await this.createAgentLoop(agent);
       if (!loop) {
         throw new Error(`No loop available for runtime: ${agent.runtime}`);
-      }
-
-      const { tools, dirs } = createAgentTools(agent.name, workspace);
-
-      // Ensure sandbox directories exist
-      const { mkdirSync } = await import("node:fs");
-      if (dirs.workspaceSandboxDir) {
-        mkdirSync(dirs.workspaceSandboxDir, { recursive: true });
-      }
-      if (dirs.sandboxDir) {
-        mkdirSync(dirs.sandboxDir, { recursive: true });
       }
 
       if (loop.setTools) {
