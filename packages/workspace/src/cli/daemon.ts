@@ -23,6 +23,7 @@ import type { WorkspaceAgentLoop } from "../loop/loop.ts";
 import type { ResolvedWorkspace, ResolvedAgent } from "../config/types.ts";
 import type { LoadOptions } from "../config/loader.ts";
 import type { Instruction } from "../types.ts";
+import type { WorkspaceToolSet } from "../context/mcp/server.ts";
 import { readFrom, parseJsonl, appendJsonl } from "@agent-worker/shared";
 
 export interface WorkspaceDaemonConfig {
@@ -79,9 +80,10 @@ export class WorkspaceDaemon {
 
     // Register agents, ensure sandbox directories, and create loops
     for (const agent of resolved.agents) {
+      const { tools, dirs } = createAgentTools(agent.name, workspace);
+
       // Join custom channels
       if (agent.channels?.length) {
-        const { tools } = createAgentTools(agent.name, workspace);
         for (const ch of agent.channels) {
           if (ch !== (resolved.def.default_channel ?? "general")) {
             await tools.channel_join({ channel: ch });
@@ -90,13 +92,12 @@ export class WorkspaceDaemon {
       }
 
       // Ensure sandbox directories exist (once at init, not per-instruction)
-      const { dirs } = createAgentTools(agent.name, workspace);
       if (dirs.workspaceSandboxDir) mkdirSync(dirs.workspaceSandboxDir, { recursive: true });
       if (dirs.sandboxDir) mkdirSync(dirs.sandboxDir, { recursive: true });
 
       const runner = this.config.createRunner
         ? this.config.createRunner(agent, workspace)
-        : this.createDefaultRunner(agent);
+        : this.createDefaultRunner(agent, tools);
 
       const loop = createWiredLoop({
         name: agent.name,
@@ -166,6 +167,7 @@ export class WorkspaceDaemon {
 
   private createDefaultRunner(
     agent: ResolvedAgent,
+    tools: WorkspaceToolSet,
   ): (prompt: string, instruction: Instruction) => Promise<void> {
     // Default runner: use the resolved loop to process instructions
     return async (prompt, instruction) => {
@@ -190,8 +192,6 @@ export class WorkspaceDaemon {
         return;
       }
 
-      // Wire workspace tools (sandbox dirs already created at init)
-      const { tools } = createAgentTools(agent.name, this.workspace!);
       if (loop.setTools) {
         loop.setTools(tools as any);
       }
