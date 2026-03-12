@@ -563,6 +563,8 @@ export class Daemon {
   }
 
   private async handleRemoveWorkspace(key: string): Promise<Response> {
+    const resolved = this.resolveWorkspace(key);
+    if (resolved instanceof Response) return resolved;
     try {
       await this.workspaces.remove(key);
       return Response.json({ removed: true });
