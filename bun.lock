@@ -35,7 +35,7 @@
       "name": "agent-worker",
       "version": "0.0.1",
       "bin": {
-        "aw": "./src/cli.ts",
+        "aw": "./src/cli/index.ts",
       },
       "dependencies": {
         "@agent-worker/agent": "workspace:*",
@@ -70,6 +70,9 @@
         "@ai-sdk/deepseek": "^2.0.24",
         "ai": "^6.0.116",
         "yaml": "^2.8.2",
+      },
+      "devDependencies": {
+        "agent-worker": "workspace:*",
       },
     },
   },
