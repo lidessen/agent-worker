@@ -82,7 +82,7 @@ kickoff: "@reviewer Please review PR ${{ workspace.tag }}"
 ```ts
 const workspace = await createWorkspace({
   name: "review",
-  tag: "pr-123", // → contextDir: /tmp/agent-worker-review-pr-123/
+  tag: "pr-123", // → storageDir: /tmp/agent-worker-review-pr-123/
   // ...
 });
 ```
@@ -787,11 +787,11 @@ aw run coordinator.yaml --watch /tmp/aw-review-*/
 **Instance discovery:**
 
 ```
-# 每个 workspace 实例在 contextDir 下暴露 instance.json
+# 每个 workspace 实例在 storageDir 下暴露 instance.json
 {
   "workspaceName": "review",
   "tag": "pr-123",
-  "contextDir": "/tmp/aw-review-pr-123",
+  "storageDir": "/tmp/aw-review-pr-123",
   "pid": 12345,
   "startedAt": "2026-03-09T10:00:00Z",
   "status": "running",         // running | stopped | crashed
