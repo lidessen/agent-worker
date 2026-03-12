@@ -114,9 +114,7 @@ When a bare agent name is used (e.g. `alice`), it resolves to the global workspa
 
 ## Storage Model
 
-Each agent and workspace gets isolated output streams for cursor-based incremental reads. Stored under the daemon's data directory.
-
-**Global agents and workspace-scoped agents are stored separately.** Global agents live under the top-level `agents/` directory. Workspace-scoped agents live under their workspace's `agents/` subdirectory. This prevents name collisions and keeps workspace data self-contained.
+All daemon state lives under a single data directory (`~/.agent-worker/` by default). Everything is scoped — global agents and workspace-scoped agents never mix, and each workspace is a self-contained directory.
 
 ```
 ~/.agent-worker/
@@ -129,8 +127,13 @@ Each agent and workspace gets isolated output streams for cursor-based increment
       events.jsonl                     # agent-level events (state, run, tool, thinking)
 
   workspaces/
-    review/                            # untagged workspace
-      events.jsonl                     # workspace-level events
+    global/                            # implicit workspace for standalone agents
+      channels/
+        general.jsonl
+      inbox/
+        alice.jsonl
+
+    review/                            # untagged declarative workspace
       agents/                          # ── workspace-scoped agents ──
         reviewer/
           responses.jsonl
@@ -138,14 +141,20 @@ Each agent and workspace gets isolated output streams for cursor-based increment
       channels/
         general.jsonl                  # channel message log
         design.jsonl
+      inbox/
+        reviewer.jsonl                 # per-agent inbox
+      timeline/
+        reviewer.jsonl                 # per-agent event log
+
     review--pr-42/                     # tagged: ":" encoded as "--" on disk
-      events.jsonl
       agents/
         reviewer/
           responses.jsonl
           events.jsonl
       channels/
         general.jsonl
+      inbox/
+        reviewer.jsonl
 ```
 
 ### What goes where
@@ -156,11 +165,14 @@ Each agent and workspace gets isolated output streams for cursor-based increment
 | `agents/<name>/events.jsonl` | state_change, run_start, run_end, tool_call_*, thinking, error — **global agents only** | ManagedAgent event handler |
 | `workspaces/<key>/agents/<name>/responses.jsonl` | text output, send events — **workspace-scoped agents** | ManagedAgent event handler |
 | `workspaces/<key>/agents/<name>/events.jsonl` | state_change, run_start, run_end, tool_call_*, thinking, error — **workspace-scoped agents** | ManagedAgent event handler |
-| `workspaces/<key>/events.jsonl` | workspace lifecycle, agent join/leave, routing | ManagedWorkspace |
-| `workspaces/<key>/channels/<ch>.jsonl` | channel messages (from, content, ts) | Workspace channel router |
+| `workspaces/<key>/channels/<ch>.jsonl` | channel messages (from, content, ts) | Workspace channel store |
+| `workspaces/<key>/inbox/<name>.jsonl` | per-agent inbox entries | Workspace inbox store |
+| `workspaces/<key>/timeline/<name>.jsonl` | per-agent timeline events | Workspace timeline store |
 | `events.jsonl` | everything (global, for daemon-level `/events`) | EventBus subscriber |
 
 All files are append-only JSONL. Cursor = byte offset. Survives daemon restart (files persist, daemon re-reads on startup).
+
+When a workspace YAML explicitly specifies `storage_dir`, that path is used instead of `workspaces/<key>/`. This allows workspaces to opt out of the daemon's directory tree (e.g. for project-local storage).
 
 ### Polling vs SSE
 

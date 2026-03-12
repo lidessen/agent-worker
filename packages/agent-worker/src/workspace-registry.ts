@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import {
   createWorkspace,
   createWiredLoop,
@@ -37,6 +38,12 @@ export class WorkspaceRegistry {
     this._bus?.emit({ type, source: "workspace", ...data });
   }
 
+  /** Compute the storage directory for a workspace key. */
+  private workspaceDir(key: string): string {
+    const dirName = key.replace(/:/g, "--");
+    return join(this._dataDir, "workspaces", dirName);
+  }
+
   /** Get or create the default global workspace (for standalone agents). */
   async ensureDefault(): Promise<ManagedWorkspace> {
     if (this._defaultWorkspace) return this._defaultWorkspace;
@@ -45,11 +52,12 @@ export class WorkspaceRegistry {
 name: global
 agents: {}
 storage: file
-storage_dir: ${this._dataDir}
 `;
 
     const resolved = await loadWorkspaceDef(globalYaml);
-    const config = toWorkspaceConfig(resolved);
+    const config = toWorkspaceConfig(resolved, {
+      storageDir: this.workspaceDir("global"),
+    });
     const workspace = await createWorkspace(config);
 
     this._defaultWorkspace = new ManagedWorkspace({
@@ -74,7 +82,9 @@ storage_dir: ${this._dataDir}
       throw new Error(`Workspace "${key}" already exists`);
     }
 
-    const config = toWorkspaceConfig(resolved, { tag: input.tag });
+    // Use daemon-managed storage dir unless YAML explicitly specifies one
+    const storageDir = resolved.def.storage_dir ? undefined : this.workspaceDir(key);
+    const config = toWorkspaceConfig(resolved, { tag: input.tag, storageDir });
     const workspace = await createWorkspace(config);
 
     // Create loops for each agent
