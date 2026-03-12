@@ -116,31 +116,46 @@ When a bare agent name is used (e.g. `alice`), it resolves to the global workspa
 
 Each agent and workspace gets isolated output streams for cursor-based incremental reads. Stored under the daemon's data directory.
 
+**Global agents and workspace-scoped agents are stored separately.** Global agents live under the top-level `agents/` directory. Workspace-scoped agents live under their workspace's `agents/` subdirectory. This prevents name collisions and keeps workspace data self-contained.
+
 ```
 ~/.agent-worker/
   daemon.json                          # discovery file (pid, port, token)
   events.jsonl                         # global daemon event log
 
-  agents/
+  agents/                              # ── global agents only ──
     alice/
       responses.jsonl                  # text output + send events
       events.jsonl                     # agent-level events (state, run, tool, thinking)
 
   workspaces/
-    review/                            # untagged
-    review--pr-42/                     # tagged: ":" encoded as "--" on disk
+    review/                            # untagged workspace
       events.jsonl                     # workspace-level events
+      agents/                          # ── workspace-scoped agents ──
+        reviewer/
+          responses.jsonl
+          events.jsonl
       channels/
         general.jsonl                  # channel message log
         design.jsonl
+    review--pr-42/                     # tagged: ":" encoded as "--" on disk
+      events.jsonl
+      agents/
+        reviewer/
+          responses.jsonl
+          events.jsonl
+      channels/
+        general.jsonl
 ```
 
 ### What goes where
 
 | Stream | Content | Written by |
 |--------|---------|-----------|
-| `agents/<name>/responses.jsonl` | text output, send-to-other-agent events (each entry includes `workspace` field) | ManagedAgent event handler |
-| `agents/<name>/events.jsonl` | state_change, run_start, run_end, tool_call_*, thinking, error | ManagedAgent event handler |
+| `agents/<name>/responses.jsonl` | text output, send events — **global agents only** | ManagedAgent event handler |
+| `agents/<name>/events.jsonl` | state_change, run_start, run_end, tool_call_*, thinking, error — **global agents only** | ManagedAgent event handler |
+| `workspaces/<key>/agents/<name>/responses.jsonl` | text output, send events — **workspace-scoped agents** | ManagedAgent event handler |
+| `workspaces/<key>/agents/<name>/events.jsonl` | state_change, run_start, run_end, tool_call_*, thinking, error — **workspace-scoped agents** | ManagedAgent event handler |
 | `workspaces/<key>/events.jsonl` | workspace lifecycle, agent join/leave, routing | ManagedWorkspace |
 | `workspaces/<key>/channels/<ch>.jsonl` | channel messages (from, content, ts) | Workspace channel router |
 | `events.jsonl` | everything (global, for daemon-level `/events`) | EventBus subscriber |

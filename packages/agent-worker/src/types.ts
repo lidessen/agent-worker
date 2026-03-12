@@ -46,6 +46,8 @@ export interface CreateAgentInput {
   config?: AgentConfig;
   /** Kind: config-loaded or ephemeral (API-created). Default: "ephemeral". */
   kind?: AgentKind;
+  /** Workspace scope. If set, agent storage is under the workspace directory. */
+  workspace?: string;
 }
 
 // ── Managed workspace ─────────────────────────────────────────────────────
