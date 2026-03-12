@@ -229,5 +229,6 @@ export function toWorkspaceConfig(
     defaultChannel: def.default_channel,
     agents: resolved.agents.map((a) => a.name),
     storage,
+    storageDir: storageType === "file" ? storageDir : undefined,
   };
 }

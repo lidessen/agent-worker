@@ -202,7 +202,17 @@ storage: file
         throw new Error(`No loop available for runtime: ${agent.runtime}`);
       }
 
-      const tools = createAgentTools(agent.name, workspace);
+      const { tools, dirs } = createAgentTools(agent.name, workspace);
+
+      // Ensure sandbox directories exist
+      const { mkdirSync } = await import("node:fs");
+      if (dirs.workspaceSandboxDir) {
+        mkdirSync(dirs.workspaceSandboxDir, { recursive: true });
+      }
+      if (dirs.sandboxDir) {
+        mkdirSync(dirs.sandboxDir, { recursive: true });
+      }
+
       if (loop.setTools) {
         loop.setTools(tools as any);
       }

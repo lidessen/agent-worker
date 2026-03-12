@@ -121,7 +121,8 @@ export interface WorkspaceConfig {
   agents?: string[];
   adapters?: ChannelAdapter[];
   storage?: StorageBackend;
-  contextDir?: string;
+  /** Root directory for this workspace's file storage. */
+  storageDir?: string;
   queueConfig?: QueueConfig;
   /** SmartSend threshold in characters. Default: 1200 */
   smartSendThreshold?: number;
@@ -156,6 +157,10 @@ export interface WorkspaceRuntime {
   readonly eventLog: EventLog;
   readonly bridge: ChannelBridgeInterface;
   readonly instructionQueue: InstructionQueueInterface;
+  /** Root directory for this workspace's file storage. Undefined for memory-only workspaces. */
+  readonly storageDir: string | undefined;
+  /** Shared workspace sandbox directory (collaborative files visible to all agents). */
+  readonly workspaceSandboxDir: string | undefined;
 
   /** Initialize workspace: recover from crashes, start adapters. */
   init(): Promise<void>;
@@ -163,6 +168,8 @@ export interface WorkspaceRuntime {
   shutdown(): Promise<void>;
   /** Register an agent with the workspace. */
   registerAgent(name: string, channels?: string[]): Promise<void>;
+  /** Get the agent's sandbox directory (working directory for bash/files). */
+  agentSandboxDir(agentName: string): string | undefined;
 }
 
 // ── ContextProvider interface ──────────────────────────────────────────────

@@ -58,8 +58,24 @@ export function createWiredLoop(config: WiredLoopConfig): WorkspaceAgentLoop {
 
 // ── createAgentTools ───────────────────────────────────────────────────────
 
-/** Create the full workspace tool set for a specific agent. */
-export function createAgentTools(agentName: string, runtime: Workspace): WorkspaceToolSet {
+/** Directories exposed to a workspace agent. */
+export interface AgentDirs {
+  /** Shared workspace sandbox directory (collaborative files visible to all agents). */
+  workspaceSandboxDir: string | undefined;
+  /** Agent's personal sandbox directory (bash cwd, file operations). */
+  sandboxDir: string | undefined;
+}
+
+/** Create the full workspace tool set and directory info for a specific agent. */
+export function createAgentTools(
+  agentName: string,
+  runtime: Workspace,
+): { tools: WorkspaceToolSet; dirs: AgentDirs } {
   const channels = runtime.getAgentChannels(agentName);
-  return createWorkspaceTools(agentName, runtime.contextProvider, channels);
+  const tools = createWorkspaceTools(agentName, runtime.contextProvider, channels);
+  const dirs: AgentDirs = {
+    workspaceSandboxDir: runtime.workspaceSandboxDir,
+    sandboxDir: runtime.agentSandboxDir(agentName),
+  };
+  return { tools, dirs };
 }
