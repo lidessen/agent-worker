@@ -130,6 +130,7 @@ All daemon state lives under a single data directory (`~/.agent-worker/` by defa
       timeline.jsonl                   # agent timeline
   channels/                            # global workspace channels
     general.jsonl
+  status.json                          # global agent status (per-workspace)
 
   # ── declarative workspaces ──
   workspaces/
@@ -143,6 +144,7 @@ All daemon state lives under a single data directory (`~/.agent-worker/` by defa
       channels/
         general.jsonl                  # channel message log
         design.jsonl
+      status.json                      # workspace agent status
 
     review--pr-42/                     # tagged: ":" encoded as "--" on disk
       agents/
@@ -153,6 +155,7 @@ All daemon state lives under a single data directory (`~/.agent-worker/` by defa
           timeline.jsonl
       channels/
         general.jsonl
+      status.json
 ```
 
 ### What goes where
@@ -167,12 +170,14 @@ All per-agent data lives under `agents/<name>/` — whether at root level (globa
 | `agents/<name>/inbox.jsonl` | inbox entries | Workspace inbox store |
 | `agents/<name>/timeline.jsonl` | timeline events | Workspace timeline store |
 | `channels/<ch>.jsonl` | global workspace channel messages | Workspace channel store |
+| `status.json` | all agents' current status (per-workspace) | Workspace status store |
 | **Per-workspace scope** | | |
 | `workspaces/<key>/agents/<name>/responses.jsonl` | text output, send events | ManagedAgent |
 | `workspaces/<key>/agents/<name>/events.jsonl` | state_change, run_start, run_end, tool_call_*, thinking, error | ManagedAgent |
 | `workspaces/<key>/agents/<name>/inbox.jsonl` | inbox entries | Workspace inbox store |
 | `workspaces/<key>/agents/<name>/timeline.jsonl` | timeline events | Workspace timeline store |
 | `workspaces/<key>/channels/<ch>.jsonl` | channel messages | Workspace channel store |
+| `workspaces/<key>/status.json` | all agents' current status (per-workspace) | Workspace status store |
 | **Daemon-wide** | | |
 | `events.jsonl` | all events (for daemon-level `/events`) | EventBus subscriber |
 
