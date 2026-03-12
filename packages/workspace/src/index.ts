@@ -70,6 +70,7 @@ export type {
   ResolvedModel,
   RuntimeResolution,
   LoadOptions,
+  ToWorkspaceConfigOptions,
 } from "./config/index.ts";
 
 // ── Types ──────────────────────────────────────────────────────────────────

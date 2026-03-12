@@ -198,24 +198,29 @@ export async function loadWorkspaceDef(
 
 // ── Convert to WorkspaceConfig ────────────────────────────────────────────
 
+export interface ToWorkspaceConfigOptions extends LoadOptions {
+  /** Override the storage directory (takes precedence over def.storage_dir and the default). */
+  storageDir?: string;
+}
+
 /**
  * Convert a resolved workspace definition into a WorkspaceConfig
  * suitable for createWorkspace().
  */
 export function toWorkspaceConfig(
   resolved: ResolvedWorkspace,
-  opts: LoadOptions = {},
+  opts: ToWorkspaceConfigOptions = {},
 ): WorkspaceConfig {
   const { def } = resolved;
 
   // Storage backend
   const storageType = def.storage ?? "file";
+  const storageDir =
+    opts.storageDir ?? def.storage_dir ?? `/tmp/agent-worker-${def.name}${opts.tag ? `-${opts.tag}` : ""}`;
   const storage =
     storageType === "memory"
       ? new MemoryStorage()
-      : new FileStorage(
-          def.storage_dir ?? `/tmp/agent-worker-${def.name}${opts.tag ? `-${opts.tag}` : ""}`,
-        );
+      : new FileStorage(storageDir);
 
   return {
     name: def.name,

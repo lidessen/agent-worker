@@ -18,7 +18,7 @@ export {
   runSetupSteps,
 } from "./loader.ts";
 
-export type { LoadOptions } from "./loader.ts";
+export type { LoadOptions, ToWorkspaceConfigOptions } from "./loader.ts";
 
 export { resolveRuntime, discoverCliRuntime, detectAiSdkModel } from "./resolve-runtime.ts";
 
