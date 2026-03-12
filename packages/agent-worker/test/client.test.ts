@@ -119,10 +119,13 @@ describe("AwClient", () => {
     expect(agents).toEqual([]);
   });
 
-  test("listWorkspaces empty", async () => {
+  test("listWorkspaces includes global workspace", async () => {
     await setup();
     const ws = await client.listWorkspaces();
-    expect(ws).toEqual([]);
+    expect(ws).toHaveLength(1);
+    expect(ws[0]!.name).toBe("global");
+    expect(ws[0]!.mode).toBe("service");
+    expect(ws[0]!.status).toBe("running");
   });
 
   test("readEvents returns daemon events", async () => {

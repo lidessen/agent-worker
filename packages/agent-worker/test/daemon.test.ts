@@ -76,7 +76,7 @@ describe("Daemon", () => {
     const body = await res.json();
     expect(body.status).toBe("ok");
     expect(body.agents).toBe(0);
-    expect(body.workspaces).toBe(0);
+    expect(body.workspaces).toBe(1); // global workspace always exists
   });
 
   test("writes daemon.json for discovery", async () => {

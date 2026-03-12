@@ -271,6 +271,24 @@ export class AwClient {
     return this.request(`/workspaces/${encodeURIComponent(key)}`);
   }
 
+  async getWorkspaceStatus(key: string): Promise<Record<string, unknown>> {
+    return this.request(`/workspaces/${encodeURIComponent(key)}/status`);
+  }
+
+  async listChannels(key: string): Promise<string[]> {
+    const res = await this.request<{ channels: string[] }>(
+      `/workspaces/${encodeURIComponent(key)}/channels`,
+    );
+    return res.channels;
+  }
+
+  async peekInbox(key: string, agent: string): Promise<any[]> {
+    const res = await this.request<{ entries: any[] }>(
+      `/workspaces/${encodeURIComponent(key)}/inbox/${encodeURIComponent(agent)}`,
+    );
+    return res.entries;
+  }
+
   async stopWorkspace(key: string): Promise<void> {
     await this.request(`/workspaces/${encodeURIComponent(key)}`, { method: "DELETE" });
   }

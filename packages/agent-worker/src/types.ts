@@ -52,12 +52,17 @@ export interface CreateAgentInput {
 
 // ── Managed workspace ─────────────────────────────────────────────────────
 
+export type WorkspaceMode = "service" | "task";
+export type WorkspaceStatus = "running" | "completed" | "failed";
+
 export interface ManagedWorkspaceInfo {
   name: string;
   tag?: string;
   agents: string[];
   channels: string[];
   createdAt: number;
+  mode: WorkspaceMode;
+  status: WorkspaceStatus;
 }
 
 export interface CreateWorkspaceInput {
@@ -67,6 +72,8 @@ export interface CreateWorkspaceInput {
   tag?: string;
   /** Extra variables for template interpolation. */
   vars?: Record<string, string>;
+  /** Workspace mode. "task" auto-removes on completion. Default: "service". */
+  mode?: WorkspaceMode;
 }
 
 // ── Runtime configuration (for HTTP-created agents) ──────────────────────

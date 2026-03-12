@@ -84,6 +84,7 @@ export class Daemon {
     mkdirSync(this.config.dataDir, { recursive: true });
 
     await this.eventLog.init();
+    await this.workspaces.ensureDefault();
     this.startedAt = Date.now();
 
     this.server = Bun.serve({
@@ -226,11 +227,23 @@ export class Daemon {
         if (sub === "/wait" && method === "GET") {
           return await this.handleWorkspaceWait(key, url);
         }
+        if (sub === "/status" && method === "GET") {
+          return this.handleWorkspaceStatus(key);
+        }
+        if (sub === "/channels" && method === "GET") {
+          return this.handleListChannels(key);
+        }
         if (sub === "/events" && method === "GET") {
           return await this.handleWorkspaceEvents(key, url);
         }
         if (sub === "/events/stream" && method === "GET") {
           return this.handleWorkspaceEventsStream(key);
+        }
+
+        // Inbox route: /workspaces/:key/inbox/:agent
+        const inboxMatch = sub.match(/^\/inbox\/([^/]+)$/);
+        if (inboxMatch && method === "GET") {
+          return await this.handleWorkspaceInbox(key, decodeURIComponent(inboxMatch[1]!));
         }
 
         // Channel routes: /workspaces/:key/channels/:ch[/stream]
@@ -519,11 +532,16 @@ export class Daemon {
     const timeoutMs = parseDuration(timeoutStr);
     const deadline = Date.now() + timeoutMs;
 
-    // Poll until all local agents are idle with empty inboxes, or timeout
+    // Poll until completion, failure, or timeout
     while (Date.now() < deadline) {
-      const allIdle = handle.loops.every((l) => !l.isRunning);
-      if (allIdle) {
-        return Response.json({ status: "completed" });
+      const status = handle.checkCompletion();
+      if (status !== "running") {
+        handle.complete(status);
+        // Auto-remove task workspaces on completion
+        if (handle.mode === "task") {
+          try { await this.workspaces.remove(key); } catch { /* already removed */ }
+        }
+        return Response.json({ status });
       }
       await new Promise((r) => setTimeout(r, 500));
     }
@@ -581,6 +599,62 @@ export class Daemon {
 
     await handle.send(channel, from, body.content);
     return Response.json({ sent: true, routed_to: `channel:${channel}` });
+  }
+
+  // ── Workspace status & inbox ─────────────────────────────────────────
+
+  private handleWorkspaceStatus(key: string): Response {
+    const handle = this.workspaces.get(key);
+    if (!handle) {
+      return Response.json({ error: `Workspace "${key}" not found` }, { status: 404 });
+    }
+
+    const channels = handle.workspace.contextProvider.channels.listChannels();
+    return Response.json({
+      name: handle.name,
+      tag: handle.tag,
+      key: handle.key,
+      mode: handle.mode,
+      status: handle.status,
+      agents: handle.resolved.agents.map((a) => ({
+        name: a.name,
+        runtime: a.runtime ?? "mock",
+      })),
+      channels,
+      loops: handle.loops.map((l) => ({
+        name: (l as any).name ?? "unknown",
+        running: l.isRunning,
+      })),
+    });
+  }
+
+  private handleListChannels(key: string): Response {
+    const handle = this.workspaces.get(key);
+    if (!handle) {
+      return Response.json({ error: `Workspace "${key}" not found` }, { status: 404 });
+    }
+    const channels = handle.workspace.contextProvider.channels.listChannels();
+    return Response.json({ channels });
+  }
+
+  private async handleWorkspaceInbox(key: string, agentName: string): Promise<Response> {
+    const handle = this.workspaces.get(key);
+    if (!handle) {
+      return Response.json({ error: `Workspace "${key}" not found` }, { status: 404 });
+    }
+
+    const inbox = handle.workspace.contextProvider.inbox;
+    const entries = await inbox.peek(agentName);
+    return Response.json({
+      agent: agentName,
+      entries: entries.map((e) => ({
+        messageId: e.messageId,
+        channel: e.channel,
+        priority: e.priority,
+        state: e.state,
+        enqueuedAt: e.enqueuedAt,
+      })),
+    });
   }
 
   // ── Workspace channels ─────────────────────────────────────────────────
