@@ -6,6 +6,8 @@ export { ClaudeCodeLoop } from "./loops/claude-code.ts";
 export type { ClaudeCodeModel } from "./loops/claude-code.ts";
 export { CodexLoop } from "./loops/codex.ts";
 export { CursorLoop } from "./loops/cursor.ts";
+export { MockLoop } from "./loops/mock.ts";
+export type { MockLoopOptions } from "./loops/mock.ts";
 
 // ── Types ───────────────────────────────────────────────────────────────────
 export type {

@@ -69,6 +69,40 @@ export interface CreateWorkspaceInput {
   vars?: Record<string, string>;
 }
 
+// ── Runtime configuration (for HTTP-created agents) ──────────────────────
+
+export type RuntimeType = "ai-sdk" | "claude-code" | "codex" | "cursor" | "mock";
+
+/** Full runtime configuration for creating an agent via HTTP API. */
+export interface RuntimeConfig {
+  type: RuntimeType;
+
+  /** Model identifier. Meaning depends on type:
+   *  - ai-sdk: "provider:model" (e.g. "anthropic:claude-sonnet-4-20250514")
+   *  - claude-code: model name (e.g. "sonnet", "opus")
+   *  - codex/cursor: model name
+   *  - mock: ignored */
+  model?: string;
+
+  /** System instructions for the agent. */
+  instructions?: string;
+
+  /** Working directory for CLI-based runtimes. Default: daemon cwd. */
+  cwd?: string;
+
+  /** Environment variable overrides (e.g. API keys). */
+  env?: Record<string, string>;
+
+  /** Runner kind. Default: "host". */
+  runner?: "host" | "sandbox";
+
+  /** Mock-specific: response delay in ms. */
+  mockDelay?: number;
+
+  /** Mock-specific: fixed response text. */
+  mockResponse?: string;
+}
+
 // ── Agent runner ──────────────────────────────────────────────────────────
 
 export type RunnerKind = "host" | "sandbox";

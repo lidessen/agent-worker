@@ -1,35 +1,47 @@
 /**
  * agent-worker daemon — persistent HTTP server that manages agents and workspaces.
  *
- * Provides a stable process for CLI, web, and MCP interfaces to connect to.
- *
  * Routes:
- *   GET  /health                 — daemon status
- *   POST /shutdown               — graceful shutdown
+ *   GET  /health                                — daemon status
+ *   POST /shutdown                              — graceful shutdown
  *
- *   GET  /agents                       — list agents
- *   POST /agents                       — create agent (not yet implemented)
- *   GET  /agents/:name                 — get agent info
- *   DELETE /agents/:name               — remove agent
- *   POST   /agents/:name/send           — send message(s) to agent
- *   GET    /agents/:name/responses     — incremental response log (cursor-based)
- *   GET    /agents/:name/events        — incremental event log (cursor-based)
- *   GET    /agents/:name/state         — agent state, inbox, todos
+ *   GET    /agents                              — list agents
+ *   POST   /agents                              — create agent (with RuntimeConfig)
+ *   GET    /agents/:name                        — get agent info
+ *   DELETE /agents/:name                        — remove agent
+ *   POST   /agents/:name/send                   — send message(s) to agent
+ *   GET    /agents/:name/responses              — incremental response log (cursor-based)
+ *   GET    /agents/:name/responses/stream       — SSE: real-time responses
+ *   GET    /agents/:name/events                 — incremental event log (cursor-based)
+ *   GET    /agents/:name/events/stream          — SSE: real-time agent events
+ *   GET    /agents/:name/state                  — agent state, inbox, todos
  *
- *   GET  /workspaces             — list workspaces
- *   POST /workspaces             — create workspace from YAML
- *   GET  /workspaces/:key        — get workspace info
- *   DELETE /workspaces/:key      — stop workspace
- *   POST /workspaces/:key/send   — send message to workspace channel
+ *   GET    /workspaces                          — list workspaces
+ *   POST   /workspaces                          — create workspace from YAML
+ *   GET    /workspaces/:key                     — get workspace info
+ *   GET    /workspaces/:key/wait                — block until task workspace completes
+ *   DELETE /workspaces/:key                     — stop workspace
+ *   POST   /workspaces/:key/send               — send to workspace (channel/agent/both)
+ *   GET    /workspaces/:key/channels/:ch        — read channel messages (cursor-based)
+ *   GET    /workspaces/:key/channels/:ch/stream — SSE: real-time channel messages
+ *   GET    /workspaces/:key/events              — workspace events (cursor-based)
+ *   GET    /workspaces/:key/events/stream       — SSE: workspace events
  *
- *   GET  /events                 — read event log (cursor-based)
+ *   GET    /workspaces/:key/docs                — list documents
+ *   GET    /workspaces/:key/docs/:name          — read document
+ *   PUT    /workspaces/:key/docs/:name          — write document
+ *   PATCH  /workspaces/:key/docs/:name          — append to document
+ *
+ *   GET    /events                              — daemon event log (cursor-based)
+ *   GET    /events/stream                       — SSE: all daemon events
  */
-import type { DaemonConfig, DaemonInfo } from "./types.ts";
+import type { DaemonConfig, DaemonInfo, RuntimeConfig } from "./types.ts";
 import { EventBus } from "@agent-worker/shared";
 import type { BusEvent } from "@agent-worker/shared";
 import { AgentRegistry } from "./agent-registry.ts";
 import { WorkspaceRegistry } from "./workspace-registry.ts";
 import { DaemonEventLog } from "./event-log.ts";
+import { createLoopFromConfig } from "./loop-factory.ts";
 import { writeDaemonInfo, removeDaemonInfo, generateToken, defaultDataDir } from "./discovery.ts";
 
 export class Daemon {
@@ -184,7 +196,9 @@ export class Daemon {
         }
         if (sub === "/send" && method === "POST") return await this.handleAgentSend(name, req);
         if (sub === "/responses" && method === "GET") return await this.handleAgentResponses(name, url);
+        if (sub === "/responses/stream" && method === "GET") return this.handleAgentResponsesStream(name, url);
         if (sub === "/events" && method === "GET") return await this.handleAgentEvents(name, url);
+        if (sub === "/events/stream" && method === "GET") return this.handleAgentEventsStream(name);
         if (sub === "/state" && method === "GET") return this.handleAgentState(name);
       }
 
@@ -196,21 +210,60 @@ export class Daemon {
         return await this.handleCreateWorkspace(req);
       }
 
-      const wsMatch = path.match(/^\/workspaces\/([^/]+)$/);
-      if (wsMatch) {
-        const key = decodeURIComponent(wsMatch[1]!);
-        if (method === "GET") return this.handleGetWorkspace(key);
-        if (method === "DELETE") return await this.handleRemoveWorkspace(key);
-      }
+      // Workspace sub-routes: /workspaces/:key/...
+      const wsSubMatch = path.match(/^\/workspaces\/([^/]+)(\/.+)?$/);
+      if (wsSubMatch) {
+        const key = decodeURIComponent(wsSubMatch[1]!);
+        const sub = wsSubMatch[2] ?? "";
 
-      const wsSendMatch = path.match(/^\/workspaces\/([^/]+)\/send$/);
-      if (wsSendMatch && method === "POST") {
-        return await this.handleWorkspaceSend(decodeURIComponent(wsSendMatch[1]!), req);
+        if (!sub) {
+          if (method === "GET") return this.handleGetWorkspace(key);
+          if (method === "DELETE") return await this.handleRemoveWorkspace(key);
+        }
+        if (sub === "/send" && method === "POST") {
+          return await this.handleWorkspaceSend(key, req);
+        }
+        if (sub === "/wait" && method === "GET") {
+          return await this.handleWorkspaceWait(key, url);
+        }
+        if (sub === "/events" && method === "GET") {
+          return await this.handleWorkspaceEvents(key, url);
+        }
+        if (sub === "/events/stream" && method === "GET") {
+          return this.handleWorkspaceEventsStream(key);
+        }
+
+        // Channel routes: /workspaces/:key/channels/:ch[/stream]
+        const chMatch = sub.match(/^\/channels\/([^/]+)(\/stream)?$/);
+        if (chMatch) {
+          const ch = decodeURIComponent(chMatch[1]!);
+          if (chMatch[2] === "/stream" && method === "GET") {
+            return this.handleWorkspaceChannelStream(key, ch, url);
+          }
+          if (method === "GET") {
+            return await this.handleWorkspaceChannel(key, ch, url);
+          }
+        }
+
+        // Doc routes: /workspaces/:key/docs[/:name]
+        if (sub === "/docs" && method === "GET") {
+          return await this.handleListDocs(key);
+        }
+        const docMatch = sub.match(/^\/docs\/([^/]+)$/);
+        if (docMatch) {
+          const docName = decodeURIComponent(docMatch[1]!);
+          if (method === "GET") return await this.handleReadDoc(key, docName);
+          if (method === "PUT") return await this.handleWriteDoc(key, docName, req);
+          if (method === "PATCH") return await this.handleAppendDoc(key, docName, req);
+        }
       }
 
       // Events
       if (path === "/events" && method === "GET") {
         return await this.handleEvents(url);
+      }
+      if (path === "/events/stream" && method === "GET") {
+        return this.handleEventsStream();
       }
 
       return Response.json({ error: "Not found" }, { status: 404 });
@@ -249,30 +302,32 @@ export class Daemon {
   private async handleCreateAgent(req: Request): Promise<Response> {
     const body = (await req.json()) as {
       name: string;
-      instructions?: string;
+      runtime: RuntimeConfig;
     };
 
     if (!body.name) {
       return Response.json({ error: "name is required" }, { status: 400 });
     }
+    if (!body.runtime?.type) {
+      return Response.json({ error: "runtime.type is required" }, { status: 400 });
+    }
 
-    // Creating an ephemeral agent requires a loop — for now, we create
-    // a placeholder that callers can configure. In practice, a real loop
-    // would be injected by the CLI or caller.
-    // For API-created agents, we store a "pending" handle that needs a loop.
     if (this.agents.has(body.name)) {
       return Response.json({ error: `Agent "${body.name}" already exists` }, { status: 409 });
     }
 
-    // Return the info — actual loop wiring happens when /run is called
-    // with a loop config, or via programmatic API.
-    return Response.json(
-      {
-        error:
-          "Creating agents via HTTP requires a loop backend. Use the programmatic API or provide a runtime config.",
-      },
-      { status: 501 },
-    );
+    try {
+      const loop = await createLoopFromConfig(body.runtime);
+      const handle = await this.agents.create({
+        name: body.name,
+        instructions: body.runtime.instructions,
+        loop,
+        kind: "ephemeral",
+      });
+      return Response.json(handle.info, { status: 201 });
+    } catch (err) {
+      return Response.json({ error: String(err) }, { status: 422 });
+    }
   }
 
   private handleGetAgent(name: string): Response {
@@ -330,6 +385,27 @@ export class Daemon {
     return Response.json(result);
   }
 
+  private handleAgentResponsesStream(name: string, _url: URL): Response {
+    const handle = this.agents.get(name);
+    if (!handle) {
+      return Response.json({ error: `Agent "${name}" not found` }, { status: 404 });
+    }
+    return this.createSSEStream((push) => {
+      // Poll responses file for new data
+      let cursor = 0;
+      const interval = setInterval(async () => {
+        try {
+          const result = await handle.readResponses(cursor);
+          for (const entry of result.entries) {
+            push(entry);
+          }
+          cursor = result.cursor;
+        } catch { /* agent may be removed */ }
+      }, 500);
+      return () => clearInterval(interval);
+    });
+  }
+
   private async handleAgentEvents(name: string, url: URL): Promise<Response> {
     const handle = this.agents.get(name);
     if (!handle) {
@@ -338,6 +414,26 @@ export class Daemon {
     const cursor = parseInt(url.searchParams.get("cursor") ?? "0", 10);
     const result = await handle.readEvents(cursor);
     return Response.json(result);
+  }
+
+  private handleAgentEventsStream(name: string): Response {
+    const handle = this.agents.get(name);
+    if (!handle) {
+      return Response.json({ error: `Agent "${name}" not found` }, { status: 404 });
+    }
+    return this.createSSEStream((push) => {
+      let cursor = 0;
+      const interval = setInterval(async () => {
+        try {
+          const result = await handle.readEvents(cursor);
+          for (const entry of result.entries) {
+            push(entry);
+          }
+          cursor = result.cursor;
+        } catch { /* agent may be removed */ }
+      }, 500);
+      return () => clearInterval(interval);
+    });
   }
 
   private handleAgentState(name: string): Response {
@@ -374,6 +470,7 @@ export class Daemon {
       source: string;
       tag?: string;
       vars?: Record<string, string>;
+      mode?: "service" | "task";
     };
 
     if (!body.source) {
@@ -391,11 +488,47 @@ export class Daemon {
   }
 
   private handleGetWorkspace(key: string): Response {
+    // If bare name matches multiple tagged instances, return 409
+    const handle = this.workspaces.get(key);
+    if (!handle) {
+      // Check if there are tagged variants
+      const matches = this.workspaces.list().filter(
+        (ws) => ws.name === key && ws.tag,
+      );
+      if (matches.length > 0) {
+        return Response.json(
+          {
+            error: `Multiple instances of "${key}" exist`,
+            instances: matches.map((m) => (m.tag ? `${m.name}:${m.tag}` : m.name)),
+          },
+          { status: 409 },
+        );
+      }
+      return Response.json({ error: `Workspace "${key}" not found` }, { status: 404 });
+    }
+    return Response.json(handle.info);
+  }
+
+  private async handleWorkspaceWait(key: string, url: URL): Promise<Response> {
     const handle = this.workspaces.get(key);
     if (!handle) {
       return Response.json({ error: `Workspace "${key}" not found` }, { status: 404 });
     }
-    return Response.json(handle.info);
+
+    const timeoutStr = url.searchParams.get("timeout") ?? "60s";
+    const timeoutMs = parseDuration(timeoutStr);
+    const deadline = Date.now() + timeoutMs;
+
+    // Poll until all local agents are idle with empty inboxes, or timeout
+    while (Date.now() < deadline) {
+      const allIdle = handle.loops.every((l) => !l.isRunning);
+      if (allIdle) {
+        return Response.json({ status: "completed" });
+      }
+      await new Promise((r) => setTimeout(r, 500));
+    }
+
+    return Response.json({ status: "timeout" });
   }
 
   private async handleRemoveWorkspace(key: string): Promise<Response> {
@@ -414,18 +547,191 @@ export class Daemon {
     }
 
     const body = (await req.json()) as {
-      channel?: string;
-      from?: string;
       content: string;
+      from?: string;
+      agent?: string;
+      channel?: string;
     };
 
     if (!body.content) {
       return Response.json({ error: "content is required" }, { status: 400 });
     }
 
+    const from = body.from ?? "user";
+
+    // Workspace send semantics:
+    // - Only channel → broadcast to channel
+    // - Only agent → direct message via smartSend with `to` field
+    // - Both → post to channel with `to` targeting agent
+    // - Neither → post to default_channel
+    if (body.agent && !body.channel) {
+      // Direct message to agent via default channel with `to` field
+      const channel = handle.resolved.def.default_channel ?? "general";
+      await handle.workspace.contextProvider.smartSend(channel, from, body.content, { to: body.agent });
+      return Response.json({ sent: true, routed_to: `agent:${body.agent}` });
+    }
+
     const channel = body.channel ?? handle.resolved.def.default_channel ?? "general";
-    await handle.send(channel, body.from ?? "user", body.content);
-    return Response.json({ sent: true, channel });
+
+    if (body.agent) {
+      // Post to channel AND target agent
+      await handle.workspace.contextProvider.smartSend(channel, from, body.content, { to: body.agent });
+      return Response.json({ sent: true, routed_to: `channel:${channel}+agent:${body.agent}` });
+    }
+
+    await handle.send(channel, from, body.content);
+    return Response.json({ sent: true, routed_to: `channel:${channel}` });
+  }
+
+  // ── Workspace channels ─────────────────────────────────────────────────
+
+  private async handleWorkspaceChannel(key: string, ch: string, url: URL): Promise<Response> {
+    const handle = this.workspaces.get(key);
+    if (!handle) {
+      return Response.json({ error: `Workspace "${key}" not found` }, { status: 404 });
+    }
+
+    const limit = parseInt(url.searchParams.get("limit") ?? "50", 10);
+    const since = url.searchParams.get("since") ?? undefined;
+    const agent = url.searchParams.get("agent") ?? undefined;
+
+    let messages = await handle.workspace.contextProvider.channels.read(ch, { limit, since });
+
+    // Optional agent filter
+    if (agent) {
+      messages = messages.filter((m) => m.from === agent || m.to === agent);
+    }
+
+    return Response.json({
+      channel: ch,
+      messages: messages.map((m) => ({
+        id: m.id,
+        from: m.from,
+        content: m.content,
+        timestamp: m.timestamp,
+        mentions: m.mentions,
+        to: m.to,
+      })),
+    });
+  }
+
+  private handleWorkspaceChannelStream(key: string, ch: string, _url: URL): Response {
+    const handle = this.workspaces.get(key);
+    if (!handle) {
+      return Response.json({ error: `Workspace "${key}" not found` }, { status: 404 });
+    }
+
+    return this.createSSEStream((push) => {
+      const listener = (msg: any) => {
+        push({
+          ts: Date.now(),
+          type: "message",
+          channel: ch,
+          id: msg.id,
+          from: msg.from,
+          content: msg.content,
+          timestamp: msg.timestamp,
+        });
+      };
+      handle.workspace.contextProvider.channels.on("message", listener);
+      return () => {
+        handle.workspace.contextProvider.channels.off("message", listener);
+      };
+    });
+  }
+
+  // ── Workspace events ───────────────────────────────────────────────────
+
+  private async handleWorkspaceEvents(key: string, url: URL): Promise<Response> {
+    const handle = this.workspaces.get(key);
+    if (!handle) {
+      return Response.json({ error: `Workspace "${key}" not found` }, { status: 404 });
+    }
+
+    const cursor = parseInt(url.searchParams.get("cursor") ?? "0", 10);
+    // Filter daemon events to those related to this workspace
+    const result = await this.eventLog.read(cursor);
+    const wsKey = handle.key;
+    const filtered = result.entries.filter(
+      (e: any) => e.workspace === wsKey,
+    );
+    return Response.json({ entries: filtered, cursor: result.cursor });
+  }
+
+  private handleWorkspaceEventsStream(key: string): Response {
+    const handle = this.workspaces.get(key);
+    if (!handle) {
+      return Response.json({ error: `Workspace "${key}" not found` }, { status: 404 });
+    }
+
+    const wsKey = handle.key;
+    return this.createSSEStream((push) => {
+      const unsub = this._bus.on((event: BusEvent) => {
+        if ((event as any).workspace === wsKey) {
+          push({ ts: Date.now(), ...event });
+        }
+      });
+      return unsub;
+    });
+  }
+
+  // ── Workspace documents ────────────────────────────────────────────────
+
+  private async handleListDocs(key: string): Promise<Response> {
+    const handle = this.workspaces.get(key);
+    if (!handle) {
+      return Response.json({ error: `Workspace "${key}" not found` }, { status: 404 });
+    }
+
+    const docs = handle.workspace.contextProvider.documents;
+    const list = await docs.list();
+    return Response.json({ docs: list });
+  }
+
+  private async handleReadDoc(key: string, docName: string): Promise<Response> {
+    const handle = this.workspaces.get(key);
+    if (!handle) {
+      return Response.json({ error: `Workspace "${key}" not found` }, { status: 404 });
+    }
+
+    const docs = handle.workspace.contextProvider.documents;
+    const content = await docs.read(docName);
+    if (content === null || content === undefined) {
+      return Response.json({ error: `Document "${docName}" not found` }, { status: 404 });
+    }
+    return Response.json({ name: docName, content });
+  }
+
+  private async handleWriteDoc(key: string, docName: string, req: Request): Promise<Response> {
+    const handle = this.workspaces.get(key);
+    if (!handle) {
+      return Response.json({ error: `Workspace "${key}" not found` }, { status: 404 });
+    }
+
+    const body = (await req.json()) as { content: string };
+    if (body.content === undefined) {
+      return Response.json({ error: "content is required" }, { status: 400 });
+    }
+
+    const docs = handle.workspace.contextProvider.documents;
+    await docs.write(docName, body.content, "api");
+    return Response.json({ name: docName, written: true });
+  }
+
+  private async handleAppendDoc(key: string, docName: string, req: Request): Promise<Response> {
+    const handle = this.workspaces.get(key);
+    if (!handle) {
+      return Response.json({ error: `Workspace "${key}" not found` }, { status: 404 });
+    }
+
+    const body = (await req.json()) as { content: string };
+    if (body.content === undefined) {
+      return Response.json({ error: "content is required" }, { status: 400 });
+    }
+
+    const docs = handle.workspace.contextProvider.documents;
+    await docs.append(docName, body.content, "api");
+    return Response.json({ name: docName, appended: true });
   }
 
   // ── Events ──────────────────────────────────────────────────────────────
@@ -434,6 +740,65 @@ export class Daemon {
     const cursor = parseInt(url.searchParams.get("cursor") ?? "0", 10);
     const result = await this.eventLog.read(cursor);
     return Response.json(result);
+  }
+
+  private handleEventsStream(): Response {
+    return this.createSSEStream((push) => {
+      const unsub = this._bus.on((event: BusEvent) => {
+        push({ ts: Date.now(), ...event });
+      });
+      return unsub;
+    });
+  }
+
+  // ── SSE helper ─────────────────────────────────────────────────────────
+
+  /**
+   * Create an SSE response. The setup function receives a push callback
+   * and returns a cleanup function.
+   */
+  private createSSEStream(
+    setup: (push: (data: unknown) => void) => (() => void) | void,
+  ): Response {
+    const stream = new ReadableStream({
+      start(controller) {
+        const push = (data: unknown) => {
+          try {
+            controller.enqueue(`data: ${JSON.stringify(data)}\n\n`);
+          } catch { /* stream may be closed */ }
+        };
+        const cleanup = setup(push);
+        // Store cleanup for cancel
+        (controller as any)._cleanup = cleanup;
+      },
+      cancel(controller: any) {
+        controller._cleanup?.();
+      },
+    });
+
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      },
+    });
+  }
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+/** Parse a duration string like "60s", "5m" into milliseconds. */
+function parseDuration(str: string): number {
+  const match = str.match(/^(\d+)(ms|s|m|h)?$/);
+  if (!match) return 60_000;
+  const n = parseInt(match[1]!, 10);
+  switch (match[2]) {
+    case "ms": return n;
+    case "s": return n * 1000;
+    case "m": return n * 60_000;
+    case "h": return n * 3_600_000;
+    default: return n * 1000; // default to seconds
   }
 }
 
