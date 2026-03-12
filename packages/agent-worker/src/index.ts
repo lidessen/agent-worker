@@ -1,6 +1,17 @@
 // ── Daemon ────────────────────────────────────────────────────────────────
 export { Daemon, startDaemon } from "./daemon.ts";
 
+// ── Client ───────────────────────────────────────────────────────────────
+export { AwClient } from "./client.ts";
+export type {
+  HealthInfo,
+  CursorResult,
+  SendResult,
+  AgentStateResult,
+  ChannelMessage,
+  DocInfo,
+} from "./client.ts";
+
 // ── Registries ────────────────────────────────────────────────────────────
 export { AgentRegistry } from "./agent-registry.ts";
 export { WorkspaceRegistry } from "./workspace-registry.ts";
@@ -36,17 +47,26 @@ export type {
   CreateAgentInput,
   ManagedWorkspaceInfo,
   CreateWorkspaceInput,
+  RuntimeType,
+  RuntimeConfig,
   RunnerKind,
   RunnerConfig,
   RunRequest,
   RunResponse,
 } from "./types.ts";
 
+// ── Loop factory ─────────────────────────────────────────────────────────
+export { createLoopFromConfig } from "./loop-factory.ts";
+
+// ── Target parsing ───────────────────────────────────────────────────────
+export { parseTarget, formatTarget } from "./cli/target.ts";
+export type { Target } from "./cli/target.ts";
+
 // ── Re-exports from lower packages ────────────────────────────────────────
 export { Agent } from "@agent-worker/agent";
 export type { AgentConfig, AgentState, AgentLoop } from "@agent-worker/agent";
 
-export { AiSdkLoop, ClaudeCodeLoop, CodexLoop, CursorLoop } from "@agent-worker/loop";
+export { AiSdkLoop, ClaudeCodeLoop, CodexLoop, CursorLoop, MockLoop } from "@agent-worker/loop";
 export type { LoopRun, LoopEvent, LoopResult, LoopStatus } from "@agent-worker/loop";
 
 export { Workspace, createWorkspace, createWiredLoop } from "@agent-worker/workspace";

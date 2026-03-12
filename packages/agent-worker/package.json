@@ -2,7 +2,7 @@
   "name": "agent-worker",
   "version": "0.0.1",
   "bin": {
-    "aw": "./src/cli.ts"
+    "aw": "./src/cli/index.ts"
   },
   "type": "module",
   "module": "src/index.ts",
