@@ -34,7 +34,7 @@ At least one part is required.
 
 | Input | Agent | Workspace (key) | Channel |
 |-------|-------|-----------------|---------|
-| `alice` | alice | — | — |
+| `alice` | alice | global (implicit) | — |
 | `alice@review` | alice | review | (default) |
 | `alice@review:pr-42` | alice | review:pr-42 | (default) |
 | `@review` | — | review | (default) |
@@ -80,6 +80,38 @@ function parseTarget(raw: string): Target {
 }
 ```
 
+## Global Workspace
+
+The daemon has a **global default workspace** (key: `global`) that always exists. Standalone agents created via `aw create` live in this workspace.
+
+Declarative workspaces (created via `aw start` / `aw run` from YAML) define their own agents inline — they **cannot** dynamically create new agents. However, they **can** reference agents from the global workspace by name.
+
+The global workspace is addressable as `@global` in target syntax. When `@workspace` is omitted, it implicitly resolves to `@global`.
+
+```
+┌─────────────────────────────────────────────┐
+│  Global Workspace (implicit, always exists)  │
+│                                              │
+│  alice ──────────────────────────┐           │
+│  bob                             │ reference │
+│  ...                             ▼           │
+│              ┌──────────────────────────┐    │
+│              │  @review:pr-42 (decl.)   │    │
+│              │  agents: [reviewer, ci]  │    │
+│              │  refs:   [alice]  ←──────│────│
+│              └──────────────────────────┘    │
+└─────────────────────────────────────────────┘
+```
+
+| Scope | Create agents | Reference global agents |
+|-------|:------------:|:----------------------:|
+| Global workspace | yes (`aw create`) | — |
+| Declarative workspace | no (YAML-defined only) | yes |
+
+When a bare agent name is used (e.g. `alice`), it resolves to the global workspace. When qualified with `@workspace` (e.g. `alice@review`), it resolves within that workspace.
+
+**Name resolution rule:** workspace-local agents take priority over global references. A workspace cannot define a local agent with the same name as a global reference — the daemon rejects this at workspace creation time (400 Bad Request). This ensures all target resolution is unambiguous.
+
 ## Storage Model
 
 Each agent and workspace gets isolated output streams for cursor-based incremental reads. Stored under the daemon's data directory.
@@ -95,7 +127,8 @@ Each agent and workspace gets isolated output streams for cursor-based increment
       events.jsonl                     # agent-level events (state, run, tool, thinking)
 
   workspaces/
-    review/                            # or review:pr-42/ for tagged instances
+    review/                            # untagged
+    review--pr-42/                     # tagged: ":" encoded as "--" on disk
       events.jsonl                     # workspace-level events
       channels/
         general.jsonl                  # channel message log
@@ -106,21 +139,13 @@ Each agent and workspace gets isolated output streams for cursor-based increment
 
 | Stream | Content | Written by |
 |--------|---------|-----------|
-| `agents/<name>/responses.jsonl` | text output, send-to-other-agent events | ManagedAgent event handler |
+| `agents/<name>/responses.jsonl` | text output, send-to-other-agent events (each entry includes `workspace` field) | ManagedAgent event handler |
 | `agents/<name>/events.jsonl` | state_change, run_start, run_end, tool_call_*, thinking, error | ManagedAgent event handler |
 | `workspaces/<key>/events.jsonl` | workspace lifecycle, agent join/leave, routing | ManagedWorkspace |
 | `workspaces/<key>/channels/<ch>.jsonl` | channel messages (from, content, ts) | Workspace channel router |
 | `events.jsonl` | everything (global, for daemon-level `/events`) | EventBus subscriber |
 
 All files are append-only JSONL. Cursor = byte offset. Survives daemon restart (files persist, daemon re-reads on startup).
-
-### Global vs scoped
-
-The HTTP API exposes **scoped** reads:
-- `/agents/:name/responses?cursor=N` — that agent's responses only
-- `/agents/:name/events?cursor=N` — that agent's events only
-- `/workspaces/:key/events?cursor=N` — that workspace's events only
-- `/events?cursor=N` — global (all events, for dashboard/debug)
 
 ### Polling vs SSE
 
@@ -130,6 +155,7 @@ Each cursor-based endpoint has a corresponding SSE stream endpoint for real-time
 |-------------------|-------------|
 | `GET /agents/:name/responses?cursor=N` | `GET /agents/:name/responses/stream` |
 | `GET /agents/:name/events?cursor=N` | `GET /agents/:name/events/stream` |
+| `GET /workspaces/:key/channels/:ch?cursor=N` | `GET /workspaces/:key/channels/:ch/stream` |
 | `GET /workspaces/:key/events?cursor=N` | `GET /workspaces/:key/events/stream` |
 | `GET /events?cursor=N` | `GET /events/stream` |
 
@@ -141,12 +167,7 @@ data: {"ts":1710000000,"type":"text","text":"Hello"}
 data: {"ts":1710000001,"type":"run_end","durationMs":1200,"tokens":150}
 ```
 
-Clients can pass `?cursor=N` to replay from a byte offset before switching to live push. Without `cursor`, only new events are streamed.
-
-The CLI prefers SSE when available:
-- `aw log --follow` → SSE on the appropriate `/stream` endpoint
-- `aw read` → shared SSE connection on `/agents/:name/responses/stream`, consumes N responses (default 1) then returns.
-- Falls back to cursor polling if SSE connection fails
+Clients can pass `?cursor=N` to replay from a byte offset before switching to live push. Without `cursor`, only new events are streamed. CLI falls back to cursor polling if SSE connection fails.
 
 ## Runtime Configuration
 
@@ -224,36 +245,15 @@ Maps directly to `POST /agents` with the corresponding `RuntimeConfig`.
 
 ## Workspace Send Semantics
 
-### Routing rules
+The workspace `send` route (`POST /workspaces/:key/send`) resolves the target fields to a concrete action:
 
-The workspace `send` API resolves the target to a concrete action:
-
-| Target | Action |
-|--------|--------|
-| `{ agent: "alice" }` | Push to alice's inbox directly |
-| `{ channel: "general" }` | Post to #general channel; all agents subscribed to #general see it |
-| `{ agent: "alice", channel: "design" }` | Post to #design channel with `from` set, addressed to alice (alice gets inbox notification) |
-| `{ workspace only }` | Post to default channel |
-
-### HTTP API
-
-```
-POST /workspaces/:key/send
-body: {
-  content: string;
-  from?: string;        // sender name (default: "user")
-  agent?: string;       // direct to specific agent's inbox
-  channel?: string;     // post to channel (default: default_channel)
-}
-```
-
-- If only `channel`: broadcast to channel, all subscribed agents see it in their next context assembly.
-- If only `agent`: direct inbox push, no channel involvement.
-- If both `agent` and `channel`: post to channel AND push notification to agent's inbox.
-
-### CLI mapping
+- Only `channel` → broadcast to channel, all subscribed agents see it.
+- Only `agent` → direct inbox push, no channel involvement.
+- Both `agent` and `channel` → post to channel AND push notification to agent's inbox.
+- Neither → post to `default_channel`.
 
 ```bash
+aw send alice "hello"                # → sendToAgent("alice", ...) — global workspace
 aw send @review "hello"              # → channel: default_channel
 aw send @review#design "hello"       # → channel: design
 aw send alice@review "hello"         # → agent: alice (inbox)
@@ -281,11 +281,12 @@ aw create <name> [options]    # Create standalone agent
   --env KEY=VALUE             #   env overrides (repeatable)
   --runner host|sandbox       #   execution environment
 
-aw run <config.yaml>          # Run workspace one-shot (exits when done)
+aw run <config.yaml>          # Run workspace as task (exits when done)
   --tag <tag>                 #   instance tag
   --var KEY=VALUE             #   template variables (repeatable)
+  --wait <duration>           #   max wait time (default: 5m)
 
-aw start <config.yaml>        # Start persistent workspace
+aw start <config.yaml>        # Start workspace (mode: service)
   --tag <tag>                 #   instance tag (e.g. pr-42)
   --var KEY=VALUE             #   template variables (repeatable)
 
@@ -294,38 +295,65 @@ aw info <target>              # Details (alice / @review:pr-42 / alice@review)
 aw rm <target>                # Remove agent or stop workspace
 ```
 
+**`aw run` lifecycle:** `POST /workspaces` with `mode: "task"` → `GET /workspaces/:key/wait?timeout=<wait>` → daemon auto-removes workspace on completion. All logic is daemon-side; the CLI just creates then waits.
+
+**`aw info` resolution:** For compound targets like `alice@review`, the CLI calls both `GET /agents/alice` and `GET /workspaces/review` and merges the results. This is presentation logic, not business logic — acceptable for the CLI layer.
+
 ### Messaging
 
 ```bash
 aw send <target> "message" [+Ns "message2" ...]
   --from <name>               # sender name
 
-aw read <target> [N]          # Read N responses (default: 1)
+aw read <target> [N]          # Read N messages from a stream (default: 1)
   --wait <duration>           # max total wait time, e.g. 30s, 5m (default: 60s)
   --json                      # one JSON object per line (JSONL)
 
 ```
 
-`read` consumes N responses from a shared SSE connection, prints each as it arrives, then returns. Defaults to 1 — the common send → read pattern. `--wait` caps the total wait time across all N responses.
+`read` consumes N messages from a shared SSE connection, prints each as it arrives, then returns. The target determines which stream:
+
+| Target | Stream |
+|--------|--------|
+| `alice` | All of alice's responses (`/agents/alice/responses/stream`) |
+| `alice@review` | Alice's responses scoped to @review (`/agents/alice/responses/stream?workspace=review`) |
+| `@review` | Default channel (`/workspaces/review/channels/<default>/stream`) |
+| `@review#design` | Named channel (`/workspaces/review/channels/design/stream`) |
+
+`--wait` caps the total wait time across all N messages.
+
+Response entries include a `workspace` field indicating which workspace context triggered the run. `read alice` returns all responses; `read alice@review` filters to `workspace=review` only. This ensures workspace-scoped reads are isolated even when agents are shared.
 
 ### Inspection
 
 ```bash
 aw state <target>             # Agent state, inbox, todos
-aw peek <target>              # Conversation / channel history
+aw peek <target>              # Read history (cursor=0 on existing endpoints)
 aw log [<target>] [options]   # Event log (filtered by target if given)
-  --follow, -f                # tail mode (CLI-level polling)
+  --follow, -f                # tail mode (SSE stream)
   --json                      # raw JSONL
 ```
+
+`peek` is CLI sugar — it reads history from cursor=0 on existing endpoints:
+
+| Target | API call |
+|--------|----------|
+| `alice` | `GET /agents/alice/responses?cursor=0` |
+| `alice@review` | `GET /agents/alice/responses?cursor=0&workspace=review` |
+| `@review` | `GET /workspaces/review/channels/<default>?cursor=0` |
+| `@review#design` | `GET /workspaces/review/channels/design?cursor=0` |
+| `alice@review#design` | `GET /workspaces/review/channels/design?cursor=0&agent=alice` |
 
 ### Shared documents (workspace)
 
 ```bash
-aw doc ls [@workspace]
+aw doc ls [@workspace]           # List docs (default: @global)
 aw doc read <name> [@workspace]
 aw doc write <name> [@workspace] --content "..."
 aw doc append <name> [@workspace] --content "..."
 ```
+
+`@workspace` is optional — defaults to `@global` when omitted. Maps to `/workspaces/:key/docs/...` routes.
 
 ## HTTP API
 
@@ -353,8 +381,11 @@ POST   /agents/:name/send           → send message(s)
          body: { messages: [{ content, from?, delayMs? }] }
          → { sent: number, state: string }
 
-GET    /agents/:name/responses?cursor=N   → { entries: ResponseEntry[], cursor: number }
-GET    /agents/:name/responses/stream    → SSE: real-time responses
+GET    /agents/:name/responses?cursor=N&workspace=<key>
+         → { entries: ResponseEntry[], cursor: number }
+         workspace: optional filter (scope to responses from that workspace context)
+GET    /agents/:name/responses/stream?workspace=<key>
+         → SSE: real-time responses (optionally filtered by workspace)
 GET    /agents/:name/events?cursor=N     → { entries: AgentEvent[], cursor: number }
 GET    /agents/:name/events/stream       → SSE: real-time agent events
 GET    /agents/:name/state               → { state, inbox, todos, history }
@@ -365,18 +396,32 @@ GET    /agents/:name/state               → { state, inbox, todos, history }
 
 ```
 GET    /workspaces                   → { workspaces: WorkspaceInfo[] }
-POST   /workspaces                   → start workspace
-         body: { source: string, tag?: string, vars?: Record<string, string> }
+POST   /workspaces                   → create workspace
+         body: { source: string, tag?: string, vars?: Record<string, string>, mode?: "service" | "task" }
+         mode "service" (default): long-running workspace, stopped via DELETE
+         mode "task": run to completion, daemon auto-removes workspace when done.
+           Completion = all workspace-local agents idle with empty inboxes.
+           Referenced global agents are NOT considered (they are external dependencies).
+           Failed = any local agent in error state.
+         → WorkspaceInfo (includes `status: "running" | "completed" | "failed"`)
+
 GET    /workspaces/:key              → WorkspaceInfo (key = name or name:tag)
+         If bare name matches multiple tagged instances → 409 Conflict with list
+GET    /workspaces/:key/wait         → block until workspace completes (for mode "task")
+         query: ?timeout=60s
+         → { status: "completed" | "failed" | "timeout", result?: WorkspaceResult }
 DELETE /workspaces/:key              → { removed: true }
+         For mode "task" workspaces: force-stops all agents, then removes.
 
 POST   /workspaces/:key/send        → send to workspace
          body: { content, from?, agent?, channel? }
          → { sent: true, routed_to: string }
 
-GET    /workspaces/:key/peek         → conversation history
-         query: ?channel=<name>&cursor=N
+GET    /workspaces/:key/channels/:ch?cursor=N&agent=<name>
          → { entries: ChannelMessage[], cursor: number }
+         agent: optional filter (messages from/to agent)
+GET    /workspaces/:key/channels/:ch/stream?agent=<name>
+         → SSE: real-time channel messages (optionally filtered)
 
 GET    /workspaces/:key/events?cursor=N   → { entries: WorkspaceEvent[], cursor: number }
 GET    /workspaces/:key/events/stream    → SSE: real-time workspace events
@@ -415,22 +460,25 @@ export class AwClient {
   getAgent(name: string): Promise<AgentInfo>;
   removeAgent(name: string): Promise<void>;
   sendToAgent(name: string, messages: SendMessage[]): Promise<SendResult>;
-  readResponses(name: string, cursor?: number): Promise<ResponsesResult>;
+  readResponses(name: string, opts?: { cursor?: number; workspace?: string }): Promise<ResponsesResult>;
   readAgentEvents(name: string, cursor?: number): Promise<EventsResult>;
   getAgentState(name: string): Promise<AgentStateResult>;
   // SSE streams (return AsyncIterable that yields parsed events)
-  streamResponses(name: string, cursor?: number): AsyncIterable<ResponseEntry>;
+  streamResponses(name: string, opts?: { cursor?: number; workspace?: string }): AsyncIterable<ResponseEntry>;
   streamAgentEvents(name: string, cursor?: number): AsyncIterable<AgentEvent>;
   streamEvents(cursor?: number): AsyncIterable<DaemonEvent>;
 
   // Workspaces
   listWorkspaces(): Promise<WorkspaceInfo[]>;
-  startWorkspace(source: string, opts?: { tag?: string; vars?: Record<string, string> }): Promise<WorkspaceInfo>;
+  startWorkspace(source: string, opts?: { tag?: string; vars?: Record<string, string>; mode?: "service" | "task" }): Promise<WorkspaceInfo>;
+  waitWorkspace(key: string, timeout?: string): Promise<{ status: string; result?: WorkspaceResult }>;
   getWorkspace(key: string): Promise<WorkspaceInfo>;
   stopWorkspace(key: string): Promise<void>;
   sendToWorkspace(key: string, opts: { content: string; from?: string; agent?: string; channel?: string }): Promise<SendResult>;
-  peekWorkspace(key: string, channel?: string, cursor?: number): Promise<PeekResult>;
+  readChannel(key: string, channel: string, opts?: { cursor?: number; agent?: string }): Promise<ChannelResult>;
+  streamChannel(key: string, channel: string, opts?: { cursor?: number; agent?: string }): AsyncIterable<ChannelMessage>;
   readWorkspaceEvents(key: string, cursor?: number): Promise<EventsResult>;
+  streamWorkspaceEvents(key: string, cursor?: number): AsyncIterable<WorkspaceEvent>;
 
   // Documents
   listDocs(workspace: string): Promise<DocInfo[]>;
@@ -439,12 +487,6 @@ export class AwClient {
   appendDoc(workspace: string, name: string, content: string): Promise<void>;
 }
 ```
-
-The CLI resolves `Target` to the correct `AwClient` method:
-- `alice` (standalone agent) → `sendToAgent("alice", ...)`
-- `alice@review` → `sendToWorkspace("review", { agent: "alice", ... })`
-- `@review#design` → `sendToWorkspace("review", { channel: "design", ... })`
-- `alice@review:pr-42#design` → `sendToWorkspace("review:pr-42", { agent: "alice", channel: "design", ... })`
 
 ## File Structure
 
@@ -468,10 +510,10 @@ packages/agent-worker/src/
       rm.ts                 # aw rm
       send.ts               # aw send
       read.ts               # aw read (SSE / polling)
-      run.ts                # aw run (one-shot workspace)
+      run.ts                # aw run (task workspace)
       state.ts              # aw state
       peek.ts               # aw peek
-      log.ts                # aw log (CLI polling for --follow)
+      log.ts                # aw log (SSE for --follow, cursor for history)
       doc.ts                # aw doc *
 
   # existing files
