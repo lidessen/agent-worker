@@ -7,7 +7,7 @@ export class InboxStore implements InboxStoreInterface {
   constructor(private readonly storage: StorageBackend) {}
 
   private inboxPath(agentName: string): string {
-    return `inbox/${agentName}.jsonl`;
+    return `agents/${agentName}/inbox.jsonl`;
   }
 
   private getAgentInbox(agentName: string): Map<string, InboxEntry> {
