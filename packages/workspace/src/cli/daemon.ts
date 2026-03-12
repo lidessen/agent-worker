@@ -187,8 +187,11 @@ export class WorkspaceDaemon {
         return;
       }
 
-      // Wire workspace tools
-      const { tools } = createAgentTools(agent.name, this.workspace!);
+      // Wire workspace tools and ensure sandbox directories
+      const { tools, dirs } = createAgentTools(agent.name, this.workspace!);
+      const { mkdirSync } = await import("node:fs");
+      if (dirs.workspaceSandboxDir) mkdirSync(dirs.workspaceSandboxDir, { recursive: true });
+      if (dirs.sandboxDir) mkdirSync(dirs.sandboxDir, { recursive: true });
       if (loop.setTools) {
         loop.setTools(tools as any);
       }
