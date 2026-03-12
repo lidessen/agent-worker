@@ -128,6 +128,7 @@ All daemon state lives under a single data directory (`~/.agent-worker/` by defa
       events.jsonl                     # agent-level events (state, run, tool, thinking)
       inbox.jsonl                      # agent inbox
       timeline.jsonl                   # agent timeline
+      sandbox/                         # agent working directory (bash cwd)
   channels/                            # global workspace channels
     general.jsonl
   status.json                          # global agent status (per-workspace)
@@ -135,24 +136,28 @@ All daemon state lives under a single data directory (`~/.agent-worker/` by defa
   # ── declarative workspaces ──
   workspaces/
     review/                            # untagged workspace (self-contained)
+      sandbox/                         # shared workspace sandbox (collaborative files)
       agents/
         reviewer/
           responses.jsonl
           events.jsonl
           inbox.jsonl
           timeline.jsonl
+          sandbox/                     # agent working directory (bash cwd)
       channels/
         general.jsonl                  # channel message log
         design.jsonl
       status.json                      # workspace agent status
 
     review--pr-42/                     # tagged: ":" encoded as "--" on disk
+      sandbox/                         # shared workspace sandbox
       agents/
         reviewer/
           responses.jsonl
           events.jsonl
           inbox.jsonl
           timeline.jsonl
+          sandbox/
       channels/
         general.jsonl
       status.json
@@ -160,7 +165,7 @@ All daemon state lives under a single data directory (`~/.agent-worker/` by defa
 
 ### What goes where
 
-All per-agent data lives under `agents/<name>/` — whether at root level (global) or under a workspace.
+All per-agent data lives under `agents/<name>/` — whether at root level (global) or under a workspace. The `sandbox/` subdirectory is the agent's working directory for bash and file operations. Each workspace also has a top-level `sandbox/` for shared collaborative files visible to all agents — agents never get direct access to the workspace root.
 
 | Stream | Content | Written by |
 |--------|---------|-----------|
@@ -169,13 +174,16 @@ All per-agent data lives under `agents/<name>/` — whether at root level (globa
 | `agents/<name>/events.jsonl` | state_change, run_start, run_end, tool_call_*, thinking, error | ManagedAgent |
 | `agents/<name>/inbox.jsonl` | inbox entries | Workspace inbox store |
 | `agents/<name>/timeline.jsonl` | timeline events | Workspace timeline store |
+| `agents/<name>/sandbox/` | agent working directory (bash cwd, file ops) | Agent runtime |
 | `channels/<ch>.jsonl` | global workspace channel messages | Workspace channel store |
 | `status.json` | all agents' current status (per-workspace) | Workspace status store |
 | **Per-workspace scope** | | |
+| `workspaces/<key>/sandbox/` | shared workspace sandbox (collaborative files) | Agent runtime |
 | `workspaces/<key>/agents/<name>/responses.jsonl` | text output, send events | ManagedAgent |
 | `workspaces/<key>/agents/<name>/events.jsonl` | state_change, run_start, run_end, tool_call_*, thinking, error | ManagedAgent |
 | `workspaces/<key>/agents/<name>/inbox.jsonl` | inbox entries | Workspace inbox store |
 | `workspaces/<key>/agents/<name>/timeline.jsonl` | timeline events | Workspace timeline store |
+| `workspaces/<key>/agents/<name>/sandbox/` | agent working directory (bash cwd, file ops) | Agent runtime |
 | `workspaces/<key>/channels/<ch>.jsonl` | channel messages | Workspace channel store |
 | `workspaces/<key>/status.json` | all agents' current status (per-workspace) | Workspace status store |
 | **Daemon-wide** | | |

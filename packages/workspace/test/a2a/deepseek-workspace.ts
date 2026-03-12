@@ -41,7 +41,7 @@ async function createDeepSeekHandler(agentName: string, ws: any) {
   const { generateText } = await import("ai");
 
   const model = deepseek("deepseek-chat");
-  const tools = createAgentTools(agentName, ws);
+  const { tools } = createAgentTools(agentName, ws);
 
   return async function onInstruction(prompt: string, instruction: Instruction) {
     console.log(
@@ -256,7 +256,7 @@ async function testToolUsageViaWorkspace(): Promise<void> {
     storage: new MemoryStorage(),
   });
 
-  const tools = createAgentTools("writer", ws);
+  const { tools } = createAgentTools("writer", ws);
 
   // Use tools directly (simulating what an agent loop would do)
   // 1. Create a team document

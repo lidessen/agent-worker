@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import type {
   WorkspaceConfig,
   WorkspaceRuntime,
@@ -25,6 +26,7 @@ export class Workspace implements WorkspaceRuntime {
   readonly name: string;
   readonly tag: string | undefined;
   readonly defaultChannel: string;
+  readonly storageDir: string | undefined;
   readonly contextProvider: ContextProvider;
   readonly eventLog: EventLog;
   readonly bridge: ChannelBridgeInterface;
@@ -42,6 +44,7 @@ export class Workspace implements WorkspaceRuntime {
     this.name = config.name;
     this.tag = config.tag;
     this.defaultChannel = config.defaultChannel ?? "general";
+    this.storageDir = config.storageDir;
 
     const storage = config.storage ?? new MemoryStorage();
     const channels = config.channels ?? [this.defaultChannel];
@@ -109,6 +112,18 @@ export class Workspace implements WorkspaceRuntime {
   /** Get the set of channels an agent has joined. */
   getAgentChannels(name: string): Set<string> {
     return this.agentChannels.get(name) ?? new Set();
+  }
+
+  /** Get the shared workspace sandbox directory (collaborative files). */
+  get workspaceSandboxDir(): string | undefined {
+    if (!this.storageDir) return undefined;
+    return join(this.storageDir, "sandbox");
+  }
+
+  /** Get the agent's sandbox directory (working directory for bash/files). */
+  agentSandboxDir(agentName: string): string | undefined {
+    if (!this.storageDir) return undefined;
+    return join(this.storageDir, "agents", agentName, "sandbox");
   }
 
   // ── Internal routing ──────────────────────────────────────────────────

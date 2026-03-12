@@ -80,7 +80,7 @@ export class WorkspaceDaemon {
     // Register agents to their custom channels
     for (const agent of resolved.agents) {
       if (agent.channels?.length) {
-        const tools = createAgentTools(agent.name, workspace);
+        const { tools } = createAgentTools(agent.name, workspace);
         for (const ch of agent.channels) {
           if (ch !== (resolved.def.default_channel ?? "general")) {
             await tools.channel_join({ channel: ch });
@@ -188,7 +188,7 @@ export class WorkspaceDaemon {
       }
 
       // Wire workspace tools
-      const tools = createAgentTools(agent.name, this.workspace!);
+      const { tools } = createAgentTools(agent.name, this.workspace!);
       if (loop.setTools) {
         loop.setTools(tools as any);
       }

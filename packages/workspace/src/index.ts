@@ -1,7 +1,7 @@
 // ── Workspace ──────────────────────────────────────────────────────────────
 export { Workspace } from "./workspace.ts";
 export { createWorkspace, createWiredLoop, createAgentTools } from "./factory.ts";
-export type { WiredLoopConfig } from "./factory.ts";
+export type { WiredLoopConfig, AgentDirs } from "./factory.ts";
 
 // ── Context ────────────────────────────────────────────────────────────────
 export { CompositeContextProvider } from "./context/provider.ts";

@@ -17,7 +17,7 @@ describe("Workspace Tools", () => {
 
   describe("Channel tools", () => {
     test("channel_send posts message", async () => {
-      const tools = createAgentTools("alice", workspace);
+      const { tools } = createAgentTools("alice", workspace);
       const result = await tools.channel_send({
         channel: "general",
         content: "Hello!",
@@ -32,19 +32,19 @@ describe("Workspace Tools", () => {
     test("channel_read returns messages", async () => {
       await workspace.contextProvider.smartSend("general", "alice", "test msg");
 
-      const tools = createAgentTools("bob", workspace);
+      const { tools } = createAgentTools("bob", workspace);
       const result = await tools.channel_read({ channel: "general" });
       expect(result).toContain("test msg");
     });
 
     test("channel_list shows joined channels", async () => {
-      const tools = createAgentTools("alice", workspace);
+      const { tools } = createAgentTools("alice", workspace);
       const result = await tools.channel_list({});
       expect(result).toContain("general");
     });
 
     test("channel_join adds channel", async () => {
-      const tools = createAgentTools("alice", workspace);
+      const { tools } = createAgentTools("alice", workspace);
       await tools.channel_join({ channel: "design" });
 
       const result = await tools.channel_list({});
@@ -56,7 +56,7 @@ describe("Workspace Tools", () => {
     test("my_inbox shows pending messages", async () => {
       await workspace.contextProvider.smartSend("general", "alice", "Hey @bob");
 
-      const tools = createAgentTools("bob", workspace);
+      const { tools } = createAgentTools("bob", workspace);
       const result = await tools.my_inbox({});
       expect(result).toContain("Hey @bob");
     });
@@ -64,7 +64,7 @@ describe("Workspace Tools", () => {
     test("my_inbox_ack removes entry", async () => {
       const msg = await workspace.contextProvider.smartSend("general", "alice", "Hey @bob");
 
-      const tools = createAgentTools("bob", workspace);
+      const { tools } = createAgentTools("bob", workspace);
       await tools.my_inbox_ack({ message_id: msg.id });
 
       const result = await tools.my_inbox({});
@@ -74,14 +74,14 @@ describe("Workspace Tools", () => {
 
   describe("Team tools", () => {
     test("team_members lists all agents", async () => {
-      const tools = createAgentTools("alice", workspace);
+      const { tools } = createAgentTools("alice", workspace);
       const result = await tools.team_members({});
       expect(result).toContain("@alice");
       expect(result).toContain("@bob");
     });
 
     test("team_doc lifecycle", async () => {
-      const tools = createAgentTools("alice", workspace);
+      const { tools } = createAgentTools("alice", workspace);
 
       await tools.team_doc_create({ name: "spec.md", content: "# Spec\n" });
 
@@ -100,7 +100,7 @@ describe("Workspace Tools", () => {
 
   describe("Resource tools", () => {
     test("resource create and read", async () => {
-      const tools = createAgentTools("alice", workspace);
+      const { tools } = createAgentTools("alice", workspace);
 
       const createResult = await tools.resource_create({
         content: "large content here",
@@ -115,7 +115,7 @@ describe("Workspace Tools", () => {
     });
 
     test("resource_read returns not found", async () => {
-      const tools = createAgentTools("alice", workspace);
+      const { tools } = createAgentTools("alice", workspace);
       const result = await tools.resource_read({ id: "res_nonexistent" });
       expect(result).toContain("not found");
     });

@@ -426,8 +426,8 @@ test("T12", async () => {
     storage: new MemoryStorage(),
   });
 
-  const aliceTools = createAgentTools("alice", ws);
-  const bobTools = createAgentTools("bob", ws);
+  const { tools: aliceTools } = createAgentTools("alice", ws);
+  const { tools: bobTools } = createAgentTools("bob", ws);
 
   const sendResult = await aliceTools.channel_send({
     channel: "general",
@@ -544,8 +544,8 @@ test("T15", async () => {
     storage: new MemoryStorage(),
   });
 
-  const aliceTools = createAgentTools("alice", ws);
-  const bobTools = createAgentTools("bob", ws);
+  const { tools: aliceTools } = createAgentTools("alice", ws);
+  const { tools: bobTools } = createAgentTools("bob", ws);
   await aliceTools.channel_join({ channel: "design" });
   await bobTools.channel_join({ channel: "code-review" });
 
