@@ -676,8 +676,8 @@ const ws = await createWorkspace({
   storage: new MemoryStorage(),
 });
 
-const aliceTools = createAgentTools("alice", ws);
-const bobTools = createAgentTools("bob", ws);
+const { tools: aliceTools } = createAgentTools("alice", ws);
+const { tools: bobTools } = createAgentTools("bob", ws);
 
 // Alice sends via tool
 const sendResult = await aliceTools.channel_send({
@@ -887,8 +887,8 @@ const ws = await createWorkspace({
 });
 
 // Alice joins #design, bob joins #code-review
-const aliceTools = createAgentTools("alice", ws);
-const bobTools = createAgentTools("bob", ws);
+const { tools: aliceTools } = createAgentTools("alice", ws);
+const { tools: bobTools } = createAgentTools("bob", ws);
 await aliceTools.channel_join({ channel: "design" });
 await bobTools.channel_join({ channel: "code-review" });
 
