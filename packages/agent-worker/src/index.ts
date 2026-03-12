@@ -49,6 +49,8 @@ export type {
   CreateWorkspaceInput,
   RuntimeType,
   RuntimeConfig,
+  WorkspaceMode,
+  WorkspaceStatus,
   RunnerKind,
   RunnerConfig,
   RunRequest,

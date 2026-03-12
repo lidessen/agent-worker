@@ -135,6 +135,7 @@ storage: file
       resolved,
       loops,
       tag: input.tag,
+      mode: input.mode,
       bus: this._bus,
     });
 
@@ -150,12 +151,16 @@ storage: file
 
   /** Get a workspace by key ("name" or "name:tag"). */
   get(key: string): ManagedWorkspace | undefined {
+    if (key === "global" && this._defaultWorkspace) return this._defaultWorkspace;
     return this.workspaces.get(key);
   }
 
-  /** List all workspaces (excluding default). */
+  /** List all workspaces (including global). */
   list(): ManagedWorkspaceInfo[] {
-    return Array.from(this.workspaces.values()).map((h) => h.info);
+    const result: ManagedWorkspaceInfo[] = [];
+    if (this._defaultWorkspace) result.push(this._defaultWorkspace.info);
+    for (const h of this.workspaces.values()) result.push(h.info);
+    return result;
   }
 
   /** Stop and remove a workspace. */
@@ -177,7 +182,7 @@ storage: file
   }
 
   get size(): number {
-    return this.workspaces.size;
+    return this.workspaces.size + (this._defaultWorkspace ? 1 : 0);
   }
 
   // ── Internal ────────────────────────────────────────────────────────────
