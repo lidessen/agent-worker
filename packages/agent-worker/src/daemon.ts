@@ -215,6 +215,7 @@ export class Daemon {
 
       return Response.json({ error: "Not found" }, { status: 404 });
     } catch (err) {
+      console.error("[daemon] request error:", err);
       return Response.json({ error: String(err) }, { status: 500 });
     }
   }

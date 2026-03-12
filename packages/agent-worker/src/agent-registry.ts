@@ -30,6 +30,10 @@ export class AgentRegistry {
       throw new Error(`Agent "${input.name}" already exists`);
     }
 
+    if (!input.config && !input.loop) {
+      throw new Error(`Agent "${input.name}": either config or loop is required`);
+    }
+
     const config: AgentConfig = input.config ?? {
       name: input.name,
       instructions: input.instructions,

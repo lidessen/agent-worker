@@ -210,17 +210,18 @@ export class ManagedAgent {
   /** Wait until the agent returns to idle or waiting state. */
   private waitForIdle(): Promise<void> {
     return new Promise((resolve) => {
-      const check = () => {
-        const s = this.agent.state;
-        if (s === "idle" || s === "waiting" || s === "stopped" || s === "error") {
+      const s = this.agent.state;
+      if (s === "idle" || s === "waiting" || s === "stopped" || s === "error") {
+        resolve();
+        return;
+      }
+      const onState = (state: AgentState) => {
+        if (state === "idle" || state === "waiting" || state === "stopped" || state === "error") {
+          this.agent.off("stateChange", onState);
           resolve();
-          return;
         }
-        // Poll state at short intervals
-        setTimeout(check, 50);
       };
-      // Give the agent a tick to start processing
-      setTimeout(check, 50);
+      this.agent.on("stateChange", onState);
     });
   }
 }
