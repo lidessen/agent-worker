@@ -52,7 +52,7 @@ describe("AgentMcpServer", () => {
     expect(content).toContain("callBridge");
     expect(content).toContain("BRIDGE_SOCKET");
     expect(content).toContain(DUMMY_UNIX.socketPath);
-    expect(content).toContain("unix:");
+    expect(content).toContain("socketPath");
     expect(content).not.toContain("const todos:");
     expect(content).not.toContain("new Map");
 

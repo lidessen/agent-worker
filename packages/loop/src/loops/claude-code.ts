@@ -6,8 +6,10 @@ import { runCliLoop } from "../utils/cli-loop.ts";
 export type ClaudeCodeModel = "opus" | "sonnet" | "haiku";
 
 export class ClaudeCodeLoop {
+  readonly supports = [] as const;
   private _status: LoopStatus = "idle";
   private abortController: AbortController | null = null;
+  private _mcpConfigPath: string | null = null;
 
   constructor(private options: ClaudeCodeLoopOptions = {}) {}
 
@@ -23,7 +25,7 @@ export class ClaudeCodeLoop {
     const loopRun = runCliLoop(
       {
         command: "claude",
-        args: buildArgs(prompt, this.options),
+        args: buildArgs(prompt, this.options, this._mcpConfigPath),
         mapEvent: mapClaudeEvent,
         extractResult: extractClaudeResult,
       },
@@ -51,6 +53,10 @@ export class ClaudeCodeLoop {
     }
   }
 
+  setMcpConfig(configPath: string): void {
+    this._mcpConfigPath = configPath;
+  }
+
   /** Check if claude CLI is installed and authenticated. Not a runtime test. */
   async preflight(): Promise<PreflightResult> {
     const cli = await checkCliAvailability("claude");
@@ -65,7 +71,7 @@ export class ClaudeCodeLoop {
   }
 }
 
-function buildArgs(prompt: string, opts: ClaudeCodeLoopOptions): string[] {
+function buildArgs(prompt: string, opts: ClaudeCodeLoopOptions, mcpConfigPath?: string | null): string[] {
   const args = ["-p", prompt, "--output-format", "stream-json", "--verbose"];
 
   if (opts.model) args.push("--model", opts.model);
@@ -74,6 +80,7 @@ function buildArgs(prompt: string, opts: ClaudeCodeLoopOptions): string[] {
   if (opts.permissionMode === "acceptEdits" || opts.permissionMode === "bypassPermissions") {
     args.push("--dangerously-skip-permissions");
   }
+  if (mcpConfigPath) args.push("--mcp-config", mcpConfigPath);
   if (opts.extraArgs?.length) args.push(...opts.extraArgs);
 
   return args;
