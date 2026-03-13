@@ -1,39 +1,24 @@
 import { AwClient } from "../../client.ts";
-import type { RuntimeConfig, RuntimeType } from "../../types.ts";
 
 export async function create(args: string[]): Promise<void> {
-  const name = args[0];
-  if (!name) {
-    console.error("Usage: aw create <name> --runtime <type> [--model <id>] [--instructions <text>] [--cwd <path>]");
+  const source = args[0];
+  if (!source) {
+    console.error("Usage: aw create <config.yaml> [--tag <tag>] [--var KEY=VALUE]");
     process.exit(1);
   }
 
-  const runtime: RuntimeConfig = {
-    type: (getFlag(args, "--runtime") ?? "mock") as RuntimeType,
-    model: getFlag(args, "--model"),
-    instructions: getFlag(args, "--instructions"),
-    cwd: getFlag(args, "--cwd"),
-  };
-
-  // Parse --env KEY=VALUE (repeatable)
-  const envPairs = getAllFlags(args, "--env");
-  if (envPairs.length > 0) {
-    runtime.env = {};
-    for (const pair of envPairs) {
-      const [k, ...v] = pair.split("=");
-      runtime.env[k!] = v.join("=");
-    }
-  }
-
-  const runner = getFlag(args, "--runner");
-  if (runner === "host" || runner === "sandbox") {
-    runtime.runner = runner;
-  }
+  const tag = getFlag(args, "--tag");
+  const vars = parseVars(args);
 
   try {
+    // Read YAML from file
+    const yaml = await Bun.file(source).text();
     const client = await AwClient.discover();
-    const info = await client.createAgent(name, runtime);
-    console.log(`Created agent "${info.name}" (${runtime.type})`);
+    const info = await client.createWorkspace(yaml, { tag, vars });
+    const key = info.tag ? `${info.name}:${info.tag}` : info.name;
+    console.log(`Created workspace @${key}`);
+    console.log(`  Agents:   ${info.agents.join(", ")}`);
+    console.log(`  Channels: ${info.channels.join(", ")}`);
   } catch (err) {
     console.error(err instanceof Error ? err.message : String(err));
     process.exit(1);
@@ -45,13 +30,16 @@ function getFlag(args: string[], flag: string): string | undefined {
   return idx >= 0 ? args[idx + 1] : undefined;
 }
 
-function getAllFlags(args: string[], flag: string): string[] {
-  const results: string[] = [];
+function parseVars(args: string[]): Record<string, string> | undefined {
+  const vars: Record<string, string> = {};
+  let found = false;
   for (let i = 0; i < args.length; i++) {
-    if (args[i] === flag && i + 1 < args.length) {
-      results.push(args[i + 1]!);
+    if (args[i] === "--var" && i + 1 < args.length) {
+      const [k, ...v] = args[i + 1]!.split("=");
+      vars[k!] = v.join("=");
+      found = true;
       i++;
     }
   }
-  return results;
+  return found ? vars : undefined;
 }
