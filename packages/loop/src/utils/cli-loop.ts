@@ -9,6 +9,8 @@ export type RawCliEvent = LoopEvent | { type: "usage"; usage: TokenUsage } | nul
 export interface CliLoopConfig {
   command: string;
   args: string[];
+  /** Extra environment variables for the CLI process */
+  env?: Record<string, string>;
   mapEvent: (data: unknown) => RawCliEvent | RawCliEvent[];
   extractResult: (stdout: string) => string;
 }
@@ -63,6 +65,7 @@ export function runCliLoop(
         command: config.command,
         args: config.args,
         cwd: options.cwd,
+        env: config.env,
         signal: callOptions.abortSignal,
         idleTimeout: options.idleTimeout ?? 60_000,
         onStdout: (chunk) => parser.push(chunk),
