@@ -14,7 +14,5 @@
     "ai": "^6.0.116",
     "yaml": "^2.8.2"
   },
-  "devDependencies": {
-    "agent-worker": "workspace:*"
-  }
+  "devDependencies": {}
 }
