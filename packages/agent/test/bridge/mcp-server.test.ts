@@ -35,7 +35,7 @@ describe("AgentMcpServer", () => {
 
     const config = await configFile.json();
     expect(config.mcpServers["agent-worker"]).toBeDefined();
-    expect(config.mcpServers["agent-worker"].command).toBe("bun");
+    expect(config.mcpServers["agent-worker"].command).toBe("npx");
     expect(config.mcpServers["agent-worker"].args).toHaveLength(2);
 
     const entryPath = config.mcpServers["agent-worker"].args[1];

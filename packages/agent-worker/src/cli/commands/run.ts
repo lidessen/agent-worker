@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { AwClient } from "../../client.ts";
 
 export async function run(args: string[]): Promise<void> {
@@ -12,7 +13,7 @@ export async function run(args: string[]): Promise<void> {
   const vars = parseVars(args);
 
   try {
-    const yaml = await Bun.file(source).text();
+    const yaml = await readFile(source, "utf-8");
     const client = await AwClient.discover();
 
     const info = await client.createWorkspace(yaml, { tag, vars, mode: "task" });

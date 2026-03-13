@@ -1,4 +1,5 @@
 import type { RunnerKind, RunnerConfig } from "./types.ts";
+import { execa } from "execa";
 
 /**
  * AgentRunner — abstraction for where/how an agent's loop executes.
@@ -32,26 +33,17 @@ export class HostRunner implements AgentRunner {
   }
 
   async exec(command: string, opts?: { cwd?: string; timeout?: number }): Promise<ExecResult> {
-    const proc = Bun.spawn(["sh", "-c", command], {
+    const result = await execa("sh", ["-c", command], {
       cwd: opts?.cwd ?? this.cwd,
-      stdout: "pipe",
-      stderr: "pipe",
+      reject: false,
+      timeout: opts?.timeout,
     });
 
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    if (opts?.timeout) {
-      timer = setTimeout(() => proc.kill(), opts.timeout);
-    }
-
-    const [stdout, stderr] = await Promise.all([
-      new Response(proc.stdout).text(),
-      new Response(proc.stderr).text(),
-    ]);
-
-    const exitCode = await proc.exited;
-    if (timer) clearTimeout(timer);
-
-    return { exitCode, stdout, stderr };
+    return {
+      exitCode: result.exitCode ?? 1,
+      stdout: result.stdout,
+      stderr: result.stderr,
+    };
   }
 
   async dispose(): Promise<void> {

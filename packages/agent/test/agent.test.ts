@@ -309,7 +309,7 @@ describe("CLI MCP bridge", () => {
     const config = await file.json();
     expect(config.mcpServers).toBeDefined();
     expect(config.mcpServers["agent-worker"]).toBeDefined();
-    expect(config.mcpServers["agent-worker"].command).toBe("bun");
+    expect(config.mcpServers["agent-worker"].command).toBe("npx");
 
     // The entry script should also exist
     const entryPath = config.mcpServers["agent-worker"].args[1];

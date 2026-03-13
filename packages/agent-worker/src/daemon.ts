@@ -44,9 +44,13 @@ import { ManagedWorkspace } from "./managed-workspace.ts";
 import { DaemonEventLog } from "./event-log.ts";
 import { createLoopFromConfig } from "./loop-factory.ts";
 import { writeDaemonInfo, removeDaemonInfo, generateToken, defaultDataDir } from "./discovery.ts";
+import { Hono } from "hono";
+import { serve } from "@hono/node-server";
+import type { ServerType } from "@hono/node-server";
 
 export class Daemon {
-  private server: ReturnType<typeof Bun.serve> | null = null;
+  private server: ServerType | null = null;
+  private _port = 0;
   private readonly agents: AgentRegistry;
   private readonly workspaces: WorkspaceRegistry;
   private readonly eventLog: DaemonEventLog;
@@ -88,13 +92,21 @@ export class Daemon {
     await this.workspaces.ensureDefault();
     this.startedAt = Date.now();
 
-    this.server = Bun.serve({
-      port: this.config.port,
-      hostname: this.config.host,
-      fetch: (req) => this.handleRequest(req),
+    const app = new Hono();
+    app.all('*', async (c) => {
+      const response = await this.handleRequest(c.req.raw);
+      return response;
     });
-
-    const actualPort = this.server.port;
+    const actualPort = await new Promise<number>((resolve) => {
+      this.server = serve({
+        fetch: app.fetch,
+        port: this.config.port,
+        hostname: this.config.host,
+      }, (info) => {
+        resolve(info.port);
+      });
+    });
+    this._port = actualPort;
     const info: DaemonInfo = {
       pid: process.pid,
       host: this.config.host,
@@ -123,7 +135,7 @@ export class Daemon {
     await this.workspaces.stopAll();
 
     if (this.server) {
-      this.server.stop(true);
+      this.server.close();
       this.server = null;
     }
 
@@ -149,7 +161,7 @@ export class Daemon {
   }
 
   get port(): number {
-    return this.server?.port ?? 0;
+    return this._port;
   }
 
   // ── Request routing ─────────────────────────────────────────────────────
