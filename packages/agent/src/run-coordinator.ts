@@ -1,5 +1,5 @@
 import type { LoopEvent, LoopResult } from "@agent-worker/loop";
-import type { AgentLoop, NotesStorage, Turn, RunInfo, AssembledPrompt } from "./types.ts";
+import type { AgentLoop, NotesStorage, Turn, RunInfo, AssembledPrompt, PrepareStepResult } from "./types.ts";
 import type { Inbox } from "./inbox.ts";
 import type { TodoManager } from "./todo.ts";
 import type { ContextEngine } from "./context-engine.ts";
@@ -216,7 +216,7 @@ export class RunCoordinator {
     model: unknown;
     messages: unknown[];
     experimental_context: unknown;
-  }): Promise<{ system?: string }> {
+  }): Promise<PrepareStepResult> {
     if (opts.stepNumber === 0) return {}; // First step uses initial prompt
 
     const assembled = await this.deps.contextEngine.assemble({

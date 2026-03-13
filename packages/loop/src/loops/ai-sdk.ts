@@ -3,6 +3,7 @@ import { createBashTool, type CreateBashToolOptions, type BashToolkit } from "ba
 import type { LoopEvent, LoopResult, LoopRun, LoopStatus, PreflightResult } from "../types.ts";
 import { createEventChannel } from "../types.ts";
 import { extractProvider, hasProviderKey } from "../utils/models.ts";
+import { ToolRelevanceEngine, type ToolRelevanceConfig } from "../tool-relevance.ts";
 
 // No typed model union — AI SDK supports any provider:model string
 
@@ -17,6 +18,8 @@ export interface AiSdkLoopOptions {
   bashToolOptions?: CreateBashToolOptions;
   /** Set false to disable built-in bash/readFile/writeFile tools. Default: true */
   includeBashTools?: boolean;
+  /** Tool relevance config for dynamic per-step tool filtering. */
+  toolRelevance?: ToolRelevanceConfig;
 }
 
 export class AiSdkLoop {
@@ -27,9 +30,14 @@ export class AiSdkLoop {
 
   bashToolkit: BashToolkit | null = null;
   tools: ToolSet = {};
-  private _prepareStep: ((opts: any) => unknown) | null = null;
+  private _prepareStep: ((opts: any) => Promise<Record<string, unknown>> | Record<string, unknown>) | null = null;
+  private relevanceEngine: ToolRelevanceEngine | null = null;
 
-  constructor(private options: AiSdkLoopOptions) {}
+  constructor(private options: AiSdkLoopOptions) {
+    if (options.toolRelevance) {
+      this.relevanceEngine = new ToolRelevanceEngine(options.toolRelevance);
+    }
+  }
 
   get status(): LoopStatus {
     return this._status;
@@ -82,6 +90,7 @@ export class AiSdkLoop {
         const streamResult = await this.agent!.stream({
           prompt,
           abortSignal: this.abortController!.signal,
+          prepareStep: this._buildPrepareStep(),
 
           experimental_onToolCallStart: (event) => {
             const tc = event.toolCall;
@@ -160,6 +169,10 @@ export class AiSdkLoop {
     this._prepareStep = fn;
   }
 
+  setToolRelevance(config: ToolRelevanceConfig): void {
+    this.relevanceEngine = new ToolRelevanceEngine(config);
+  }
+
   async cleanup(): Promise<void> {
     if (this.bashToolkit?.sandbox && "stop" in this.bashToolkit.sandbox) {
       await (this.bashToolkit.sandbox as { stop(): Promise<void> }).stop();
@@ -186,5 +199,37 @@ export class AiSdkLoop {
     }
 
     return { ok: true };
+  }
+
+  /**
+   * Build the combined prepareStep function that merges:
+   * 1. External prepareStep hook (from agent coordinator — system prompt, etc.)
+   * 2. Tool relevance engine (activeTools filtering)
+   */
+  private _buildPrepareStep(): ((opts: any) => Promise<any>) | undefined {
+    const externalHook = this._prepareStep;
+    const engine = this.relevanceEngine;
+
+    // Nothing to do
+    if (!externalHook && !engine) return undefined;
+
+    return async (opts: any) => {
+      // Gather results from both sources
+      const externalResult = externalHook ? await externalHook(opts) : {};
+      const resolved = (externalResult ?? {}) as Record<string, unknown>;
+
+      // Tool relevance: compute activeTools from real step context
+      if (engine) {
+        const activeTools = engine.selectActiveTools(this.tools, {
+          stepNumber: opts.stepNumber,
+          steps: opts.steps,
+        });
+        if (activeTools) {
+          resolved.activeTools = activeTools;
+        }
+      }
+
+      return resolved;
+    };
   }
 }

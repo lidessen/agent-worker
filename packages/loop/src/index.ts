@@ -36,3 +36,7 @@ export {
 export { runCliLoop, type CliLoopConfig } from "./utils/cli-loop.ts";
 export { createStreamParser } from "./utils/stream-parser.ts";
 export { extractProvider, hasProviderKey } from "./utils/models.ts";
+
+// ── Tool relevance ─────────────────────────────────────────────────────────
+export { ToolRelevanceEngine } from "./tool-relevance.ts";
+export type { ToolRelevanceConfig, StepContext } from "./tool-relevance.ts";

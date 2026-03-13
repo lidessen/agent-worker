@@ -15,13 +15,18 @@ export type AgentState = "idle" | "waiting" | "processing" | "error" | "stopped"
 
 export type LoopCapability = "directTools" | "prepareStep";
 
+export type PrepareStepResult = {
+  system?: string;
+  activeTools?: string[];
+};
+
 export type PrepareStepFunction = (options: {
   steps: unknown[];
   stepNumber: number;
   model: unknown;
   messages: unknown[];
   experimental_context: unknown;
-}) => unknown;
+}) => PrepareStepResult | Promise<PrepareStepResult>;
 
 export interface AgentLoop {
   supports: LoopCapability[];
