@@ -1,3 +1,5 @@
+import { execa } from "execa";
+
 export interface CliCheckResult {
   available: boolean;
   version?: string;
@@ -12,16 +14,11 @@ export async function checkCliAvailability(
   versionFlag = "--version",
 ): Promise<CliCheckResult> {
   try {
-    const proc = Bun.spawn([command, versionFlag], {
-      stdout: "pipe",
-      stderr: "pipe",
-    });
-    const exitCode = await proc.exited;
-    if (exitCode !== 0) {
-      return { available: false, error: `${command} exited with ${exitCode}` };
+    const result = await execa(command, [versionFlag], { reject: false });
+    if (result.exitCode !== 0) {
+      return { available: false, error: `${command} exited with ${result.exitCode}` };
     }
-    const stdout = await new Response(proc.stdout).text();
-    const version = stdout.trim().split("\n")[0];
+    const version = result.stdout.trim().split("\n")[0];
     return { available: true, version };
   } catch (err) {
     return {
@@ -39,16 +36,12 @@ export async function runCliCommand(
   args: string[],
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
   try {
-    const proc = Bun.spawn([command, ...args], {
-      stdout: "pipe",
-      stderr: "pipe",
-    });
-    const [stdout, stderr] = await Promise.all([
-      new Response(proc.stdout).text(),
-      new Response(proc.stderr).text(),
-    ]);
-    const exitCode = await proc.exited;
-    return { stdout: stdout.trim(), stderr: stderr.trim(), exitCode };
+    const result = await execa(command, args, { reject: false });
+    return {
+      stdout: result.stdout.trim(),
+      stderr: result.stderr.trim(),
+      exitCode: result.exitCode,
+    };
   } catch (err) {
     return { stdout: "", stderr: (err as Error).message, exitCode: -1 };
   }
@@ -123,11 +116,12 @@ export interface SpawnCliResult {
 export async function spawnCli(options: SpawnCliOptions): Promise<SpawnCliResult> {
   const { command, args, cwd, signal, idleTimeout = 60_000, onStdout, onStderr } = options;
 
-  const proc = Bun.spawn([command, ...args], {
+  const proc = execa(command, args, {
     cwd,
-    stdout: "pipe",
-    stderr: "pipe",
     env: { ...process.env },
+    reject: false,
+    cancelSignal: signal,
+    gracefulCancel: true,
   });
 
   let stdoutBuf = "";
@@ -141,34 +135,24 @@ export async function spawnCli(options: SpawnCliOptions): Promise<SpawnCliResult
     }, idleTimeout);
   };
 
-  // Handle abort signal
-  const onAbort = () => proc.kill("SIGTERM");
-  signal?.addEventListener("abort", onAbort, { once: true });
-
   resetIdle();
 
-  // Read stdout
+  // Read stdout stream
   const readStdout = (async () => {
-    const reader = proc.stdout.getReader();
-    const decoder = new TextDecoder();
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      const text = decoder.decode(value, { stream: true });
+    if (!proc.stdout) return;
+    for await (const chunk of proc.stdout) {
+      const text = typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk);
       stdoutBuf += text;
       resetIdle();
       onStdout?.(text);
     }
   })();
 
-  // Read stderr
+  // Read stderr stream
   const readStderr = (async () => {
-    const reader = proc.stderr.getReader();
-    const decoder = new TextDecoder();
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      const text = decoder.decode(value, { stream: true });
+    if (!proc.stderr) return;
+    for await (const chunk of proc.stderr) {
+      const text = typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk);
       stderrBuf += text;
       resetIdle();
       onStderr?.(text);
@@ -176,10 +160,9 @@ export async function spawnCli(options: SpawnCliOptions): Promise<SpawnCliResult
   })();
 
   await Promise.all([readStdout, readStderr]);
-  const exitCode = await proc.exited;
+  const result = await proc;
 
   if (idleTimer) clearTimeout(idleTimer);
-  signal?.removeEventListener("abort", onAbort);
 
-  return { stdout: stdoutBuf, stderr: stderrBuf, exitCode };
+  return { stdout: stdoutBuf, stderr: stderrBuf, exitCode: result.exitCode };
 }

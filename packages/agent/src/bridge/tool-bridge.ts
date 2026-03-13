@@ -1,3 +1,4 @@
+import { createServer, type Server, type IncomingMessage, type ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { createToolHandlers, type ToolHandlerDeps } from "../tool-registry.ts";
 
@@ -22,7 +23,7 @@ export type BridgeTransport =
  * exposes is a separate concern.
  */
 export class ToolBridge {
-  private server: ReturnType<typeof Bun.serve> | null = null;
+  private server: Server | null = null;
   private _transport: BridgeTransport | null = null;
   private _socketPath: string | null = null; // for cleanup
 
@@ -33,22 +34,22 @@ export class ToolBridge {
   }
 
   async start(): Promise<BridgeTransport> {
-    const fetchHandler = this.buildFetchHandler();
+    const requestHandler = this.buildRequestHandler();
     const suffix = `${Date.now()}-${process.pid}-${Math.random().toString(36).slice(2, 8)}`;
 
     // Strategy 1: Unix socket in OS tmpdir
     const sysTmp = tmpdir();
     const sock1 = `${sysTmp}/agent-bridge-${suffix}.sock`;
-    const unix1 = await this.tryUnix(sock1, fetchHandler);
+    const unix1 = await this.tryUnix(sock1, requestHandler);
     if (unix1) return unix1;
 
     // Strategy 2: Unix socket in cwd (if tmpdir restricted)
     const sock2 = `.agent-bridge-${suffix}.sock`;
-    const unix2 = await this.tryUnix(sock2, fetchHandler);
+    const unix2 = await this.tryUnix(sock2, requestHandler);
     if (unix2) return unix2;
 
     // Strategy 3: TCP on 127.0.0.1 with retry
-    const tcp = await this.tryTcp(fetchHandler);
+    const tcp = await this.tryTcp(requestHandler);
     if (tcp) return tcp;
 
     throw new Error(
@@ -60,7 +61,7 @@ export class ToolBridge {
 
   async stop(): Promise<void> {
     if (this.server) {
-      this.server.stop(true);
+      this.server.close();
       this.server = null;
     }
     if (this._socketPath) {
@@ -79,7 +80,7 @@ export class ToolBridge {
 
   private async tryUnix(
     socketPath: string,
-    fetch: (req: Request) => Promise<Response>,
+    handler: (req: IncomingMessage, res: ServerResponse) => void,
   ): Promise<BridgeTransport | null> {
     // Clean up stale socket from a previous crash
     try {
@@ -90,7 +91,15 @@ export class ToolBridge {
     }
 
     try {
-      this.server = Bun.serve({ unix: socketPath, fetch });
+      const server = createServer(handler);
+      await new Promise<void>((resolve, reject) => {
+        server.once("error", reject);
+        server.listen({ path: socketPath }, () => {
+          server.removeListener("error", reject);
+          resolve();
+        });
+      });
+      this.server = server;
       this._socketPath = socketPath;
       this._transport = { type: "unix", socketPath };
       return this._transport;
@@ -100,14 +109,23 @@ export class ToolBridge {
   }
 
   private async tryTcp(
-    fetch: (req: Request) => Promise<Response>,
+    handler: (req: IncomingMessage, res: ServerResponse) => void,
   ): Promise<BridgeTransport | null> {
     const attempts = [0, 0, 0]; // 3 attempts with port: 0
     for (const _ of attempts) {
       try {
-        this.server = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch });
-        const port = this.server.port;
-        if (port === undefined) throw new Error("Server started but port is undefined");
+        const server = createServer(handler);
+        await new Promise<void>((resolve, reject) => {
+          server.once("error", reject);
+          server.listen({ host: "127.0.0.1", port: 0 }, () => {
+            server.removeListener("error", reject);
+            resolve();
+          });
+        });
+        const addr = server.address();
+        if (!addr || typeof addr === "string") throw new Error("Server started but address is not available");
+        const port = addr.port;
+        this.server = server;
         this._transport = { type: "tcp", host: "127.0.0.1", port };
         return this._transport;
       } catch {
@@ -120,27 +138,39 @@ export class ToolBridge {
 
   // ── Request handler ───────────────────────────────────────────────────
 
-  private buildFetchHandler(): (req: Request) => Promise<Response> {
+  private buildRequestHandler(): (req: IncomingMessage, res: ServerResponse) => void {
     const handlers = createToolHandlers(this.deps);
 
-    return async (req: Request) => {
+    return (req: IncomingMessage, res: ServerResponse) => {
       if (req.method !== "POST") {
-        return new Response("Method not allowed", { status: 405 });
+        res.writeHead(405, { "Content-Type": "text/plain" });
+        res.end("Method not allowed");
+        return;
       }
 
-      const toolName = new URL(req.url).pathname.slice(1);
+      const url = new URL(req.url ?? "/", "http://localhost");
+      const toolName = url.pathname.slice(1);
       const handler = handlers[toolName];
       if (!handler) {
-        return Response.json({ error: `Unknown tool: ${toolName}` }, { status: 404 });
+        res.writeHead(404, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: `Unknown tool: ${toolName}` }));
+        return;
       }
 
-      try {
-        const args = (await req.json()) as Record<string, unknown>;
-        const result = await handler(args);
-        return Response.json({ result });
-      } catch (err) {
-        return Response.json({ error: String(err) }, { status: 500 });
-      }
+      const chunks: Buffer[] = [];
+      req.on("data", (chunk: Buffer) => chunks.push(chunk));
+      req.on("end", async () => {
+        try {
+          const body = Buffer.concat(chunks).toString("utf-8");
+          const args = JSON.parse(body) as Record<string, unknown>;
+          const result = await handler(args);
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ result }));
+        } catch (err) {
+          res.writeHead(500, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: String(err) }));
+        }
+      });
     };
   }
 }

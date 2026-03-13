@@ -127,19 +127,21 @@ export class AgentMcpServer {
       ? this.buildProxyScript(transport, hasMemory)
       : this.buildMinimalScript();
 
-    await Bun.write(entryPath, entryScript);
+    const { writeFile } = await import("node:fs/promises");
+    await writeFile(entryPath, entryScript, "utf-8");
 
     // Write MCP config for CLI
-    await Bun.write(
+    await writeFile(
       configPath,
       JSON.stringify({
         mcpServers: {
           "agent-worker": {
-            command: "bun",
-            args: ["run", entryPath],
+            command: "npx",
+            args: ["tsx", entryPath],
           },
         },
       }),
+      "utf-8",
     );
 
     this.configPath = configPath;

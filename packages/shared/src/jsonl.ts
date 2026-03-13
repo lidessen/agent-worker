@@ -1,15 +1,22 @@
-import { appendFileSync } from "node:fs";
+import { appendFileSync, statSync, openSync, readSync, closeSync } from "node:fs";
 
 /** Read a file from a byte offset to end. Returns text and new cursor position. */
 export async function readFrom(
   path: string,
   cursor: number,
 ): Promise<{ data: string; cursor: number }> {
-  const file = Bun.file(path);
-  const size = file.size;
+  let size: number;
+  try {
+    size = statSync(path).size;
+  } catch {
+    return { data: "", cursor: 0 };
+  }
   if (cursor >= size) return { data: "", cursor: size };
-  const buf = await file.slice(cursor, size).text();
-  return { data: buf, cursor: size };
+  const buf = Buffer.alloc(size - cursor);
+  const fd = openSync(path, "r");
+  readSync(fd, buf, 0, buf.length, cursor);
+  closeSync(fd);
+  return { data: buf.toString("utf-8"), cursor: size };
 }
 
 /** Parse JSONL text into an array of objects. Skips empty lines. */

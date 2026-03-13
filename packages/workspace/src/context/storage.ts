@@ -1,5 +1,5 @@
 import { join, dirname } from "node:path";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile, writeFile, appendFile, readdir, unlink, access } from "node:fs/promises";
 import type { StorageBackend } from "../types.ts";
 
 // ── MemoryStorage ──────────────────────────────────────────────────────────
@@ -63,41 +63,41 @@ export class FileStorage implements StorageBackend {
   async appendLine(path: string, line: string): Promise<void> {
     const fullPath = this.resolve(path);
     await mkdir(dirname(fullPath), { recursive: true });
-    const file = Bun.file(fullPath);
-    const existing = (await file.exists()) ? await file.text() : "";
-    await Bun.write(fullPath, existing + line + "\n");
+    await appendFile(fullPath, line + "\n", "utf-8");
   }
 
   async readLines(path: string): Promise<string[]> {
     const fullPath = this.resolve(path);
-    const file = Bun.file(fullPath);
-    if (!(await file.exists())) return [];
-    const content = await file.text();
+    try {
+      await access(fullPath);
+    } catch {
+      return [];
+    }
+    const content = await readFile(fullPath, "utf-8");
     return content.split("\n").filter((line) => line.length > 0);
   }
 
   async writeFile(path: string, content: string): Promise<void> {
     const fullPath = this.resolve(path);
     await mkdir(dirname(fullPath), { recursive: true });
-    await Bun.write(fullPath, content);
+    await writeFile(fullPath, content, "utf-8");
   }
 
   async readFile(path: string): Promise<string | null> {
     const fullPath = this.resolve(path);
-    const file = Bun.file(fullPath);
-    if (!(await file.exists())) return null;
-    return file.text();
+    try {
+      await access(fullPath);
+    } catch {
+      return null;
+    }
+    return readFile(fullPath, "utf-8");
   }
 
   async listFiles(dir: string): Promise<string[]> {
     const fullPath = this.resolve(dir);
     try {
-      const glob = new Bun.Glob("*");
-      const entries: string[] = [];
-      for await (const entry of glob.scan({ cwd: fullPath, onlyFiles: true })) {
-        entries.push(entry);
-      }
-      return entries;
+      const entries = await readdir(fullPath, { withFileTypes: true });
+      return entries.filter((e) => e.isFile()).map((e) => e.name);
     } catch {
       return [];
     }
@@ -106,7 +106,6 @@ export class FileStorage implements StorageBackend {
   async deleteFile(path: string): Promise<void> {
     const fullPath = this.resolve(path);
     try {
-      const { unlink } = await import("node:fs/promises");
       await unlink(fullPath);
     } catch {
       // no-op if not found

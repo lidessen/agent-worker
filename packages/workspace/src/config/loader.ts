@@ -1,4 +1,6 @@
 import { parse as parseYaml } from "yaml";
+import { readFile, access } from "node:fs/promises";
+import { execa } from "execa";
 import type {
   WorkspaceDef,
   ResolvedWorkspace,
@@ -71,21 +73,14 @@ export async function runSetupSteps(
 
   for (const step of steps) {
     const cmd = interpolate(step.shell, vars);
-    const proc = Bun.spawn(["sh", "-c", cmd], {
-      stdout: "pipe",
-      stderr: "pipe",
-    });
+    const result = await execa("sh", ["-c", cmd], { reject: false });
 
-    const stdout = await new Response(proc.stdout).text();
-    const stderr = await new Response(proc.stderr).text();
-    const exitCode = await proc.exited;
-
-    if (exitCode !== 0) {
-      throw new Error(`Setup step failed (exit ${exitCode}): ${cmd}\nstderr: ${stderr.trim()}`);
+    if (result.exitCode !== 0) {
+      throw new Error(`Setup step failed (exit ${result.exitCode}): ${cmd}\nstderr: ${result.stderr.trim()}`);
     }
 
     if (step.as) {
-      vars[step.as] = stdout.trim();
+      vars[step.as] = result.stdout.trim();
     }
   }
 
@@ -137,11 +132,12 @@ export async function loadWorkspaceDef(
   if (pathOrContent.includes("\n") || pathOrContent.trimStart().startsWith("name:")) {
     content = pathOrContent;
   } else {
-    const file = Bun.file(pathOrContent);
-    if (!(await file.exists())) {
+    try {
+      await access(pathOrContent);
+    } catch {
       throw new Error(`Workspace definition not found: ${pathOrContent}`);
     }
-    content = await file.text();
+    content = await readFile(pathOrContent, "utf-8");
   }
 
   const def = parseWorkspaceDef(content);
