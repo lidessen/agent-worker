@@ -14,6 +14,7 @@ import type { AgentKind, ManagedAgentInfo, DaemonEvent } from "./types.ts";
 export class ManagedAgent {
   readonly name: string;
   readonly kind: AgentKind;
+  readonly runtime?: string;
   readonly createdAt: number;
   readonly agent: Agent;
 
@@ -26,6 +27,7 @@ export class ManagedAgent {
   constructor(opts: {
     name: string;
     kind: AgentKind;
+    runtime?: string;
     config: AgentConfig;
     workspace?: string;
     bus?: EventBus;
@@ -38,6 +40,7 @@ export class ManagedAgent {
   }) {
     this.name = opts.name;
     this.kind = opts.kind;
+    this.runtime = opts.runtime;
     this.createdAt = Date.now();
     this._workspace = opts.workspace;
 
@@ -206,6 +209,7 @@ export class ManagedAgent {
       name: this.name,
       kind: this.kind,
       state: this.state,
+      runtime: this.runtime,
       createdAt: this.createdAt,
       workspace: this._workspace,
     };

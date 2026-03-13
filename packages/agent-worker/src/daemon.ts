@@ -337,6 +337,7 @@ export class Daemon {
         instructions: body.runtime.instructions,
         loop,
         kind: "ephemeral",
+        runtime: body.runtime.type,
       });
       return Response.json(handle.info, { status: 201 });
     } catch (err) {
@@ -629,7 +630,8 @@ export class Daemon {
       key: handle.key,
       mode: handle.mode,
       status: handle.status,
-      agents: handle.resolved.agents.map((a) => ({
+      agents: handle.resolved.agents.map((a) => a.name),
+      agent_details: handle.resolved.agents.map((a) => ({
         name: a.name,
         runtime: a.runtime ?? "mock",
       })),

@@ -50,7 +50,8 @@ describe("Unified daemon (workspace routes)", () => {
 
     const status = await client.getWorkspaceStatus("test-ws");
     expect(status.name).toBe("test-ws");
-    expect((status.agents as { name: string }[]).map((a) => a.name).sort()).toEqual(["alice", "bob"]);
+    expect((status.agents as string[]).sort()).toEqual(["alice", "bob"]);
+    expect((status.agent_details as { name: string; runtime: string }[]).map((a) => a.name).sort()).toEqual(["alice", "bob"]);
     expect((status.channels as string[])).toContain("general");
     expect((status.channels as string[])).toContain("design");
   });
