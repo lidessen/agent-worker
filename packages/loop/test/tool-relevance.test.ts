@@ -4,7 +4,6 @@ import type { ToolSet } from "ai";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-/** Minimal tool-like object with description — enough for the relevance engine. */
 function makeTools(defs: Record<string, string>): ToolSet {
   const tools: Record<string, { description: string }> = {};
   for (const [name, desc] of Object.entries(defs)) {
@@ -21,7 +20,8 @@ const TOOLS = makeTools({
   webFetch: "Fetch content from a URL",
   agent_todo: "Manage your working memory todos",
   agent_inbox: "Interact with the message inbox",
-  agent_notes: "Persistent key-value notes storage",
+  databaseQuery: "Run SQL queries against the database",
+  deployService: "Deploy a service to production",
 });
 
 function step(overrides: Partial<StepContext["steps"][0]> = {}): StepContext["steps"][0] {
@@ -37,14 +37,35 @@ function step(overrides: Partial<StepContext["steps"][0]> = {}): StepContext["st
 // ── Tests ──────────────────────────────────────────────────────────────────
 
 describe("ToolRelevanceEngine", () => {
-  describe("selectActiveTools", () => {
-    test("returns undefined on step 0 (all tools active)", () => {
-      const engine = new ToolRelevanceEngine({ maxActiveTools: 3 });
-      const result = engine.selectActiveTools(TOOLS, { stepNumber: 0, steps: [] });
-      expect(result).toBeUndefined();
+  describe("classify", () => {
+    test("classifies tools by tier", () => {
+      const engine = new ToolRelevanceEngine({
+        tiers: {
+          bash: "always",
+          readFile: "always",
+          databaseQuery: "on-demand",
+          deployService: "on-demand",
+        },
+      });
+      const result = engine.classify(TOOLS);
+      expect(result.always).toEqual(["bash", "readFile"]);
+      expect(result.onDemand).toEqual(["databaseQuery", "deployService"]);
+      expect(result.contextual).toContain("webSearch");
+      expect(result.contextual).not.toContain("bash");
+      expect(result.contextual).not.toContain("databaseQuery");
     });
 
-    test("returns undefined when no filtering configured", () => {
+    test("defaults all tools to contextual when no tiers configured", () => {
+      const engine = new ToolRelevanceEngine();
+      const result = engine.classify(TOOLS);
+      expect(result.always).toEqual([]);
+      expect(result.onDemand).toEqual([]);
+      expect(result.contextual).toHaveLength(Object.keys(TOOLS).length);
+    });
+  });
+
+  describe("selectActiveTools", () => {
+    test("returns undefined when no tiers configured", () => {
       const engine = new ToolRelevanceEngine();
       const ctx: StepContext = {
         stepNumber: 1,
@@ -53,24 +74,36 @@ describe("ToolRelevanceEngine", () => {
       expect(engine.selectActiveTools(TOOLS, ctx)).toBeUndefined();
     });
 
-    test("core tools are always included", () => {
+    test("step 0 includes always + contextual, excludes on-demand", () => {
       const engine = new ToolRelevanceEngine({
-        coreTools: ["bash", "readFile"],
-        maxActiveTools: 3,
+        tiers: { bash: "always", deployService: "on-demand" },
+      });
+      const result = engine.selectActiveTools(TOOLS, { stepNumber: 0, steps: [] })!;
+      expect(result).toContain("bash");
+      expect(result).toContain("webSearch"); // contextual
+      expect(result).not.toContain("deployService"); // on-demand
+    });
+
+    test("always-tier tools are always included", () => {
+      const engine = new ToolRelevanceEngine({
+        tiers: { bash: "always", readFile: "always", deployService: "on-demand" },
       });
       const ctx: StepContext = {
-        stepNumber: 1,
-        steps: [step({ toolCalls: [{ toolName: "webSearch" }] })],
+        stepNumber: 3,
+        steps: [
+          step({ toolCalls: [{ toolName: "webSearch" }] }),
+          step({ toolCalls: [{ toolName: "webSearch" }] }),
+          step({ toolCalls: [{ toolName: "webSearch" }] }),
+        ],
       };
       const result = engine.selectActiveTools(TOOLS, ctx)!;
       expect(result).toContain("bash");
       expect(result).toContain("readFile");
     });
 
-    test("recently-used tools score high", () => {
+    test("contextual tools included when recently used", () => {
       const engine = new ToolRelevanceEngine({
-        coreTools: ["bash"],
-        maxActiveTools: 4,
+        tiers: { bash: "always", deployService: "on-demand" },
       });
       const ctx: StepContext = {
         stepNumber: 2,
@@ -80,15 +113,13 @@ describe("ToolRelevanceEngine", () => {
         ],
       };
       const result = engine.selectActiveTools(TOOLS, ctx)!;
-      expect(result).toContain("bash"); // core
-      expect(result).toContain("webSearch"); // used in both steps
-      expect(result).toContain("webFetch"); // co-occurred with webSearch
+      expect(result).toContain("webSearch"); // recently used
+      expect(result).toContain("webFetch"); // recently used
     });
 
-    test("tools with errors score for retry", () => {
+    test("contextual tools included when errored for retry", () => {
       const engine = new ToolRelevanceEngine({
-        coreTools: ["bash"],
-        maxActiveTools: 3,
+        tiers: { bash: "always", deployService: "on-demand" },
       });
       const ctx: StepContext = {
         stepNumber: 1,
@@ -100,50 +131,100 @@ describe("ToolRelevanceEngine", () => {
         ],
       };
       const result = engine.selectActiveTools(TOOLS, ctx)!;
-      expect(result).toContain("readFile"); // errored, keep for retry
+      expect(result).toContain("readFile");
     });
 
-    test("description match scores tools mentioned in model text", () => {
+    test("all contextual tools included when none were recently used", () => {
       const engine = new ToolRelevanceEngine({
-        maxActiveTools: 4,
+        tiers: { bash: "always", deployService: "on-demand" },
+      });
+      // Model only produced text, no tool calls → don't starve it
+      const ctx: StepContext = {
+        stepNumber: 1,
+        steps: [step({ text: "Let me think about this...", toolCalls: [] })],
+      };
+      const result = engine.selectActiveTools(TOOLS, ctx)!;
+      // All contextual tools should be present
+      expect(result).toContain("webSearch");
+      expect(result).toContain("readFile");
+      expect(result).toContain("agent_todo");
+      // But still no on-demand
+      expect(result).not.toContain("deployService");
+    });
+  });
+
+  describe("on-demand tools", () => {
+    test("on-demand tools excluded until activated", () => {
+      const engine = new ToolRelevanceEngine({
+        tiers: {
+          bash: "always",
+          databaseQuery: "on-demand",
+          deployService: "on-demand",
+        },
       });
       const ctx: StepContext = {
         stepNumber: 1,
-        steps: [
-          step({
-            text: "I need to search the web for more information about this topic",
-            toolCalls: [],
-          }),
-        ],
+        steps: [step({ toolCalls: [{ toolName: "bash" }] })],
       };
       const result = engine.selectActiveTools(TOOLS, ctx)!;
-      expect(result).toContain("webSearch"); // description matches "search the web"
+      expect(result).not.toContain("databaseQuery");
+      expect(result).not.toContain("deployService");
     });
 
-    test("co-occurring tools boost each other", () => {
+    test("activated on-demand tools appear in selection", () => {
       const engine = new ToolRelevanceEngine({
-        coreTools: [],
-        maxActiveTools: 3,
+        tiers: {
+          bash: "always",
+          databaseQuery: "on-demand",
+          deployService: "on-demand",
+        },
       });
+      engine.activateOnDemand("databaseQuery");
+
       const ctx: StepContext = {
-        stepNumber: 2,
-        steps: [
-          // Step 0: webSearch + webFetch used together
-          step({ toolCalls: [{ toolName: "webSearch" }, { toolName: "webFetch" }] }),
-          // Step 1: only webSearch used
-          step({ toolCalls: [{ toolName: "webSearch" }] }),
-        ],
+        stepNumber: 1,
+        steps: [step({ toolCalls: [{ toolName: "bash" }] })],
       };
       const result = engine.selectActiveTools(TOOLS, ctx)!;
-      // webFetch should score high due to co-occurrence with the recently-used webSearch
-      expect(result).toContain("webSearch");
-      expect(result).toContain("webFetch");
+      expect(result).toContain("databaseQuery");
+      expect(result).not.toContain("deployService");
     });
 
-    test("returns undefined when all tools would be selected anyway", () => {
+    test("resetActivations clears activated on-demand tools", () => {
       const engine = new ToolRelevanceEngine({
-        maxActiveTools: 100, // more than total tools
+        tiers: { databaseQuery: "on-demand", deployService: "on-demand" },
       });
+      engine.activateOnDemand("databaseQuery");
+      engine.resetActivations();
+
+      const ctx: StepContext = {
+        stepNumber: 1,
+        steps: [step({ toolCalls: [{ toolName: "bash" }] })],
+      };
+      // No on-demand tiers active, and all non-on-demand are contextual
+      // with recent use → should not contain deactivated on-demand
+      const result = engine.selectActiveTools(TOOLS, ctx)!;
+      expect(result).not.toContain("databaseQuery");
+    });
+
+    test("getOnDemandCatalog returns names and descriptions", () => {
+      const engine = new ToolRelevanceEngine({
+        tiers: {
+          bash: "always",
+          databaseQuery: "on-demand",
+          deployService: "on-demand",
+        },
+      });
+      const catalog = engine.getOnDemandCatalog(TOOLS);
+      expect(catalog).toHaveLength(2);
+      expect(catalog.map((t) => t.name)).toEqual(["databaseQuery", "deployService"]);
+      expect(catalog[0]!.description).toBe("Run SQL queries against the database");
+    });
+  });
+
+  describe("returns undefined when no filtering occurs", () => {
+    test("no on-demand and no always → no filtering", () => {
+      const engine = new ToolRelevanceEngine();
       const ctx: StepContext = {
         stepNumber: 1,
         steps: [step({ toolCalls: [{ toolName: "bash" }] })],
@@ -151,48 +232,18 @@ describe("ToolRelevanceEngine", () => {
       expect(engine.selectActiveTools(TOOLS, ctx)).toBeUndefined();
     });
 
-    test("minScore filters low-relevance tools", () => {
+    test("all tools would be included → returns undefined", () => {
+      // Only 1 on-demand tool, rest are always/contextual, all activated
+      const smallTools = makeTools({ bash: "shell", rare: "rare tool" });
       const engine = new ToolRelevanceEngine({
-        minScore: 0.3,
+        tiers: { bash: "always", rare: "on-demand" },
       });
+      engine.activateOnDemand("rare");
       const ctx: StepContext = {
         stepNumber: 1,
-        steps: [step({ toolCalls: [{ toolName: "bash" }], text: "" })],
+        steps: [step({ toolCalls: [{ toolName: "bash" }] })],
       };
-      const result = engine.selectActiveTools(TOOLS, ctx)!;
-      // Only bash should pass the threshold (recently used → high score)
-      // Other tools with 0 score should be filtered
-      expect(result).toContain("bash");
-      expect(result.length).toBeLessThan(Object.keys(TOOLS).length);
-    });
-  });
-
-  describe("scoreTools", () => {
-    test("returns scores for all tools", () => {
-      const engine = new ToolRelevanceEngine({ coreTools: ["bash"] });
-      const ctx: StepContext = {
-        stepNumber: 1,
-        steps: [step({ toolCalls: [{ toolName: "readFile" }] })],
-      };
-      const scores = engine.scoreTools(TOOLS, ctx);
-      expect(scores).toHaveLength(Object.keys(TOOLS).length);
-
-      const bashScore = scores.find((s) => s.name === "bash");
-      expect(bashScore?.isCore).toBe(true);
-      expect(bashScore?.score).toBe(1.0);
-
-      const readFileScore = scores.find((s) => s.name === "readFile");
-      expect(readFileScore?.isCore).toBe(false);
-      expect(readFileScore!.score).toBeGreaterThan(0);
-    });
-
-    test("returns zero scores on step 0", () => {
-      const engine = new ToolRelevanceEngine();
-      const scores = engine.scoreTools(TOOLS, { stepNumber: 0, steps: [] });
-      const nonCore = scores.filter((s) => !s.isCore);
-      for (const s of nonCore) {
-        expect(s.score).toBe(0);
-      }
+      expect(engine.selectActiveTools(smallTools, ctx)).toBeUndefined();
     });
   });
 });

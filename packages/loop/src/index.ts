@@ -39,4 +39,4 @@ export { extractProvider, hasProviderKey } from "./utils/models.ts";
 
 // ── Tool relevance ─────────────────────────────────────────────────────────
 export { ToolRelevanceEngine } from "./tool-relevance.ts";
-export type { ToolRelevanceConfig, StepContext } from "./tool-relevance.ts";
+export type { ToolRelevanceConfig, StepContext, ToolTier } from "./tool-relevance.ts";
