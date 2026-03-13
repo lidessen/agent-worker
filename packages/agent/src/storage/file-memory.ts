@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile, writeFile, access } from "node:fs/promises";
 import type { MemoryEntry, MemoryStorage } from "../types.ts";
 
 let nextMemId = 1;
@@ -18,10 +18,11 @@ export class FileMemoryStorage implements MemoryStorage {
 
   private async load(): Promise<MemoryEntry[]> {
     if (this.entries) return this.entries;
-    const file = Bun.file(this.filePath);
-    if (await file.exists()) {
-      this.entries = (await file.json()) as MemoryEntry[];
-    } else {
+    try {
+      await access(this.filePath);
+      const content = await readFile(this.filePath, "utf-8");
+      this.entries = JSON.parse(content) as MemoryEntry[];
+    } catch {
       this.entries = [];
     }
     return this.entries;
@@ -30,7 +31,7 @@ export class FileMemoryStorage implements MemoryStorage {
   private async save(): Promise<void> {
     if (!this.entries) return;
     await mkdir(join(this.filePath, ".."), { recursive: true });
-    await Bun.write(this.filePath, JSON.stringify(this.entries, null, 2));
+    await writeFile(this.filePath, JSON.stringify(this.entries, null, 2), "utf-8");
   }
 
   async add(entry: Omit<MemoryEntry, "id">): Promise<string> {

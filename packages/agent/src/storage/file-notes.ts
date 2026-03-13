@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile, writeFile, unlink, readdir, access } from "node:fs/promises";
 import type { NotesStorage } from "../types.ts";
 
 export class FileNotesStorage implements NotesStorage {
@@ -12,27 +12,33 @@ export class FileNotesStorage implements NotesStorage {
   }
 
   async read(key: string): Promise<string | null> {
-    const file = Bun.file(this.path(key));
-    if (!(await file.exists())) return null;
-    return file.text();
+    const filePath = this.path(key);
+    try {
+      await access(filePath);
+    } catch {
+      return null;
+    }
+    return readFile(filePath, "utf-8");
   }
 
   async write(key: string, content: string): Promise<void> {
     await mkdir(this.dir, { recursive: true });
-    await Bun.write(this.path(key), content);
+    await writeFile(this.path(key), content, "utf-8");
   }
 
   async list(): Promise<string[]> {
-    const glob = new Bun.Glob("*.md");
-    const keys: string[] = [];
-    for await (const path of glob.scan({ cwd: this.dir })) {
-      keys.push(path.replace(/\.md$/, ""));
+    let entries: string[];
+    try {
+      entries = await readdir(this.dir);
+    } catch {
+      return [];
     }
-    return keys;
+    return entries
+      .filter((name) => name.endsWith(".md"))
+      .map((name) => name.replace(/\.md$/, ""));
   }
 
   async delete(key: string): Promise<void> {
-    const { unlink } = await import("node:fs/promises");
     try {
       await unlink(this.path(key));
     } catch {
