@@ -50,7 +50,7 @@ describe("Unified daemon (workspace routes)", () => {
 
     const status = await client.getWorkspaceStatus("test-ws");
     expect(status.name).toBe("test-ws");
-    expect((status.agents as any[]).map((a: any) => a.name).sort()).toEqual(["alice", "bob"]);
+    expect((status.agents as { name: string }[]).map((a) => a.name).sort()).toEqual(["alice", "bob"]);
     expect((status.channels as string[])).toContain("general");
     expect((status.channels as string[])).toContain("design");
   });
@@ -132,10 +132,12 @@ describe("Unified daemon (workspace routes)", () => {
     await setup();
     await client.startWorkspace(CHAT_YAML);
 
-    // Wait for events to flush
-    await Bun.sleep(500);
-
-    const result = await client.readWorkspaceEvents("test-ws", 0);
+    // Poll until events appear (up to 2s)
+    let result = await client.readWorkspaceEvents("test-ws", 0);
+    for (let i = 0; i < 20 && result.entries.length === 0; i++) {
+      await Bun.sleep(100);
+      result = await client.readWorkspaceEvents("test-ws", 0);
+    }
     // Should have workspace.created, workspace.kickoff events
     expect(result.entries.length).toBeGreaterThan(0);
   });
