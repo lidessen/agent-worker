@@ -1,4 +1,5 @@
-import { appendFileSync, statSync, openSync, readSync, closeSync } from "node:fs";
+import { appendFileSync } from "node:fs";
+import { stat, open } from "node:fs/promises";
 
 /** Read a file from a byte offset to end. Returns text and new cursor position. */
 export async function readFrom(
@@ -7,15 +8,18 @@ export async function readFrom(
 ): Promise<{ data: string; cursor: number }> {
   let size: number;
   try {
-    size = statSync(path).size;
+    size = (await stat(path)).size;
   } catch {
     return { data: "", cursor: 0 };
   }
   if (cursor >= size) return { data: "", cursor: size };
   const buf = Buffer.alloc(size - cursor);
-  const fd = openSync(path, "r");
-  readSync(fd, buf, 0, buf.length, cursor);
-  closeSync(fd);
+  const fh = await open(path, "r");
+  try {
+    await fh.read(buf, 0, buf.length, cursor);
+  } finally {
+    await fh.close();
+  }
   return { data: buf.toString("utf-8"), cursor: size };
 }
 

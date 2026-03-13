@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import type { CodexLoopOptions, LoopRun, LoopStatus, PreflightResult } from "../types.ts";
 import type { RawCliEvent } from "../utils/cli-loop.ts";
 import { checkCliAvailability, checkCodexAuth } from "../utils/cli.ts";
@@ -23,7 +24,7 @@ export class CodexLoop {
     const loopRun = runCliLoop(
       {
         command: "codex",
-        args: buildArgs(prompt, this.options),
+        args: buildArgs(prompt, this.options, this._mcpConfigPath),
         mapEvent: mapCodexEvent,
         extractResult: extractCodexResult,
       },
@@ -69,15 +70,43 @@ export class CodexLoop {
   }
 }
 
-function buildArgs(prompt: string, opts: CodexLoopOptions): string[] {
+function buildArgs(
+  prompt: string,
+  opts: CodexLoopOptions,
+  mcpConfigPath?: string | null,
+): string[] {
   const args = ["exec", prompt, "--json"];
 
   if (opts.model) args.push("--model", opts.model);
   if (opts.fullAuto) args.push("--full-auto");
   if (opts.sandbox) args.push("--sandbox", opts.sandbox);
+  if (mcpConfigPath) args.push(...buildMcpOverrides(mcpConfigPath));
   if (opts.extraArgs?.length) args.push(...opts.extraArgs);
 
   return args;
+}
+
+/**
+ * Codex CLI has no --mcp-config flag. MCP servers are configured via
+ * `-c` TOML overrides against the `mcp_servers` config section.
+ */
+function buildMcpOverrides(configPath: string): string[] {
+  const config = JSON.parse(readFileSync(configPath, "utf-8")) as {
+    mcpServers?: Record<string, { command: string; args?: string[] }>;
+  };
+  const servers = config.mcpServers ?? {};
+  const flags: string[] = [];
+
+  for (const [name, server] of Object.entries(servers)) {
+    flags.push("-c", `mcp_servers.${name}.type="stdio"`);
+    flags.push("-c", `mcp_servers.${name}.command="${server.command}"`);
+    if (server.args?.length) {
+      const tomlArray = "[" + server.args.map((a) => `"${a}"`).join(", ") + "]";
+      flags.push("-c", `mcp_servers.${name}.args=${tomlArray}`);
+    }
+  }
+
+  return flags;
 }
 
 function mapCodexEvent(data: unknown): RawCliEvent {

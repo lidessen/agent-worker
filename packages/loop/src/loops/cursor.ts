@@ -1,3 +1,5 @@
+import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync, rmdirSync } from "node:fs";
+import { join } from "node:path";
 import type { CursorLoopOptions, LoopRun, LoopStatus, PreflightResult } from "../types.ts";
 import type { RawCliEvent } from "../utils/cli-loop.ts";
 import { checkCliAvailability } from "../utils/cli.ts";
@@ -8,6 +10,7 @@ export class CursorLoop {
   private _status: LoopStatus = "idle";
   private abortController: AbortController | null = null;
   private _mcpConfigPath: string | null = null;
+  private _injectedMcpPath: string | null = null;
 
   constructor(private options: CursorLoopOptions = {}) {}
 
@@ -19,6 +22,15 @@ export class CursorLoop {
     if (this._status === "running") throw new Error("Already running");
     this._status = "running";
     this.abortController = new AbortController();
+
+    // Cursor agent detects MCP servers from .cursor/mcp.json in the cwd.
+    // Inject the agent MCP config before starting the CLI process.
+    if (this._mcpConfigPath) {
+      this._injectedMcpPath = injectCursorMcpConfig(
+        this._mcpConfigPath,
+        this.options.cwd ?? process.cwd(),
+      );
+    }
 
     const loopRun = runCliLoop(
       {
@@ -33,9 +45,11 @@ export class CursorLoop {
 
     loopRun.result
       .then(() => {
+        this.cleanupMcpConfig();
         if (this._status === "running") this._status = "completed";
       })
       .catch(() => {
+        this.cleanupMcpConfig();
         if (this._status === "running") {
           this._status = this.abortController!.signal.aborted ? "cancelled" : "failed";
         }
@@ -53,6 +67,13 @@ export class CursorLoop {
 
   setMcpConfig(configPath: string): void {
     this._mcpConfigPath = configPath;
+  }
+
+  private cleanupMcpConfig(): void {
+    if (this._injectedMcpPath) {
+      removeCursorMcpConfig(this._injectedMcpPath);
+      this._injectedMcpPath = null;
+    }
   }
 
   /** Check if agent CLI (Cursor Agent) is installed. Not a runtime test. */
@@ -158,4 +179,66 @@ function extractCursorResult(stdout: string): string {
     }
   }
   return stdout;
+}
+
+// ── Cursor MCP config injection ──────────────────────────────────────────────
+//
+// Cursor agent has no --mcp-config flag. It discovers MCP servers from
+// .cursor/mcp.json in the working directory. We merge our agent MCP server
+// into that file before starting the CLI and remove it on cleanup.
+
+type McpConfig = { mcpServers?: Record<string, unknown> };
+
+/**
+ * Merge agent MCP servers from the config JSON into .cursor/mcp.json.
+ * Returns the path to the written file for cleanup.
+ */
+function injectCursorMcpConfig(configPath: string, cwd: string): string {
+  const agentConfig = JSON.parse(readFileSync(configPath, "utf-8")) as McpConfig;
+  const cursorDir = join(cwd, ".cursor");
+  const cursorMcpPath = join(cursorDir, "mcp.json");
+
+  let existing: McpConfig = {};
+  if (existsSync(cursorMcpPath)) {
+    existing = JSON.parse(readFileSync(cursorMcpPath, "utf-8")) as McpConfig;
+  } else {
+    mkdirSync(cursorDir, { recursive: true });
+  }
+
+  const merged: McpConfig = {
+    ...existing,
+    mcpServers: {
+      ...(existing.mcpServers ?? {}),
+      ...(agentConfig.mcpServers ?? {}),
+    },
+  };
+
+  writeFileSync(cursorMcpPath, JSON.stringify(merged, null, 2));
+  return cursorMcpPath;
+}
+
+/** Remove injected agent-worker MCP server entries from .cursor/mcp.json. */
+function removeCursorMcpConfig(cursorMcpPath: string): void {
+  try {
+    if (!existsSync(cursorMcpPath)) return;
+
+    const config = JSON.parse(readFileSync(cursorMcpPath, "utf-8")) as McpConfig;
+    const servers = config.mcpServers ?? {};
+    delete servers["agent-worker"];
+
+    if (Object.keys(servers).length === 0 && Object.keys(config).length <= 1) {
+      // We created this file — remove it entirely
+      unlinkSync(cursorMcpPath);
+      try {
+        rmdirSync(join(cursorMcpPath, ".."));
+      } catch {
+        // .cursor/ has other files, leave it
+      }
+    } else {
+      config.mcpServers = servers;
+      writeFileSync(cursorMcpPath, JSON.stringify(config, null, 2));
+    }
+  } catch {
+    // Best-effort cleanup
+  }
 }
