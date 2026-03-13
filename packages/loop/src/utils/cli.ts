@@ -98,6 +98,8 @@ export interface SpawnCliOptions {
   command: string;
   args: string[];
   cwd?: string;
+  /** Extra environment variables merged into process.env */
+  env?: Record<string, string>;
   signal?: AbortSignal;
   idleTimeout?: number;
   onStdout?: (chunk: string) => void;
@@ -114,11 +116,12 @@ export interface SpawnCliResult {
  * Spawn a CLI process with idle timeout and streaming output.
  */
 export async function spawnCli(options: SpawnCliOptions): Promise<SpawnCliResult> {
-  const { command, args, cwd, signal, idleTimeout = 60_000, onStdout, onStderr } = options;
+  const { command, args, cwd, env: extraEnv, signal, idleTimeout = 60_000, onStdout, onStderr } =
+    options;
 
   // Strip CLAUDECODE so CLI loops (claude, codex, cursor) inherit
   // the host's login state instead of being blocked as nested sessions.
-  const env = { ...process.env };
+  const env = { ...process.env, ...extraEnv };
   delete env.CLAUDECODE;
 
   const proc = execa(command, args, {
