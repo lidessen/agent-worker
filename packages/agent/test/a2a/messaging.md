@@ -15,11 +15,11 @@ Run these with the `aw` CLI tool against different runtimes and models.
 ## Prerequisites
 
 ```sh
-# Terminal 1: Start daemon (pick one)
-aw start --runtime mock --debounce 100
-aw start --model anthropic:claude-sonnet-4-20250514
-aw start --model openai:gpt-4.1
-aw start --runtime claude-code --model sonnet
+# Terminal 1: Create an agent (daemon auto-starts; pick one)
+aw add test-agent --runtime mock
+aw add test-agent --runtime ai-sdk --model anthropic:claude-sonnet-4-20250514
+aw add test-agent --runtime ai-sdk --model openai:gpt-4.1
+aw add test-agent --runtime claude-code --model sonnet
 
 # Terminal 2: Run test commands below
 ```
@@ -28,21 +28,21 @@ aw start --runtime claude-code --model sonnet
 
 After each test, persist results for traceability.
 
-> **Important:** `aw recv` uses a persistent cursor — once messages are consumed,
-> a second `aw recv` returns only _new_ messages. To save artifacts, use `tee`
-> during the first `recv` call (shown below). Do NOT run a separate `aw recv`
+> **Important:** `aw read test-agent` uses a persistent cursor — once messages are consumed,
+> a second `aw read test-agent` returns only _new_ messages. To save artifacts, use `tee`
+> during the first `read` call (shown below). Do NOT run a separate `aw read test-agent`
 > after the test, as it will likely be empty.
 
 ```sh
 mkdir -p a2a-artifacts
 TEST_ID="T1_$(date +%Y%m%d_%H%M%S)"
 
-# Capture recv output during the test itself (via tee):
-aw recv --wait 10 --json | tee "a2a-artifacts/${TEST_ID}_recv.json"
+# Capture read output during the test itself (via tee):
+aw read test-agent --wait 10 --json | tee "a2a-artifacts/${TEST_ID}_recv.json"
 
 # After the test, save log + state:
 aw log --json > "a2a-artifacts/${TEST_ID}_log.json"
-aw state > "a2a-artifacts/${TEST_ID}_state.txt"
+aw state test-agent > "a2a-artifacts/${TEST_ID}_state.txt"
 ```
 
 ---
@@ -51,22 +51,22 @@ aw state > "a2a-artifacts/${TEST_ID}_state.txt"
 
 | Field    | Value                                                                                              |
 | -------- | -------------------------------------------------------------------------------------------------- |
-| Input    | `aw send "hello world"`                                                                            |
-| Expected | `recv` contains at least one text block; `state` shows `idle` + inbox with 1 message (status=read) |
+| Input    | `aw send test-agent "hello world"`                                                                            |
+| Expected | `read` contains at least one text block; `state` shows `idle` + inbox with 1 message (status=read) |
 | Timeout  | 10s (mock: 2s)                                                                                     |
 | Retry    | Yes (network flake)                                                                                |
 
 ```sh
-aw send "hello world"
-aw recv --wait 10
-aw state
+aw send test-agent "hello world"
+aw read test-agent --wait 10
+aw state test-agent
 ```
 
 **Pass criteria:**
 
-- `aw recv` returns non-empty text output
-- `aw state` shows `State: idle`
-- `aw state` shows inbox count >= 1
+- `aw read test-agent` returns non-empty text output
+- `aw state test-agent` shows `State: idle`
+- `aw state test-agent` shows inbox count >= 1
 
 ---
 
@@ -74,16 +74,16 @@ aw state
 
 | Field    | Value                                                             |
 | -------- | ----------------------------------------------------------------- |
-| Input    | `aw send "msg 1" "msg 2" "msg 3"`                                 |
+| Input    | `aw send test-agent "msg 1" "msg 2" "msg 3"`                                 |
 | Expected | `log` shows exactly 1 `run_start`; all 3 messages appear in inbox |
 | Timeout  | 15s (mock: 3s)                                                    |
 | Retry    | No (deterministic batching)                                       |
 
 ```sh
-aw send "msg 1" "msg 2" "msg 3"
-aw recv --wait 15
+aw send test-agent "msg 1" "msg 2" "msg 3"
+aw read test-agent --wait 15
 aw log --json | grep -c '"type":"run_start"'    # should print: 1
-aw state                                         # inbox count: 3
+aw state test-agent                              # inbox count: 3
 ```
 
 **Pass criteria:**
@@ -103,17 +103,17 @@ aw state                                         # inbox count: 3
 | Retry    | Yes (timing-sensitive)                   |
 
 ```sh
-aw send "first question: what is 2+2?"
+aw send test-agent "first question: what is 2+2?"
 sleep 1
-aw send "second question: what is 3+3?"
-aw recv --wait 20
+aw send test-agent "second question: what is 3+3?"
+aw read test-agent --wait 20
 aw log --json | grep -c '"type":"run_start"'    # should print: 2
 ```
 
 **Pass criteria:**
 
 - `run_start` count == 2
-- `recv` shows 2 separate response blocks
+- `read` shows 2 separate response blocks
 
 ---
 
@@ -127,10 +127,10 @@ aw log --json | grep -c '"type":"run_start"'    # should print: 2
 | Retry    | Yes (timing-sensitive)               |
 
 ```sh
-aw send "initial request"
+aw send test-agent "initial request"
 sleep 1
-aw send "addendum 1" "addendum 2" "addendum 3"
-aw recv --wait 20
+aw send test-agent "addendum 1" "addendum 2" "addendum 3"
+aw read test-agent --wait 20
 aw log --json | grep -c '"type":"run_start"'    # should print: 2
 ```
 
@@ -144,14 +144,14 @@ aw log --json | grep -c '"type":"run_start"'    # should print: 2
 
 | Field    | Value                                                  |
 | -------- | ------------------------------------------------------ |
-| Input    | `aw send "step1" +2s "step2" +500ms "step3"`           |
+| Input    | `aw send test-agent "step1" +2s "step2" +500ms "step3"`           |
 | Expected | `message_received` timestamps show ~2s and ~500ms gaps |
 | Timeout  | 30s                                                    |
 | Retry    | Yes (timing-sensitive)                                 |
 
 ```sh
-aw send "step1" +2s "step2" +500ms "step3"
-aw recv --wait 30
+aw send test-agent "step1" +2s "step2" +500ms "step3"
+aw read test-agent --wait 30
 aw log --json | grep '"type":"message_received"'
 ```
 
@@ -172,10 +172,10 @@ aw log --json | grep '"type":"message_received"'
 | Retry    | No (deterministic)                                          |
 
 ```sh
-aw send --from alice "hello from alice"
-aw send --from bob "hello from bob"
-aw recv --wait 15
-aw state
+aw send test-agent "hello from alice" --from alice
+aw send test-agent "hello from bob" --from bob
+aw read test-agent --wait 15
+aw state test-agent
 aw log --json | grep '"from"'
 ```
 
@@ -196,10 +196,10 @@ aw log --json | grep '"from"'
 | Retry    | Yes (timing-sensitive)                                  |
 
 ```sh
-for i in $(seq 1 10); do aw send "burst-$i"; done
-aw recv --wait 30
+for i in $(seq 1 10); do aw send test-agent "burst-$i"; done
+aw read test-agent --wait 30
 aw log --json | grep -c '"type":"run_start"'    # should print: 1 or 2
-aw state                                         # inbox count: 10
+aw state test-agent                              # inbox count: 10
 ```
 
 **Pass criteria:**
@@ -222,8 +222,8 @@ aw state                                         # inbox count: 10
 aw log --follow > /tmp/a2a_t8_log.txt &
 LOG_PID=$!
 sleep 1
-aw send "trigger state cycle"
-aw recv --wait 15
+aw send test-agent "trigger state cycle"
+aw read test-agent --wait 15
 kill $LOG_PID 2>/dev/null
 cat /tmp/a2a_t8_log.txt
 ```
@@ -248,13 +248,13 @@ cat /tmp/a2a_t8_log.txt
 | Retry    | No (deterministic)                            |
 
 ```sh
-aw send "cycle A"
-aw recv --wait 15
-aw state | grep "History"                        # Note turn count
+aw send test-agent "cycle A"
+aw read test-agent --wait 15
+aw state test-agent | grep "History"             # Note turn count
 
-aw send "cycle B"
-aw recv --wait 15
-aw state | grep "History"                        # Should be higher
+aw send test-agent "cycle B"
+aw read test-agent --wait 15
+aw state test-agent | grep "History"             # Should be higher
 ```
 
 **Pass criteria:**
@@ -267,21 +267,21 @@ aw state | grep "History"                        # Should be higher
 
 | Field    | Value                                               |
 | -------- | --------------------------------------------------- |
-| Input    | Send message, wait, stop                            |
-| Expected | `stop` succeeds; `state` after stop shows no daemon |
+| Input    | Send message, wait, daemon stop                            |
+| Expected | `daemon stop` succeeds; `state` after stop shows no daemon |
 | Timeout  | 10s                                                 |
 | Retry    | No (deterministic)                                  |
 
 ```sh
-aw send "will be processed"
-aw recv --wait 10
-aw stop
-aw state 2>&1 | grep -i "no.*daemon\|not running"
+aw send test-agent "will be processed"
+aw read test-agent --wait 10
+aw daemon stop
+aw state test-agent 2>&1 | grep -i "no.*daemon\|not running"
 ```
 
 **Pass criteria:**
 
-- `stop` exits 0
+- `daemon stop` exits 0
 - `state` indicates no running daemon
 
 ---
@@ -297,14 +297,14 @@ aw state 2>&1 | grep -i "no.*daemon\|not running"
 | Requires | Real LLM with builtins (not mock)                                 |
 
 ```sh
-# Start with real model + builtins
-aw start --model anthropic:claude-sonnet-4-20250514
+# Create agent with real model + builtins
+aw add test-agent --runtime ai-sdk --model anthropic:claude-sonnet-4-20250514
 
 # In another terminal:
-aw send 'Save a note with key="test" and content="hello"'
-aw recv --wait 20
+aw send test-agent 'Save a note with key="test" and content="hello"'
+aw read test-agent --wait 20
 aw log --json | grep 'agent_notes'
-aw stop
+aw daemon stop
 ```
 
 **Pass criteria:**
@@ -319,22 +319,22 @@ aw stop
 | Field    | Value                                                                         |
 | -------- | ----------------------------------------------------------------------------- |
 | Input    | Single message                                                                |
-| Expected | `recv` only has text/send types; `log` only has debug event types; no overlap |
+| Expected | `read` only has text/send types; `log` only has debug event types; no overlap |
 | Timeout  | 10s                                                                           |
 | Retry    | No (deterministic)                                                            |
 
 ```sh
-aw send "hello"
-aw recv --wait 10 --json > /tmp/a2a_t12_recv.json
+aw send test-agent "hello"
+aw read test-agent --wait 10 --json > /tmp/a2a_t12_recv.json
 aw log --json > /tmp/a2a_t12_log.json
-aw stop
+aw daemon stop
 ```
 
 **Pass criteria:**
 
-- `recv` JSON entries: only `type: "text"` or `type: "send"`
+- `read` JSON entries: only `type: "text"` or `type: "send"`
 - `log` JSON entries: `type` is one of `state_change`, `run_start`, `run_end`, `tool_call_start`, `tool_call_end`, `message_received`, `context_assembled`, `thinking`, `error`
-- No text responses in log; no debug events in recv
+- No text responses in log; no debug events in read
 
 ---
 

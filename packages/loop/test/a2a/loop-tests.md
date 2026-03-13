@@ -15,8 +15,8 @@ Each runtime (AiSdkLoop, ClaudeCodeLoop, CodexLoop, CursorLoop) should be tested
 ## Prerequisites
 
 ```sh
-# 1. Build the project
-bun install && bun run build
+# 1. Install dependencies
+bun install
 
 # 2. Set API keys for the providers you want to test:
 export ANTHROPIC_API_KEY="sk-..."
@@ -35,7 +35,7 @@ cursor --version    # CursorLoop (agent CLI)
 mkdir -p a2a-artifacts
 TEST_ID="T1.2_aisdk_$(date +%Y%m%d_%H%M%S)"
 aw log --json > "a2a-artifacts/${TEST_ID}_log.json"
-aw recv --json > "a2a-artifacts/${TEST_ID}_recv.json"
+aw read test-agent --json > "a2a-artifacts/${TEST_ID}_recv.json"
 ```
 
 ---
@@ -46,29 +46,30 @@ aw recv --json > "a2a-artifacts/${TEST_ID}_recv.json"
 
 | Field    | Value                                                  |
 | -------- | ------------------------------------------------------ |
-| Input    | `aw start --model anthropic:claude-haiku-4-5-20251001` |
-| Expected | Daemon starts successfully; no API key errors          |
+| Input    | `aw add test-agent --runtime ai-sdk --model anthropic:claude-haiku-4-5-20251001` |
+| Expected | Agent created, daemon starts successfully; no API key errors          |
 | Timeout  | 5s                                                     |
 | Retry    | No                                                     |
 
 ```sh
-aw start --model anthropic:claude-haiku-4-5-20251001
-# verify daemon is running:
-aw state | grep -i "state"
-aw stop
+aw add test-agent --runtime ai-sdk --model anthropic:claude-haiku-4-5-20251001
+# verify agent is running:
+aw state test-agent | grep -i "state"
+aw rm test-agent && aw daemon stop
 ```
 
 **Negative case (no key):**
 
 ```sh
 unset ANTHROPIC_API_KEY
-aw start --model anthropic:claude-haiku-4-5-20251001 2>&1 | grep -i "error\|key\|not found"
+aw add test-agent --runtime ai-sdk --model anthropic:claude-haiku-4-5-20251001 2>&1 | grep -i "error\|key\|not found"
+aw rm test-agent 2>/dev/null; aw daemon stop 2>/dev/null
 ```
 
 **Pass criteria:**
 
-- With key: daemon starts, `state` shows agent state
-- Without key: error message about missing API key, daemon does not start
+- With key: agent created, daemon starts, `state` shows agent state
+- Without key: error message about missing API key, agent not created
 
 ---
 
@@ -76,17 +77,18 @@ aw start --model anthropic:claude-haiku-4-5-20251001 2>&1 | grep -i "error\|key\
 
 | Field    | Value                                          |
 | -------- | ---------------------------------------------- |
-| Input    | `aw send "Reply with exactly: HELLO_A2A_TEST"` |
-| Expected | `recv` output contains string `HELLO_A2A_TEST` |
+| Input    | `aw send test-agent "Reply with exactly: HELLO_A2A_TEST"` |
+| Expected | `read` output contains string `HELLO_A2A_TEST` |
 | Timeout  | 10s                                            |
 | Retry    | Yes (LLM may not follow instructions exactly)  |
 
 ```sh
-aw start --model anthropic:claude-haiku-4-5-20251001
+aw rm test-agent 2>/dev/null; aw daemon stop 2>/dev/null
+aw add test-agent --runtime ai-sdk --model anthropic:claude-haiku-4-5-20251001
 
-aw send "Reply with exactly: HELLO_A2A_TEST"
-aw recv --wait 10 | grep "HELLO_A2A_TEST"
-aw stop
+aw send test-agent "Reply with exactly: HELLO_A2A_TEST"
+aw read test-agent --wait 10 | grep "HELLO_A2A_TEST"
+aw rm test-agent && aw daemon stop
 ```
 
 **Pass criteria:**
@@ -99,18 +101,19 @@ aw stop
 
 | Field    | Value                                        |
 | -------- | -------------------------------------------- |
-| Input    | `aw send "Say OK"`                           |
+| Input    | `aw send test-agent "Say OK"`                           |
 | Expected | All JSON log entries have valid `type` field |
 | Timeout  | 10s                                          |
 | Retry    | No                                           |
 
 ```sh
-aw start --model anthropic:claude-haiku-4-5-20251001
+aw rm test-agent 2>/dev/null; aw daemon stop 2>/dev/null
+aw add test-agent --runtime ai-sdk --model anthropic:claude-haiku-4-5-20251001
 
-aw send "Say OK"
-aw recv --wait 10
+aw send test-agent "Say OK"
+aw read test-agent --wait 10
 aw log --json > /tmp/a2a_t13_log.json
-aw stop
+aw rm test-agent && aw daemon stop
 
 # Validate: every entry has a type field
 cat /tmp/a2a_t13_log.json | python3 -c "
@@ -136,18 +139,19 @@ print('OK: all events valid')
 
 | Field    | Value                                                    |
 | -------- | -------------------------------------------------------- |
-| Input    | `aw send "Reply: OK"`                                    |
+| Input    | `aw send test-agent "Reply: OK"`                                    |
 | Expected | `run_end` log entry has `durationMs` > 0, non-zero usage |
 | Timeout  | 10s                                                      |
 | Retry    | No                                                       |
 
 ```sh
-aw start --model anthropic:claude-haiku-4-5-20251001
+aw rm test-agent 2>/dev/null; aw daemon stop 2>/dev/null
+aw add test-agent --runtime ai-sdk --model anthropic:claude-haiku-4-5-20251001
 
-aw send "Reply: OK"
-aw recv --wait 10
+aw send test-agent "Reply: OK"
+aw read test-agent --wait 10
 aw log --json | grep '"type":"run_end"'
-aw stop
+aw rm test-agent && aw daemon stop
 ```
 
 **Pass criteria (check `run_end` entry):**
@@ -162,21 +166,22 @@ aw stop
 
 | Field    | Value                                          |
 | -------- | ---------------------------------------------- |
-| Input    | `aw send "Reply: hi"` with `log --follow`      |
+| Input    | `aw send test-agent "Reply: hi"` with `log --follow`      |
 | Expected | Log shows state_change sequence ending in idle |
 | Timeout  | 15s                                            |
 | Retry    | No                                             |
 
 ```sh
-aw start --model anthropic:claude-haiku-4-5-20251001
+aw rm test-agent 2>/dev/null; aw daemon stop 2>/dev/null
+aw add test-agent --runtime ai-sdk --model anthropic:claude-haiku-4-5-20251001
 
 aw log --follow > /tmp/a2a_t15_log.txt &
 LOG_PID=$!
 sleep 1
-aw send "Reply: hi"
-aw recv --wait 15
+aw send test-agent "Reply: hi"
+aw read test-agent --wait 15
 kill $LOG_PID 2>/dev/null
-aw stop
+aw rm test-agent && aw daemon stop
 
 # Check sequence:
 grep "state_change\|run_start\|run_end" /tmp/a2a_t15_log.txt
@@ -201,17 +206,18 @@ grep "state_change\|run_start\|run_end" /tmp/a2a_t15_log.txt
 | Retry    | No                                          |
 
 ```sh
-aw start --model anthropic:claude-haiku-4-5-20251001
+aw rm test-agent 2>/dev/null; aw daemon stop 2>/dev/null
+aw add test-agent --runtime ai-sdk --model anthropic:claude-haiku-4-5-20251001
 
-aw send "Write a very long essay about the entire history of mathematics, covering every century in detail"
+aw send test-agent "Write a very long essay about the entire history of mathematics, covering every century in detail"
 sleep 1
-time aw stop    # should complete quickly
-pgrep -f "aw.*start" | wc -l    # should be 0
+time aw daemon stop    # should complete quickly
+pgrep -f "aw.*daemon" | wc -l    # should be 0
 ```
 
 **Pass criteria:**
 
-- `aw stop` completes in < 5s
+- `aw daemon stop` completes in < 5s
 - No orphan `aw` processes
 
 ---
@@ -220,21 +226,22 @@ pgrep -f "aw.*start" | wc -l    # should be 0
 
 | Field    | Value                     |
 | -------- | ------------------------- |
-| Input    | `aw stop` twice           |
+| Input    | `aw daemon stop` twice           |
 | Expected | Second stop doesn't crash |
 | Timeout  | 5s                        |
 | Retry    | No                        |
 
 ```sh
-aw start --model anthropic:claude-haiku-4-5-20251001
-aw stop
-aw stop 2>&1    # should not crash
+aw rm test-agent 2>/dev/null; aw daemon stop 2>/dev/null
+aw add test-agent --runtime ai-sdk --model anthropic:claude-haiku-4-5-20251001
+aw rm test-agent && aw daemon stop
+aw daemon stop 2>&1    # should not crash
 echo "exit code: $?"
 ```
 
 **Pass criteria:**
 
-- Second `aw stop` prints "no daemon" or similar, no crash
+- Second `aw daemon stop` prints "no daemon" or similar, no crash
 
 ---
 
@@ -243,15 +250,16 @@ echo "exit code: $?"
 | Field    | Value                          |
 | -------- | ------------------------------ |
 | Input    | Same as T1.2 with OpenAI model |
-| Expected | `recv` contains marker         |
+| Expected | `read` contains marker         |
 | Timeout  | 15s                            |
 | Retry    | Yes                            |
 
 ```sh
-aw start --model openai:gpt-4.1-nano
-aw send "Reply with exactly: HELLO_OPENAI_A2A"
-aw recv --wait 15 | grep "HELLO_OPENAI_A2A"
-aw stop
+aw rm test-agent 2>/dev/null; aw daemon stop 2>/dev/null
+aw add test-agent --runtime ai-sdk --model openai:gpt-4.1-nano
+aw send test-agent "Reply with exactly: HELLO_OPENAI_A2A"
+aw read test-agent --wait 15 | grep "HELLO_OPENAI_A2A"
+aw rm test-agent && aw daemon stop
 ```
 
 **Pass criteria:**
@@ -281,16 +289,17 @@ claude --version    # If fails, skip all T2.x tests
 
 | Field    | Value                                          |
 | -------- | ---------------------------------------------- |
-| Input    | `aw send "Reply with exactly: HELLO_A2A_TEST"` |
-| Expected | `recv` contains `HELLO_A2A_TEST`               |
+| Input    | `aw send test-agent "Reply with exactly: HELLO_A2A_TEST"` |
+| Expected | `read` contains `HELLO_A2A_TEST`               |
 | Timeout  | 20s                                            |
 | Retry    | Yes                                            |
 
 ```sh
-aw start --runtime claude-code --model sonnet
-aw send "Reply with exactly: HELLO_A2A_TEST"
-aw recv --wait 20 | grep "HELLO_A2A_TEST"
-aw stop
+aw rm test-agent 2>/dev/null; aw daemon stop 2>/dev/null
+aw add test-agent --runtime claude-code --model sonnet
+aw send test-agent "Reply with exactly: HELLO_A2A_TEST"
+aw read test-agent --wait 20 | grep "HELLO_A2A_TEST"
+aw rm test-agent && aw daemon stop
 ```
 
 ---
@@ -299,17 +308,18 @@ aw stop
 
 | Field    | Value                                          |
 | -------- | ---------------------------------------------- |
-| Input    | `aw send "Reply with: OK"`                     |
+| Input    | `aw send test-agent "Reply with: OK"`                     |
 | Expected | `run_end` has `durationMs` > 0, non-zero usage |
 | Timeout  | 20s                                            |
 | Retry    | No                                             |
 
 ```sh
-aw start --runtime claude-code --model sonnet
-aw send "Reply with: OK"
-aw recv --wait 20
+aw rm test-agent 2>/dev/null; aw daemon stop 2>/dev/null
+aw add test-agent --runtime claude-code --model sonnet
+aw send test-agent "Reply with: OK"
+aw read test-agent --wait 20
 aw log --json | grep '"type":"run_end"'
-aw stop
+aw rm test-agent && aw daemon stop
 ```
 
 **Pass criteria:**
@@ -323,19 +333,20 @@ aw stop
 
 | Field    | Value                                     |
 | -------- | ----------------------------------------- |
-| Input    | `aw send "Reply: hi"` with `log --follow` |
+| Input    | `aw send test-agent "Reply: hi"` with `log --follow` |
 | Expected | run_start → run_end → idle                |
 | Timeout  | 25s                                       |
 | Retry    | No                                        |
 
 ```sh
-aw start --runtime claude-code --model sonnet
+aw rm test-agent 2>/dev/null; aw daemon stop 2>/dev/null
+aw add test-agent --runtime claude-code --model sonnet
 aw log --follow > /tmp/a2a_t24_log.txt &
 LOG_PID=$!
-aw send "Reply: hi"
-aw recv --wait 25
+aw send test-agent "Reply: hi"
+aw read test-agent --wait 25
 kill $LOG_PID 2>/dev/null
-aw stop
+aw rm test-agent && aw daemon stop
 grep "run_start\|run_end\|state_change" /tmp/a2a_t24_log.txt
 ```
 
@@ -351,10 +362,11 @@ grep "run_start\|run_end\|state_change" /tmp/a2a_t24_log.txt
 | Retry    | No                         |
 
 ```sh
-aw start --runtime claude-code --model sonnet
-aw send "Write a 500-word essay about the history of computing"
+aw rm test-agent 2>/dev/null; aw daemon stop 2>/dev/null
+aw add test-agent --runtime claude-code --model sonnet
+aw send test-agent "Write a 500-word essay about the history of computing"
 sleep 2
-time aw stop
+aw rm test-agent && time aw daemon stop
 ```
 
 ---
@@ -369,11 +381,12 @@ time aw stop
 | Retry    | Yes (LLM may not call tool)                             |
 
 ```sh
-aw start --runtime claude-code --model sonnet
-aw send 'Run this bash command and tell me the result: echo "A2A_TOOL_TEST"'
-aw recv --wait 25
+aw rm test-agent 2>/dev/null; aw daemon stop 2>/dev/null
+aw add test-agent --runtime claude-code --model sonnet
+aw send test-agent 'Run this bash command and tell me the result: echo "A2A_TOOL_TEST"'
+aw read test-agent --wait 25
 aw log --json | grep -i '"tool_call_start".*bash\|bash.*"tool_call_start"'
-aw stop
+aw rm test-agent && aw daemon stop
 ```
 
 **Pass criteria:**
@@ -404,16 +417,17 @@ codex --version    # If fails, skip all T3.x tests
 
 | Field    | Value                                          |
 | -------- | ---------------------------------------------- |
-| Input    | `aw send "Reply with exactly: HELLO_A2A_TEST"` |
-| Expected | `recv` contains text response                  |
+| Input    | `aw send test-agent "Reply with exactly: HELLO_A2A_TEST"` |
+| Expected | `read` contains text response                  |
 | Timeout  | 20s                                            |
 | Retry    | Yes                                            |
 
 ```sh
-aw start --runtime codex
-aw send "Reply with exactly: HELLO_A2A_TEST"
-aw recv --wait 20
-aw stop
+aw rm test-agent 2>/dev/null; aw daemon stop 2>/dev/null
+aw add test-agent --runtime codex
+aw send test-agent "Reply with exactly: HELLO_A2A_TEST"
+aw read test-agent --wait 20
+aw rm test-agent && aw daemon stop
 ```
 
 > **Note:** Codex may not follow marker instructions exactly. Pass if any non-empty text response.
@@ -424,17 +438,18 @@ aw stop
 
 | Field    | Value                          |
 | -------- | ------------------------------ |
-| Input    | `aw send "Reply with: OK"`     |
+| Input    | `aw send test-agent "Reply with: OK"`     |
 | Expected | `run_end` has `durationMs` > 0 |
 | Timeout  | 20s                            |
 | Retry    | No                             |
 
 ```sh
-aw start --runtime codex
-aw send "Reply with: OK"
-aw recv --wait 20
+aw rm test-agent 2>/dev/null; aw daemon stop 2>/dev/null
+aw add test-agent --runtime codex
+aw send test-agent "Reply with: OK"
+aw read test-agent --wait 20
 aw log --json | grep '"type":"run_end"'
-aw stop
+aw rm test-agent && aw daemon stop
 ```
 
 > **Note:** CodexLoop may report `usage` as all zeros. This is expected.
@@ -445,19 +460,20 @@ aw stop
 
 | Field    | Value                                     |
 | -------- | ----------------------------------------- |
-| Input    | `aw send "Reply: hi"` with `log --follow` |
+| Input    | `aw send test-agent "Reply: hi"` with `log --follow` |
 | Expected | run_start → run_end sequence              |
 | Timeout  | 25s                                       |
 | Retry    | No                                        |
 
 ```sh
-aw start --runtime codex
+aw rm test-agent 2>/dev/null; aw daemon stop 2>/dev/null
+aw add test-agent --runtime codex
 aw log --follow > /tmp/a2a_t34_log.txt &
 LOG_PID=$!
-aw send "Reply: hi"
-aw recv --wait 25
+aw send test-agent "Reply: hi"
+aw read test-agent --wait 25
 kill $LOG_PID 2>/dev/null
-aw stop
+aw rm test-agent && aw daemon stop
 grep "run_start\|run_end" /tmp/a2a_t34_log.txt
 ```
 
@@ -473,10 +489,11 @@ grep "run_start\|run_end" /tmp/a2a_t34_log.txt
 | Retry    | No                         |
 
 ```sh
-aw start --runtime codex
-aw send "Write a detailed 2000-word analysis of every major war in human history"
+aw rm test-agent 2>/dev/null; aw daemon stop 2>/dev/null
+aw add test-agent --runtime codex
+aw send test-agent "Write a detailed 2000-word analysis of every major war in human history"
 sleep 1
-time aw stop
+aw rm test-agent && time aw daemon stop
 ```
 
 ---
@@ -502,16 +519,17 @@ cursor --version    # If fails, skip all T4.x tests
 
 | Field    | Value                                          |
 | -------- | ---------------------------------------------- |
-| Input    | `aw send "Reply with exactly: HELLO_A2A_TEST"` |
-| Expected | `recv` contains text response                  |
+| Input    | `aw send test-agent "Reply with exactly: HELLO_A2A_TEST"` |
+| Expected | `read` contains text response                  |
 | Timeout  | 20s                                            |
 | Retry    | Yes                                            |
 
 ```sh
-aw start --runtime cursor
-aw send "Reply with exactly: HELLO_A2A_TEST"
-aw recv --wait 20
-aw stop
+aw rm test-agent 2>/dev/null; aw daemon stop 2>/dev/null
+aw add test-agent --runtime cursor
+aw send test-agent "Reply with exactly: HELLO_A2A_TEST"
+aw read test-agent --wait 20
+aw rm test-agent && aw daemon stop
 ```
 
 ---
@@ -520,17 +538,18 @@ aw stop
 
 | Field    | Value                          |
 | -------- | ------------------------------ |
-| Input    | `aw send "Reply with: OK"`     |
+| Input    | `aw send test-agent "Reply with: OK"`     |
 | Expected | `run_end` has `durationMs` > 0 |
 | Timeout  | 20s                            |
 | Retry    | No                             |
 
 ```sh
-aw start --runtime cursor
-aw send "Reply with: OK"
-aw recv --wait 20
+aw rm test-agent 2>/dev/null; aw daemon stop 2>/dev/null
+aw add test-agent --runtime cursor
+aw send test-agent "Reply with: OK"
+aw read test-agent --wait 20
 aw log --json | grep '"type":"run_end"'
-aw stop
+aw rm test-agent && aw daemon stop
 ```
 
 > **Note:** CursorLoop may not emit `tool_call_end` events. This is a known limitation.
@@ -547,13 +566,14 @@ aw stop
 | Retry    | No                                   |
 
 ```sh
-aw start --runtime cursor
+aw rm test-agent 2>/dev/null; aw daemon stop 2>/dev/null
+aw add test-agent --runtime cursor
 aw log --follow > /tmp/a2a_t44_log.txt &
 LOG_PID=$!
-aw send "Reply: hi"
-aw recv --wait 25
+aw send test-agent "Reply: hi"
+aw read test-agent --wait 25
 kill $LOG_PID 2>/dev/null
-aw stop
+aw rm test-agent && aw daemon stop
 grep "run_start\|run_end" /tmp/a2a_t44_log.txt
 ```
 
@@ -569,10 +589,11 @@ grep "run_start\|run_end" /tmp/a2a_t44_log.txt
 | Retry    | No                         |
 
 ```sh
-aw start --runtime cursor
-aw send "Write a long essay about history"
+aw rm test-agent 2>/dev/null; aw daemon stop 2>/dev/null
+aw add test-agent --runtime cursor
+aw send test-agent "Write a long essay about history"
 sleep 1
-time aw stop
+aw rm test-agent && time aw daemon stop
 ```
 
 ---
@@ -583,16 +604,17 @@ time aw stop
 
 | Field    | Value                                     |
 | -------- | ----------------------------------------- |
-| Input    | `aw start --model deepseek:deepseek-chat` |
-| Expected | Daemon starts if DEEPSEEK_API_KEY is set  |
+| Input    | `aw add test-agent --runtime ai-sdk --model deepseek:deepseek-chat` |
+| Expected | Agent created, daemon starts if DEEPSEEK_API_KEY is set  |
 | Timeout  | 5s                                        |
 | Retry    | No                                        |
 
 ```sh
 echo "DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:+(set)}"
-aw start --model deepseek:deepseek-chat
-aw state
-aw stop
+aw rm test-agent 2>/dev/null; aw daemon stop 2>/dev/null
+aw add test-agent --runtime ai-sdk --model deepseek:deepseek-chat
+aw state test-agent
+aw rm test-agent && aw daemon stop
 ```
 
 ---
@@ -601,17 +623,18 @@ aw stop
 
 | Field    | Value                                                                |
 | -------- | -------------------------------------------------------------------- |
-| Input    | `aw send "Check your inbox and respond to all pending messages"`     |
+| Input    | `aw send test-agent "Check your inbox and respond to all pending messages"`     |
 | Expected | Log shows my_inbox → channel_send → my_inbox_ack tool calls in order |
 | Timeout  | 30s                                                                  |
 | Retry    | Yes (LLM may call tools in different order)                          |
 
 ```sh
-aw start --model deepseek:deepseek-chat
-aw send "Check your inbox and respond to all pending messages"
-aw recv --wait 30
+aw rm test-agent 2>/dev/null; aw daemon stop 2>/dev/null
+aw add test-agent --runtime ai-sdk --model deepseek:deepseek-chat
+aw send test-agent "Check your inbox and respond to all pending messages"
+aw read test-agent --wait 30
 aw log --json > /tmp/a2a_t52_log.json
-aw stop
+aw rm test-agent && aw daemon stop
 
 # Verify tool call ordering:
 grep '"tool_call_start"' /tmp/a2a_t52_log.json | grep -o '"name":"[^"]*"'
@@ -629,17 +652,18 @@ grep '"tool_call_start"' /tmp/a2a_t52_log.json | grep -o '"name":"[^"]*"'
 
 | Field    | Value                                                |
 | -------- | ---------------------------------------------------- |
-| Input    | `aw send "Check inbox."`                             |
+| Input    | `aw send test-agent "Check inbox."`                             |
 | Expected | Equal count of `tool_call_start` and `tool_call_end` |
 | Timeout  | 20s                                                  |
 | Retry    | No                                                   |
 
 ```sh
-aw start --model deepseek:deepseek-chat
-aw send "Check inbox."
-aw recv --wait 20
+aw rm test-agent 2>/dev/null; aw daemon stop 2>/dev/null
+aw add test-agent --runtime ai-sdk --model deepseek:deepseek-chat
+aw send test-agent "Check inbox."
+aw read test-agent --wait 20
 aw log --json > /tmp/a2a_t53_log.json
-aw stop
+aw rm test-agent && aw daemon stop
 
 STARTS=$(grep -c '"tool_call_start"' /tmp/a2a_t53_log.json)
 ENDS=$(grep -c '"tool_call_end"' /tmp/a2a_t53_log.json)

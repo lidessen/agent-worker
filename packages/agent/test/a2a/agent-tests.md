@@ -15,8 +15,8 @@ Tests the Agent wrapper (not just the loop): init → push message → process �
 ## Prerequisites
 
 ```sh
-# 1. Build
-bun install && bun run build
+# 1. Install
+bun install
 
 # 2. API keys (set whichever providers you want to test):
 export ANTHROPIC_API_KEY="sk-..."
@@ -34,21 +34,21 @@ cursor --version
 
 ## Saving test artifacts
 
-> **Important:** `aw recv` uses a persistent cursor — once messages are consumed,
-> a second `aw recv` returns only _new_ messages. To save artifacts, use `tee`
-> during the first `recv` call (shown below). Do NOT run a separate `aw recv`
+> **Important:** `aw read test-agent` uses a persistent cursor — once messages are consumed,
+> a second `aw read test-agent` returns only _new_ messages. To save artifacts, use `tee`
+> during the first `read` call (shown below). Do NOT run a separate `aw read test-agent`
 > after the test, as it will likely be empty.
 
 ```sh
 mkdir -p a2a-artifacts
 TEST_ID="T2_anthropic_$(date +%Y%m%d_%H%M%S)"
 
-# Capture recv output during the test itself (via tee):
-aw recv --wait 10 --json | tee "a2a-artifacts/${TEST_ID}_recv.json"
+# Capture read output during the test itself (via tee):
+aw read test-agent --wait 10 --json | tee "a2a-artifacts/${TEST_ID}_recv.json"
 
 # After the test, save log + state:
 aw log --json > "a2a-artifacts/${TEST_ID}_log.json"
-aw state > "a2a-artifacts/${TEST_ID}_state.txt"
+aw state test-agent > "a2a-artifacts/${TEST_ID}_state.txt"
 ```
 
 ---
@@ -57,7 +57,7 @@ aw state > "a2a-artifacts/${TEST_ID}_state.txt"
 
 | Field    | Value                                       |
 | -------- | ------------------------------------------- |
-| Input    | `aw start` + `aw stop` per provider         |
+| Input    | `aw add test-agent` + `aw rm test-agent; aw daemon stop` per provider |
 | Expected | Daemon starts if API key / CLI is available |
 | Timeout  | 5s per provider                             |
 | Retry    | No                                          |
@@ -65,15 +65,15 @@ aw state > "a2a-artifacts/${TEST_ID}_state.txt"
 ```sh
 # Test each provider (skip if key/CLI not available):
 for cfg in \
-  "--model anthropic:claude-haiku-4-5-20251001" \
-  "--model openai:gpt-4.1-nano" \
-  "--model deepseek:deepseek-chat" \
+  "--runtime ai-sdk --model anthropic:claude-haiku-4-5-20251001" \
+  "--runtime ai-sdk --model openai:gpt-4.1-nano" \
+  "--runtime ai-sdk --model deepseek:deepseek-chat" \
   "--runtime claude-code --model haiku" \
   "--runtime codex" \
   "--runtime cursor"; do
   echo "=== $cfg ==="
-  aw start $cfg 2>&1 && echo "PASS: started" || echo "SKIP: not available"
-  aw stop 2>/dev/null
+  aw add test-agent $cfg 2>&1 && echo "PASS: started" || echo "SKIP: not available"
+  aw rm test-agent 2>/dev/null; aw daemon stop 2>/dev/null
 done
 ```
 
@@ -85,24 +85,24 @@ done
 
 | Field    | Value                                         |
 | -------- | --------------------------------------------- |
-| Input    | `aw send "Reply with exactly: AGENT_A2A_OK"`  |
-| Expected | `recv` output contains string `AGENT_A2A_OK`  |
+| Input    | `aw send test-agent "Reply with exactly: AGENT_A2A_OK"` |
+| Expected | `read` output contains string `AGENT_A2A_OK`            |
 | Timeout  | 10s (ai-sdk), 20s (CLI runtimes)              |
 | Retry    | Yes (LLM may not follow instructions exactly) |
 
 ```sh
-aw start --model anthropic:claude-haiku-4-5-20251001
+aw add test-agent --runtime ai-sdk --model anthropic:claude-haiku-4-5-20251001
 
-aw send "Reply with exactly: AGENT_A2A_OK"
-aw recv --wait 10 | grep "AGENT_A2A_OK"
+aw send test-agent "Reply with exactly: AGENT_A2A_OK"
+aw read test-agent --wait 10 | grep "AGENT_A2A_OK"
 echo "exit: $?"    # 0 = PASS
-aw stop
+aw rm test-agent; aw daemon stop
 ```
 
 **Pass criteria:**
 
 - `grep` exits 0 (marker found)
-- At least one text response block in `recv`
+- At least one text response block in `read`
 
 **Repeat with each provider** (adjust timeout per runtime).
 
@@ -118,15 +118,15 @@ aw stop
 | Retry    | No                                                          |
 
 ```sh
-aw start --model anthropic:claude-haiku-4-5-20251001
+aw add test-agent --runtime ai-sdk --model anthropic:claude-haiku-4-5-20251001
 
 aw log --follow > /tmp/a2a_t3_log.txt &
 LOG_PID=$!
 sleep 1
-aw send "Say hi"
-aw recv --wait 15
+aw send test-agent "Say hi"
+aw read test-agent --wait 15
 kill $LOG_PID 2>/dev/null
-aw stop
+aw rm test-agent; aw daemon stop
 
 # Verify sequence:
 grep "state_change\|run_start\|run_end" /tmp/a2a_t3_log.txt
@@ -153,12 +153,12 @@ grep "state_change\|run_start\|run_end" /tmp/a2a_t3_log.txt
 | Requires | Real LLM with tool support                                      |
 
 ```sh
-aw start --model anthropic:claude-sonnet-4-20250514
+aw add test-agent --runtime ai-sdk --model anthropic:claude-sonnet-4-20250514
 
-aw send 'Save a note: key="ping" content="pong"'
-aw recv --wait 20
+aw send test-agent 'Save a note: key="ping" content="pong"'
+aw read test-agent --wait 20
 aw log --json > /tmp/a2a_t4_log.json
-aw stop
+aw rm test-agent; aw daemon stop
 
 # Check tool calls:
 grep "agent_notes" /tmp/a2a_t4_log.json
@@ -170,7 +170,7 @@ echo "agent_notes calls: $STARTS"
 
 - At least one `tool_call_start` with name containing `agent_notes`
 - Matching `tool_call_end` exists
-- `recv` shows confirmation text
+- `read` shows confirmation text
 
 > Skip for providers with `toolSupport: false`.
 
@@ -186,12 +186,12 @@ echo "agent_notes calls: $STARTS"
 | Retry    | No                                                              |
 
 ```sh
-aw start --model anthropic:claude-haiku-4-5-20251001 --instructions "CUSTOM_MARKER_12345"
+aw add test-agent --runtime ai-sdk --model anthropic:claude-haiku-4-5-20251001 --instructions "CUSTOM_MARKER_12345"
 
-aw send "Say OK"
-aw recv --wait 15
+aw send test-agent "Say OK"
+aw read test-agent --wait 15
 aw log --json > /tmp/a2a_t5_log.json
-aw stop
+aw rm test-agent; aw daemon stop
 
 grep "CUSTOM_MARKER_12345" /tmp/a2a_t5_log.json
 echo "exit: $?"    # 0 = PASS
@@ -213,16 +213,16 @@ echo "exit: $?"    # 0 = PASS
 | Retry    | No                                                         |
 
 ```sh
-aw start --model anthropic:claude-haiku-4-5-20251001
+aw add test-agent --runtime ai-sdk --model anthropic:claude-haiku-4-5-20251001
 
-aw send "Say exactly: FIRST"
-aw recv --wait 15
-H1=$(aw state | grep -o 'History: [0-9]*' | grep -o '[0-9]*')
+aw send test-agent "Say exactly: FIRST"
+aw read test-agent --wait 15
+H1=$(aw state test-agent | grep -o 'History: [0-9]*' | grep -o '[0-9]*')
 
-aw send "Say exactly: SECOND"
-aw recv --wait 15
-H2=$(aw state | grep -o 'History: [0-9]*' | grep -o '[0-9]*')
-aw stop
+aw send test-agent "Say exactly: SECOND"
+aw read test-agent --wait 15
+H2=$(aw state test-agent | grep -o 'History: [0-9]*' | grep -o '[0-9]*')
+aw rm test-agent; aw daemon stop
 
 echo "History: $H1 → $H2"
 [ "$H2" -gt "$H1" ] && echo "PASS" || echo "FAIL: history didn't grow"
@@ -238,24 +238,24 @@ echo "History: $H1 → $H2"
 
 | Field    | Value                                           |
 | -------- | ----------------------------------------------- |
-| Input    | Send long prompt, stop after 2s                 |
-| Expected | `stop` completes within 5s, no orphan processes |
+| Input    | Send long prompt, stop daemon after 2s           |
+| Expected | `daemon stop` completes within 5s, no orphan processes |
 | Timeout  | 10s                                             |
 | Retry    | No                                              |
 
 ```sh
-aw start --model anthropic:claude-haiku-4-5-20251001
+aw add test-agent --runtime ai-sdk --model anthropic:claude-haiku-4-5-20251001
 
-aw send "Write a very long essay about the history of computing"
+aw send test-agent "Write a very long essay about the history of computing"
 sleep 2
-time aw stop
-aw state 2>&1 | grep -i "no.*daemon\|not running"
-pgrep -f "aw.*start" | wc -l    # should be 0
+time aw rm test-agent; time aw daemon stop
+aw state test-agent 2>&1 | grep -i "no.*daemon\|not running\|not found"
+pgrep -f "aw.*daemon" | wc -l    # should be 0
 ```
 
 **Pass criteria:**
 
-- `stop` completes in < 5s
+- `daemon stop` completes in < 5s
 - `state` shows no running daemon
 - No orphan processes
 
@@ -265,20 +265,20 @@ pgrep -f "aw.*start" | wc -l    # should be 0
 
 | Field    | Value                                                                                  |
 | -------- | -------------------------------------------------------------------------------------- |
-| Input    | `aw send --from test-user "Hello from user"`                                           |
+| Input    | `aw send test-agent "Hello from user" --from test-user`                                |
 | Expected | `state` inbox shows `from=test-user`; `log` has `message_received` with correct fields |
 | Timeout  | 15s                                                                                    |
 | Retry    | No                                                                                     |
 
 ```sh
-aw start --model anthropic:claude-haiku-4-5-20251001
+aw add test-agent --runtime ai-sdk --model anthropic:claude-haiku-4-5-20251001
 
-aw send --from test-user "Hello from user"
-aw recv --wait 15
-aw state | grep "test-user"
+aw send test-agent "Hello from user" --from test-user
+aw read test-agent --wait 15
+aw state test-agent | grep "test-user"
 aw log --json | grep '"message_received"' | grep '"test-user"'
 echo "exit: $?"    # 0 = PASS
-aw stop
+aw rm test-agent; aw daemon stop
 ```
 
 **Pass criteria:**
@@ -304,19 +304,19 @@ for provider in \
   "openai:gpt-4.1-nano" \
   "deepseek:deepseek-chat"; do
   echo "=== $provider ==="
-  aw start --model "$provider" 2>/dev/null || { echo "SKIP"; continue; }
-  aw send "Reply with exactly: CROSS_CHECK_OK"
-  aw recv --wait 15 | grep "CROSS_CHECK_OK" && echo "PASS" || echo "FAIL"
-  aw stop
+  aw add test-agent --runtime ai-sdk --model "$provider" 2>/dev/null || { echo "SKIP"; continue; }
+  aw send test-agent "Reply with exactly: CROSS_CHECK_OK"
+  aw read test-agent --wait 15 | grep "CROSS_CHECK_OK" && echo "PASS" || echo "FAIL"
+  aw rm test-agent 2>/dev/null; aw daemon stop 2>/dev/null
 done
 
 # CLI runtimes:
 for runtime in claude-code codex cursor; do
   echo "=== $runtime ==="
-  aw start --runtime "$runtime" 2>/dev/null || { echo "SKIP"; continue; }
-  aw send "Reply with exactly: CROSS_CHECK_OK"
-  aw recv --wait 25 | head -5    # verify non-empty response
-  aw stop
+  aw add test-agent --runtime "$runtime" 2>/dev/null || { echo "SKIP"; continue; }
+  aw send test-agent "Reply with exactly: CROSS_CHECK_OK"
+  aw read test-agent --wait 25 | head -5    # verify non-empty response
+  aw rm test-agent 2>/dev/null; aw daemon stop 2>/dev/null
 done
 ```
 
