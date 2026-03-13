@@ -14,7 +14,7 @@ One CLI (`aw`), one daemon, one target syntax. The CLI is a pure HTTP client —
             ▼             ▼
       ┌───────────────────────┐
       │  agent-worker daemon  │
-      │  (Bun.serve HTTP)     │
+      │  (Hono + node-server) │
       ├───────────────────────┤
       │ AgentRegistry         │
       │ WorkspaceRegistry     │
