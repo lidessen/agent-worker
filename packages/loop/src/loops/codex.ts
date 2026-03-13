@@ -4,8 +4,10 @@ import { checkCliAvailability, checkCodexAuth } from "../utils/cli.ts";
 import { runCliLoop } from "../utils/cli-loop.ts";
 
 export class CodexLoop {
+  readonly supports = [] as const;
   private _status: LoopStatus = "idle";
   private abortController: AbortController | null = null;
+  private _mcpConfigPath: string | null = null;
 
   constructor(private options: CodexLoopOptions = {}) {}
 
@@ -47,6 +49,10 @@ export class CodexLoop {
     if (this._status === "running") {
       this._status = "cancelled";
     }
+  }
+
+  setMcpConfig(configPath: string): void {
+    this._mcpConfigPath = configPath;
   }
 
   /** Check if codex CLI is installed and authenticated. Not a runtime test. */

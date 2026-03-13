@@ -4,8 +4,10 @@ import { checkCliAvailability } from "../utils/cli.ts";
 import { runCliLoop } from "../utils/cli-loop.ts";
 
 export class CursorLoop {
+  readonly supports = [] as const;
   private _status: LoopStatus = "idle";
   private abortController: AbortController | null = null;
+  private _mcpConfigPath: string | null = null;
 
   constructor(private options: CursorLoopOptions = {}) {}
 
@@ -47,6 +49,10 @@ export class CursorLoop {
     if (this._status === "running") {
       this._status = "cancelled";
     }
+  }
+
+  setMcpConfig(configPath: string): void {
+    this._mcpConfigPath = configPath;
   }
 
   /** Check if agent CLI (Cursor Agent) is installed. Not a runtime test. */

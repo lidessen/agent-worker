@@ -20,12 +20,14 @@ export interface AiSdkLoopOptions {
 }
 
 export class AiSdkLoop {
+  readonly supports = ["directTools", "prepareStep"] as const;
   private _status: LoopStatus = "idle";
   private abortController: AbortController | null = null;
   private agent: ToolLoopAgent<never, ToolSet> | null = null;
 
   bashToolkit: BashToolkit | null = null;
   tools: ToolSet = {};
+  private _prepareStep: ((opts: any) => unknown) | null = null;
 
   constructor(private options: AiSdkLoopOptions) {}
 
@@ -146,6 +148,16 @@ export class AiSdkLoop {
     if (this._status === "running") {
       this._status = "cancelled";
     }
+  }
+
+  setTools(tools: ToolSet): void {
+    this.tools = { ...this.tools, ...tools };
+    // Re-create agent on next run to pick up new tools
+    this.agent = null;
+  }
+
+  setPrepareStep(fn: (opts: any) => unknown): void {
+    this._prepareStep = fn;
   }
 
   async cleanup(): Promise<void> {

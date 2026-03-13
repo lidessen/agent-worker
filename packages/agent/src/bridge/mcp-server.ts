@@ -189,18 +189,30 @@ export class AgentMcpServer {
     // Generate the correct fetch call based on transport type
     const fetchBlock =
       transport.type === "unix"
-        ? `const BRIDGE_SOCKET = "${transport.socketPath}";
+        ? `import { request as httpRequest } from "node:http";
+
+const BRIDGE_SOCKET = "${transport.socketPath}";
 
 async function callBridge(tool: string, args: Record<string, unknown>): Promise<string> {
-  const res = await fetch(\`http://localhost/\${tool}\`, {
-    unix: BRIDGE_SOCKET,
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(args),
-  } as any);
-  const data = await res.json() as { result?: string; error?: string };
-  if (data.error) throw new Error(data.error);
-  return data.result ?? "";
+  const body = JSON.stringify(args);
+  return new Promise<string>((resolve, reject) => {
+    const req = httpRequest({
+      socketPath: BRIDGE_SOCKET,
+      path: \`/\${tool}\`,
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) },
+    }, (res) => {
+      const chunks: Buffer[] = [];
+      res.on("data", (c: Buffer) => chunks.push(c));
+      res.on("end", () => {
+        const data = JSON.parse(Buffer.concat(chunks).toString("utf-8")) as { result?: string; error?: string };
+        if (data.error) reject(new Error(data.error));
+        else resolve(data.result ?? "");
+      });
+    });
+    req.on("error", reject);
+    req.end(body);
+  });
 }`
         : `const BRIDGE_URL = "http://${transport.host}:${transport.port}";
 
