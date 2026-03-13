@@ -97,6 +97,8 @@ export class ContextEngine {
       system: fullSystem,
       turns: [],
       tokenCount: totalTokens,
+      inboxSnapshot: inboxPeek,
+      todoSnapshot: todoText,
     };
   }
 

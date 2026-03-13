@@ -309,31 +309,14 @@ describe("CLI MCP bridge", () => {
     const config = await file.json();
     expect(config.mcpServers).toBeDefined();
     expect(config.mcpServers["agent-worker"]).toBeDefined();
-    expect(config.mcpServers["agent-worker"].command).toBe("npx");
-
-    // The entry script should also exist
-    const entryPath = config.mcpServers["agent-worker"].args[1];
-    const entryFile = Bun.file(entryPath);
-    expect(await entryFile.exists()).toBe(true);
-
-    // Entry script should proxy all built-in tools through bridge
-    const entryContent = await entryFile.text();
-    expect(entryContent).toContain("McpServer");
-    expect(entryContent).toContain("StdioServerTransport");
-    expect(entryContent).toContain("agent_inbox");
-    expect(entryContent).toContain("agent_send");
-    expect(entryContent).toContain("agent_todo");
-    expect(entryContent).toContain("agent_notes");
-    expect(entryContent).toContain("callBridge");
-    // Transport may be unix socket or TCP depending on environment
-    const hasUnix = entryContent.includes("BRIDGE_SOCKET");
-    const hasTcp = entryContent.includes("BRIDGE_URL");
-    expect(hasUnix || hasTcp).toBe(true);
+    // HTTP MCP server — URL-based, no subprocess
+    expect(config.mcpServers["agent-worker"].type).toBe("http");
+    expect(config.mcpServers["agent-worker"].url).toMatch(/^http:\/\/127\.0\.0\.1:\d+\//);
 
     await agent.stop();
   });
 
-  test("includeBuiltins=false still starts bridge but no tools in entry script", async () => {
+  test("includeBuiltins=false still starts MCP server", async () => {
     const loop = createMockCliLoop();
     const agent = new Agent({
       loop,
@@ -341,18 +324,11 @@ describe("CLI MCP bridge", () => {
     });
     await agent.init();
 
-    // Bridge should still be set up (transport is independent of tools)
+    // MCP server should still be set up
     expect(loop.mcpConfigPath).not.toBeNull();
 
     const config = await Bun.file(loop.mcpConfigPath!).json();
-    const entryPath = config.mcpServers["agent-worker"].args[1];
-    const entryContent = await Bun.file(entryPath).text();
-
-    // Minimal script: no built-in tools
-    expect(entryContent).toContain("McpServer");
-    expect(entryContent).not.toContain("agent_inbox");
-    expect(entryContent).not.toContain("agent_todo");
-    expect(entryContent).not.toContain("callBridge");
+    expect(config.mcpServers["agent-worker"].type).toBe("http");
 
     await agent.stop();
   });

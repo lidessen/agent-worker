@@ -122,6 +122,10 @@ export interface AssembledPrompt {
   system: string;
   turns: Turn[];
   tokenCount: number;
+  /** Snapshot of inbox peek at assembly time (for history persistence). */
+  inboxSnapshot?: string;
+  /** Snapshot of pending todos at assembly time (for history persistence). */
+  todoSnapshot?: string;
 }
 
 export interface ContextConfig {

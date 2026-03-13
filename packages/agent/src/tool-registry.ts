@@ -1,12 +1,6 @@
 /**
  * Single source of truth for built-in agent tool definitions and handlers.
  *
- * Previously the same tool logic was duplicated in four places:
- *   1. toolkit.ts      — AI SDK tool() wrappers
- *   2. mcp-server.ts   — in-process MCP server.tool() calls
- *   3. tool-bridge.ts  — HTTP bridge fetch handlers
- *   4. mcp-server.ts   — proxy entry script string template
- *
  * This module centralises:
  *   - BUILTIN_TOOLS:        metadata (name, description, zod parameters)
  *   - createToolHandlers(): handler factory (string-returning)

@@ -92,8 +92,15 @@ export class RunCoordinator {
 
     const loopResult = await run.result;
 
-    // Persist notification + response to history (for memory extraction)
-    this.history.push({ role: "user", content: notification });
+    // Persist content snapshot + notification to history (for memory extraction).
+    // The notification alone is generic, but memory recall needs real content.
+    const snapshot =
+      trigger === "next_message" ? assembled.inboxSnapshot : assembled.todoSnapshot;
+    const historyContent =
+      snapshot && !snapshot.includes("empty")
+        ? `${notification}\n\n${snapshot}`
+        : notification;
+    this.history.push({ role: "user", content: historyContent });
 
     const assistantText = loopResult.events
       .filter((e): e is Extract<typeof e, { type: "text" }> => e.type === "text")
