@@ -10,10 +10,10 @@ import type { LoopRun, LoopResult, LoopEvent, LoopStatus } from "@agent-worker/l
 
 function createMockLoop(
   response = "OK",
-): AgentLoop & { lastPrompt: string | null; runCount: number } {
-  const mock: AgentLoop & { lastPrompt: string | null; runCount: number; _status: LoopStatus } = {
+): AgentLoop & { lastInput: string | { system: string; prompt: string } | null; runCount: number } {
+  const mock: AgentLoop & { lastInput: string | { system: string; prompt: string } | null; runCount: number; _status: LoopStatus } = {
     supports: ["directTools"],
-    lastPrompt: null,
+    lastInput: null,
     runCount: 0,
     _status: "idle" as LoopStatus,
 
@@ -21,10 +21,9 @@ function createMockLoop(
       return mock._status;
     },
 
-    run(prompt: string): LoopRun {
-      mock.lastPrompt = prompt;
+    run(input: string | { system: string; prompt: string }): LoopRun {
+      mock.lastInput = input;
       mock.runCount++;
-      mock._status = "running";
 
       const textEvent: LoopEvent = { type: "text", text: response };
       const loopResult: LoopResult = {
@@ -107,30 +106,21 @@ describe("RunCoordinator", () => {
     expect(coordinator.shouldContinue()).toBe("next_message");
   });
 
-  test("buildTriggerContent for message", () => {
-    const { coordinator, inbox } = createCoordinator();
-    inbox.push("hello world");
-    const content = coordinator.buildTriggerContent("next_message");
-    expect(content).toBe("hello world");
+  test("buildNotification for message", () => {
+    const { coordinator } = createCoordinator();
+    const content = coordinator.buildNotification("next_message");
+    expect(content).toContain("[notification]");
+    expect(content).toContain("inbox");
   });
 
-  test("buildTriggerContent for message with from", () => {
-    const { coordinator, inbox } = createCoordinator();
-    inbox.push({ content: "fix this", from: "alice" });
-    const content = coordinator.buildTriggerContent("next_message");
-    expect(content).toBe("[alice] fix this");
+  test("buildNotification for todo", () => {
+    const { coordinator } = createCoordinator();
+    const content = coordinator.buildNotification("next_todo");
+    expect(content).toContain("[notification]");
+    expect(content).toContain("todo");
   });
 
-  test("buildTriggerContent for todo", () => {
-    const { coordinator, todos } = createCoordinator();
-    todos.add("task A");
-    todos.add("task B");
-    const content = coordinator.buildTriggerContent("next_todo");
-    expect(content).toContain("task A");
-    expect(content).toContain("task B");
-  });
-
-  test("executeRun persists trigger content and response to history", async () => {
+  test("executeRun persists notification and response to history", async () => {
     const loop = createMockLoop("Done!");
     const { coordinator, inbox } = createCoordinator(loop);
     inbox.push("do the thing");
@@ -139,23 +129,24 @@ describe("RunCoordinator", () => {
 
     expect(coordinator.history).toHaveLength(2);
     expect(coordinator.history[0]!.role).toBe("user");
-    expect(coordinator.history[0]!.content).toBe("do the thing");
+    expect(coordinator.history[0]!.content).toContain("[notification]");
     expect(coordinator.history[1]!.role).toBe("assistant");
     expect(coordinator.history[1]!.content).toBe("Done!");
   });
 
-  test("history stores raw trigger, not assembled prompt", async () => {
+  test("executeRun passes structured input to loop", async () => {
     const loop = createMockLoop("Noted.");
     const { coordinator, inbox } = createCoordinator(loop);
     inbox.push("fix the bug");
 
     await coordinator.executeRun("next_message");
 
-    const userTurn = coordinator.history[0]!;
-    expect(userTurn.content).toBe("fix the bug");
-    // Should not contain system instructions or context engine artifacts
-    expect(userTurn.content).not.toContain("Be helpful");
-    expect(userTurn.content).not.toContain("Inbox");
+    // loop.run should receive { system, prompt } not a flat string
+    expect(loop.lastInput).toHaveProperty("system");
+    expect(loop.lastInput).toHaveProperty("prompt");
+    const input = loop.lastInput as { system: string; prompt: string };
+    expect(input.system).toContain("[ROLE]");
+    expect(input.prompt).toContain("[notification]");
   });
 
   test("processLoop runs until idle", async () => {
@@ -324,12 +315,12 @@ describe("RunCoordinator", () => {
     expect(assembledPrompt).toHaveProperty("turns");
   });
 
-  test("buildTriggerContent for multiple messages", () => {
+  test("buildNotification is the same regardless of message count", () => {
     const { coordinator, inbox } = createCoordinator();
     inbox.push("hello");
     inbox.push("world");
-    const content = coordinator.buildTriggerContent("next_message");
-    expect(content).toContain("hello");
-    expect(content).toContain("world");
+    const content = coordinator.buildNotification("next_message");
+    expect(content).toContain("[notification]");
+    expect(content).toContain("inbox");
   });
 });

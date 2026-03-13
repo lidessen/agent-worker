@@ -51,30 +51,28 @@ describe("ContextEngine", () => {
     expect(result.system).toContain("architecture");
   });
 
-  test("assemble shows focus for next_message", async () => {
+  test("assemble shows awareness for next_message", async () => {
     const engine = new ContextEngine({ maxTokens: 8000 });
     const result = await engine.assemble(createSources({ currentFocus: "next_message" }));
+    expect(result.system).toContain("[AWARENESS]");
     expect(result.system).toContain("New messages arrived");
   });
 
-  test("assemble shows focus for next_todo", async () => {
+  test("assemble shows awareness for next_todo", async () => {
     const engine = new ContextEngine({ maxTokens: 8000 });
     const result = await engine.assemble(createSources({ currentFocus: "next_todo" }));
+    expect(result.system).toContain("[AWARENESS]");
     expect(result.system).toContain("pending todos");
   });
 
-  test("assemble trims conversation history to budget", async () => {
+  test("assemble returns empty turns (history no longer injected into prompt)", async () => {
     const engine = new ContextEngine({ maxTokens: 200 });
     const history = Array.from({ length: 100 }, (_, i) => ({
       role: "user" as const,
       content: `Message number ${i} with some padding text to make it longer`,
     }));
     const result = await engine.assemble(createSources({ history }));
-    // Should include fewer turns than all 100
-    expect(result.turns.length).toBeLessThan(100);
-    expect(result.turns.length).toBeGreaterThan(0);
-    // Should include the most recent turns
-    expect(result.turns[result.turns.length - 1]!.content).toContain("99");
+    expect(result.turns).toHaveLength(0);
   });
 
   test("tokenCount is computed", async () => {
@@ -83,16 +81,17 @@ describe("ContextEngine", () => {
     expect(result.tokenCount).toBeGreaterThan(0);
   });
 
-  test("assemble shows focus for waiting_reminder", async () => {
+  test("assemble shows awareness for waiting_reminder", async () => {
     const engine = new ContextEngine({ maxTokens: 8000 });
     const result = await engine.assemble(createSources({ currentFocus: "waiting_reminder" }));
     expect(result.system).toContain("Waiting for pending reminders");
   });
 
-  test("assemble shows no focus for idle", async () => {
+  test("assemble shows idle awareness for idle", async () => {
     const engine = new ContextEngine({ maxTokens: 8000 });
     const result = await engine.assemble(createSources({ currentFocus: "idle" }));
-    expect(result.system).not.toContain("Focus:");
+    expect(result.system).toContain("[AWARENESS]");
+    expect(result.system).toContain("Idle");
   });
 
   test("assemble includes memory when provided", async () => {
@@ -108,7 +107,7 @@ describe("ContextEngine", () => {
       createSources({ memory, history: [{ role: "user", content: "dark mode" }] }),
     );
     expect(result.system).toContain("dark mode");
-    expect(result.system).toContain("🧠");
+    expect(result.system).toContain("[MEMORY]");
   });
 
   test("assemble uses custom token estimator", async () => {
@@ -151,16 +150,12 @@ describe("ContextEngine", () => {
     expect(result.system.length).toBeLessThan(5000);
   });
 
-  test("assemble keeps most recent turns when history exceeds budget", async () => {
-    const engine = new ContextEngine({ maxTokens: 300 });
-    const history = [
-      { role: "user" as const, content: "first message that is old" },
-      { role: "assistant" as const, content: "first response that is old" },
-      { role: "user" as const, content: "RECENT_MESSAGE" },
-      { role: "assistant" as const, content: "RECENT_RESPONSE" },
-    ];
-    const result = await engine.assemble(createSources({ history }));
-    const lastTurn = result.turns[result.turns.length - 1];
-    expect(lastTurn?.content).toContain("RECENT");
+  test("assemble uses [SECTION] format", async () => {
+    const engine = new ContextEngine({ maxTokens: 8000 });
+    const result = await engine.assemble(createSources());
+    expect(result.system).toContain("[ROLE]");
+    expect(result.system).toContain("[AWARENESS]");
+    expect(result.system).toContain("[INBOX]");
+    expect(result.system).toContain("[TODOS]");
   });
 });

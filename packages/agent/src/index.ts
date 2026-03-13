@@ -31,6 +31,7 @@ export type {
   AgentLoop,
   AgentEvents,
   LoopCapability,
+  LoopInput,
   PrepareStepFunction,
   InboxMessage,
   InboxConfig,

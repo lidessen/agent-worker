@@ -68,10 +68,15 @@ export class AiSdkLoop {
     });
   }
 
-  run(prompt: string): LoopRun {
+  run(input: string | { system: string; prompt: string }): LoopRun {
     if (this._status === "running") throw new Error("Already running");
     this._status = "running";
     this.abortController = new AbortController();
+
+    const { system: inputSystem, prompt } =
+      typeof input === "string"
+        ? { system: undefined as string | undefined, prompt: input }
+        : input;
 
     const channel = createEventChannel<LoopEvent>();
     const allEvents: LoopEvent[] = [];
@@ -84,6 +89,15 @@ export class AiSdkLoop {
     const result = (async (): Promise<LoopResult> => {
       if (!this.agent) await this.init();
       this.relevanceEngine?.resetActivations();
+
+      // If structured input has a system prompt, re-create agent with it
+      if (inputSystem) {
+        this.agent = new ToolLoopAgent({
+          model: this.options.model,
+          instructions: inputSystem,
+          tools: this.tools,
+        });
+      }
 
       const startTime = Date.now();
 

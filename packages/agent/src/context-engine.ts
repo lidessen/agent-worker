@@ -14,6 +14,8 @@ export interface ContextSources {
   reminders: ReminderManager;
   history: Turn[];
   currentFocus: "next_message" | "next_todo" | "waiting_reminder" | "idle";
+  /** Agent display name, used in the [ROLE] section. */
+  name?: string;
 }
 
 function defaultTokenEstimator(text: string): number {
@@ -31,46 +33,47 @@ export class ContextEngine {
     this.estimateTokens = config.tokenEstimator ?? defaultTokenEstimator;
   }
 
-  /** Assemble a prompt from all context sources */
+  /** Assemble a prompt from all context sources using [SECTION] format. */
   async assemble(sources: ContextSources): Promise<AssembledPrompt> {
     let budget = this.maxTokens;
+    const sections: string[] = [];
 
-    // 1. System instructions (always full)
-    const systemParts: string[] = [];
+    // [ROLE]
+    const roleName = sources.name ?? "Agent";
     if (sources.instructions) {
-      systemParts.push(sources.instructions);
+      sections.push(`[ROLE]\n${roleName}\n${sources.instructions}`);
+    } else {
+      sections.push(`[ROLE]\n${roleName}`);
     }
 
-    // 2. Inbox peek
+    // [AWARENESS]
+    const awareness = this.buildAwareness(sources);
+    sections.push(`[AWARENESS]\n${awareness}`);
+
+    // [INBOX]
     const inboxPeek = sources.inbox.peek();
-    systemParts.push(inboxPeek);
+    sections.push(`[INBOX]\n${inboxPeek}`);
 
-    // 3. Current focus
-    const focusText = this.formatFocus(sources);
-    if (focusText) {
-      systemParts.push(focusText);
-    }
-
-    // 4. Todo state
+    // [TODOS]
     const todoText = sources.todos.format();
-    systemParts.push(`📋 Todos:\n${todoText}`);
+    sections.push(`[TODOS]\n${todoText}`);
 
-    // 5. Pending reminders
+    // [REMINDERS]
     const reminderText = sources.reminders.formatPending();
     if (reminderText) {
-      systemParts.push(reminderText);
+      sections.push(`[REMINDERS]\n${reminderText}`);
     }
 
-    // 6. Note keys
+    // [NOTES]
     const noteKeys = await sources.notes.list();
     if (noteKeys.length > 0) {
-      systemParts.push(`📝 Notes: ${noteKeys.join(", ")}`);
+      sections.push(`[NOTES]\n${noteKeys.join(", ")}`);
     }
 
-    const system = systemParts.join("\n\n");
+    const system = sections.join("\n\n");
     budget -= this.estimateTokens(system);
 
-    // 7. Memory (up to memoryBudget fraction of remaining)
+    // [MEMORY] — up to memoryBudget fraction of remaining
     let memoryText = "";
     if (sources.memory && budget > 0) {
       const memBudget = Math.floor(budget * this.memoryBudget);
@@ -81,48 +84,47 @@ export class ContextEngine {
         if (memTokens <= memBudget) {
           budget -= memTokens;
         } else {
-          // Truncate memory to fit
           memoryText = memoryText.slice(0, memBudget * 4);
           budget -= memBudget;
         }
       }
     }
 
-    // 8. Conversation history (fills remaining budget, most recent first)
-    const turns: Turn[] = [];
-    let historyTokens = 0;
-    for (let i = sources.history.length - 1; i >= 0 && budget > 0; i--) {
-      const turn = sources.history[i]!;
-      const tokens = this.estimateTokens(turn.content);
-      if (historyTokens + tokens > budget) break;
-      turns.unshift(turn);
-      historyTokens += tokens;
-      budget -= tokens;
-    }
-
-    // Build final system with memory
-    const fullSystem = memoryText ? `${system}\n\n${memoryText}` : system;
-
-    const totalTokens = this.estimateTokens(fullSystem) + historyTokens;
+    const fullSystem = memoryText ? `${system}\n\n[MEMORY]\n${memoryText}` : system;
+    const totalTokens = this.estimateTokens(fullSystem);
 
     return {
       system: fullSystem,
-      turns,
+      turns: [],
       tokenCount: totalTokens,
     };
   }
 
-  private formatFocus(sources: ContextSources): string | null {
+  /** Build the [AWARENESS] section — operational rules based on current focus. */
+  private buildAwareness(sources: ContextSources): string {
+    const rules: string[] = [];
+
     switch (sources.currentFocus) {
       case "next_message":
-        return "🎯 Focus: New messages arrived — review your inbox.";
+        rules.push("- New messages arrived — read and respond to your inbox");
+        rules.push("- Prioritize unread messages");
+        break;
       case "next_todo":
-        return "🎯 Focus: Continue working on your pending todos.";
+        rules.push("- No new messages — continue working on pending todos");
+        break;
       case "waiting_reminder":
-        return "🎯 Focus: Waiting for pending reminders. Continue with available work or wait.";
+        rules.push("- Waiting for pending reminders");
+        rules.push("- Continue with available work or wait");
+        break;
       case "idle":
-        return null;
+        rules.push("- Idle — no pending work");
+        break;
     }
+
+    rules.push("- Only visible content is guaranteed");
+    rules.push("- Use tools to inspect and act");
+
+    return rules.join("\n");
   }
 
   private extractQueryFromFocus(sources: ContextSources): string {

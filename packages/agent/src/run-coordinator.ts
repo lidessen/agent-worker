@@ -16,6 +16,8 @@ export interface RunCoordinatorDeps {
   reminders: ReminderManager;
   instructions: string;
   maxRuns: number;
+  /** Agent display name for the [ROLE] section. */
+  name?: string;
 }
 
 export interface ProcessingCallbacks {
@@ -48,25 +50,14 @@ export class RunCoordinator {
     return "idle";
   }
 
-  // ── Trigger content ─────────────────────────────────────────────────────
+  // ── Notification ─────────────────────────────────────────────────────
 
-  /**
-   * Build the user-turn content for history. This is the raw trigger —
-   * NOT the assembled prompt. Recording assembled prompts as history
-   * entries would duplicate context and cause exponential growth.
-   */
-  buildTriggerContent(trigger: "next_message" | "next_todo"): string {
+  /** Build a short notification signal that tells the agent why it was woken. */
+  buildNotification(trigger: "next_message" | "next_todo"): string {
     if (trigger === "next_message") {
-      const unread = this.deps.inbox.unread;
-      const parts = unread.map((msg) => {
-        const from = msg.from ? `[${msg.from}] ` : "";
-        return `${from}${msg.content}`;
-      });
-      return parts.join("\n");
+      return "[notification] New messages in inbox.";
     }
-
-    const pending = this.deps.todos.pending;
-    return `Continue working on:\n${pending.map((t) => `- ${t.text}`).join("\n")}`;
+    return "[notification] Pending todos require attention.";
   }
 
   // ── Single run ──────────────────────────────────────────────────────────
@@ -75,8 +66,7 @@ export class RunCoordinator {
     trigger: "next_message" | "next_todo",
     onEvent?: (event: LoopEvent) => void,
   ): Promise<{ loopResult: LoopResult; assembled: AssembledPrompt }> {
-    // Capture trigger BEFORE assembly (which may mark messages as read via peek)
-    const triggerContent = this.buildTriggerContent(trigger);
+    const notification = this.buildNotification(trigger);
 
     const assembled = await this.deps.contextEngine.assemble({
       instructions: this.deps.instructions,
@@ -87,21 +77,14 @@ export class RunCoordinator {
       reminders: this.deps.reminders,
       history: this.history,
       currentFocus: trigger,
+      name: this.deps.name,
     });
 
-    // Build prompt: system context + prior history + current trigger
-    const promptParts: string[] = [assembled.system];
-
-    if (assembled.turns.length > 0) {
-      promptParts.push("");
-      for (const turn of assembled.turns) {
-        promptParts.push(`[${turn.role}]: ${turn.content}`);
-      }
-    }
-
-    promptParts.push("", triggerContent);
-
-    const run = this.deps.loop.run(promptParts.join("\n"));
+    // Pass structured input: system (dashboard) + prompt (notification)
+    const run = this.deps.loop.run({
+      system: assembled.system,
+      prompt: notification,
+    });
 
     for await (const event of run) {
       onEvent?.(event);
@@ -109,8 +92,8 @@ export class RunCoordinator {
 
     const loopResult = await run.result;
 
-    // Persist to history: only raw trigger + response
-    this.history.push({ role: "user", content: triggerContent });
+    // Persist notification + response to history (for memory extraction)
+    this.history.push({ role: "user", content: notification });
 
     const assistantText = loopResult.events
       .filter((e): e is Extract<typeof e, { type: "text" }> => e.type === "text")
@@ -228,6 +211,7 @@ export class RunCoordinator {
       reminders: this.deps.reminders,
       history: this.history,
       currentFocus: this.shouldContinue(),
+      name: this.deps.name,
     });
 
     return { system: assembled.system };
