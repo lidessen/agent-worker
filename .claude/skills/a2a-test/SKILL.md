@@ -20,10 +20,7 @@ All a2a test procedures are documented as markdown:
 A2A tests are run manually using the unified `aw` CLI (packages/agent-worker/src/cli/index.ts):
 
 ```bash
-# 1. Start the daemon
-aw up
-
-# 2. Create an agent with a specific runtime
+# 1. Create an agent with a specific runtime (daemon auto-starts)
 aw create test-agent --runtime ai-sdk --model anthropic:claude-haiku-4-5-20251001
 aw create test-agent --runtime claude-code --model sonnet
 aw create test-agent --runtime codex
@@ -38,14 +35,14 @@ aw state test-agent    # View agent state
 
 # 4. Clean up
 aw rm test-agent       # Remove agent
-aw down                # Stop daemon
+aw daemon stop         # Stop daemon
 ```
 
 ## Test flow
 
 For each runtime, verify in order:
 
-1. **Preflight** — Daemon starts successfully (`aw up`), agent created (`aw create`)
+1. **Preflight** — Agent created successfully (`aw create`, daemon auto-starts)
 2. **Simple prompt** — Send a trivial prompt, verify text response contains marker
 3. **Event structure** — `aw log --json` entries have correct type/shape
 4. **Result structure** — `run_end` has durationMs > 0, usage tracking (where supported)

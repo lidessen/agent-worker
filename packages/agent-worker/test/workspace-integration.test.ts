@@ -43,7 +43,7 @@ describe("Unified daemon (workspace routes)", () => {
 
   test("creates workspace and shows status", async () => {
     await setup();
-    const wsInfo = await client.startWorkspace(CHAT_YAML);
+    const wsInfo = await client.createWorkspace(CHAT_YAML);
     expect(wsInfo.name).toBe("test-ws");
     expect(wsInfo.agents).toHaveLength(2);
     expect(wsInfo.agents.sort()).toEqual(["alice", "bob"]);
@@ -57,7 +57,7 @@ describe("Unified daemon (workspace routes)", () => {
 
   test("sends and reads messages", async () => {
     await setup();
-    await client.startWorkspace(CHAT_YAML);
+    await client.createWorkspace(CHAT_YAML);
 
     // Send a message
     const sendResult = await client.sendToWorkspace("test-ws", {
@@ -80,7 +80,7 @@ describe("Unified daemon (workspace routes)", () => {
 
   test("sends DM via agent field", async () => {
     await setup();
-    await client.startWorkspace(CHAT_YAML);
+    await client.createWorkspace(CHAT_YAML);
 
     await client.sendToWorkspace("test-ws", {
       from: "user",
@@ -95,7 +95,7 @@ describe("Unified daemon (workspace routes)", () => {
 
   test("doc CRUD operations", async () => {
     await setup();
-    await client.startWorkspace(CHAT_YAML);
+    await client.createWorkspace(CHAT_YAML);
 
     // List docs (empty)
     const docs1 = await client.listDocs("test-ws");
@@ -121,7 +121,7 @@ describe("Unified daemon (workspace routes)", () => {
 
   test("lists channels", async () => {
     await setup();
-    await client.startWorkspace(CHAT_YAML);
+    await client.createWorkspace(CHAT_YAML);
 
     const channels = await client.listChannels("test-ws");
     expect(channels).toContain("general");
@@ -130,7 +130,7 @@ describe("Unified daemon (workspace routes)", () => {
 
   test("reads workspace events", async () => {
     await setup();
-    await client.startWorkspace(CHAT_YAML);
+    await client.createWorkspace(CHAT_YAML);
 
     // Poll until events appear (up to 2s)
     let result = await client.readWorkspaceEvents("test-ws", 0);
@@ -144,7 +144,7 @@ describe("Unified daemon (workspace routes)", () => {
 
   test("shutdown via HTTP", async () => {
     await setup();
-    await client.startWorkspace(CHAT_YAML);
+    await client.createWorkspace(CHAT_YAML);
 
     await client.stopWorkspace("test-ws");
 
