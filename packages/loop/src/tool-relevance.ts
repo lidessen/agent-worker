@@ -104,10 +104,14 @@ export class ToolRelevanceEngine {
     // No on-demand tools and no tier config → no filtering needed
     if (onDemand.length === 0 && always.length === 0) return undefined;
 
-    // Step 0: always + all contextual, no on-demand yet
+    // Step 0: always + all contextual, no on-demand yet (but include discovery tool)
     if (ctx.stepNumber === 0 || ctx.steps.length === 0) {
       if (onDemand.length === 0) return undefined;
-      return [...always, ...contextual];
+      const result = [...always, ...contextual];
+      if (allNames.includes("_activate_tool")) {
+        result.push("_activate_tool");
+      }
+      return result;
     }
 
     // Contextual: include tools that were used or errored recently
@@ -147,6 +151,11 @@ export class ToolRelevanceEngine {
     const activeOnDemand = onDemand.filter((name) => this._activatedOnDemand.has(name));
 
     const result = [...always, ...selectedContextual, ...activeOnDemand];
+
+    // Always include the discovery tool if present
+    if (allNames.includes("_activate_tool") && !result.includes("_activate_tool")) {
+      result.push("_activate_tool");
+    }
 
     // If we'd return all tools anyway, skip filtering
     if (result.length >= allNames.length) return undefined;

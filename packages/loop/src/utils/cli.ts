@@ -121,13 +121,17 @@ export async function spawnCli(options: SpawnCliOptions): Promise<SpawnCliResult
 
   // Strip CLAUDECODE so CLI loops (claude, codex, cursor) inherit
   // the host's login state instead of being blocked as nested sessions.
+  // Use extendEnv: false to prevent execa from re-merging process.env
+  // (which would restore the deleted CLAUDECODE key).
   const env = { ...process.env, ...extraEnv };
   delete env.CLAUDECODE;
 
   const proc = execa(command, args, {
     cwd,
     env,
+    extendEnv: false,
     reject: false,
+    stdin: "ignore",
   });
 
   let stdoutBuf = "";

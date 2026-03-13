@@ -67,7 +67,7 @@ export function runCliLoop(
         cwd: options.cwd,
         env: config.env,
         signal: callOptions.abortSignal,
-        idleTimeout: options.idleTimeout ?? 60_000,
+        idleTimeout: options.idleTimeout ?? 120_000,
         onStdout: (chunk) => parser.push(chunk),
       });
 

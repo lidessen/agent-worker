@@ -84,6 +84,19 @@ describe("ToolRelevanceEngine", () => {
       expect(result).not.toContain("deployService"); // on-demand
     });
 
+    test("step 0 includes _activate_tool when on-demand tools exist", () => {
+      const engine = new ToolRelevanceEngine({
+        tiers: { bash: "always", deployService: "on-demand" },
+      });
+      const toolsWithDiscovery = {
+        ...TOOLS,
+        _activate_tool: { description: "Discover and activate on-demand tools" },
+      } as unknown as ToolSet;
+      const result = engine.selectActiveTools(toolsWithDiscovery, { stepNumber: 0, steps: [] })!;
+      expect(result).toContain("_activate_tool");
+      expect(result).not.toContain("deployService");
+    });
+
     test("always-tier tools are always included", () => {
       const engine = new ToolRelevanceEngine({
         tiers: { bash: "always", readFile: "always", deployService: "on-demand" },

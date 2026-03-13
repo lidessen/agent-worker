@@ -3,7 +3,6 @@ import type { ToolSet } from "ai";
 import type { RunCoordinator } from "../run-coordinator.ts";
 import type { ToolHandlerDeps } from "../tool-registry.ts";
 import { createBuiltinTools, mergeTools, validateToolNamespace } from "../toolkit.ts";
-import { ToolBridge } from "./tool-bridge.ts";
 import { AgentMcpServer } from "./mcp-server.ts";
 
 export interface LoopWiringDeps extends ToolHandlerDeps {
@@ -15,24 +14,17 @@ export interface LoopWiringDeps extends ToolHandlerDeps {
 /**
  * Handles all loop capability detection and tool wiring.
  *
- * Separates three concerns that were previously mixed in Agent.init():
+ * Two paths:
  *
- * 1. Direct tool injection (AI SDK loops with directTools capability)
- * 2. prepareStep hook (AI SDK loops with prepareStep capability)
- * 3. CLI bridge setup (CLI loops — bridge is always started, includeBuiltins
- *    only controls which tools the entry script exposes)
- *
- * The bridge is a transport mechanism — it always starts for CLI loops.
- * includeBuiltins is a policy decision — it controls tool visibility,
- * not whether the transport exists.
+ * 1. Direct tool injection (AI SDK loops with directTools/prepareStep)
+ * 2. HTTP MCP server (CLI loops — tools exposed via Streamable HTTP)
  */
 export class LoopWiring {
-  private bridge: ToolBridge | null = null;
   private mcpServer: AgentMcpServer | null = null;
 
   constructor(private deps: LoopWiringDeps) {}
 
-  /** Extract the ToolHandlerDeps subset (shared by bridge, MCP, toolkit). */
+  /** Extract the ToolHandlerDeps subset (shared by MCP, toolkit). */
   private get handlerDeps(): ToolHandlerDeps {
     return {
       inbox: this.deps.inbox,
@@ -67,20 +59,10 @@ export class LoopWiring {
       loop.setPrepareStep((opts) => coordinator.assembleForStep(opts));
     }
 
-    // ── CLI bridge ────────────────────────────────────────────────────
-    // Transport is independent of tool selection: bridge always starts
-    // for CLI loops. includeBuiltins controls which tools the MCP entry
-    // script registers, not whether the bridge exists.
+    // ── CLI loops: HTTP MCP server ────────────────────────────────────
     if (!loop.supports.includes("directTools") && loop.setMcpConfig) {
-      this.bridge = new ToolBridge(this.handlerDeps);
-      const transport = await this.bridge.start();
-
       this.mcpServer = new AgentMcpServer(this.handlerDeps);
-      const configPath = await this.mcpServer.startAndWriteConfig(
-        transport,
-        this.deps.memory !== null,
-        includeBuiltins,
-      );
+      const configPath = await this.mcpServer.startHttp();
       loop.setMcpConfig(configPath);
     }
   }
@@ -89,10 +71,6 @@ export class LoopWiring {
     if (this.mcpServer) {
       await this.mcpServer.stop();
       this.mcpServer = null;
-    }
-    if (this.bridge) {
-      await this.bridge.stop();
-      this.bridge = null;
     }
   }
 

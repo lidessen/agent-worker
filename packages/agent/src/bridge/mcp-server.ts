@@ -1,13 +1,12 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { createServer, type Server } from "node:http";
 import { z } from "zod";
 import {
   BUILTIN_TOOLS,
   createToolHandlers,
-  zodParamsToSource,
   type ToolHandlerDeps,
 } from "../tool-registry.ts";
-import type { BridgeTransport } from "./tool-bridge.ts";
 
 export type AgentMcpServerDeps = ToolHandlerDeps;
 
@@ -50,23 +49,17 @@ function buildObjectSchema(params: Record<string, z.ZodTypeAny>): z.ZodTypeAny {
 }
 
 /**
- * MCP server that exposes agent built-in tools to CLI loops.
+ * MCP server that exposes agent built-in tools to CLI loops via HTTP.
  *
- * Two modes:
- *
- * 1. In-process (startStdio): registerTools() binds directly to deps.
- *    Used for testing or when the MCP server runs in the same process.
- *
- * 2. CLI bridge (startAndWriteConfig): generates a proxy entry script
- *    that forwards every tool call to the agent's ToolBridge HTTP server.
- *    The CLI loop spawns this script as a subprocess. Because tool calls
- *    go through the bridge, side-effects (todos, notes, inbox reads,
- *    sends) hit the real agent subsystems — not a disconnected copy.
+ * Uses Streamable HTTP transport — the MCP server runs in-process and
+ * CLI loops connect to it directly via URL. No subprocess, no bridge.
  */
 export class AgentMcpServer {
   private server: McpServer;
+  private httpServer: Server | null = null;
+  private transport: StreamableHTTPServerTransport | null = null;
   private configPath: string | null = null;
-  private entryPath: string | null = null;
+  private _port: number | null = null;
 
   constructor(private deps: AgentMcpServerDeps) {
     this.server = new McpServer({
@@ -77,6 +70,10 @@ export class AgentMcpServer {
     this.registerTools();
   }
 
+  get port(): number | null {
+    return this._port;
+  }
+
   private registerTools(): void {
     const handlers = createToolHandlers(this.deps);
 
@@ -85,67 +82,55 @@ export class AgentMcpServer {
       const handler = handlers[name];
       if (!handler) continue;
 
-      // Register each tool individually. We call registerTool via a helper
-      // function to prevent TS2589 from deeply resolving the generic params
-      // against Record<string, ZodTypeAny>.
       registerToolForDef(this.server, name, def, handler);
     }
   }
 
   /**
-   * Start the MCP server using stdio transport (connects to process stdin/stdout).
-   * Used when this code runs as the MCP subprocess entry point.
-   */
-  async startStdio(): Promise<void> {
-    const transport = new StdioServerTransport();
-    await this.server.connect(transport);
-  }
-
-  /**
-   * Write the MCP proxy entry script and config to /tmp, returning the config path.
+   * Start the MCP server over Streamable HTTP and write a config file.
    *
-   * The entry script is a thin proxy: every tool call does a fetch() to the
-   * agent's ToolBridge HTTP server. This ensures the subprocess doesn't maintain
-   * its own state — all side-effects flow through the real agent subsystems.
-   *
-   * @param transport - How to reach the agent's ToolBridge server (unix socket or tcp)
-   * @param hasMemory - Whether the agent has memory configured (adds agent_memory tool)
-   * @param includeBuiltins - Whether to include built-in agent tools. When false,
-   *        the entry script is a minimal MCP server with no tools. The bridge
-   *        transport still exists (transport != tools).
+   * Returns the config path for `--mcp-config`.
    */
-  async startAndWriteConfig(
-    transport: BridgeTransport,
-    hasMemory: boolean,
-    includeBuiltins = true,
-  ): Promise<string> {
-    const timestamp = Date.now();
-    const entryPath = `/tmp/agent-mcp-entry-${timestamp}.ts`;
-    const configPath = `/tmp/agent-mcp-config-${timestamp}.json`;
+  async startHttp(): Promise<string> {
+    this.transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: undefined, // stateless
+    });
 
-    const entryScript = includeBuiltins
-      ? this.buildProxyScript(transport, hasMemory)
-      : this.buildMinimalScript();
+    await this.server.connect(this.transport);
 
-    const { writeFile } = await import("node:fs/promises");
-    await writeFile(entryPath, entryScript, "utf-8");
+    // Start HTTP server
+    this.httpServer = createServer((req, res) => {
+      this.transport!.handleRequest(req, res);
+    });
+
+    await new Promise<void>((resolve, reject) => {
+      this.httpServer!.once("error", reject);
+      this.httpServer!.listen({ host: "127.0.0.1", port: 0 }, () => {
+        this.httpServer!.removeListener("error", reject);
+        resolve();
+      });
+    });
+
+    const addr = this.httpServer.address();
+    if (!addr || typeof addr === "string") throw new Error("MCP HTTP server: no address");
+    this._port = addr.port;
+
+    const url = `http://127.0.0.1:${this._port}/`;
 
     // Write MCP config for CLI
+    const configPath = `/tmp/agent-mcp-config-${Date.now()}.json`;
+    const { writeFile } = await import("node:fs/promises");
     await writeFile(
       configPath,
       JSON.stringify({
         mcpServers: {
-          "agent-worker": {
-            command: "npx",
-            args: ["tsx", entryPath],
-          },
+          "agent-worker": { type: "http", url },
         },
       }),
       "utf-8",
     );
 
     this.configPath = configPath;
-    this.entryPath = entryPath;
     return configPath;
   }
 
@@ -157,112 +142,26 @@ export class AgentMcpServer {
       /* may not be connected */
     }
 
-    // Clean up temp files
-    const { unlink } = await import("node:fs/promises");
+    if (this.httpServer) {
+      this.httpServer.close();
+      this.httpServer = null;
+    }
+    this.transport = null;
+    this._port = null;
+
     if (this.configPath) {
       try {
+        const { unlink } = await import("node:fs/promises");
         await unlink(this.configPath);
       } catch {
         /* ignore */
       }
       this.configPath = null;
     }
-    if (this.entryPath) {
-      try {
-        await unlink(this.entryPath);
-      } catch {
-        /* ignore */
-      }
-      this.entryPath = null;
-    }
   }
 
   /** Get the MCP server instance for direct tool registration testing */
   get mcpServerInstance(): McpServer {
     return this.server;
-  }
-
-  // ── Entry script generators ───────────────────────────────────────────
-
-  /** Full proxy script with all built-in tools routed through the bridge. */
-  private buildProxyScript(transport: BridgeTransport, hasMemory: boolean): string {
-    // Generate the correct fetch call based on transport type
-    const fetchBlock =
-      transport.type === "unix"
-        ? `import { request as httpRequest } from "node:http";
-
-const BRIDGE_SOCKET = "${transport.socketPath}";
-
-async function callBridge(tool: string, args: Record<string, unknown>): Promise<string> {
-  const body = JSON.stringify(args);
-  return new Promise<string>((resolve, reject) => {
-    const req = httpRequest({
-      socketPath: BRIDGE_SOCKET,
-      path: \`/\${tool}\`,
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) },
-    }, (res) => {
-      const chunks: Buffer[] = [];
-      res.on("data", (c: Buffer) => chunks.push(c));
-      res.on("end", () => {
-        const data = JSON.parse(Buffer.concat(chunks).toString("utf-8")) as { result?: string; error?: string };
-        if (data.error) reject(new Error(data.error));
-        else resolve(data.result ?? "");
-      });
-    });
-    req.on("error", reject);
-    req.end(body);
-  });
-}`
-        : `const BRIDGE_URL = "http://${transport.host}:${transport.port}";
-
-async function callBridge(tool: string, args: Record<string, unknown>): Promise<string> {
-  const res = await fetch(\`\${BRIDGE_URL}/\${tool}\`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(args),
-  });
-  const data = await res.json() as { result?: string; error?: string };
-  if (data.error) throw new Error(data.error);
-  return data.result ?? "";
-}`;
-
-    // Generate tool registration blocks from the registry
-    const toolBlocks = Object.entries(BUILTIN_TOOLS)
-      .filter(([name]) => name !== "agent_memory" || hasMemory)
-      .map(([name, def]) => {
-        const paramsSource = zodParamsToSource(def.parameters);
-        return `server.tool(${JSON.stringify(name)}, ${JSON.stringify(def.description)}, ${paramsSource}, async (args) => {
-  const text = await callBridge(${JSON.stringify(name)}, args);
-  return { content: [{ type: "text", text }] };
-});`;
-      })
-      .join("\n\n");
-
-    return `import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { z } from "zod";
-
-${fetchBlock}
-
-const server = new McpServer({ name: "agent-worker", version: "0.0.1" });
-
-${toolBlocks}
-
-const transport = new StdioServerTransport();
-await server.connect(transport);
-`;
-  }
-
-  /** Minimal MCP server with no tools — bridge transport exists but no builtins exposed. */
-  private buildMinimalScript(): string {
-    return `import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-
-const server = new McpServer({ name: "agent-worker", version: "0.0.1" });
-
-const transport = new StdioServerTransport();
-await server.connect(transport);
-`;
   }
 }

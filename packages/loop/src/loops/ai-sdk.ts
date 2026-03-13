@@ -1,4 +1,5 @@
-import { ToolLoopAgent, type ToolSet, type LanguageModel } from "ai";
+import { ToolLoopAgent, tool, type ToolSet, type LanguageModel } from "ai";
+import { z } from "zod";
 import { createBashTool, type CreateBashToolOptions, type BashToolkit } from "bash-tool";
 import type { LoopEvent, LoopResult, LoopRun, LoopStatus, PreflightResult } from "../types.ts";
 import { createEventChannel } from "../types.ts";
@@ -60,6 +61,9 @@ export class AiSdkLoop {
     }
 
     this.tools = { ...builtinTools, ...userTools };
+
+    // Inject discovery tool if relevance engine has on-demand tools
+    this._injectDiscoveryTool();
 
     this.agent = new ToolLoopAgent({
       model,
@@ -186,6 +190,10 @@ export class AiSdkLoop {
 
   setToolRelevance(config: ToolRelevanceConfig): void {
     this.relevanceEngine = new ToolRelevanceEngine(config);
+    // Re-inject discovery tool with the new engine
+    this._injectDiscoveryTool();
+    // Re-create agent on next run to pick up new tools
+    this.agent = null;
   }
 
   async cleanup(): Promise<void> {
@@ -214,6 +222,41 @@ export class AiSdkLoop {
     }
 
     return { ok: true };
+  }
+
+  /**
+   * Inject a discovery tool that lets the model list and activate on-demand tools.
+   * Only added when the relevance engine is configured and tools include on-demand entries.
+   */
+  private _injectDiscoveryTool(): void {
+    if (!this.relevanceEngine) return;
+    const catalog = this.relevanceEngine.getOnDemandCatalog(this.tools);
+    if (catalog.length === 0) return;
+
+    const engine = this.relevanceEngine;
+    const loop = this;
+
+    this.tools._activate_tool = tool({
+      description:
+        "Discover and activate on-demand tools that are hidden by default. " +
+        "Call with action 'list' to see available tools, or 'activate' with a tool name to enable it.",
+      inputSchema: z.object({
+        action: z.enum(["list", "activate"]),
+        toolName: z.string().optional().describe("Tool name to activate (for activate action)"),
+      }),
+      execute: async ({ action, toolName }) => {
+        if (action === "list") {
+          const current = engine.getOnDemandCatalog(loop.tools);
+          return JSON.stringify({ available: current });
+        }
+        if (!toolName) return "Error: toolName required for activate action";
+        if (engine.getTier(toolName) !== "on-demand") {
+          return `Error: "${toolName}" is not an on-demand tool`;
+        }
+        engine.activateOnDemand(toolName);
+        return `Activated tool: ${toolName}`;
+      },
+    });
   }
 
   /**

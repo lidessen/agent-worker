@@ -12,7 +12,7 @@ export { ReminderManager } from "./reminder.ts";
 export { RunCoordinator } from "./run-coordinator.ts";
 
 // ── Bridge (CLI loop infrastructure) ────────────────────────────────────────
-export { ToolBridge, type BridgeTransport, AgentMcpServer, LoopWiring } from "./bridge/index.ts";
+export { AgentMcpServer, LoopWiring } from "./bridge/index.ts";
 export type { LoopWiringDeps } from "./bridge/index.ts";
 
 // ── Storage implementations ─────────────────────────────────────────────────

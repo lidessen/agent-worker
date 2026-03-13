@@ -67,6 +67,7 @@ async function createClaudeCodeLoop(config: RuntimeConfig): Promise<AgentLoop> {
   return new ClaudeCodeLoop({
     model: config.model ?? "sonnet",
     cwd: config.cwd,
+    permissionMode: "bypassPermissions",
   });
 }
 
