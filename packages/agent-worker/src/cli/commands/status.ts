@@ -17,7 +17,7 @@ export async function status(_args: string[]): Promise<void> {
     if (agents.length > 0) {
       console.log("\nAgents:");
       for (const a of agents) {
-        console.log(`  ${a.name}  (${a.runtime ?? "mock"})`);
+        console.log(`  ${a.name}  (${a.runtime ?? a.kind})`);
       }
     }
 

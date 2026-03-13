@@ -14,15 +14,15 @@ export async function info(args: string[]): Promise<void> {
     const client = await AwClient.discover();
 
     if (target.agent && target.workspace) {
-      // Compound: show both agent + workspace
+      // Compound: show both agent + workspace status
       const [agent, ws] = await Promise.all([
         client.getAgent(target.agent),
-        client.getWorkspace(target.workspace),
+        client.getWorkspaceStatus(target.workspace),
       ]);
       console.log("Agent:", JSON.stringify(agent, null, 2));
       console.log("Workspace:", JSON.stringify(ws, null, 2));
     } else if (target.workspace) {
-      const ws = await client.getWorkspace(target.workspace);
+      const ws = await client.getWorkspaceStatus(target.workspace);
       console.log(JSON.stringify(ws, null, 2));
     } else if (target.agent) {
       const agent = await client.getAgent(target.agent);

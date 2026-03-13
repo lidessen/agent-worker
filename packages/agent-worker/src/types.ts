@@ -32,6 +32,7 @@ export interface ManagedAgentInfo {
   name: string;
   kind: AgentKind;
   state: AgentState;
+  runtime?: string;
   createdAt: number;
   /** Workspace this agent belongs to, if any. */
   workspace?: string;
@@ -46,6 +47,8 @@ export interface CreateAgentInput {
   config?: AgentConfig;
   /** Kind: config-loaded or ephemeral (API-created). Default: "ephemeral". */
   kind?: AgentKind;
+  /** Runtime type label (e.g. "mock", "claude-code"). */
+  runtime?: string;
   /** Workspace scope. If set, agent storage is under the workspace directory. */
   workspace?: string;
 }

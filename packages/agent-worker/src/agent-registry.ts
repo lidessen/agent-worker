@@ -69,6 +69,7 @@ export class AgentRegistry {
     const handle = new ManagedAgent({
       name: input.name,
       kind: input.kind ?? "ephemeral",
+      runtime: input.runtime,
       config,
       workspace: input.workspace,
       bus: this._bus,
