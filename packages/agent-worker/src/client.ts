@@ -388,10 +388,15 @@ export class AwClient {
 async function autoStartDaemon(dataDir: string): Promise<DaemonInfo> {
   const cliEntry = join(dirname(fileURLToPath(import.meta.url)), "cli", "index.ts");
 
+  // Strip CLAUDECODE so nested Claude Code sessions can inherit
+  // the host's login state instead of being blocked.
+  const env = { ...process.env };
+  delete env.CLAUDECODE;
+
   const child = spawn("bun", ["run", cliEntry, "daemon", "start"], {
     detached: true,
     stdio: "ignore",
-    env: { ...process.env },
+    env,
   });
   child.unref();
 
