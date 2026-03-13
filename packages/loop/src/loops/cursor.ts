@@ -10,7 +10,7 @@ export class CursorLoop {
   private _status: LoopStatus = "idle";
   private abortController: AbortController | null = null;
   private _mcpConfigPath: string | null = null;
-  private _injectedMcpPath: string | null = null;
+  private _mcpSnapshot: McpSnapshot | null = null;
 
   constructor(private options: CursorLoopOptions = {}) {}
 
@@ -26,7 +26,7 @@ export class CursorLoop {
     // Cursor agent detects MCP servers from .cursor/mcp.json in the cwd.
     // Inject the agent MCP config before starting the CLI process.
     if (this._mcpConfigPath) {
-      this._injectedMcpPath = injectCursorMcpConfig(
+      this._mcpSnapshot = injectCursorMcpConfig(
         this._mcpConfigPath,
         this.options.cwd ?? process.cwd(),
       );
@@ -70,9 +70,9 @@ export class CursorLoop {
   }
 
   private cleanupMcpConfig(): void {
-    if (this._injectedMcpPath) {
-      removeCursorMcpConfig(this._injectedMcpPath);
-      this._injectedMcpPath = null;
+    if (this._mcpSnapshot) {
+      restoreCursorMcpConfig(this._mcpSnapshot);
+      this._mcpSnapshot = null;
     }
   }
 
@@ -184,59 +184,61 @@ function extractCursorResult(stdout: string): string {
 // ── Cursor MCP config injection ──────────────────────────────────────────────
 //
 // Cursor agent has no --mcp-config flag. It discovers MCP servers from
-// .cursor/mcp.json in the working directory. We merge our agent MCP server
-// into that file before starting the CLI and remove it on cleanup.
+// .cursor/mcp.json in the working directory. We save a snapshot of the
+// original file before injecting, and restore it exactly on cleanup.
 
-type McpConfig = { mcpServers?: Record<string, unknown> };
+interface McpSnapshot {
+  cursorMcpPath: string;
+  /** null means the file did not exist before injection. */
+  originalContent: string | null;
+}
 
 /**
- * Merge agent MCP servers from the config JSON into .cursor/mcp.json.
- * Returns the path to the written file for cleanup.
+ * Inject agent MCP servers into .cursor/mcp.json, saving a snapshot
+ * of the original file for exact restoration on cleanup.
  */
-function injectCursorMcpConfig(configPath: string, cwd: string): string {
-  const agentConfig = JSON.parse(readFileSync(configPath, "utf-8")) as McpConfig;
+function injectCursorMcpConfig(configPath: string, cwd: string): McpSnapshot {
+  const agentConfig = JSON.parse(readFileSync(configPath, "utf-8")) as {
+    mcpServers?: Record<string, unknown>;
+  };
   const cursorDir = join(cwd, ".cursor");
   const cursorMcpPath = join(cursorDir, "mcp.json");
 
-  let existing: McpConfig = {};
+  let originalContent: string | null = null;
+  let existing: Record<string, unknown> = {};
+
   if (existsSync(cursorMcpPath)) {
-    existing = JSON.parse(readFileSync(cursorMcpPath, "utf-8")) as McpConfig;
+    originalContent = readFileSync(cursorMcpPath, "utf-8");
+    existing = JSON.parse(originalContent) as Record<string, unknown>;
   } else {
     mkdirSync(cursorDir, { recursive: true });
   }
 
-  const merged: McpConfig = {
+  const merged = {
     ...existing,
     mcpServers: {
-      ...(existing.mcpServers ?? {}),
+      ...((existing.mcpServers as Record<string, unknown>) ?? {}),
       ...(agentConfig.mcpServers ?? {}),
     },
   };
 
   writeFileSync(cursorMcpPath, JSON.stringify(merged, null, 2));
-  return cursorMcpPath;
+  return { cursorMcpPath, originalContent };
 }
 
-/** Remove injected agent-worker MCP server entries from .cursor/mcp.json. */
-function removeCursorMcpConfig(cursorMcpPath: string): void {
+/** Restore .cursor/mcp.json to its pre-injection state. */
+function restoreCursorMcpConfig(snapshot: McpSnapshot): void {
   try {
-    if (!existsSync(cursorMcpPath)) return;
-
-    const config = JSON.parse(readFileSync(cursorMcpPath, "utf-8")) as McpConfig;
-    const servers = config.mcpServers ?? {};
-    delete servers["agent-worker"];
-
-    if (Object.keys(servers).length === 0 && Object.keys(config).length <= 1) {
-      // We created this file — remove it entirely
-      unlinkSync(cursorMcpPath);
+    if (snapshot.originalContent === null) {
+      // File didn't exist before — remove it and try to clean up .cursor/
+      unlinkSync(snapshot.cursorMcpPath);
       try {
-        rmdirSync(join(cursorMcpPath, ".."));
+        rmdirSync(join(snapshot.cursorMcpPath, ".."));
       } catch {
         // .cursor/ has other files, leave it
       }
     } else {
-      config.mcpServers = servers;
-      writeFileSync(cursorMcpPath, JSON.stringify(config, null, 2));
+      writeFileSync(snapshot.cursorMcpPath, snapshot.originalContent);
     }
   } catch {
     // Best-effort cleanup

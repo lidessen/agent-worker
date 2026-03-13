@@ -86,6 +86,16 @@ function buildArgs(
   return args;
 }
 
+/** Escape a string for use inside a TOML basic string (double-quoted). */
+function escapeToml(value: string): string {
+  return value
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, "\\n")
+    .replace(/\r/g, "\\r")
+    .replace(/\t/g, "\\t");
+}
+
 /**
  * Codex CLI has no --mcp-config flag. MCP servers are configured via
  * `-c` TOML overrides against the `mcp_servers` config section.
@@ -99,9 +109,10 @@ function buildMcpOverrides(configPath: string): string[] {
 
   for (const [name, server] of Object.entries(servers)) {
     flags.push("-c", `mcp_servers.${name}.type="stdio"`);
-    flags.push("-c", `mcp_servers.${name}.command="${server.command}"`);
+    flags.push("-c", `mcp_servers.${name}.command="${escapeToml(server.command)}"`);
     if (server.args?.length) {
-      const tomlArray = "[" + server.args.map((a) => `"${a}"`).join(", ") + "]";
+      const tomlArray =
+        "[" + server.args.map((a) => `"${escapeToml(a)}"`).join(", ") + "]";
       flags.push("-c", `mcp_servers.${name}.args=${tomlArray}`);
     }
   }
