@@ -86,6 +86,12 @@ function buildArgs(
   return args;
 }
 
+/** Quote a TOML key if it contains characters outside bare-key range (A-Za-z0-9_-). */
+function quoteTomlKey(key: string): string {
+  if (/^[A-Za-z0-9_-]+$/.test(key)) return key;
+  return `"${escapeToml(key)}"`;
+}
+
 /** Escape a string for use inside a TOML basic string (double-quoted). */
 function escapeToml(value: string): string {
   return value
@@ -109,12 +115,13 @@ function buildMcpOverrides(configPath: string): string[] {
   const flags: string[] = [];
 
   for (const [name, server] of Object.entries(servers)) {
-    flags.push("-c", `mcp_servers.${name}.type="stdio"`);
-    flags.push("-c", `mcp_servers.${name}.command="${escapeToml(server.command)}"`);
+    const key = quoteTomlKey(name);
+    flags.push("-c", `mcp_servers.${key}.type="stdio"`);
+    flags.push("-c", `mcp_servers.${key}.command="${escapeToml(server.command)}"`);
     if (server.args?.length) {
       const tomlArray =
         "[" + server.args.map((a) => `"${escapeToml(a)}"`).join(", ") + "]";
-      flags.push("-c", `mcp_servers.${name}.args=${tomlArray}`);
+      flags.push("-c", `mcp_servers.${key}.args=${tomlArray}`);
     }
   }
 
