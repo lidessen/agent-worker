@@ -47,9 +47,9 @@ At least one part is required.
 
 A workspace key is `name` or `name:tag`. Tags disambiguate multiple instances of the same workspace definition.
 
-- `aw start review.yaml` → key = `review`
-- `aw start review.yaml --tag pr-42` → key = `review:pr-42`
-- `aw start review.yaml --tag pr-99` → key = `review:pr-99`
+- `aw create review.yaml` → key = `review`
+- `aw create review.yaml --tag pr-42` → key = `review:pr-42`
+- `aw create review.yaml --tag pr-99` → key = `review:pr-99`
 
 If a bare `@review` is used when multiple tagged instances exist, the daemon returns a 409 Conflict listing the available instances.
 
@@ -82,9 +82,9 @@ function parseTarget(raw: string): Target {
 
 ## Global Workspace
 
-The daemon has a **global default workspace** (key: `global`) that always exists. Standalone agents created via `aw create` live in this workspace.
+The daemon has a **global default workspace** (key: `global`) that always exists. Standalone agents created via `aw add` live in this workspace.
 
-Declarative workspaces (created via `aw start` / `aw run` from YAML) define their own agents inline — they **cannot** dynamically create new agents. However, they **can** reference agents from the global workspace by name.
+Declarative workspaces (created via `aw create` / `aw run` from YAML) define their own agents inline — they **cannot** dynamically create new agents. However, they **can** reference agents from the global workspace by name.
 
 The global workspace is addressable as `@global` in target syntax. When `@workspace` is omitted, it implicitly resolves to `@global`.
 
@@ -105,7 +105,7 @@ The global workspace is addressable as `@global` in target syntax. When `@worksp
 
 | Scope | Create agents | Reference global agents |
 |-------|:------------:|:----------------------:|
-| Global workspace | yes (`aw create`) | — |
+| Global workspace | yes (`aw add`) | — |
 | Declarative workspace | no (YAML-defined only) | yes |
 
 When a bare agent name is used (e.g. `alice`), it resolves to the global workspace. When qualified with `@workspace` (e.g. `alice@review`), it resolves within that workspace.
@@ -280,7 +280,7 @@ The daemon validates the config, creates the loop, and initializes the agent. If
 ### CLI mapping
 
 ```bash
-aw create alice \
+aw add alice \
   --runtime ai-sdk \
   --model anthropic:claude-sonnet-4-20250514 \
   --instructions "You are a code reviewer." \
@@ -321,7 +321,7 @@ The daemon is auto-started when needed by any command that requires it (e.g. `aw
 ### Resource management
 
 ```bash
-aw create <name> [options]    # Create standalone agent
+aw add <name> [options]       # Add standalone agent
   --runtime <type>            #   ai-sdk | claude-code | codex | cursor | mock
   --model <provider:model>    #   e.g. anthropic:claude-sonnet-4-20250514
   --instructions <text>       #   system prompt
@@ -329,14 +329,14 @@ aw create <name> [options]    # Create standalone agent
   --env KEY=VALUE             #   env overrides (repeatable)
   --runner host|sandbox       #   execution environment
 
+aw create <config.yaml>       # Create workspace (service mode)
+  --tag <tag>                 #   instance tag (e.g. pr-42)
+  --var KEY=VALUE             #   template variables (repeatable)
+
 aw run <config.yaml>          # Run workspace as task (exits when done)
   --tag <tag>                 #   instance tag
   --var KEY=VALUE             #   template variables (repeatable)
   --wait <duration>           #   max wait time (default: 5m)
-
-aw start <config.yaml>        # Start workspace (mode: service)
-  --tag <tag>                 #   instance tag (e.g. pr-42)
-  --var KEY=VALUE             #   template variables (repeatable)
 
 aw ls                         # List all agents + workspaces
 aw info <target>              # Details (alice / @review:pr-42 / alice@review)
@@ -561,8 +561,8 @@ packages/agent-worker/src/
     commands/
       daemon.ts             # aw daemon start/stop
       status.ts             # aw status
+      add.ts                # aw add
       create.ts             # aw create
-      start.ts              # aw start
       ls.ts                 # aw ls
       info.ts               # aw info
       rm.ts                 # aw rm

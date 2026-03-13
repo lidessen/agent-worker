@@ -20,13 +20,13 @@ async function main() {
       const { status } = await import("./commands/status.ts");
       return status(rest);
     }
+    case "add": {
+      const { add } = await import("./commands/add.ts");
+      return add(rest);
+    }
     case "create": {
       const { create } = await import("./commands/create.ts");
       return create(rest);
-    }
-    case "start": {
-      const { start } = await import("./commands/start.ts");
-      return start(rest);
     }
     case "run": {
       const { run } = await import("./commands/run.ts");
@@ -77,8 +77,8 @@ Daemon:
   status                    Daemon, agents, and workspaces overview
 
 Resources:
-  create <name> [options]     Create standalone agent
-  start <config.yaml>         Start workspace (service mode)
+  add <name> [options]        Add standalone agent
+  create <config.yaml>        Create workspace (service mode)
   run <config.yaml>           Run workspace as task (exits when done)
   ls                          List all agents + workspaces
   info <target>               Details about agent/workspace
