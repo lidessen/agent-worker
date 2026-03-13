@@ -28,9 +28,17 @@ export type PrepareStepFunction = (options: {
   experimental_context: unknown;
 }) => PrepareStepResult | Promise<PrepareStepResult>;
 
+/** Structured input for loop.run(). */
+export interface LoopInput {
+  /** System prompt (dashboard context). */
+  system: string;
+  /** User-facing prompt (notification signal). */
+  prompt: string;
+}
+
 export interface AgentLoop {
   supports: LoopCapability[];
-  run(prompt: string): LoopRun;
+  run(input: string | LoopInput): LoopRun;
   cancel(): void;
   get status(): LoopStatus;
   preflight?(): Promise<PreflightResult>;

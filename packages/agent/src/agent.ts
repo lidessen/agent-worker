@@ -74,6 +74,7 @@ export class Agent {
       reminders: this.reminders,
       instructions: config.instructions ?? "",
       maxRuns: config.maxRuns ?? 10,
+      name: config.name,
     });
 
     // LoopWiring handles capability detection, tool injection, CLI bridge

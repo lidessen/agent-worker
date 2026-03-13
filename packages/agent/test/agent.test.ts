@@ -387,19 +387,19 @@ describe("History content", () => {
     agent.push("Fix the login bug");
     await new Promise((r) => setTimeout(r, 200));
 
-    // History should contain the actual message, not the assembled prompt
+    // History should contain a notification, not the assembled prompt
     const userTurns = agent.context.filter((t) => t.role === "user");
     expect(userTurns).toHaveLength(1);
 
     const userContent = userTurns[0]!.content;
 
-    // Should contain the actual message
-    expect(userContent).toContain("Fix the login bug");
+    // Should contain the notification signal
+    expect(userContent).toContain("[notification]");
 
     // Should NOT contain system instructions or context engine artifacts
     expect(userContent).not.toContain("You are a helpful assistant");
-    expect(userContent).not.toContain("📥 Inbox");
-    expect(userContent).not.toContain("📋 Todos");
+    expect(userContent).not.toContain("[INBOX]");
+    expect(userContent).not.toContain("[TODOS]");
   });
 
   test("history does not grow exponentially across runs", async () => {

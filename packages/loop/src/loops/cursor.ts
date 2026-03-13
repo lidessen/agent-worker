@@ -18,7 +18,8 @@ export class CursorLoop {
     return this._status;
   }
 
-  run(prompt: string): LoopRun {
+  run(input: string | { system: string; prompt: string }): LoopRun {
+    const prompt = typeof input === "string" ? input : `${input.system}\n\n${input.prompt}`;
     if (this._status === "running") throw new Error("Already running");
     this._status = "running";
     this.abortController = new AbortController();
