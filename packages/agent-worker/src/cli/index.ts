@@ -2,7 +2,8 @@
 /**
  * aw — agent-worker CLI entry point.
  *
- * All commands route through AwClient (HTTP) except `up` which starts the daemon directly.
+ * All commands route through AwClient (HTTP) except `daemon start` which starts the daemon directly.
+ * If no daemon is running, commands that need it will auto-start one in the background.
  */
 
 const args = process.argv.slice(2);
@@ -11,13 +12,9 @@ const rest = args.slice(1);
 
 async function main() {
   switch (command) {
-    case "up": {
-      const { up } = await import("./commands/up.ts");
-      return up(rest);
-    }
-    case "down": {
-      const { down } = await import("./commands/down.ts");
-      return down(rest);
+    case "daemon": {
+      const { daemon } = await import("./commands/daemon.ts");
+      return daemon(rest);
     }
     case "status": {
       const { status } = await import("./commands/status.ts");
@@ -75,9 +72,9 @@ async function main() {
       console.log(`Usage: aw <command>
 
 Daemon:
-  up [-p PORT]                Start daemon (foreground)
-  down                        Stop daemon
-  status                      Daemon health + summary
+  daemon start [-p PORT]    Start daemon (foreground)
+  daemon stop               Stop daemon
+  status                    Daemon, agents, and workspaces overview
 
 Resources:
   create <name> [options]     Create standalone agent
@@ -104,6 +101,8 @@ Documents:
 
 Target syntax: [agent][@workspace[:tag]][#channel]
   alice, alice@review, @review:pr-42#design
+
+The daemon is auto-started when needed. Use 'aw daemon start' for manual control.
 `);
       if (command) {
         console.error(`Unknown command: ${command}`);

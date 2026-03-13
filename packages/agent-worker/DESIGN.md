@@ -311,10 +311,12 @@ aw send alice@review#design "hello"  # → channel: design + notify alice
 ### Daemon lifecycle
 
 ```bash
-aw up [-p PORT]       # Start daemon (foreground)
-aw down               # Stop daemon
-aw status             # Daemon health + summary
+aw daemon start [-p PORT]   # Start daemon (foreground)
+aw daemon stop              # Stop daemon
+aw status                   # Daemon, agents, and workspaces overview
 ```
+
+The daemon is auto-started when needed by any command that requires it (e.g. `aw run`, `aw create`, `aw send`). Use `aw daemon start` only for manual control (custom port, debugging).
 
 ### Resource management
 
@@ -524,7 +526,7 @@ export class AwClient {
 
   // Workspaces
   listWorkspaces(): Promise<ManagedWorkspaceInfo[]>;
-  startWorkspace(source: string, opts?: { tag?: string; vars?: Record<string, string>; mode?: "service" | "task" }): Promise<ManagedWorkspaceInfo>;
+  createWorkspace(source: string, opts?: { tag?: string; vars?: Record<string, string>; mode?: "service" | "task" }): Promise<ManagedWorkspaceInfo>;
   waitWorkspace(key: string, timeout?: string): Promise<{ status: string; result?: Record<string, unknown> }>;
   getWorkspace(key: string): Promise<ManagedWorkspaceInfo>;
   getWorkspaceStatus(key: string): Promise<Record<string, unknown>>;
@@ -557,8 +559,7 @@ packages/agent-worker/src/
     target.ts               # parseTarget()
     output.ts               # Formatting helpers (colors, tables)
     commands/
-      up.ts                 # aw up
-      down.ts               # aw down
+      daemon.ts             # aw daemon start/stop
       status.ts             # aw status
       create.ts             # aw create
       start.ts              # aw start

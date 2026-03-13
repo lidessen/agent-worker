@@ -12,6 +12,9 @@ import type {
   RuntimeConfig,
 } from "./types.ts";
 import { readDaemonInfo, defaultDataDir } from "./discovery.ts";
+import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { join, dirname } from "node:path";
 
 export interface HealthInfo {
   status: string;
@@ -71,11 +74,12 @@ export class AwClient {
     this.token = opts.token;
   }
 
-  /** Connect using daemon discovery file. */
+  /** Connect using daemon discovery file. Auto-starts daemon if not running. */
   static async discover(dataDir?: string): Promise<AwClient> {
-    const info = await readDaemonInfo(dataDir ?? defaultDataDir());
+    const dir = dataDir ?? defaultDataDir();
+    let info = await readDaemonInfo(dir);
     if (!info) {
-      throw new Error("No daemon running (daemon.json not found)");
+      info = await autoStartDaemon(dir);
     }
     return new AwClient({
       baseUrl: `http://${info.host}:${info.port}`,
@@ -252,7 +256,7 @@ export class AwClient {
     return res.workspaces;
   }
 
-  async startWorkspace(
+  async createWorkspace(
     source: string,
     opts?: { tag?: string; vars?: Record<string, string>; mode?: "service" | "task" },
   ): Promise<ManagedWorkspaceInfo> {
@@ -373,4 +377,39 @@ export class AwClient {
       { method: "PATCH", body: JSON.stringify({ content }) },
     );
   }
+}
+
+// ── Auto-start daemon ────────────────────────────────────────────────────
+
+/**
+ * Spawn a daemon process in the background and wait for it to be ready.
+ * Returns the DaemonInfo once the daemon has written its discovery file.
+ */
+async function autoStartDaemon(dataDir: string): Promise<DaemonInfo> {
+  const cliEntry = join(dirname(fileURLToPath(import.meta.url)), "cli", "index.ts");
+
+  const child = spawn("bun", ["run", cliEntry, "daemon", "start"], {
+    detached: true,
+    stdio: "ignore",
+    env: { ...process.env },
+  });
+  child.unref();
+
+  // Poll for daemon.json (up to 5s)
+  const deadline = Date.now() + 5000;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 200));
+    const info = await readDaemonInfo(dataDir);
+    if (info) {
+      // Verify the daemon is actually responding
+      try {
+        const res = await fetch(`http://${info.host}:${info.port}/health`);
+        if (res.ok) return info;
+      } catch {
+        // Not ready yet
+      }
+    }
+  }
+
+  throw new Error("Failed to auto-start daemon (timed out after 5s)");
 }

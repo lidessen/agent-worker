@@ -14,7 +14,7 @@ export async function start(args: string[]): Promise<void> {
     // Read YAML from file
     const yaml = await Bun.file(source).text();
     const client = await AwClient.discover();
-    const info = await client.startWorkspace(yaml, { tag, vars });
+    const info = await client.createWorkspace(yaml, { tag, vars });
     const key = info.tag ? `${info.name}:${info.tag}` : info.name;
     console.log(`Started workspace @${key}`);
     console.log(`  Agents:   ${info.agents.join(", ")}`);
