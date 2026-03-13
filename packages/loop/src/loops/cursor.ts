@@ -191,6 +191,8 @@ interface McpSnapshot {
   cursorMcpPath: string;
   /** null means the file did not exist before injection. */
   originalContent: string | null;
+  /** The content we wrote, used to detect external modifications during cleanup. */
+  injectedContent: string;
 }
 
 /**
@@ -222,13 +224,19 @@ function injectCursorMcpConfig(configPath: string, cwd: string): McpSnapshot {
     },
   };
 
-  writeFileSync(cursorMcpPath, JSON.stringify(merged, null, 2));
-  return { cursorMcpPath, originalContent };
+  const injectedContent = JSON.stringify(merged, null, 2);
+  writeFileSync(cursorMcpPath, injectedContent);
+  return { cursorMcpPath, originalContent, injectedContent };
 }
 
 /** Restore .cursor/mcp.json to its pre-injection state. */
 function restoreCursorMcpConfig(snapshot: McpSnapshot): void {
   try {
+    // If the file was modified externally since we wrote it, leave it alone.
+    if (!existsSync(snapshot.cursorMcpPath)) return;
+    const current = readFileSync(snapshot.cursorMcpPath, "utf-8");
+    if (current !== snapshot.injectedContent) return;
+
     if (snapshot.originalContent === null) {
       // File didn't exist before — remove it and try to clean up .cursor/
       unlinkSync(snapshot.cursorMcpPath);
