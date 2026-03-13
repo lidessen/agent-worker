@@ -83,6 +83,7 @@ export class AiSdkLoop {
 
     const result = (async (): Promise<LoopResult> => {
       if (!this.agent) await this.init();
+      this.relevanceEngine?.resetActivations();
 
       const startTime = Date.now();
 
