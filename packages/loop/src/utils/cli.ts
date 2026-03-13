@@ -116,9 +116,14 @@ export interface SpawnCliResult {
 export async function spawnCli(options: SpawnCliOptions): Promise<SpawnCliResult> {
   const { command, args, cwd, signal, idleTimeout = 60_000, onStdout, onStderr } = options;
 
+  // Strip CLAUDECODE so CLI loops (claude, codex, cursor) inherit
+  // the host's login state instead of being blocked as nested sessions.
+  const env = { ...process.env };
+  delete env.CLAUDECODE;
+
   const proc = execa(command, args, {
     cwd,
-    env: { ...process.env },
+    env,
     reject: false,
   });
 
