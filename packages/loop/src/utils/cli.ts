@@ -40,7 +40,7 @@ export async function runCliCommand(
     return {
       stdout: result.stdout.trim(),
       stderr: result.stderr.trim(),
-      exitCode: result.exitCode,
+      exitCode: result.exitCode ?? -1,
     };
   } catch (err) {
     return { stdout: "", stderr: (err as Error).message, exitCode: -1 };
@@ -120,8 +120,6 @@ export async function spawnCli(options: SpawnCliOptions): Promise<SpawnCliResult
     cwd,
     env: { ...process.env },
     reject: false,
-    cancelSignal: signal,
-    gracefulCancel: true,
   });
 
   let stdoutBuf = "";
@@ -134,6 +132,10 @@ export async function spawnCli(options: SpawnCliOptions): Promise<SpawnCliResult
       proc.kill("SIGTERM");
     }, idleTimeout);
   };
+
+  // Handle abort signal
+  const onAbort = () => proc.kill("SIGTERM");
+  signal?.addEventListener("abort", onAbort, { once: true });
 
   resetIdle();
 
@@ -163,6 +165,7 @@ export async function spawnCli(options: SpawnCliOptions): Promise<SpawnCliResult
   const result = await proc;
 
   if (idleTimer) clearTimeout(idleTimer);
+  signal?.removeEventListener("abort", onAbort);
 
-  return { stdout: stdoutBuf, stderr: stderrBuf, exitCode: result.exitCode };
+  return { stdout: stdoutBuf, stderr: stderrBuf, exitCode: result.exitCode ?? -1 };
 }

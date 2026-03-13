@@ -1,5 +1,6 @@
 import { join } from "node:path";
-import { appendFileSync } from "node:fs";
+import { appendFileSync, writeFileSync } from "node:fs";
+import { readFrom, parseJsonl } from "@agent-worker/shared";
 import type { DaemonEvent } from "./types.ts";
 
 /**
@@ -15,7 +16,7 @@ export class DaemonEventLog {
   }
 
   async init(): Promise<void> {
-    await Bun.write(this.path, "");
+    writeFileSync(this.path, "");
     this.byteOffset = 0;
   }
 
@@ -29,15 +30,10 @@ export class DaemonEventLog {
 
   /** Read entries from a byte offset. Returns new cursor position. */
   async read(cursor = 0): Promise<{ entries: DaemonEvent[]; cursor: number }> {
-    const file = Bun.file(this.path);
-    const size = file.size;
-    if (cursor >= size) return { entries: [], cursor: size };
-    const data = await file.slice(cursor, size).text();
-    const entries = data
-      .split("\n")
-      .filter(Boolean)
-      .map((line) => JSON.parse(line) as DaemonEvent);
-    return { entries, cursor: size };
+    const result = await readFrom(this.path, cursor);
+    if (!result.data) return { entries: [], cursor: result.cursor };
+    const entries = parseJsonl<DaemonEvent>(result.data);
+    return { entries, cursor: result.cursor };
   }
 
   get offset(): number {

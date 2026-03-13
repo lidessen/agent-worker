@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { homedir } from "node:os";
+import { writeFile, readFile } from "node:fs/promises";
 import type { DaemonInfo } from "./types.ts";
 
 /** Default data directory: ~/.agent-worker */
@@ -17,16 +18,15 @@ export async function writeDaemonInfo(info: DaemonInfo, dataDir?: string): Promi
   const dir = dataDir ?? defaultDataDir();
   const { mkdirSync } = await import("node:fs");
   mkdirSync(dir, { recursive: true });
-  await Bun.write(join(dir, "daemon.json"), JSON.stringify(info, null, 2));
+  await writeFile(join(dir, "daemon.json"), JSON.stringify(info, null, 2), "utf-8");
 }
 
 /** Read daemon discovery info. Returns null if not found. */
 export async function readDaemonInfo(dataDir?: string): Promise<DaemonInfo | null> {
   const path = daemonInfoPath(dataDir);
-  const file = Bun.file(path);
-  if (!(await file.exists())) return null;
   try {
-    return JSON.parse(await file.text()) as DaemonInfo;
+    const text = await readFile(path, "utf-8");
+    return JSON.parse(text) as DaemonInfo;
   } catch {
     return null;
   }

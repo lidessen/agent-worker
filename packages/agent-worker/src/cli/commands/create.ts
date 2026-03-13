@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { AwClient } from "../../client.ts";
 
 export async function create(args: string[]): Promise<void> {
@@ -12,7 +13,7 @@ export async function create(args: string[]): Promise<void> {
 
   try {
     // Read YAML from file
-    const yaml = await Bun.file(source).text();
+    const yaml = await readFile(source, "utf-8");
     const client = await AwClient.discover();
     const info = await client.createWorkspace(yaml, { tag, vars });
     const key = info.tag ? `${info.name}:${info.tag}` : info.name;
