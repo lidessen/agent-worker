@@ -1,13 +1,4 @@
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  writeFileSync,
-  rmSync,
-  symlinkSync,
-} from "node:fs";
-import { join } from "node:path";
-import { homedir } from "node:os";
+import { readFileSync } from "node:fs";
 import type { CodexLoopOptions, LoopRun, LoopStatus, PreflightResult } from "../types.ts";
 import type { RawCliEvent } from "../utils/cli-loop.ts";
 import { checkCliAvailability, checkCodexAuth } from "../utils/cli.ts";
@@ -18,7 +9,6 @@ export class CodexLoop {
   private _status: LoopStatus = "idle";
   private abortController: AbortController | null = null;
   private _mcpConfigPath: string | null = null;
-  private _codexHome: string | null = null;
 
   constructor(private options: CodexLoopOptions = {}) {}
 
@@ -31,19 +21,10 @@ export class CodexLoop {
     this._status = "running";
     this.abortController = new AbortController();
 
-    // Create an isolated CODEX_HOME with MCP config so we don't
-    // touch the user's global ~/.codex/config.toml.
-    let env: Record<string, string> | undefined;
-    if (this._mcpConfigPath) {
-      this._codexHome = createCodexHome(this._mcpConfigPath);
-      env = { CODEX_HOME: this._codexHome };
-    }
-
     const loopRun = runCliLoop(
       {
         command: "codex",
-        args: buildArgs(prompt, this.options),
-        env,
+        args: buildArgs(prompt, this.options, this._mcpConfigPath),
         mapEvent: mapCodexEvent,
         extractResult: extractCodexResult,
       },
@@ -53,11 +34,9 @@ export class CodexLoop {
 
     loopRun.result
       .then(() => {
-        this.cleanupCodexHome();
         if (this._status === "running") this._status = "completed";
       })
       .catch(() => {
-        this.cleanupCodexHome();
         if (this._status === "running") {
           this._status = this.abortController!.signal.aborted ? "cancelled" : "failed";
         }
@@ -77,17 +56,6 @@ export class CodexLoop {
     this._mcpConfigPath = configPath;
   }
 
-  private cleanupCodexHome(): void {
-    if (this._codexHome) {
-      try {
-        rmSync(this._codexHome, { recursive: true, force: true });
-      } catch {
-        // best-effort
-      }
-      this._codexHome = null;
-    }
-  }
-
   /** Check if codex CLI is installed and authenticated. Not a runtime test. */
   async preflight(): Promise<PreflightResult> {
     const cli = await checkCliAvailability("codex");
@@ -102,65 +70,20 @@ export class CodexLoop {
   }
 }
 
-function buildArgs(prompt: string, opts: CodexLoopOptions): string[] {
+function buildArgs(
+  prompt: string,
+  opts: CodexLoopOptions,
+  mcpConfigPath?: string | null,
+): string[] {
   const args = ["exec", prompt, "--json"];
 
   if (opts.model) args.push("--model", opts.model);
   if (opts.fullAuto) args.push("--full-auto");
   if (opts.sandbox) args.push("--sandbox", opts.sandbox);
+  if (mcpConfigPath) args.push(...buildMcpOverrides(mcpConfigPath));
   if (opts.extraArgs?.length) args.push(...opts.extraArgs);
 
   return args;
-}
-
-// ── CODEX_HOME isolation ─────────────────────────────────────────────────────
-//
-// Codex CLI has no --mcp-config flag. MCP servers live in config.toml under
-// CODEX_HOME (~/.codex by default). To inject MCP config without touching the
-// user's global config, we create a temp CODEX_HOME directory with:
-//   1. A config.toml containing only our MCP server entries
-//   2. A symlink to the real auth.json so authentication still works
-
-/**
- * Create a temporary CODEX_HOME directory with MCP config and auth symlink.
- * Returns the path to the temp directory.
- */
-function createCodexHome(mcpConfigPath: string): string {
-  const config = JSON.parse(readFileSync(mcpConfigPath, "utf-8")) as {
-    mcpServers?: Record<string, { command: string; args?: string[] }>;
-  };
-
-  const tempHome = join("/tmp", `codex-home-${Date.now()}`);
-  mkdirSync(tempHome, { recursive: true });
-
-  // Write config.toml with MCP server entries
-  const toml = buildConfigToml(config.mcpServers ?? {});
-  writeFileSync(join(tempHome, "config.toml"), toml);
-
-  // Symlink auth.json from real CODEX_HOME so auth carries over
-  const realHome = process.env.CODEX_HOME ?? join(homedir(), ".codex");
-  const realAuth = join(realHome, "auth.json");
-  if (existsSync(realAuth)) {
-    symlinkSync(realAuth, join(tempHome, "auth.json"));
-  }
-
-  return tempHome;
-}
-
-/** Build a TOML config string for MCP server entries. */
-function buildConfigToml(
-  servers: Record<string, { command: string; args?: string[] }>,
-): string {
-  const sections: string[] = [];
-  for (const [name, server] of Object.entries(servers)) {
-    const lines = [`[mcp_servers.${name}]`, `type = "stdio"`, `command = "${escapeToml(server.command)}"`];
-    if (server.args?.length) {
-      const arr = server.args.map((a) => `"${escapeToml(a)}"`).join(", ");
-      lines.push(`args = [${arr}]`);
-    }
-    sections.push(lines.join("\n"));
-  }
-  return sections.join("\n\n") + "\n";
 }
 
 /** Escape a string for use inside a TOML basic string (double-quoted). */
@@ -171,6 +94,31 @@ function escapeToml(value: string): string {
     .replace(/\n/g, "\\n")
     .replace(/\r/g, "\\r")
     .replace(/\t/g, "\\t");
+}
+
+/**
+ * Codex CLI has no --mcp-config flag. MCP servers are configured via
+ * `-c` TOML overrides against the `mcp_servers` config section.
+ * This is additive — the user's existing ~/.codex/config.toml is preserved.
+ */
+function buildMcpOverrides(configPath: string): string[] {
+  const config = JSON.parse(readFileSync(configPath, "utf-8")) as {
+    mcpServers?: Record<string, { command: string; args?: string[] }>;
+  };
+  const servers = config.mcpServers ?? {};
+  const flags: string[] = [];
+
+  for (const [name, server] of Object.entries(servers)) {
+    flags.push("-c", `mcp_servers.${name}.type="stdio"`);
+    flags.push("-c", `mcp_servers.${name}.command="${escapeToml(server.command)}"`);
+    if (server.args?.length) {
+      const tomlArray =
+        "[" + server.args.map((a) => `"${escapeToml(a)}"`).join(", ") + "]";
+      flags.push("-c", `mcp_servers.${name}.args=${tomlArray}`);
+    }
+  }
+
+  return flags;
 }
 
 function mapCodexEvent(data: unknown): RawCliEvent {
