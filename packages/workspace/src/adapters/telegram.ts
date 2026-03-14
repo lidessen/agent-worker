@@ -59,6 +59,13 @@ export interface TelegramAdapterConfig {
   pollTimeout?: number;
 }
 
+// ── Bot commands ──────────────────────────────────────────────────────────
+
+const BOT_COMMANDS = [
+  { command: "start", description: "Show welcome message" },
+  { command: "status", description: "Show connection status" },
+];
+
 // ── Adapter ────────────────────────────────────────────────────────────────
 
 export class TelegramAdapter implements ChannelAdapter {
@@ -173,10 +180,46 @@ export class TelegramAdapter implements ChannelAdapter {
     // Authorization check
     if (this.chatId && msg.chat.id !== this.chatId) return;
 
+    // Handle bot commands
+    if (msg.text.startsWith("/")) {
+      this.handleCommand(msg);
+      return;
+    }
+
     const from = telegramUserLabel(msg.from);
     this.bridge.send(this.channel, `telegram:${from}`, msg.text).catch((err) => {
       console.error("[telegram] failed to inject message:", err);
     });
+  }
+
+  private handleCommand(msg: TelegramMessage): void {
+    const cmd = msg.text!.split(/\s|@/)[0]!.toLowerCase();
+
+    switch (cmd) {
+      case "/start":
+        this.api("sendMessage", {
+          chat_id: msg.chat.id,
+          text: `Connected to channel: ${this.channel}`,
+        }).catch(() => {});
+        break;
+      case "/status":
+        this.api("sendMessage", {
+          chat_id: msg.chat.id,
+          text: [
+            `Channel: ${this.channel}`,
+            `Running: ${this.running}`,
+            `Chat ID: ${msg.chat.id}`,
+          ].join("\n"),
+        }).catch(() => {});
+        break;
+      default: {
+        // Unknown command — forward to workspace as regular message
+        const from = telegramUserLabel(msg.from);
+        this.bridge!.send(this.channel, `telegram:${from}`, msg.text!).catch((err) => {
+          console.error("[telegram] failed to inject message:", err);
+        });
+      }
+    }
   }
 }
 
@@ -236,6 +279,11 @@ export async function runTelegramAuth(
         if (update.message?.text?.trim() === token) {
           const chat = update.message.chat;
           const user = update.message.from;
+
+          // Register bot commands
+          await telegramApi(baseUrl, "setMyCommands", {
+            commands: BOT_COMMANDS,
+          }).catch(() => {}); // non-fatal
 
           // Confirm to user
           await telegramApi(baseUrl, "sendMessage", {
