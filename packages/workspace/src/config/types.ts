@@ -42,6 +42,8 @@ export interface AgentDef {
   instructions?: string;
   /** Channels this agent should join (in addition to default). */
   channels?: string[];
+  /** Environment variable overrides for this agent (merged on top of workspace-level env). */
+  env?: Record<string, string>;
 }
 
 /** Setup step: run a shell command, optionally capture output as a variable. */
@@ -50,6 +52,14 @@ export interface SetupStep {
   shell: string;
   /** Variable name to capture stdout into (available in templates as ${{ name }}). */
   as?: string;
+}
+
+/** Connection definition for external platform bridges. */
+export interface ConnectionDef {
+  /** Platform type: "telegram". */
+  platform: string;
+  /** Platform-specific configuration (optional if saved via `aw connect`). */
+  config?: Record<string, unknown>;
 }
 
 /** Declarative workspace definition (typically loaded from YAML). */
@@ -70,6 +80,10 @@ export interface WorkspaceDef {
   setup?: SetupStep[];
   /** Kickoff message (template string with ${{ var }} interpolation and @mentions). */
   kickoff?: string;
+  /** External platform connections. */
+  connections?: ConnectionDef[];
+  /** Workspace-level environment variables (applied to all agents as defaults). */
+  env?: Record<string, string>;
 }
 
 /** Resolved model — normalized from any ModelSpec form. */
@@ -98,6 +112,8 @@ export interface ResolvedAgent {
   instructions?: string;
   /** Channels this agent should join. */
   channels?: string[];
+  /** Merged environment variables (workspace defaults + agent overrides). */
+  env?: Record<string, string>;
 }
 
 /** Result of loading and resolving a workspace definition. */

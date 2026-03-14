@@ -53,6 +53,12 @@ export {
   parseWorkspaceDef,
   toWorkspaceConfig,
   resolveModel,
+  resolveConnections,
+  loadSecrets,
+  saveSecrets,
+  setSecret,
+  deleteSecret,
+  getSecretsPath,
   resolveRuntime,
   discoverCliRuntime,
   detectAiSdkModel,
@@ -61,6 +67,7 @@ export {
 } from "./config/index.ts";
 export type {
   WorkspaceDef,
+  ConnectionDef,
   AgentDef,
   ModelSpec,
   ModelDef,
@@ -72,6 +79,10 @@ export type {
   LoadOptions,
   ToWorkspaceConfigOptions,
 } from "./config/index.ts";
+
+// ── Adapters ──────────────────────────────────────────────────────────────
+export { TelegramAdapter, runTelegramAuth } from "./adapters/telegram.ts";
+export type { TelegramAdapterConfig, AuthResult as TelegramAuthResult } from "./adapters/telegram.ts";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 export type {

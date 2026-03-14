@@ -37,6 +37,7 @@ export class CursorLoop {
       {
         command: "agent",
         args: buildArgs(prompt, this.options),
+        env: this.options.env,
         mapEvent: mapCursorEvent,
         extractResult: extractCursorResult,
       },

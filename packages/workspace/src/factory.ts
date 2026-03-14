@@ -16,9 +16,9 @@ export async function createWorkspace(config: WorkspaceConfig): Promise<Workspac
     }
   }
 
-  // Start adapters
-  if (config.adapters) {
-    for (const adapter of config.adapters) {
+  // Start connections (platform adapters)
+  if (config.connections) {
+    for (const adapter of config.connections) {
       await (workspace.bridge as any).addAdapter?.(adapter);
     }
   }

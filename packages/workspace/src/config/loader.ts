@@ -3,13 +3,14 @@ import { readFile, access } from "node:fs/promises";
 import { execa } from "execa";
 import type {
   WorkspaceDef,
+  ConnectionDef,
   ResolvedWorkspace,
   ResolvedAgent,
   ResolvedModel,
   ModelSpec,
   SetupStep,
 } from "./types.ts";
-import type { WorkspaceConfig } from "../types.ts";
+import type { WorkspaceConfig, ChannelAdapter } from "../types.ts";
 import { MemoryStorage, FileStorage } from "../context/storage.ts";
 import { resolveRuntime } from "./resolve-runtime.ts";
 
@@ -142,6 +143,26 @@ export async function loadWorkspaceDef(
     content = await readFile(pathOrContent, "utf-8");
   }
 
+  // Interpolate ${{ secrets.X }} references before parsing YAML.
+  // Resolution order: secrets.json → process.env
+  if (!opts.skipSetup && content.includes("${{ secrets.")) {
+    const { loadSecrets } = await import("./secrets.ts");
+    const secrets = await loadSecrets();
+    const secretVars: Record<string, string> = {};
+    // Collect all ${{ secrets.KEY }} references from the YAML
+    const refs = new Set<string>();
+    for (const m of content.matchAll(/\$\{\{\s*secrets\.([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g)) {
+      refs.add(m[1]!);
+    }
+    for (const key of refs) {
+      const value = secrets[key] ?? process.env[key];
+      if (value !== undefined) {
+        secretVars[`secrets.${key}`] = value;
+      }
+    }
+    content = interpolate(content, secretVars);
+  }
+
   const def = parseWorkspaceDef(content);
 
   // Resolve agents (runtime + model)
@@ -161,12 +182,17 @@ export async function loadWorkspaceDef(
     // If runtime resolution found a model and agent didn't specify one, use it
     const finalModel = modelSpec ?? (resolution.model ? resolveModel(resolution.model) : undefined);
 
+    // Merge workspace-level env + agent-level env (agent wins)
+    const mergedEnv =
+      def.env || agentDef.env ? { ...def.env, ...agentDef.env } : undefined;
+
     agents.push({
       name,
       runtime: resolution.runtime,
       model: finalModel,
       instructions: agentDef.instructions,
       channels: agentDef.channels,
+      env: mergedEnv,
     });
   }
 
@@ -194,11 +220,96 @@ export async function loadWorkspaceDef(
   return { def, agents, vars: setupVars, kickoff };
 }
 
+// ── Saved connection loading ──────────────────────────────────────────────
+
+interface TelegramConnection {
+  bot_token: string;
+  chat_id: number;
+}
+
+async function loadSavedTelegramConnection(): Promise<TelegramConnection | null> {
+  try {
+    const { readFile } = await import("node:fs/promises");
+    const { join } = await import("node:path");
+    const { homedir } = await import("node:os");
+    const path = join(homedir(), ".agent-worker", "connections", "telegram.json");
+    const raw = await readFile(path, "utf-8");
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+// ── Connection resolution ─────────────────────────────────────────────────
+
+/**
+ * Resolve connection definitions from YAML into ChannelAdapter instances.
+ * Currently supports: "telegram".
+ *
+ * Config resolution order (each field independently):
+ *   1. Explicit YAML config value
+ *   2. Environment variable (TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID)
+ *   3. Saved connection from `aw connect` (~/.agent-worker/connections/)
+ */
+export async function resolveConnections(defs?: ConnectionDef[]): Promise<ChannelAdapter[]> {
+  if (!defs || defs.length === 0) return [];
+
+  const adapters: ChannelAdapter[] = [];
+  for (const def of defs) {
+    switch (def.platform) {
+      case "telegram": {
+        const { TelegramAdapter } = await import("../adapters/telegram.ts");
+        const cfg = (def.config ?? {}) as {
+          bot_token?: string;
+          chat_id?: number;
+          channel?: string;
+          poll_timeout?: number;
+        };
+
+        // Load saved connection as fallback
+        const saved = await loadSavedTelegramConnection();
+
+        const botToken =
+          cfg.bot_token ??
+          process.env.TELEGRAM_BOT_TOKEN ??
+          saved?.bot_token;
+        if (!botToken) {
+          throw new Error(
+            "Telegram connection requires bot_token in config, TELEGRAM_BOT_TOKEN env var, " +
+            "or a saved connection (run 'aw connect telegram')",
+          );
+        }
+        const parsedChatId = process.env.TELEGRAM_CHAT_ID
+          ? parseInt(process.env.TELEGRAM_CHAT_ID, 10)
+          : undefined;
+        if (parsedChatId !== undefined && isNaN(parsedChatId)) {
+          throw new Error("TELEGRAM_CHAT_ID env var must be a numeric value");
+        }
+        const chatId = cfg.chat_id ?? parsedChatId ?? saved?.chat_id;
+        adapters.push(
+          new TelegramAdapter({
+            botToken,
+            chatId,
+            channel: cfg.channel,
+            pollTimeout: cfg.poll_timeout,
+          }),
+        );
+        break;
+      }
+      default:
+        throw new Error(`Unknown connection platform: "${def.platform}"`);
+    }
+  }
+  return adapters;
+}
+
 // ── Convert to WorkspaceConfig ────────────────────────────────────────────
 
 export interface ToWorkspaceConfigOptions extends LoadOptions {
   /** Override the storage directory (takes precedence over def.storage_dir and the default). */
   storageDir?: string;
+  /** Pre-resolved connections to attach. */
+  connections?: ChannelAdapter[];
 }
 
 /**
@@ -225,6 +336,7 @@ export function toWorkspaceConfig(
     channels: def.channels,
     defaultChannel: def.default_channel,
     agents: resolved.agents.map((a) => a.name),
+    connections: opts.connections,
     storage,
     storageDir: storageType === "file" ? storageDir : undefined,
   };

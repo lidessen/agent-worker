@@ -98,6 +98,11 @@ const FALLBACK_MODELS: Record<string, ModelInfo[]> = {
     { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro" },
     { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash" },
   ],
+  "kimi-code": [{ id: "kimi-for-coding", name: "Kimi for Coding" }],
+  minimax: [
+    { id: "MiniMax-M2.5", name: "MiniMax M2.5" },
+    { id: "MiniMax-M2", name: "MiniMax M2" },
+  ],
 };
 
 const PROVIDER_KEYS: Record<string, string[]> = {
@@ -105,6 +110,9 @@ const PROVIDER_KEYS: Record<string, string[]> = {
   openai: ["OPENAI_API_KEY"],
   google: ["GOOGLE_GENERATIVE_AI_API_KEY", "GOOGLE_API_KEY"],
   deepseek: ["DEEPSEEK_API_KEY"],
+  "kimi-code": ["KIMI_CODE_API_KEY"],
+  minimax: ["MINIMAX_API_KEY"],
+  "ai-gateway": ["AI_GATEWAY_API_KEY"],
 };
 
 const LIST_FNS: Record<string, (key?: string) => Promise<ModelInfo[]>> = {

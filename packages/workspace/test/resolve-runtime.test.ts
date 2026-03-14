@@ -11,6 +11,9 @@ describe("detectAiSdkModel", () => {
     "GOOGLE_GENERATIVE_AI_API_KEY",
     "GOOGLE_API_KEY",
     "DEEPSEEK_API_KEY",
+    "KIMI_CODE_API_KEY",
+    "MINIMAX_API_KEY",
+    "AI_GATEWAY_API_KEY",
   ];
 
   beforeEach(() => {
@@ -102,6 +105,9 @@ describe("resolveRuntime", () => {
       "GOOGLE_GENERATIVE_AI_API_KEY",
       "GOOGLE_API_KEY",
       "DEEPSEEK_API_KEY",
+      "KIMI_CODE_API_KEY",
+      "MINIMAX_API_KEY",
+      "AI_GATEWAY_API_KEY",
     ];
 
     beforeEach(() => {
