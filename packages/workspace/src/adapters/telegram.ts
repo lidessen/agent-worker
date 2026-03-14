@@ -116,18 +116,8 @@ export class TelegramAdapter implements ChannelAdapter {
 
   // ── Telegram Bot API calls ─────────────────────────────────────────────
 
-  private async api<T>(method: string, body?: Record<string, unknown>): Promise<T> {
-    const res = await fetch(`${this.baseUrl}/${method}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: body ? JSON.stringify(body) : undefined,
-      signal: this.pollController?.signal,
-    });
-    const json = (await res.json()) as { ok: boolean; result: T; description?: string };
-    if (!json.ok) {
-      throw new Error(`Telegram API error (${method}): ${json.description ?? "unknown"}`);
-    }
-    return json.result;
+  private api<T>(method: string, body?: Record<string, unknown>): Promise<T> {
+    return telegramApi<T>(this.baseUrl, method, body, this.pollController?.signal);
   }
 
   private async getUpdates(): Promise<TelegramUpdate[]> {
@@ -328,11 +318,13 @@ async function telegramApi<T>(
   baseUrl: string,
   method: string,
   body?: Record<string, unknown>,
+  signal?: AbortSignal,
 ): Promise<T> {
   const res = await fetch(`${baseUrl}/${method}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: body ? JSON.stringify(body) : undefined,
+    signal,
   });
   const json = (await res.json()) as { ok: boolean; result: T; description?: string };
   if (!json.ok) {

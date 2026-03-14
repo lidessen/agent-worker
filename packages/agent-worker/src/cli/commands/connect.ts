@@ -98,46 +98,49 @@ used by workspace connections when config is not specified in YAML.
 }
 
 async function connectTelegram(): Promise<void> {
-  const existing = await loadConnection("telegram");
-  if (existing) {
-    const tg = existing as TelegramConnection;
-    console.log(`\n  Existing Telegram connection found:`);
-    console.log(`    Chat ID:  ${tg.chat_id}`);
-    if (tg.username) console.log(`    Username: @${tg.username}`);
-    console.log();
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  let botToken: string | undefined;
 
-    const rl = createInterface({ input: process.stdin, output: process.stdout });
-    const answer = await rl.question("  Overwrite? [y/N] ");
-    rl.close();
-    if (answer.trim().toLowerCase() !== "y") {
-      console.log("  Aborted.");
-      return;
+  try {
+    const existing = await loadConnection("telegram");
+    if (existing) {
+      const tg = existing as TelegramConnection;
+      console.log(`\n  Existing Telegram connection found:`);
+      console.log(`    Chat ID:  ${tg.chat_id}`);
+      if (tg.username) console.log(`    Username: @${tg.username}`);
+      console.log();
+
+      const answer = await rl.question("  Overwrite? [y/N] ");
+      if (answer.trim().toLowerCase() !== "y") {
+        console.log("  Aborted.");
+        return;
+      }
+      console.log();
     }
-    console.log();
-  }
 
-  // Get bot token: argument or interactive prompt
-  let botToken = process.env.TELEGRAM_BOT_TOKEN;
-  if (!botToken) {
-    const rl = createInterface({ input: process.stdin, output: process.stdout });
-    botToken = (await rl.question("  Bot token (from @BotFather): ")).trim();
-    rl.close();
+    // Get bot token: argument or interactive prompt
+    botToken = process.env.TELEGRAM_BOT_TOKEN;
     if (!botToken) {
-      fatal("Bot token is required.");
+      botToken = (await rl.question("  Bot token (from @BotFather): ")).trim();
+      if (!botToken) {
+        fatal("Bot token is required.");
+      }
+    } else {
+      console.log("  Using bot token from TELEGRAM_BOT_TOKEN env var.");
     }
-  } else {
-    console.log("  Using bot token from TELEGRAM_BOT_TOKEN env var.");
+  } finally {
+    rl.close();
   }
 
   const { runTelegramAuth, setSecret } = await import("@agent-worker/workspace");
 
   try {
-    const result = await runTelegramAuth(botToken);
+    const result = await runTelegramAuth(botToken!);
 
     // Save connection file (for resolveConnections fallback)
     const conn: TelegramConnection = {
       platform: "telegram",
-      bot_token: botToken,
+      bot_token: botToken!,
       chat_id: result.chatId,
       username: result.username,
       first_name: result.firstName,
@@ -145,7 +148,7 @@ async function connectTelegram(): Promise<void> {
     await saveConnection("telegram", conn);
 
     // Save secrets (for ${{ secrets.X }} interpolation in YAML)
-    await setSecret("TELEGRAM_BOT_TOKEN", botToken);
+    await setSecret("TELEGRAM_BOT_TOKEN", botToken!);
     await setSecret("TELEGRAM_CHAT_ID", String(result.chatId));
 
     console.log(`\n  Connected successfully!\n`);

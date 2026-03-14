@@ -98,33 +98,34 @@ async function authProvider(name: string): Promise<void> {
   const provider = PROVIDERS[name]!;
   const { loadSecrets, setSecret } = await import("@agent-worker/workspace");
   const secrets = await loadSecrets();
-
-  // Check existing: secrets → env
-  const existing = secrets[provider.envVar] ?? process.env[provider.envVar];
-  if (existing) {
-    console.log(`\n  ${provider.label} already authenticated: ${maskKey(existing)}`);
-    const source = secrets[provider.envVar] ? "secrets" : "env";
-    console.log(`  Source: ${source}`);
-
-    const rl = createInterface({ input: process.stdin, output: process.stdout });
-    const answer = await rl.question("\n  Overwrite? [y/N] ");
-    rl.close();
-    if (answer.trim().toLowerCase() !== "y") {
-      console.log("  Kept existing key.");
-      return;
-    }
-    console.log();
-  }
-
   const rl = createInterface({ input: process.stdin, output: process.stdout });
-  const apiKey = (await rl.question(`  API key (from ${provider.hint}): `)).trim();
-  rl.close();
-  if (!apiKey) {
-    fatal("API key is required.");
-  }
 
-  await setSecret(provider.envVar, apiKey);
-  console.log(`\n  ${provider.label} authenticated: ${maskKey(apiKey)}`);
+  try {
+    // Check existing: secrets → env
+    const existing = secrets[provider.envVar] ?? process.env[provider.envVar];
+    if (existing) {
+      console.log(`\n  ${provider.label} already authenticated: ${maskKey(existing)}`);
+      const source = secrets[provider.envVar] ? "secrets" : "env";
+      console.log(`  Source: ${source}`);
+
+      const answer = await rl.question("\n  Overwrite? [y/N] ");
+      if (answer.trim().toLowerCase() !== "y") {
+        console.log("  Kept existing key.");
+        return;
+      }
+      console.log();
+    }
+
+    const apiKey = (await rl.question(`  API key (from ${provider.hint}): `)).trim();
+    if (!apiKey) {
+      fatal("API key is required.");
+    }
+
+    await setSecret(provider.envVar, apiKey);
+    console.log(`\n  ${provider.label} authenticated: ${maskKey(apiKey)}`);
+  } finally {
+    rl.close();
+  }
 }
 
 // ── Status ──────────────────────────────────────────────────────────────────
