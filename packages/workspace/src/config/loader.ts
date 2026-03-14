@@ -274,10 +274,13 @@ export async function resolveConnections(defs?: ConnectionDef[]): Promise<Channe
             "or a saved connection (run 'aw connect telegram')",
           );
         }
-        const chatId =
-          cfg.chat_id ??
-          (process.env.TELEGRAM_CHAT_ID ? parseInt(process.env.TELEGRAM_CHAT_ID, 10) : undefined) ??
-          saved?.chat_id;
+        const parsedChatId = process.env.TELEGRAM_CHAT_ID
+          ? parseInt(process.env.TELEGRAM_CHAT_ID, 10)
+          : undefined;
+        if (parsedChatId !== undefined && isNaN(parsedChatId)) {
+          throw new Error("TELEGRAM_CHAT_ID env var must be a numeric value");
+        }
+        const chatId = cfg.chat_id ?? parsedChatId ?? saved?.chat_id;
         adapters.push(
           new TelegramAdapter({
             botToken,
