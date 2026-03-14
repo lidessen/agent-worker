@@ -149,6 +149,8 @@ export interface CliLoopOptions {
   cwd?: string;
   /** Extra CLI arguments */
   extraArgs?: string[];
+  /** Extra environment variables for the CLI subprocess (merged on top of process.env). */
+  env?: Record<string, string>;
   /** Idle timeout in ms (kill if no output). Default: 60_000 */
   idleTimeout?: number;
 }

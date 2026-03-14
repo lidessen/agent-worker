@@ -8,7 +8,7 @@ import {
   resolveConnections,
 } from "@agent-worker/workspace";
 import type { Workspace, WorkspaceAgentLoop, ResolvedAgent } from "@agent-worker/workspace";
-import type { AiSdkLoop } from "@agent-worker/loop";
+import type { AgentLoop } from "@agent-worker/agent";
 import type { EventBus } from "@agent-worker/shared";
 import type { CreateWorkspaceInput, ManagedWorkspaceInfo } from "./types.ts";
 import { ManagedWorkspace } from "./managed-workspace.ts";
@@ -248,40 +248,16 @@ storage: file
     };
   }
 
-  private async createAgentLoop(agent: ResolvedAgent): Promise<AiSdkLoop | null> {
-    if (agent.runtime === "ai-sdk" && agent.model) {
-      const { AiSdkLoop } = await import("@agent-worker/loop");
-      const provider = agent.model.provider ?? "anthropic";
-      const modelId = agent.model.id;
+  private async createAgentLoop(agent: ResolvedAgent): Promise<AgentLoop | null> {
+    if (!agent.runtime || agent.runtime === "mock") return null;
+    if (!agent.model && agent.runtime === "ai-sdk") return null;
 
-      let languageModel;
-      switch (provider) {
-        case "anthropic": {
-          const { anthropic } = await import("@ai-sdk/anthropic");
-          languageModel = anthropic(modelId);
-          break;
-        }
-        case "openai": {
-          const { openai } = await import("@ai-sdk/openai");
-          languageModel = openai(modelId);
-          break;
-        }
-        case "deepseek": {
-          const { deepseek } = await import("@ai-sdk/deepseek");
-          languageModel = deepseek(modelId);
-          break;
-        }
-        default:
-          return null;
-      }
-
-      return new AiSdkLoop({
-        model: languageModel,
-        instructions: agent.instructions,
-        includeBashTools: false,
-      });
-    }
-
-    return null;
+    const { createLoopFromConfig } = await import("./loop-factory.ts");
+    return createLoopFromConfig({
+      type: agent.runtime as any,
+      model: agent.model?.full,
+      instructions: agent.instructions,
+      env: agent.env,
+    });
   }
 }

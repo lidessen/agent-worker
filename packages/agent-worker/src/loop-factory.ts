@@ -7,6 +7,11 @@
 import type { AgentLoop } from "@agent-worker/agent";
 import type { RuntimeConfig } from "./types.ts";
 
+/** Resolve an env var from agent env overrides, falling back to process.env. */
+function resolveEnv(key: string, env?: Record<string, string>): string | undefined {
+  return env?.[key] ?? process.env[key];
+}
+
 /** Create an AgentLoop from a RuntimeConfig. */
 export async function createLoopFromConfig(config: RuntimeConfig): Promise<AgentLoop> {
   switch (config.type) {
@@ -37,42 +42,59 @@ async function createAiSdkLoop(config: RuntimeConfig): Promise<AgentLoop> {
   let languageModel;
   switch (provider) {
     case "anthropic": {
-      const { anthropic } = await import("@ai-sdk/anthropic");
+      const { createAnthropic } = await import("@ai-sdk/anthropic");
+      const anthropic = createAnthropic({
+        apiKey: resolveEnv("ANTHROPIC_API_KEY", config.env),
+        baseURL: resolveEnv("ANTHROPIC_BASE_URL", config.env),
+      });
       languageModel = anthropic(modelId);
       break;
     }
     case "openai": {
-      const { openai } = await import("@ai-sdk/openai");
+      const { createOpenAI } = await import("@ai-sdk/openai");
+      const openai = createOpenAI({
+        apiKey: resolveEnv("OPENAI_API_KEY", config.env),
+        baseURL: resolveEnv("OPENAI_BASE_URL", config.env),
+      });
       languageModel = openai(modelId);
       break;
     }
     case "google": {
-      const { google } = await import("@ai-sdk/google");
+      const { createGoogleGenerativeAI } = await import("@ai-sdk/google");
+      const google = createGoogleGenerativeAI({
+        apiKey: resolveEnv("GOOGLE_GENERATIVE_AI_API_KEY", config.env),
+        baseURL: resolveEnv("GOOGLE_GENERATIVE_AI_BASE_URL", config.env),
+      });
       languageModel = google(modelId);
       break;
     }
     case "deepseek": {
-      const { deepseek } = await import("@ai-sdk/deepseek");
+      const { createDeepSeek } = await import("@ai-sdk/deepseek");
+      const deepseek = createDeepSeek({
+        apiKey: resolveEnv("DEEPSEEK_API_KEY", config.env),
+        baseURL: resolveEnv("DEEPSEEK_BASE_URL", config.env),
+      });
       languageModel = deepseek(modelId);
       break;
     }
     case "kimi-code": {
       const { createAnthropic } = await import("@ai-sdk/anthropic");
       const kimi = createAnthropic({
-        baseURL: "https://api.kimi.com/coding/",
-        apiKey: process.env.KIMI_CODE_API_KEY,
+        baseURL: resolveEnv("KIMI_CODE_BASE_URL", config.env) ?? "https://api.kimi.com/coding/",
+        apiKey: resolveEnv("KIMI_CODE_API_KEY", config.env),
       });
       languageModel = kimi(modelId);
       break;
     }
     case "minimax": {
       const { createAnthropic } = await import("@ai-sdk/anthropic");
-      const baseURL = process.env.MINIMAX_BASE_URL
-        ? `${process.env.MINIMAX_BASE_URL}/anthropic/v1`
+      const minimaxBase = resolveEnv("MINIMAX_BASE_URL", config.env);
+      const baseURL = minimaxBase
+        ? `${minimaxBase}/anthropic/v1`
         : "https://api.minimax.io/anthropic/v1";
       const minimax = createAnthropic({
         baseURL,
-        apiKey: process.env.MINIMAX_API_KEY,
+        apiKey: resolveEnv("MINIMAX_API_KEY", config.env),
       });
       languageModel = minimax(modelId);
       break;
@@ -98,6 +120,7 @@ async function createClaudeCodeLoop(config: RuntimeConfig): Promise<AgentLoop> {
   return new ClaudeCodeLoop({
     model: config.model ?? "sonnet",
     cwd: config.cwd,
+    env: config.env,
     permissionMode: "bypassPermissions",
   });
 }
@@ -107,6 +130,7 @@ async function createCodexLoop(config: RuntimeConfig): Promise<AgentLoop> {
   return new CodexLoop({
     model: config.model,
     cwd: config.cwd,
+    env: config.env,
   });
 }
 
@@ -115,6 +139,7 @@ async function createCursorLoop(config: RuntimeConfig): Promise<AgentLoop> {
   return new CursorLoop({
     model: config.model,
     cwd: config.cwd,
+    env: config.env,
   });
 }
 

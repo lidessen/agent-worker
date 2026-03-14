@@ -182,12 +182,17 @@ export async function loadWorkspaceDef(
     // If runtime resolution found a model and agent didn't specify one, use it
     const finalModel = modelSpec ?? (resolution.model ? resolveModel(resolution.model) : undefined);
 
+    // Merge workspace-level env + agent-level env (agent wins)
+    const mergedEnv =
+      def.env || agentDef.env ? { ...def.env, ...agentDef.env } : undefined;
+
     agents.push({
       name,
       runtime: resolution.runtime,
       model: finalModel,
       instructions: agentDef.instructions,
       channels: agentDef.channels,
+      env: mergedEnv,
     });
   }
 

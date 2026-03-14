@@ -27,6 +27,7 @@ export class ClaudeCodeLoop {
       {
         command: "claude",
         args: buildArgs(prompt, this.options, this._mcpConfigPath),
+        env: this.options.env,
         mapEvent: mapClaudeEvent,
         extractResult: extractClaudeResult,
       },

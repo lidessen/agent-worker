@@ -42,6 +42,8 @@ export interface AgentDef {
   instructions?: string;
   /** Channels this agent should join (in addition to default). */
   channels?: string[];
+  /** Environment variable overrides for this agent (merged on top of workspace-level env). */
+  env?: Record<string, string>;
 }
 
 /** Setup step: run a shell command, optionally capture output as a variable. */
@@ -80,6 +82,8 @@ export interface WorkspaceDef {
   kickoff?: string;
   /** External platform connections. */
   connections?: ConnectionDef[];
+  /** Workspace-level environment variables (applied to all agents as defaults). */
+  env?: Record<string, string>;
 }
 
 /** Resolved model — normalized from any ModelSpec form. */
@@ -108,6 +112,8 @@ export interface ResolvedAgent {
   instructions?: string;
   /** Channels this agent should join. */
   channels?: string[];
+  /** Merged environment variables (workspace defaults + agent overrides). */
+  env?: Record<string, string>;
 }
 
 /** Result of loading and resolving a workspace definition. */
