@@ -94,10 +94,11 @@ export class RunCoordinator {
 
     // Persist content snapshot + notification to history (for memory extraction).
     // The notification alone is generic, but memory recall needs real content.
+    const EMPTY_SNAPSHOTS = new Set(["📥 Inbox: empty", "No todos."]);
     const snapshot =
       trigger === "next_message" ? assembled.inboxSnapshot : assembled.todoSnapshot;
     const historyContent =
-      snapshot && !snapshot.includes("empty")
+      snapshot && !EMPTY_SNAPSHOTS.has(snapshot)
         ? `${notification}\n\n${snapshot}`
         : notification;
     this.history.push({ role: "user", content: historyContent });

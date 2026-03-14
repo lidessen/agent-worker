@@ -143,8 +143,9 @@ export class AgentMcpServer {
     }
 
     if (this.httpServer) {
-      this.httpServer.close();
+      const server = this.httpServer;
       this.httpServer = null;
+      await new Promise<void>((resolve) => server.close(() => resolve()));
     }
     this.transport = null;
     this._port = null;
