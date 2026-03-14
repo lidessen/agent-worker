@@ -2,7 +2,7 @@ import { test, expect, describe, mock, afterEach } from "bun:test";
 import { TelegramAdapter } from "../src/adapters/telegram.ts";
 import type { ChannelBridgeInterface, Message } from "../src/types.ts";
 import { parse as parseYaml } from "yaml";
-import type { AdapterDef } from "../src/config/types.ts";
+import type { ConnectionDef } from "../src/config/types.ts";
 
 // ── Mock bridge ──────────────────────────────────────────────────────────
 
@@ -170,42 +170,42 @@ describe("TelegramAdapter", () => {
   });
 });
 
-// ── YAML adapter config parsing ──────────────────────────────────────────
+// ── YAML connection config parsing ───────────────────────────────────────
 
-describe("YAML adapter config", () => {
-  test("parses adapters field from YAML", () => {
+describe("YAML connection config", () => {
+  test("parses connections field from YAML", () => {
     const raw = parseYaml(`
 name: test
 agents:
   alice:
     model: claude-sonnet-4-5
-adapters:
+connections:
   - platform: telegram
     config:
       bot_token: "abc123"
       chat_id: 456
       channel: general
 `);
-    const adapters = raw.adapters as AdapterDef[];
-    expect(adapters).toHaveLength(1);
-    expect(adapters[0]!.platform).toBe("telegram");
-    expect(adapters[0]!.config.bot_token).toBe("abc123");
-    expect(adapters[0]!.config.chat_id).toBe(456);
+    const connections = raw.connections as ConnectionDef[];
+    expect(connections).toHaveLength(1);
+    expect(connections[0]!.platform).toBe("telegram");
+    expect(connections[0]!.config!.bot_token).toBe("abc123");
+    expect(connections[0]!.config!.chat_id).toBe(456);
   });
 
-  test("YAML without adapters has undefined", () => {
+  test("YAML without connections has undefined", () => {
     const raw = parseYaml(`
 name: test
 agents:
   alice:
     model: x
 `);
-    expect(raw.adapters).toBeUndefined();
+    expect(raw.connections).toBeUndefined();
   });
 
   test("TelegramAdapter can be constructed from YAML config", () => {
     const raw = parseYaml(`
-adapters:
+connections:
   - platform: telegram
     config:
       bot_token: "my-token"
@@ -213,7 +213,7 @@ adapters:
       channel: alerts
       poll_timeout: 10
 `);
-    const def = raw.adapters[0] as AdapterDef;
+    const def = raw.connections[0] as ConnectionDef;
     const cfg = def.config as any;
     const adapter = new TelegramAdapter({
       botToken: cfg.bot_token,
@@ -222,5 +222,16 @@ adapters:
       pollTimeout: cfg.poll_timeout,
     });
     expect(adapter.platform).toBe("telegram");
+  });
+
+  test("connections without config uses saved connection", () => {
+    const raw = parseYaml(`
+connections:
+  - platform: telegram
+`);
+    const connections = raw.connections as ConnectionDef[];
+    expect(connections).toHaveLength(1);
+    expect(connections[0]!.platform).toBe("telegram");
+    expect(connections[0]!.config).toBeUndefined();
   });
 });

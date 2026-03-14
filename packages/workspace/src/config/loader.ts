@@ -3,7 +3,7 @@ import { readFile, access } from "node:fs/promises";
 import { execa } from "execa";
 import type {
   WorkspaceDef,
-  AdapterDef,
+  ConnectionDef,
   ResolvedWorkspace,
   ResolvedAgent,
   ResolvedModel,
@@ -143,6 +143,17 @@ export async function loadWorkspaceDef(
     content = await readFile(pathOrContent, "utf-8");
   }
 
+  // Interpolate ${{ secrets.X }} references before parsing YAML
+  if (!opts.skipSetup && content.includes("${{ secrets.")) {
+    const { loadSecrets } = await import("./secrets.ts");
+    const secrets = await loadSecrets();
+    const secretVars: Record<string, string> = {};
+    for (const [k, v] of Object.entries(secrets)) {
+      secretVars[`secrets.${k}`] = v;
+    }
+    content = interpolate(content, secretVars);
+  }
+
   const def = parseWorkspaceDef(content);
 
   // Resolve agents (runtime + model)
@@ -215,10 +226,10 @@ async function loadSavedTelegramConnection(): Promise<TelegramConnection | null>
   }
 }
 
-// ── Adapter resolution ───────────────────────────────────────────────────
+// ── Connection resolution ─────────────────────────────────────────────────
 
 /**
- * Resolve adapter definitions from YAML into ChannelAdapter instances.
+ * Resolve connection definitions from YAML into ChannelAdapter instances.
  * Currently supports: "telegram".
  *
  * Config resolution order (each field independently):
@@ -226,7 +237,7 @@ async function loadSavedTelegramConnection(): Promise<TelegramConnection | null>
  *   2. Environment variable (TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID)
  *   3. Saved connection from `aw connect` (~/.agent-worker/connections/)
  */
-export async function resolveAdapters(defs?: AdapterDef[]): Promise<ChannelAdapter[]> {
+export async function resolveConnections(defs?: ConnectionDef[]): Promise<ChannelAdapter[]> {
   if (!defs || defs.length === 0) return [];
 
   const adapters: ChannelAdapter[] = [];
@@ -234,7 +245,7 @@ export async function resolveAdapters(defs?: AdapterDef[]): Promise<ChannelAdapt
     switch (def.platform) {
       case "telegram": {
         const { TelegramAdapter } = await import("../adapters/telegram.ts");
-        const cfg = def.config as {
+        const cfg = (def.config ?? {}) as {
           bot_token?: string;
           chat_id?: number;
           channel?: string;
@@ -250,7 +261,7 @@ export async function resolveAdapters(defs?: AdapterDef[]): Promise<ChannelAdapt
           saved?.bot_token;
         if (!botToken) {
           throw new Error(
-            "Telegram adapter requires bot_token in config, TELEGRAM_BOT_TOKEN env var, " +
+            "Telegram connection requires bot_token in config, TELEGRAM_BOT_TOKEN env var, " +
             "or a saved connection (run 'aw connect telegram')",
           );
         }
@@ -269,7 +280,7 @@ export async function resolveAdapters(defs?: AdapterDef[]): Promise<ChannelAdapt
         break;
       }
       default:
-        throw new Error(`Unknown adapter platform: "${def.platform}"`);
+        throw new Error(`Unknown connection platform: "${def.platform}"`);
     }
   }
   return adapters;
@@ -280,8 +291,8 @@ export async function resolveAdapters(defs?: AdapterDef[]): Promise<ChannelAdapt
 export interface ToWorkspaceConfigOptions extends LoadOptions {
   /** Override the storage directory (takes precedence over def.storage_dir and the default). */
   storageDir?: string;
-  /** Pre-resolved adapters to attach. */
-  adapters?: ChannelAdapter[];
+  /** Pre-resolved connections to attach. */
+  connections?: ChannelAdapter[];
 }
 
 /**
@@ -308,7 +319,7 @@ export function toWorkspaceConfig(
     channels: def.channels,
     defaultChannel: def.default_channel,
     agents: resolved.agents.map((a) => a.name),
-    adapters: opts.adapters,
+    connections: opts.connections,
     storage,
     storageDir: storageType === "file" ? storageDir : undefined,
   };

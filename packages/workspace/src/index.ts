@@ -53,7 +53,12 @@ export {
   parseWorkspaceDef,
   toWorkspaceConfig,
   resolveModel,
-  resolveAdapters,
+  resolveConnections,
+  loadSecrets,
+  saveSecrets,
+  setSecret,
+  deleteSecret,
+  getSecretsPath,
   resolveRuntime,
   discoverCliRuntime,
   detectAiSdkModel,
@@ -62,7 +67,7 @@ export {
 } from "./config/index.ts";
 export type {
   WorkspaceDef,
-  AdapterDef,
+  ConnectionDef,
   AgentDef,
   ModelSpec,
   ModelDef,

@@ -52,12 +52,12 @@ export interface SetupStep {
   as?: string;
 }
 
-/** Adapter definition for external platform bridges. */
-export interface AdapterDef {
+/** Connection definition for external platform bridges. */
+export interface ConnectionDef {
   /** Platform type: "telegram". */
   platform: string;
-  /** Platform-specific configuration. */
-  config: Record<string, unknown>;
+  /** Platform-specific configuration (optional if saved via `aw connect`). */
+  config?: Record<string, unknown>;
 }
 
 /** Declarative workspace definition (typically loaded from YAML). */
@@ -78,8 +78,8 @@ export interface WorkspaceDef {
   setup?: SetupStep[];
   /** Kickoff message (template string with ${{ var }} interpolation and @mentions). */
   kickoff?: string;
-  /** External platform adapters. */
-  adapters?: AdapterDef[];
+  /** External platform connections. */
+  connections?: ConnectionDef[];
 }
 
 /** Resolved model — normalized from any ModelSpec form. */

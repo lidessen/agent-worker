@@ -88,7 +88,7 @@ Commands:
   rm <name>    Remove a saved connection
 
 Connections are saved to ~/.agent-worker/connections/ and automatically
-used by workspace adapters when bot_token/chat_id are not specified in YAML.
+used by workspace connections when config is not specified in YAML.
 `);
       if (sub) {
         console.error(`Unknown subcommand: ${sub}`);
@@ -129,11 +129,12 @@ async function connectTelegram(): Promise<void> {
     console.log("  Using bot token from TELEGRAM_BOT_TOKEN env var.");
   }
 
-  const { runTelegramAuth } = await import("@agent-worker/workspace");
+  const { runTelegramAuth, setSecret } = await import("@agent-worker/workspace");
 
   try {
     const result = await runTelegramAuth(botToken);
 
+    // Save connection file (for resolveConnections fallback)
     const conn: TelegramConnection = {
       platform: "telegram",
       bot_token: botToken,
@@ -143,15 +144,19 @@ async function connectTelegram(): Promise<void> {
     };
     await saveConnection("telegram", conn);
 
+    // Save secrets (for ${{ secrets.X }} interpolation in YAML)
+    await setSecret("TELEGRAM_BOT_TOKEN", botToken);
+    await setSecret("TELEGRAM_CHAT_ID", String(result.chatId));
+
     console.log(`\n  Connected successfully!\n`);
     console.log(`  Chat ID:    ${result.chatId}`);
     if (result.username) console.log(`  Username:   @${result.username}`);
     console.log(`  Name:       ${result.firstName}`);
     console.log(`\n  Saved to ~/.agent-worker/connections/telegram.json`);
     console.log(`\n  Workspace YAML can now use:\n`);
-    console.log(`    adapters:`);
+    console.log(`    connections:`);
     console.log(`      - platform: telegram`);
-    console.log(`\n  bot_token and chat_id will be loaded from the saved connection.`);
+    console.log(`\n  No config needed — credentials loaded from saved connection.`);
   } catch (err) {
     fatal(`Connection failed: ${err}`);
   }
@@ -188,6 +193,12 @@ async function connectRm(platform?: string): Promise<void> {
   }
   const removed = await removeConnection(platform);
   if (removed) {
+    // Clean up associated secrets
+    const { deleteSecret } = await import("@agent-worker/workspace");
+    if (platform === "telegram") {
+      await deleteSecret("TELEGRAM_BOT_TOKEN");
+      await deleteSecret("TELEGRAM_CHAT_ID");
+    }
     console.log(`Removed ${platform} connection.`);
   } else {
     console.log(`No ${platform} connection found.`);
