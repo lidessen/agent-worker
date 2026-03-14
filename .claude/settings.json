@@ -6,7 +6,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "file=\"$CLAUDE_FILE_PATH\"; if [ -n \"$file\" ] && echo \"$file\" | grep -qE '\\.(ts|tsx|js|jsx|json|css|html)$'; then oxfmt --write \"$file\" 2>/dev/null; fi; exit 0"
+            "command": "oxfmt \"$CLAUDE_FILE_PATH\""
+          },
+          {
+            "type": "command",
+            "command": "oxlint \"$CLAUDE_FILE_PATH\""
           }
         ]
       }
@@ -17,7 +21,18 @@
         "hooks": [
           {
             "type": "command",
-            "command": "file=\"$CLAUDE_FILE_PATH\"; if [ -n \"$file\" ] && echo \"$file\" | grep -qE '(bun\\.lock|package-lock\\.json|yarn\\.lock|pnpm-lock\\.yaml)$'; then echo 'BLOCKED: Do not edit lock files directly. Use bun install instead.' && exit 1; fi; exit 0"
+            "command": "case \"$CLAUDE_FILE_PATH\" in */bun.lock|*/package-lock.json) echo 'BLOCKED: Do not edit lock files directly. Run bun install instead.' && exit 1;; esac"
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "tsgo --build --pretty 2>&1 | tail -20"
           }
         ]
       }
