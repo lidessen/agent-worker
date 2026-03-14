@@ -119,7 +119,7 @@ export interface WorkspaceConfig {
   channels?: string[];
   defaultChannel?: string;
   agents?: string[];
-  adapters?: ChannelAdapter[];
+  connections?: ChannelAdapter[];
   storage?: StorageBackend;
   /** Root directory for this workspace's file storage. */
   storageDir?: string;
@@ -162,9 +162,9 @@ export interface WorkspaceRuntime {
   /** Shared workspace sandbox directory (collaborative files visible to all agents). */
   readonly workspaceSandboxDir: string | undefined;
 
-  /** Initialize workspace: recover from crashes, start adapters. */
+  /** Initialize workspace: recover from crashes, start connections. */
   init(): Promise<void>;
-  /** Shutdown workspace: stop adapters, flush stores. */
+  /** Shutdown workspace: stop connections, flush stores. */
   shutdown(): Promise<void>;
   /** Register an agent with the workspace. */
   registerAgent(name: string, channels?: string[]): Promise<void>;
