@@ -26,6 +26,7 @@ export class CodexLoop {
       {
         command: "codex",
         args: buildArgs(prompt, this.options, this._mcpConfigPath),
+        env: this.options.env,
         mapEvent: mapCodexEvent,
         extractResult: extractCodexResult,
       },
