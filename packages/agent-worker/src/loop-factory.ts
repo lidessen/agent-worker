@@ -66,11 +66,14 @@ async function createAiSdkLoop(config: RuntimeConfig): Promise<AgentLoop> {
       break;
     }
     case "minimax": {
-      const { createMinimax } = await import("vercel-minimax-ai-provider");
+      const { createAnthropic } = await import("@ai-sdk/anthropic");
       const baseURL = process.env.MINIMAX_BASE_URL
         ? `${process.env.MINIMAX_BASE_URL}/anthropic/v1`
         : "https://api.minimax.io/anthropic/v1";
-      const minimax = createMinimax({ baseURL });
+      const minimax = createAnthropic({
+        baseURL,
+        apiKey: process.env.MINIMAX_API_KEY,
+      });
       languageModel = minimax(modelId);
       break;
     }
