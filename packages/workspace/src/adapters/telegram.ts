@@ -62,7 +62,6 @@ export interface TelegramAdapterConfig {
 // ── Bot commands ──────────────────────────────────────────────────────────
 
 const BOT_COMMANDS = [
-  { command: "start", description: "Show welcome message" },
   { command: "status", description: "Show connection status" },
 ];
 
@@ -196,12 +195,6 @@ export class TelegramAdapter implements ChannelAdapter {
     const cmd = msg.text!.split(/\s|@/)[0]!.toLowerCase();
 
     switch (cmd) {
-      case "/start":
-        this.api("sendMessage", {
-          chat_id: msg.chat.id,
-          text: `Connected to channel: ${this.channel}`,
-        }).catch(() => {});
-        break;
       case "/status":
         this.api("sendMessage", {
           chat_id: msg.chat.id,
