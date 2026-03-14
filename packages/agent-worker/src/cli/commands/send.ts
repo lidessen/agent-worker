@@ -15,7 +15,10 @@ export async function send(args: string[]): Promise<void> {
   const messages: Array<{ content: string; delayMs?: number }> = [];
   let pendingDelay = 0;
   for (let i = 1; i < args.length; i++) {
-    if (args[i] === "--from") { i++; continue; }
+    if (args[i] === "--from") {
+      i++;
+      continue;
+    }
     const delayMatch = args[i]!.match(/^\+(\d+)(ms|s)$/);
     if (delayMatch) {
       const n = parseInt(delayMatch[1]!, 10);

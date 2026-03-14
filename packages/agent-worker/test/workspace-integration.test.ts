@@ -26,7 +26,10 @@ describe("Unified daemon (workspace routes)", () => {
     const { tmpdir } = await import("node:os");
     const { join } = await import("node:path");
     const { mkdirSync } = await import("node:fs");
-    const dataDir = join(tmpdir(), `aw-cli-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    const dataDir = join(
+      tmpdir(),
+      `aw-cli-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    );
     mkdirSync(dataDir, { recursive: true });
     daemon = new Daemon({ port: 0, dataDir });
     const info = await daemon.start();
@@ -51,9 +54,11 @@ describe("Unified daemon (workspace routes)", () => {
     const status = await client.getWorkspaceStatus("test-ws");
     expect(status.name).toBe("test-ws");
     expect((status.agents as string[]).sort()).toEqual(["alice", "bob"]);
-    expect((status.agent_details as { name: string; runtime: string }[]).map((a) => a.name).sort()).toEqual(["alice", "bob"]);
-    expect((status.channels as string[])).toContain("general");
-    expect((status.channels as string[])).toContain("design");
+    expect(
+      (status.agent_details as { name: string; runtime: string }[]).map((a) => a.name).sort(),
+    ).toEqual(["alice", "bob"]);
+    expect(status.channels as string[]).toContain("general");
+    expect(status.channels as string[]).toContain("design");
   });
 
   test("sends and reads messages", async () => {

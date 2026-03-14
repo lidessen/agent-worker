@@ -1,4 +1,4 @@
-import { test, expect, describe, beforeEach, afterEach, mock } from "bun:test";
+import { test, expect, describe, beforeEach, afterEach } from "bun:test";
 import { resolveRuntime, detectAiSdkModel } from "../src/config/resolve-runtime.ts";
 
 // ── detectAiSdkModel ─────────────────────────────────────────────────────

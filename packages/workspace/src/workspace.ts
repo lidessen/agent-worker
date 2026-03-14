@@ -20,7 +20,6 @@ import { WorkspaceEventLog } from "./context/event-log.ts";
 import { ChannelBridge } from "./context/bridge.ts";
 import { InstructionQueue } from "./loop/priority-queue.ts";
 import { MemoryStorage } from "./context/storage.ts";
-import { extractMentions } from "./utils.ts";
 
 export class Workspace implements WorkspaceRuntime {
   readonly name: string;

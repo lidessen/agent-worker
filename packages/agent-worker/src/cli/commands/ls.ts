@@ -4,10 +4,7 @@ import { table } from "../output.ts";
 export async function ls(_args: string[]): Promise<void> {
   try {
     const client = await AwClient.discover();
-    const [agents, workspaces] = await Promise.all([
-      client.listAgents(),
-      client.listWorkspaces(),
-    ]);
+    const [agents, workspaces] = await Promise.all([client.listAgents(), client.listWorkspaces()]);
 
     if (agents.length > 0) {
       console.log("Agents:");
@@ -26,12 +23,7 @@ export async function ls(_args: string[]): Promise<void> {
       console.log(
         table(
           ["Name", "Tag", "Agents", "Channels"],
-          workspaces.map((w) => [
-            w.name,
-            w.tag ?? "—",
-            w.agents.join(", "),
-            w.channels.join(", "),
-          ]),
+          workspaces.map((w) => [w.name, w.tag ?? "—", w.agents.join(", "), w.channels.join(", ")]),
         ),
       );
     }

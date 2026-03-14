@@ -4,9 +4,7 @@
 
 /** Format a table with aligned columns. */
 export function table(headers: string[], rows: string[][]): string {
-  const widths = headers.map((h, i) =>
-    Math.max(h.length, ...rows.map((r) => (r[i] ?? "").length)),
-  );
+  const widths = headers.map((h, i) => Math.max(h.length, ...rows.map((r) => (r[i] ?? "").length)));
 
   const sep = widths.map((w) => "─".repeat(w + 2)).join("┼");
   const header = headers.map((h, i) => ` ${h.padEnd(widths[i]!)} `).join("│");

@@ -3,9 +3,8 @@ import type {
   InstructionQueueInterface,
   Instruction,
   InboxEntry,
-  Message,
-  Priority,
   EventLog,
+  Priority,
 } from "../types.ts";
 import { assemblePrompt, DEFAULT_SECTIONS, type PromptSection } from "./prompt.ts";
 

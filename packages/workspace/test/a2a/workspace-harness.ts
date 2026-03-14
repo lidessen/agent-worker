@@ -20,7 +20,6 @@ import {
   DEFAULT_SECTIONS,
   nanoid,
 } from "../../src/index.ts";
-import type { Instruction, ContextProvider, InboxEntry } from "../../src/types.ts";
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -126,10 +125,10 @@ test("T2", async () => {
 
   const msgs = await ws.contextProvider.channels.read("general");
   assert(msgs.length === 3, `expected 3 messages, got ${msgs.length}`);
-  assert(msgs[0].from === "alice", "msg[0] from alice");
-  assert(msgs[0].content === "Hello team!", "msg[0] content");
-  assert(msgs[1].from === "bob", "msg[1] from bob");
-  assert(msgs[2].mentions.includes("bob"), "msg[2] mentions bob");
+  assert(msgs[0]!.from === "alice", "msg[0] from alice");
+  assert(msgs[0]!.content === "Hello team!", "msg[0] content");
+  assert(msgs[1]!.from === "bob", "msg[1] from bob");
+  assert(msgs[2]!.mentions.includes("bob"), "msg[2] mentions bob");
   assert(new Set(msgs.map((m) => m.id)).size === 3, "unique IDs");
 
   await ws.shutdown();
@@ -147,13 +146,13 @@ test("T3", async () => {
 
   const bobInbox = await ws.contextProvider.inbox.peek("bob");
   assert(bobInbox.length === 1, `bob should have 1 entry, got ${bobInbox.length}`);
-  assert(bobInbox[0].state === "pending", "should be pending");
-  assert(bobInbox[0].channel === "general", "channel should be general");
+  assert(bobInbox[0]!.state === "pending", "should be pending");
+  assert(bobInbox[0]!.channel === "general", "channel should be general");
 
   const aliceInbox = await ws.contextProvider.inbox.peek("alice");
   assert(aliceInbox.length === 0, "sender should not self-receive");
 
-  const msg = await ws.contextProvider.channels.getMessage("general", bobInbox[0].messageId);
+  const msg = await ws.contextProvider.channels.getMessage("general", bobInbox[0]!.messageId);
   assert(msg !== null, "message should be resolvable");
   assert(msg!.content.includes("review the PR"), "content matches");
 
@@ -178,16 +177,16 @@ test("T4", async () => {
   const [task1, task2, task3] = inbox;
 
   // Selective ack: process task2 first (out of order)
-  await ws.contextProvider.inbox.ack("bob", task2.messageId);
+  await ws.contextProvider.inbox.ack("bob", task2!.messageId);
 
   // Defer task1
   const future = new Date(Date.now() + 300_000).toISOString();
-  await ws.contextProvider.inbox.defer("bob", task1.messageId, future);
+  await ws.contextProvider.inbox.defer("bob", task1!.messageId, future);
 
   const remaining = await ws.contextProvider.inbox.peek("bob");
   assert(remaining.length === 1, `expected 1 remaining, got ${remaining.length}`);
-  assert(remaining[0].messageId === task3.messageId, "only task3 pending");
-  assert(!(await ws.contextProvider.inbox.hasEntry("bob", task2.messageId)), "acked entry removed");
+  assert(remaining[0]!.messageId === task3!.messageId, "only task3 pending");
+  assert(!(await ws.contextProvider.inbox.hasEntry("bob", task2!.messageId)), "acked entry removed");
 
   await ws.shutdown();
 });
@@ -325,7 +324,7 @@ test("T8", async () => {
 
   const bobInbox = await ws.contextProvider.inbox.peek("bob");
   assert(bobInbox.length === 1, "bob should receive DM");
-  assert(bobInbox[0].priority === "immediate", "DM should be immediate");
+  assert(bobInbox[0]!.priority === "immediate", "DM should be immediate");
 
   const charlieInbox = await ws.contextProvider.inbox.peek("charlie");
   assert(charlieInbox.length === 0, "charlie should not see DM");
@@ -379,9 +378,9 @@ test("T10", async () => {
 
   const timeline = await ws.contextProvider.timeline.read("alice");
   assert(timeline.length === 3, "3 timeline entries");
-  assert(timeline[0].kind === "tool_call", "tool_call kind");
-  assert(timeline[1].kind === "system", "system kind");
-  assert(timeline[2].kind === "debug", "debug kind");
+  assert(timeline[0]!.kind === "tool_call", "tool_call kind");
+  assert(timeline[1]!.kind === "system", "system kind");
+  assert(timeline[2]!.kind === "debug", "debug kind");
 
   let threw = false;
   try {
@@ -429,25 +428,25 @@ test("T12", async () => {
   const { tools: aliceTools } = createAgentTools("alice", ws);
   const { tools: bobTools } = createAgentTools("bob", ws);
 
-  const sendResult = await aliceTools.channel_send({
+  const sendResult = await aliceTools.channel_send!({
     channel: "general",
     content: "@bob can you help?",
   });
   assert(sendResult.includes("Sent"), "send confirmed");
 
-  const inboxResult = await bobTools.my_inbox();
+  const inboxResult = await bobTools.my_inbox!({});
   assert(inboxResult.includes("can you help"), "inbox shows message");
 
   const bobInbox = await ws.contextProvider.inbox.peek("bob");
-  await bobTools.my_inbox_ack({ message_id: bobInbox[0].messageId });
+  await bobTools.my_inbox_ack!({ message_id: bobInbox[0]!.messageId });
 
-  const afterAck = await bobTools.my_inbox();
+  const afterAck = await bobTools.my_inbox!({});
   assert(
     afterAck.toLowerCase().includes("empty") || afterAck.includes("0 pending"),
     "inbox empty after ack",
   );
 
-  const listResult = await aliceTools.channel_list();
+  const listResult = await aliceTools.channel_list!({});
   assert(listResult.includes("general"), "channel listed");
 
   await ws.shutdown();
@@ -546,8 +545,8 @@ test("T15", async () => {
 
   const { tools: aliceTools } = createAgentTools("alice", ws);
   const { tools: bobTools } = createAgentTools("bob", ws);
-  await aliceTools.channel_join({ channel: "design" });
-  await bobTools.channel_join({ channel: "code-review" });
+  await aliceTools.channel_join!({ channel: "design" });
+  await bobTools.channel_join!({ channel: "code-review" });
 
   await ws.contextProvider.smartSend("design", "user", "@alice review the design");
   await ws.contextProvider.smartSend("code-review", "user", "@bob review the code");
@@ -556,9 +555,9 @@ test("T15", async () => {
   const bobInbox = await ws.contextProvider.inbox.peek("bob");
 
   assert(aliceInbox.length === 1, "alice has 1");
-  assert(aliceInbox[0].channel === "design", "alice from design");
+  assert(aliceInbox[0]!.channel === "design", "alice from design");
   assert(bobInbox.length === 1, "bob has 1");
-  assert(bobInbox[0].channel === "code-review", "bob from code-review");
+  assert(bobInbox[0]!.channel === "code-review", "bob from code-review");
 
   await ws.shutdown();
 });
@@ -635,13 +634,13 @@ test("T18", async () => {
 
   await ws.contextProvider.smartSend("general", "alice", "Original message");
   const msgs1 = await ws.contextProvider.channels.read("general");
-  const originalId = msgs1[0].id;
-  const originalContent = msgs1[0].content;
+  const originalId = msgs1[0]!.id;
+  const originalContent = msgs1[0]!.content;
 
   await ws.contextProvider.smartSend("general", "alice", "Second message");
   const msgs2 = await ws.contextProvider.channels.read("general");
-  assert(msgs2[0].id === originalId, "ID must not change");
-  assert(msgs2[0].content === originalContent, "content must not change");
+  assert(msgs2[0]!.id === originalId, "ID must not change");
+  assert(msgs2[0]!.content === originalContent, "content must not change");
   assert(msgs2.length === 2, "append only");
 
   const store = ws.contextProvider.channels;

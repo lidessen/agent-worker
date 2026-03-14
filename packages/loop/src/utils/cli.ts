@@ -116,8 +116,16 @@ export interface SpawnCliResult {
  * Spawn a CLI process with idle timeout and streaming output.
  */
 export async function spawnCli(options: SpawnCliOptions): Promise<SpawnCliResult> {
-  const { command, args, cwd, env: extraEnv, signal, idleTimeout = 60_000, onStdout, onStderr } =
-    options;
+  const {
+    command,
+    args,
+    cwd,
+    env: extraEnv,
+    signal,
+    idleTimeout = 60_000,
+    onStdout,
+    onStderr,
+  } = options;
 
   // Strip CLAUDECODE so CLI loops (claude, codex, cursor) inherit
   // the host's login state instead of being blocked as nested sessions.

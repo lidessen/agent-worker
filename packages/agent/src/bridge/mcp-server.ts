@@ -2,11 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { createServer, type Server } from "node:http";
 import { z } from "zod";
-import {
-  BUILTIN_TOOLS,
-  createToolHandlers,
-  type ToolHandlerDeps,
-} from "../tool-registry.ts";
+import { BUILTIN_TOOLS, createToolHandlers, type ToolHandlerDeps } from "../tool-registry.ts";
 
 export type AgentMcpServerDeps = ToolHandlerDeps;
 
@@ -38,14 +34,9 @@ function registerToolForDef(
 
 /** Build a ZodObject without triggering TS2589 deep type instantiation. */
 function buildObjectSchema(params: Record<string, z.ZodTypeAny>): z.ZodTypeAny {
-  // Use ZodObject constructor directly to avoid z.object()'s deep generic inference
-  // on Record<string, ZodTypeAny>.
-  return new z.ZodObject({
-    shape: () => params,
-    unknownKeys: "strip",
-    catchall: z.never(),
-    typeName: "ZodObject",
-  });
+  // Use z.object() — Zod v4 handles Record<string, ZodTypeAny> directly.
+  // Cast shape to satisfy the generic inference and avoid TS2589.
+  return z.object(params as z.ZodRawShape);
 }
 
 /**

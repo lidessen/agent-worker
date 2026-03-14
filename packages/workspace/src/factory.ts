@@ -1,11 +1,6 @@
-import type {
-  WorkspaceConfig,
-  ContextProvider,
-  EventLog,
-  InstructionQueueInterface,
-} from "./types.ts";
+import type { WorkspaceConfig } from "./types.ts";
 import { Workspace } from "./workspace.ts";
-import { WorkspaceAgentLoop, type AgentLoopConfig } from "./loop/loop.ts";
+import { WorkspaceAgentLoop } from "./loop/loop.ts";
 import { createWorkspaceTools, type WorkspaceToolSet } from "./context/mcp/server.ts";
 import type { Instruction } from "./types.ts";
 

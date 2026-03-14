@@ -1,5 +1,12 @@
 import type { LoopEvent, LoopResult } from "@agent-worker/loop";
-import type { AgentLoop, NotesStorage, Turn, RunInfo, AssembledPrompt, PrepareStepResult } from "./types.ts";
+import type {
+  AgentLoop,
+  NotesStorage,
+  Turn,
+  RunInfo,
+  AssembledPrompt,
+  PrepareStepResult,
+} from "./types.ts";
 import type { Inbox } from "./inbox.ts";
 import type { TodoManager } from "./todo.ts";
 import type { ContextEngine } from "./context-engine.ts";
@@ -95,12 +102,9 @@ export class RunCoordinator {
     // Persist content snapshot + notification to history (for memory extraction).
     // The notification alone is generic, but memory recall needs real content.
     const EMPTY_SNAPSHOTS = new Set(["📥 Inbox: empty", "No todos."]);
-    const snapshot =
-      trigger === "next_message" ? assembled.inboxSnapshot : assembled.todoSnapshot;
+    const snapshot = trigger === "next_message" ? assembled.inboxSnapshot : assembled.todoSnapshot;
     const historyContent =
-      snapshot && !EMPTY_SNAPSHOTS.has(snapshot)
-        ? `${notification}\n\n${snapshot}`
-        : notification;
+      snapshot && !EMPTY_SNAPSHOTS.has(snapshot) ? `${notification}\n\n${snapshot}` : notification;
     this.history.push({ role: "user", content: historyContent });
 
     const assistantText = loopResult.events

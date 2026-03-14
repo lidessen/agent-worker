@@ -10,7 +10,9 @@ export async function status(_args: string[]): Promise<void> {
       client.listWorkspaces(),
     ]);
 
-    console.log(`Daemon:      ${health.status} (PID ${health.pid}, up ${formatUptime(health.uptime)})`);
+    console.log(
+      `Daemon:      ${health.status} (PID ${health.pid}, up ${formatUptime(health.uptime)})`,
+    );
     console.log(`Agents:      ${health.agents}`);
     console.log(`Workspaces:  ${health.workspaces}`);
 

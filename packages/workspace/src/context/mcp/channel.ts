@@ -1,4 +1,4 @@
-import type { ContextProvider, Priority } from "../../types.ts";
+import type { ContextProvider } from "../../types.ts";
 
 export interface ChannelTools {
   channel_send: (args: { channel: string; content: string; to?: string }) => Promise<string>;

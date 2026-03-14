@@ -104,7 +104,7 @@ agents:
     model: claude-sonnet-4-5
 `);
     expect(def.name).toBe("test");
-    expect(def.agents.alice.model).toBe("claude-sonnet-4-5");
+    expect(def.agents.alice!.model).toBe("claude-sonnet-4-5");
   });
 
   test("parses full config with all fields", () => {
@@ -141,19 +141,19 @@ kickoff: |
     expect(def.channels).toEqual(["general", "design"]);
     expect(def.default_channel).toBe("general");
     expect(Object.keys(def.agents)).toEqual(["reviewer", "coder"]);
-    expect(def.agents.reviewer.runtime).toBe("claude-code");
-    expect(def.agents.reviewer.instructions).toContain("code reviewer");
-    expect(def.agents.coder.runtime).toBe("ai-sdk");
-    expect(def.agents.coder.model).toEqual({
+    expect(def.agents.reviewer!.runtime).toBe("claude-code");
+    expect(def.agents.reviewer!.instructions).toContain("code reviewer");
+    expect(def.agents.coder!.runtime).toBe("ai-sdk");
+    expect(def.agents.coder!.model).toEqual({
       id: "claude-sonnet-4-5",
       provider: "anthropic",
       temperature: 0.3,
     });
-    expect(def.agents.coder.channels).toEqual(["design"]);
+    expect(def.agents.coder!.channels).toEqual(["design"]);
     expect(def.storage).toBe("memory");
     expect(def.setup).toHaveLength(1);
-    expect(def.setup![0].shell).toBe("echo hello");
-    expect(def.setup![0].as).toBe("greeting");
+    expect(def.setup![0]!.shell).toBe("echo hello");
+    expect(def.setup![0]!.as).toBe("greeting");
     expect(def.kickoff).toBeDefined();
   });
 
@@ -236,10 +236,10 @@ agents:
     );
 
     expect(result.agents).toHaveLength(1);
-    expect(result.agents[0].name).toBe("alice");
-    expect(result.agents[0].runtime).toBe("claude-code");
-    expect(result.agents[0].model?.id).toBe("sonnet");
-    expect(result.agents[0].model?.full).toBe("sonnet");
+    expect(result.agents[0]!.name).toBe("alice");
+    expect(result.agents[0]!.runtime).toBe("claude-code");
+    expect(result.agents[0]!.model?.id).toBe("sonnet");
+    expect(result.agents[0]!.model?.full).toBe("sonnet");
   });
 
   test("resolves agents with provider:model shorthand", async () => {
@@ -254,9 +254,9 @@ agents:
       { skipSetup: true },
     );
 
-    expect(result.agents[0].model?.id).toBe("claude-sonnet-4-5");
-    expect(result.agents[0].model?.provider).toBe("anthropic");
-    expect(result.agents[0].model?.full).toBe("anthropic:claude-sonnet-4-5");
+    expect(result.agents[0]!.model?.id).toBe("claude-sonnet-4-5");
+    expect(result.agents[0]!.model?.provider).toBe("anthropic");
+    expect(result.agents[0]!.model?.full).toBe("anthropic:claude-sonnet-4-5");
   });
 
   test("resolves agents with object model", async () => {
@@ -273,10 +273,10 @@ agents:
       { skipSetup: true },
     );
 
-    expect(result.agents[0].model?.id).toBe("gpt-4o");
-    expect(result.agents[0].model?.provider).toBe("openai");
-    expect(result.agents[0].model?.full).toBe("openai:gpt-4o");
-    expect(result.agents[0].model?.temperature).toBe(0.5);
+    expect(result.agents[0]!.model?.id).toBe("gpt-4o");
+    expect(result.agents[0]!.model?.provider).toBe("openai");
+    expect(result.agents[0]!.model?.full).toBe("openai:gpt-4o");
+    expect(result.agents[0]!.model?.temperature).toBe(0.5);
   });
 
   test("interpolates workspace.tag in kickoff", async () => {

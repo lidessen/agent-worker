@@ -42,7 +42,7 @@ describe("Workspace", () => {
 
     const messages = await workspace.contextProvider.channels.read("general");
     expect(messages).toHaveLength(1);
-    expect(messages[0].content).toBe("Hello team!");
+    expect(messages[0]!.content).toBe("Hello team!");
   });
 
   test("smartSend stores long content as resource", async () => {
@@ -61,7 +61,7 @@ describe("Workspace", () => {
     // Bob should have an inbox entry
     const bobInbox = await workspace.contextProvider.inbox.peek("bob");
     expect(bobInbox).toHaveLength(1);
-    expect(bobInbox[0].priority).toBe("normal");
+    expect(bobInbox[0]!.priority).toBe("normal");
   });
 
   test("message not self-delivered", async () => {
@@ -78,7 +78,7 @@ describe("Workspace", () => {
 
     const bobInbox = await workspace.contextProvider.inbox.peek("bob");
     expect(bobInbox).toHaveLength(1);
-    expect(bobInbox[0].priority).toBe("immediate");
+    expect(bobInbox[0]!.priority).toBe("immediate");
   });
 
   test("channel broadcast with background priority", async () => {
@@ -87,7 +87,7 @@ describe("Workspace", () => {
 
     const bobInbox = await workspace.contextProvider.inbox.peek("bob");
     expect(bobInbox).toHaveLength(1);
-    expect(bobInbox[0].priority).toBe("background");
+    expect(bobInbox[0]!.priority).toBe("background");
   });
 
   test("shutdown completes without error", async () => {
@@ -99,8 +99,8 @@ describe("Workspace", () => {
 
     const events = await workspace.contextProvider.timeline.read("alice");
     expect(events).toHaveLength(1);
-    expect(events[0].content).toBe("Test event");
-    expect(events[0].kind).toBe("system");
+    expect(events[0]!.content).toBe("Test event");
+    expect(events[0]!.kind).toBe("system");
   });
 
   test("event log rejects message kind", async () => {
@@ -128,8 +128,8 @@ describe("Workspace", () => {
     const msgs2 = await ws2.contextProvider.channels.read("general");
 
     expect(msgs1).toHaveLength(1);
-    expect(msgs1[0].content).toBe("msg in pr-123");
+    expect(msgs1[0]!.content).toBe("msg in pr-123");
     expect(msgs2).toHaveLength(1);
-    expect(msgs2[0].content).toBe("msg in pr-456");
+    expect(msgs2[0]!.content).toBe("msg in pr-456");
   });
 });

@@ -33,9 +33,7 @@ export class FileNotesStorage implements NotesStorage {
     } catch {
       return [];
     }
-    return entries
-      .filter((name) => name.endsWith(".md"))
-      .map((name) => name.replace(/\.md$/, ""));
+    return entries.filter((name) => name.endsWith(".md")).map((name) => name.replace(/\.md$/, ""));
   }
 
   async delete(key: string): Promise<void> {

@@ -72,7 +72,11 @@ export class ClaudeCodeLoop {
   }
 }
 
-function buildArgs(prompt: string, opts: ClaudeCodeLoopOptions, mcpConfigPath?: string | null): string[] {
+function buildArgs(
+  prompt: string,
+  opts: ClaudeCodeLoopOptions,
+  mcpConfigPath?: string | null,
+): string[] {
   const args = ["-p", prompt, "--output-format", "stream-json", "--verbose"];
 
   if (opts.model) args.push("--model", opts.model);

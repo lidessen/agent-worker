@@ -11,7 +11,9 @@ function createMockLoop(response = "Hello!"): AgentLoop {
   const mock: AgentLoop & { _status: LoopStatus } = {
     supports: ["directTools"],
     _status: "idle" as LoopStatus,
-    get status(): LoopStatus { return mock._status; },
+    get status(): LoopStatus {
+      return mock._status;
+    },
     run(_prompt: string): LoopRun {
       mock._status = "running";
       const textEvent: LoopEvent = { type: "text", text: response };
@@ -25,11 +27,15 @@ function createMockLoop(response = "Hello!"): AgentLoop {
         return loopResult;
       });
       return {
-        async *[Symbol.asyncIterator]() { yield textEvent; },
+        async *[Symbol.asyncIterator]() {
+          yield textEvent;
+        },
         result,
       };
     },
-    cancel() { mock._status = "cancelled"; },
+    cancel() {
+      mock._status = "cancelled";
+    },
     setTools() {},
     setPrepareStep() {},
   };
@@ -83,7 +89,12 @@ describe("AwClient", () => {
     // Create agent programmatically (mock loop)
     await daemon.agentRegistry.create({
       name: "bob",
-      config: { name: "bob", instructions: "be bob", loop: createMockLoop("Bob says hi"), inbox: { debounceMs: 0 } },
+      config: {
+        name: "bob",
+        instructions: "be bob",
+        loop: createMockLoop("Bob says hi"),
+        inbox: { debounceMs: 0 },
+      },
     });
 
     await client.sendToAgent("bob", [{ content: "hello" }]);
@@ -91,7 +102,9 @@ describe("AwClient", () => {
 
     const result = await client.readResponses("bob", { cursor: 0 });
     expect(result.entries.length).toBeGreaterThan(0);
-    expect(result.entries.some((e: any) => e.type === "text" && e.text === "Bob says hi")).toBe(true);
+    expect(result.entries.some((e: any) => e.type === "text" && e.text === "Bob says hi")).toBe(
+      true,
+    );
   });
 
   test("getAgentState", async () => {

@@ -80,7 +80,7 @@ export class InstructionQueue implements InstructionQueueInterface {
     const lane = this.lanes[priority];
     const idx = lane.findIndex((i) => i.agentName === agentName);
     if (idx === -1) return null;
-    return lane.splice(idx, 1)[0];
+    return lane.splice(idx, 1)[0] ?? null;
   }
 
   private getForcedLane(): Priority | null {
@@ -115,7 +115,7 @@ export class InstructionQueue implements InstructionQueueInterface {
     const toPromote: number[] = [];
 
     for (let i = 0; i < this.lanes.background.length; i++) {
-      const instr = this.lanes.background[i];
+      const instr = this.lanes.background[i]!;
       const waitTime = now - new Date(instr.enqueuedAt).getTime();
 
       // Promote if waited too long or preempted too many times
@@ -129,10 +129,10 @@ export class InstructionQueue implements InstructionQueueInterface {
 
     // Remove from background (reverse order to preserve indices) and add to normal
     for (let i = toPromote.length - 1; i >= 0; i--) {
-      const idx = toPromote[i];
+      const idx = toPromote[i]!;
       const [instr] = this.lanes.background.splice(idx, 1);
-      instr.priority = "normal";
-      this.lanes.normal.push(instr);
+      instr!.priority = "normal";
+      this.lanes.normal.push(instr!);
     }
   }
 }

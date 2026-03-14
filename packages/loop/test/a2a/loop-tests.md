@@ -44,12 +44,12 @@ aw read test-agent --json > "a2a-artifacts/${TEST_ID}_recv.json"
 
 ### T1.1: Preflight — API key detection
 
-| Field    | Value                                                  |
-| -------- | ------------------------------------------------------ |
+| Field    | Value                                                                            |
+| -------- | -------------------------------------------------------------------------------- |
 | Input    | `aw add test-agent --runtime ai-sdk --model anthropic:claude-haiku-4-5-20251001` |
-| Expected | Agent created, daemon starts successfully; no API key errors          |
-| Timeout  | 5s                                                     |
-| Retry    | No                                                     |
+| Expected | Agent created, daemon starts successfully; no API key errors                     |
+| Timeout  | 5s                                                                               |
+| Retry    | No                                                                               |
 
 ```sh
 aw add test-agent --runtime ai-sdk --model anthropic:claude-haiku-4-5-20251001
@@ -75,12 +75,12 @@ aw rm test-agent 2>/dev/null; aw daemon stop 2>/dev/null
 
 ### T1.2: Simple prompt — text response with marker
 
-| Field    | Value                                          |
-| -------- | ---------------------------------------------- |
+| Field    | Value                                                     |
+| -------- | --------------------------------------------------------- |
 | Input    | `aw send test-agent "Reply with exactly: HELLO_A2A_TEST"` |
-| Expected | `read` output contains string `HELLO_A2A_TEST` |
-| Timeout  | 10s                                            |
-| Retry    | Yes (LLM may not follow instructions exactly)  |
+| Expected | `read` output contains string `HELLO_A2A_TEST`            |
+| Timeout  | 10s                                                       |
+| Retry    | Yes (LLM may not follow instructions exactly)             |
 
 ```sh
 aw rm test-agent 2>/dev/null; aw daemon stop 2>/dev/null
@@ -101,7 +101,7 @@ aw rm test-agent && aw daemon stop
 
 | Field    | Value                                        |
 | -------- | -------------------------------------------- |
-| Input    | `aw send test-agent "Say OK"`                           |
+| Input    | `aw send test-agent "Say OK"`                |
 | Expected | All JSON log entries have valid `type` field |
 | Timeout  | 10s                                          |
 | Retry    | No                                           |
@@ -139,7 +139,7 @@ print('OK: all events valid')
 
 | Field    | Value                                                    |
 | -------- | -------------------------------------------------------- |
-| Input    | `aw send test-agent "Reply: OK"`                                    |
+| Input    | `aw send test-agent "Reply: OK"`                         |
 | Expected | `run_end` log entry has `durationMs` > 0, non-zero usage |
 | Timeout  | 10s                                                      |
 | Retry    | No                                                       |
@@ -164,12 +164,12 @@ aw rm test-agent && aw daemon stop
 
 ### T1.5: Status transitions
 
-| Field    | Value                                          |
-| -------- | ---------------------------------------------- |
-| Input    | `aw send test-agent "Reply: hi"` with `log --follow`      |
-| Expected | Log shows state_change sequence ending in idle |
-| Timeout  | 15s                                            |
-| Retry    | No                                             |
+| Field    | Value                                                |
+| -------- | ---------------------------------------------------- |
+| Input    | `aw send test-agent "Reply: hi"` with `log --follow` |
+| Expected | Log shows state_change sequence ending in idle       |
+| Timeout  | 15s                                                  |
+| Retry    | No                                                   |
 
 ```sh
 aw rm test-agent 2>/dev/null; aw daemon stop 2>/dev/null
@@ -226,7 +226,7 @@ pgrep -f "aw.*daemon" | wc -l    # should be 0
 
 | Field    | Value                     |
 | -------- | ------------------------- |
-| Input    | `aw daemon stop` twice           |
+| Input    | `aw daemon stop` twice    |
 | Expected | Second stop doesn't crash |
 | Timeout  | 5s                        |
 | Retry    | No                        |
@@ -287,12 +287,12 @@ claude --version    # If fails, skip all T2.x tests
 
 ### T2.2: Simple prompt
 
-| Field    | Value                                          |
-| -------- | ---------------------------------------------- |
+| Field    | Value                                                     |
+| -------- | --------------------------------------------------------- |
 | Input    | `aw send test-agent "Reply with exactly: HELLO_A2A_TEST"` |
-| Expected | `read` contains `HELLO_A2A_TEST`               |
-| Timeout  | 20s                                            |
-| Retry    | Yes                                            |
+| Expected | `read` contains `HELLO_A2A_TEST`                          |
+| Timeout  | 20s                                                       |
+| Retry    | Yes                                                       |
 
 ```sh
 aw rm test-agent 2>/dev/null; aw daemon stop 2>/dev/null
@@ -308,7 +308,7 @@ aw rm test-agent && aw daemon stop
 
 | Field    | Value                                          |
 | -------- | ---------------------------------------------- |
-| Input    | `aw send test-agent "Reply with: OK"`                     |
+| Input    | `aw send test-agent "Reply with: OK"`          |
 | Expected | `run_end` has `durationMs` > 0, non-zero usage |
 | Timeout  | 20s                                            |
 | Retry    | No                                             |
@@ -331,12 +331,12 @@ aw rm test-agent && aw daemon stop
 
 ### T2.4: Status transitions
 
-| Field    | Value                                     |
-| -------- | ----------------------------------------- |
+| Field    | Value                                                |
+| -------- | ---------------------------------------------------- |
 | Input    | `aw send test-agent "Reply: hi"` with `log --follow` |
-| Expected | run_start → run_end → idle                |
-| Timeout  | 25s                                       |
-| Retry    | No                                        |
+| Expected | run_start → run_end → idle                           |
+| Timeout  | 25s                                                  |
+| Retry    | No                                                   |
 
 ```sh
 aw rm test-agent 2>/dev/null; aw daemon stop 2>/dev/null
@@ -415,12 +415,12 @@ codex --version    # If fails, skip all T3.x tests
 
 ### T3.2: Simple prompt
 
-| Field    | Value                                          |
-| -------- | ---------------------------------------------- |
+| Field    | Value                                                     |
+| -------- | --------------------------------------------------------- |
 | Input    | `aw send test-agent "Reply with exactly: HELLO_A2A_TEST"` |
-| Expected | `read` contains text response                  |
-| Timeout  | 20s                                            |
-| Retry    | Yes                                            |
+| Expected | `read` contains text response                             |
+| Timeout  | 20s                                                       |
+| Retry    | Yes                                                       |
 
 ```sh
 aw rm test-agent 2>/dev/null; aw daemon stop 2>/dev/null
@@ -436,12 +436,12 @@ aw rm test-agent && aw daemon stop
 
 ### T3.3: Result structure
 
-| Field    | Value                          |
-| -------- | ------------------------------ |
-| Input    | `aw send test-agent "Reply with: OK"`     |
-| Expected | `run_end` has `durationMs` > 0 |
-| Timeout  | 20s                            |
-| Retry    | No                             |
+| Field    | Value                                 |
+| -------- | ------------------------------------- |
+| Input    | `aw send test-agent "Reply with: OK"` |
+| Expected | `run_end` has `durationMs` > 0        |
+| Timeout  | 20s                                   |
+| Retry    | No                                    |
 
 ```sh
 aw rm test-agent 2>/dev/null; aw daemon stop 2>/dev/null
@@ -458,12 +458,12 @@ aw rm test-agent && aw daemon stop
 
 ### T3.4: Status transitions
 
-| Field    | Value                                     |
-| -------- | ----------------------------------------- |
+| Field    | Value                                                |
+| -------- | ---------------------------------------------------- |
 | Input    | `aw send test-agent "Reply: hi"` with `log --follow` |
-| Expected | run_start → run_end sequence              |
-| Timeout  | 25s                                       |
-| Retry    | No                                        |
+| Expected | run_start → run_end sequence                         |
+| Timeout  | 25s                                                  |
+| Retry    | No                                                   |
 
 ```sh
 aw rm test-agent 2>/dev/null; aw daemon stop 2>/dev/null
@@ -517,12 +517,12 @@ cursor --version    # If fails, skip all T4.x tests
 
 ### T4.2: Simple prompt
 
-| Field    | Value                                          |
-| -------- | ---------------------------------------------- |
+| Field    | Value                                                     |
+| -------- | --------------------------------------------------------- |
 | Input    | `aw send test-agent "Reply with exactly: HELLO_A2A_TEST"` |
-| Expected | `read` contains text response                  |
-| Timeout  | 20s                                            |
-| Retry    | Yes                                            |
+| Expected | `read` contains text response                             |
+| Timeout  | 20s                                                       |
+| Retry    | Yes                                                       |
 
 ```sh
 aw rm test-agent 2>/dev/null; aw daemon stop 2>/dev/null
@@ -536,12 +536,12 @@ aw rm test-agent && aw daemon stop
 
 ### T4.3: Result structure
 
-| Field    | Value                          |
-| -------- | ------------------------------ |
-| Input    | `aw send test-agent "Reply with: OK"`     |
-| Expected | `run_end` has `durationMs` > 0 |
-| Timeout  | 20s                            |
-| Retry    | No                             |
+| Field    | Value                                 |
+| -------- | ------------------------------------- |
+| Input    | `aw send test-agent "Reply with: OK"` |
+| Expected | `run_end` has `durationMs` > 0        |
+| Timeout  | 20s                                   |
+| Retry    | No                                    |
 
 ```sh
 aw rm test-agent 2>/dev/null; aw daemon stop 2>/dev/null
@@ -602,12 +602,12 @@ aw rm test-agent && time aw daemon stop
 
 ### T5.1: Preflight
 
-| Field    | Value                                     |
-| -------- | ----------------------------------------- |
+| Field    | Value                                                               |
+| -------- | ------------------------------------------------------------------- |
 | Input    | `aw add test-agent --runtime ai-sdk --model deepseek:deepseek-chat` |
-| Expected | Agent created, daemon starts if DEEPSEEK_API_KEY is set  |
-| Timeout  | 5s                                        |
-| Retry    | No                                        |
+| Expected | Agent created, daemon starts if DEEPSEEK_API_KEY is set             |
+| Timeout  | 5s                                                                  |
+| Retry    | No                                                                  |
 
 ```sh
 echo "DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:+(set)}"
@@ -621,12 +621,12 @@ aw rm test-agent && aw daemon stop
 
 ### T5.2: Inbox → Reply → Ack cycle
 
-| Field    | Value                                                                |
-| -------- | -------------------------------------------------------------------- |
-| Input    | `aw send test-agent "Check your inbox and respond to all pending messages"`     |
-| Expected | Log shows my_inbox → channel_send → my_inbox_ack tool calls in order |
-| Timeout  | 30s                                                                  |
-| Retry    | Yes (LLM may call tools in different order)                          |
+| Field    | Value                                                                       |
+| -------- | --------------------------------------------------------------------------- |
+| Input    | `aw send test-agent "Check your inbox and respond to all pending messages"` |
+| Expected | Log shows my_inbox → channel_send → my_inbox_ack tool calls in order        |
+| Timeout  | 30s                                                                         |
+| Retry    | Yes (LLM may call tools in different order)                                 |
 
 ```sh
 aw rm test-agent 2>/dev/null; aw daemon stop 2>/dev/null
@@ -652,7 +652,7 @@ grep '"tool_call_start"' /tmp/a2a_t52_log.json | grep -o '"name":"[^"]*"'
 
 | Field    | Value                                                |
 | -------- | ---------------------------------------------------- |
-| Input    | `aw send test-agent "Check inbox."`                             |
+| Input    | `aw send test-agent "Check inbox."`                  |
 | Expected | Equal count of `tool_call_start` and `tool_call_end` |
 | Timeout  | 20s                                                  |
 | Retry    | No                                                   |

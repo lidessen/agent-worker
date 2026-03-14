@@ -1,9 +1,8 @@
 import { test, expect, describe, afterEach } from "bun:test";
 import { Daemon } from "../src/daemon.ts";
-import { Agent } from "@agent-worker/agent";
 import type { AgentLoop } from "@agent-worker/agent";
 import type { LoopRun, LoopResult, LoopEvent, LoopStatus } from "@agent-worker/loop";
-import { readDaemonInfo, removeDaemonInfo } from "../src/discovery.ts";
+import { readDaemonInfo } from "../src/discovery.ts";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { mkdirSync } from "node:fs";
@@ -73,7 +72,7 @@ describe("Daemon", () => {
 
     const res = await fetch(`http://${info.host}:${info.port}/health`);
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = (await res.json()) as Record<string, unknown>;
     expect(body.status).toBe("ok");
     expect(body.agents).toBe(0);
     expect(body.workspaces).toBe(1); // global workspace always exists
@@ -118,7 +117,7 @@ describe("Daemon", () => {
       headers: { Authorization: `Bearer ${info.token}` },
     });
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = (await res.json()) as Record<string, unknown>;
     expect(body.agents).toEqual([]);
   });
 
@@ -144,16 +143,16 @@ describe("Daemon", () => {
     const listRes = await fetch(`http://${info.host}:${info.port}/agents`, {
       headers: { Authorization: `Bearer ${info.token}` },
     });
-    const listBody = await listRes.json();
-    expect(listBody.agents).toHaveLength(1);
-    expect(listBody.agents[0].name).toBe("test-agent");
+    const listBody = (await listRes.json()) as Record<string, unknown>;
+    expect((listBody.agents as unknown[]).length).toBe(1);
+    expect((listBody.agents as Record<string, unknown>[])[0]!.name).toBe("test-agent");
 
     // Get agent via HTTP
     const getRes = await fetch(`http://${info.host}:${info.port}/agents/test-agent`, {
       headers: { Authorization: `Bearer ${info.token}` },
     });
     expect(getRes.status).toBe(200);
-    const getBody = await getRes.json();
+    const getBody = (await getRes.json()) as Record<string, unknown>;
     expect(getBody.name).toBe("test-agent");
   });
 
@@ -181,7 +180,7 @@ describe("Daemon", () => {
     });
 
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = (await res.json()) as Record<string, unknown>;
     expect(body.sent).toBe(1);
   });
 
@@ -221,10 +220,10 @@ describe("Daemon", () => {
       headers: { Authorization: `Bearer ${info.token}` },
     });
     expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.entries.length).toBeGreaterThanOrEqual(1);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect((body.entries as unknown[]).length).toBeGreaterThanOrEqual(1);
     // First event should be daemon.started (bus-emitted)
-    const startEvent = body.entries.find((e: any) => e.type === "daemon.started");
+    const startEvent = (body.entries as Record<string, unknown>[]).find((e) => e.type === "daemon.started");
     expect(startEvent).toBeDefined();
   });
 
@@ -245,7 +244,7 @@ describe("Daemon", () => {
     });
 
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = (await res.json()) as Record<string, unknown>;
     expect(body.sent).toBe(1);
   });
 
@@ -256,7 +255,12 @@ describe("Daemon", () => {
 
     await daemon.agentRegistry.create({
       name: "dave",
-      config: { name: "dave", instructions: "You are Dave.", loop: createMockLoop("Dave here"), inbox: { debounceMs: 0 } },
+      config: {
+        name: "dave",
+        instructions: "You are Dave.",
+        loop: createMockLoop("Dave here"),
+        inbox: { debounceMs: 0 },
+      },
     });
 
     // Send a message and wait for processing
@@ -274,9 +278,11 @@ describe("Daemon", () => {
       headers: { Authorization: `Bearer ${info.token}` },
     });
     expect(respRes.status).toBe(200);
-    const respBody = await respRes.json();
-    expect(respBody.entries.length).toBeGreaterThan(0);
-    expect(respBody.entries.some((e: any) => e.type === "text" && e.text === "Dave here")).toBe(true);
+    const respBody = (await respRes.json()) as Record<string, unknown>;
+    expect((respBody.entries as unknown[]).length).toBeGreaterThan(0);
+    expect((respBody.entries as Record<string, unknown>[]).some((e) => e.type === "text" && e.text === "Dave here")).toBe(
+      true,
+    );
     expect(respBody.cursor).toBeGreaterThan(0);
 
     // Read events
@@ -284,19 +290,22 @@ describe("Daemon", () => {
       headers: { Authorization: `Bearer ${info.token}` },
     });
     expect(evtRes.status).toBe(200);
-    const evtBody = await evtRes.json();
-    expect(evtBody.entries.length).toBeGreaterThan(0);
+    const evtBody = (await evtRes.json()) as Record<string, unknown>;
+    expect((evtBody.entries as unknown[]).length).toBeGreaterThan(0);
     // Should have state_change, message_received, run_start, run_end events
-    const types = evtBody.entries.map((e: any) => e.type);
+    const types = (evtBody.entries as Record<string, unknown>[]).map((e) => e.type);
     expect(types).toContain("message_received");
     expect(types).toContain("run_start");
     expect(types).toContain("run_end");
 
     // Incremental read with cursor should return empty
-    const incRes = await fetch(`http://${info.host}:${info.port}/agents/dave/responses?cursor=${respBody.cursor}`, {
-      headers: { Authorization: `Bearer ${info.token}` },
-    });
-    const incBody = await incRes.json();
+    const incRes = await fetch(
+      `http://${info.host}:${info.port}/agents/dave/responses?cursor=${respBody.cursor}`,
+      {
+        headers: { Authorization: `Bearer ${info.token}` },
+      },
+    );
+    const incBody = (await incRes.json()) as Record<string, unknown>;
     expect(incBody.entries).toEqual([]);
   });
 
@@ -314,7 +323,7 @@ describe("Daemon", () => {
       headers: { Authorization: `Bearer ${info.token}` },
     });
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = (await res.json()) as Record<string, unknown>;
     expect(body.state).toBeDefined();
     expect(Array.isArray(body.inbox)).toBe(true);
     expect(Array.isArray(body.todos)).toBe(true);
@@ -331,7 +340,7 @@ describe("Daemon", () => {
       headers: { Authorization: `Bearer ${info.token}` },
     });
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = (await res.json()) as Record<string, unknown>;
     expect(body.shutting_down).toBe(true);
 
     // Give time for shutdown to complete

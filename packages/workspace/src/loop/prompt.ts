@@ -1,4 +1,4 @@
-import type { ContextProvider, InboxEntry, StatusStoreInterface } from "../types.ts";
+import type { ContextProvider, InboxEntry } from "../types.ts";
 
 export type PromptSection = (ctx: PromptContext) => Promise<string | null>;
 

@@ -4,7 +4,9 @@ import type { RuntimeConfig, RuntimeType } from "../../types.ts";
 export async function add(args: string[]): Promise<void> {
   const name = args[0];
   if (!name) {
-    console.error("Usage: aw add <name> --runtime <type> [--model <id>] [--instructions <text>] [--cwd <path>]");
+    console.error(
+      "Usage: aw add <name> --runtime <type> [--model <id>] [--instructions <text>] [--cwd <path>]",
+    );
     process.exit(1);
   }
 

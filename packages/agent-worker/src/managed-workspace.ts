@@ -123,7 +123,9 @@ export class ManagedWorkspace {
     };
     try {
       writeFileSync(this._statusPath, JSON.stringify(data, null, 2) + "\n");
-    } catch { /* best effort */ }
+    } catch {
+      /* best effort */
+    }
   }
 
   /** Mark this workspace as completed or failed. */

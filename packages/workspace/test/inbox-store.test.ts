@@ -29,8 +29,8 @@ describe("InboxStore", () => {
 
     const entries = await store.peek("alice");
     expect(entries).toHaveLength(2);
-    expect(entries[0].messageId).toBe("msg1");
-    expect(entries[1].messageId).toBe("msg2");
+    expect(entries[0]!.messageId).toBe("msg1");
+    expect(entries[1]!.messageId).toBe("msg2");
   });
 
   test("no duplicate delivery (invariant #7)", async () => {
@@ -65,7 +65,7 @@ describe("InboxStore", () => {
 
     const entries = await store.peek("alice");
     expect(entries).toHaveLength(1);
-    expect(entries[0].state).toBe("pending");
+    expect(entries[0]!.state).toBe("pending");
   });
 
   test("markSeen transitions pending to seen", async () => {
@@ -100,8 +100,8 @@ describe("InboxStore", () => {
     const bobEntries = await store.peek("bob");
 
     expect(aliceEntries).toHaveLength(1);
-    expect(aliceEntries[0].messageId).toBe("msg1");
+    expect(aliceEntries[0]!.messageId).toBe("msg1");
     expect(bobEntries).toHaveLength(1);
-    expect(bobEntries[0].messageId).toBe("msg2");
+    expect(bobEntries[0]!.messageId).toBe("msg2");
   });
 });
