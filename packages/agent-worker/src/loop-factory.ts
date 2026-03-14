@@ -56,6 +56,24 @@ async function createAiSdkLoop(config: RuntimeConfig): Promise<AgentLoop> {
       languageModel = deepseek(modelId);
       break;
     }
+    case "kimi-code": {
+      const { createAnthropic } = await import("@ai-sdk/anthropic");
+      const kimi = createAnthropic({
+        baseURL: "https://api.kimi.com/coding/",
+        apiKey: process.env.KIMI_CODE_API_KEY,
+      });
+      languageModel = kimi(modelId);
+      break;
+    }
+    case "minimax": {
+      const { createMinimax } = await import("vercel-minimax-ai-provider");
+      const baseURL = process.env.MINIMAX_BASE_URL
+        ? `${process.env.MINIMAX_BASE_URL}/anthropic/v1`
+        : "https://api.minimax.io/anthropic/v1";
+      const minimax = createMinimax({ baseURL });
+      languageModel = minimax(modelId);
+      break;
+    }
     case "ai-gateway": {
       const { gateway } = await import("ai");
       languageModel = gateway(modelId);

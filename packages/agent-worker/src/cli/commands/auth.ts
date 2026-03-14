@@ -39,6 +39,16 @@ const PROVIDERS: Record<string, ProviderInfo> = {
     label: "DeepSeek",
     hint: "platform.deepseek.com",
   },
+  "kimi-code": {
+    envVar: "KIMI_CODE_API_KEY",
+    label: "Kimi Code",
+    hint: "kimi.com/code",
+  },
+  minimax: {
+    envVar: "MINIMAX_API_KEY",
+    label: "MiniMax",
+    hint: "platform.minimax.chat",
+  },
   "ai-gateway": {
     envVar: "AI_GATEWAY_API_KEY",
     label: "Vercel AI Gateway",
@@ -67,6 +77,8 @@ Commands:
   openai       Save OpenAI API key
   google       Save Google API key
   deepseek     Save DeepSeek API key
+  kimi-code    Save Kimi Code API key
+  minimax      Save MiniMax API key
   ai-gateway   Save Vercel AI Gateway API key
   status       Show which providers are authenticated
   rm <name>    Remove a saved API key
