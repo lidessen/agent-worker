@@ -45,6 +45,8 @@
         "@agent-worker/loop": "workspace:*",
         "@agent-worker/shared": "workspace:*",
         "@agent-worker/workspace": "workspace:*",
+        "@ai-sdk/anthropic": "^3.0.58",
+        "@ai-sdk/openai": "^3.0.41",
       },
     },
     "packages/loop": {

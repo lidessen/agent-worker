@@ -20,7 +20,7 @@ export async function state(args: string[]): Promise<void> {
 
     // Workspace inbox peek: aw state alice@review
     if (target.agent && target.workspace) {
-      const wsKey = target.tag ? `${target.workspace}:${target.tag}` : target.workspace;
+      const wsKey = target.workspace;
       const entries = await client.peekInbox(wsKey, target.agent);
       console.log(`Inbox for ${target.agent} in @${wsKey} (${entries.length}):`);
       for (const e of entries) {

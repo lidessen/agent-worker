@@ -13,7 +13,6 @@ import {
   createWiredLoop,
   createAgentTools,
   MemoryStorage,
-  nanoid,
 } from "../../src/index.ts";
 import type { Instruction } from "../../src/types.ts";
 
@@ -41,7 +40,7 @@ async function createDeepSeekHandler(agentName: string, ws: any) {
   const { generateText } = await import("ai");
 
   const model = deepseek("deepseek-chat");
-  const { tools } = createAgentTools(agentName, ws);
+  const { tools: _tools } = createAgentTools(agentName, ws);
 
   return async function onInstruction(prompt: string, instruction: Instruction) {
     console.log(
@@ -53,7 +52,7 @@ async function createDeepSeekHandler(agentName: string, ws: any) {
         model,
         system: prompt,
         prompt: instruction.content,
-        maxTokens: 500,
+        maxOutputTokens: 500,
       });
 
       console.log(`${c.cyan}[${agentName}]${c.reset} Response: ${result.text.slice(0, 120)}`);
@@ -86,7 +85,7 @@ async function testPreflight(): Promise<void> {
   const result = await generateText({
     model: deepseek("deepseek-chat"),
     prompt: "Reply with exactly: DEEPSEEK_OK",
-    maxTokens: 50,
+    maxOutputTokens: 50,
   });
 
   console.log(`  Response: ${result.text}`);
@@ -173,7 +172,7 @@ async function testTwoAgentCollaboration(): Promise<void> {
         model: deepseek("deepseek-chat"),
         system: prompt,
         prompt: instruction.content,
-        maxTokens: 200,
+        maxOutputTokens: 200,
       });
 
       console.log(`${c.magenta}[planner]${c.reset} ${result.text.slice(0, 120)}`);
@@ -199,7 +198,7 @@ async function testTwoAgentCollaboration(): Promise<void> {
         model: deepseek("deepseek-chat"),
         system: prompt,
         prompt: instruction.content,
-        maxTokens: 100,
+        maxOutputTokens: 100,
       });
 
       console.log(`${c.cyan}[executor]${c.reset} ${result.text.slice(0, 120)}`);
@@ -260,7 +259,7 @@ async function testToolUsageViaWorkspace(): Promise<void> {
 
   // Use tools directly (simulating what an agent loop would do)
   // 1. Create a team document
-  const docResult = await tools.team_doc_create({
+  const docResult = await tools.team_doc_create!({
     name: "review-notes.md",
     content: "# Code Review Notes\n\n- Issue #1: Missing error handling",
   });
@@ -268,31 +267,31 @@ async function testToolUsageViaWorkspace(): Promise<void> {
   assert(docResult.includes("Created") || docResult.includes("created"), "doc created");
 
   // 2. Read it back
-  const readResult = await tools.team_doc_read({ name: "review-notes.md" });
+  const readResult = await tools.team_doc_read!({ name: "review-notes.md" });
   console.log(`  doc read: ${readResult.slice(0, 80)}`);
   assert(readResult.includes("Code Review"), "doc content correct");
 
   // 3. Create a resource (large content)
   const largeContent = "Detailed analysis:\n" + "Line-by-line review...\n".repeat(50);
-  const resResult = await tools.resource_create({ content: largeContent });
+  const resResult = await tools.resource_create!({ content: largeContent });
   console.log(`  resource create: ${resResult.slice(0, 80)}`);
 
   // Extract resource ID
   const resId = resResult.match(/res_[a-zA-Z0-9_-]+/)?.[0];
-  assert(resId, "resource ID in result");
+  assert(!!resId, "resource ID in result");
 
   // 4. Read resource back
-  const resRead = await tools.resource_read({ id: resId! });
+  const resRead = await tools.resource_read!({ id: resId! });
   console.log(`  resource read: ${resRead.slice(0, 80)}...`);
   assert(resRead.includes("Detailed analysis"), "resource content correct");
 
   // 5. List team members
-  const members = await tools.team_members();
+  const members = await tools.team_members!({});
   console.log(`  team members: ${members}`);
   assert(members.includes("writer"), "writer in team");
 
   // 6. List documents
-  const docList = await tools.team_doc_list();
+  const docList = await tools.team_doc_list!({});
   console.log(`  doc list: ${docList}`);
   assert(docList.includes("review-notes.md"), "doc in list");
 
@@ -329,7 +328,7 @@ async function testDeepSeekWithInboxCycle(): Promise<void> {
         model: deepseek("deepseek-chat"),
         system: prompt,
         prompt: instruction.content,
-        maxTokens: 100,
+        maxOutputTokens: 100,
       });
 
       await ws.contextProvider.smartSend("general", "responder", result.text.slice(0, 200));

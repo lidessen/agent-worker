@@ -45,7 +45,7 @@ describe("Prompt assembly", () => {
       storage: new MemoryStorage(),
     });
 
-    const msg = await workspace.contextProvider.smartSend(
+    await workspace.contextProvider.smartSend(
       "general",
       "alice",
       "Hey @bob review this",

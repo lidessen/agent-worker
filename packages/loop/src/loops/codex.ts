@@ -120,8 +120,7 @@ function buildMcpOverrides(configPath: string): string[] {
     flags.push("-c", `mcp_servers.${key}.type="stdio"`);
     flags.push("-c", `mcp_servers.${key}.command="${escapeToml(server.command)}"`);
     if (server.args?.length) {
-      const tomlArray =
-        "[" + server.args.map((a) => `"${escapeToml(a)}"`).join(", ") + "]";
+      const tomlArray = "[" + server.args.map((a) => `"${escapeToml(a)}"`).join(", ") + "]";
       flags.push("-c", `mcp_servers.${key}.args=${tomlArray}`);
     }
   }

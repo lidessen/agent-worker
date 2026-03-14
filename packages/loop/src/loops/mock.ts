@@ -40,13 +40,13 @@ export class MockLoop {
       return loopResult;
     })();
 
-    const self = this;
+    const iter = async function* (statusSetter: () => void) {
+      if (delayMs > 0) await new Promise((r) => setTimeout(r, delayMs));
+      yield textEvent;
+      statusSetter();
+    };
     return {
-      async *[Symbol.asyncIterator]() {
-        if (delayMs > 0) await new Promise((r) => setTimeout(r, delayMs));
-        yield textEvent;
-        self._status = "completed";
-      },
+      [Symbol.asyncIterator]: () => iter(() => { this._status = "completed"; }),
       result: resultPromise,
     };
   }

@@ -4,7 +4,9 @@ import { AwClient } from "../../client.ts";
 export async function run(args: string[]): Promise<void> {
   const source = args[0];
   if (!source) {
-    console.error("Usage: aw run <config.yaml> [--tag <tag>] [--var KEY=VALUE] [--wait <duration>]");
+    console.error(
+      "Usage: aw run <config.yaml> [--tag <tag>] [--var KEY=VALUE] [--wait <duration>]",
+    );
     process.exit(1);
   }
 

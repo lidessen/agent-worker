@@ -110,7 +110,7 @@ export class AwClient {
       headers: { ...this.headers(), ...opts?.headers },
     });
 
-    const body = await res.json() as any;
+    const body = (await res.json()) as any;
     if (!res.ok) {
       throw new Error(body.error ?? `HTTP ${res.status}`);
     }
@@ -123,7 +123,7 @@ export class AwClient {
     });
 
     if (!res.ok) {
-      const body = await res.json() as any;
+      const body = (await res.json()) as any;
       throw new Error(body.error ?? `HTTP ${res.status}`);
     }
 
@@ -147,7 +147,9 @@ export class AwClient {
                 if (line.startsWith("data: ")) {
                   try {
                     return { value: JSON.parse(line.slice(6)) as T, done: false };
-                  } catch { /* skip malformed */ }
+                  } catch {
+                    /* skip malformed */
+                  }
                 }
               }
             }
@@ -232,10 +234,7 @@ export class AwClient {
     return this.sseStream(`/agents/${encodeURIComponent(name)}/responses/stream${q}`);
   }
 
-  async readAgentEvents(
-    name: string,
-    cursor?: number,
-  ): Promise<CursorResult<DaemonEvent>> {
+  async readAgentEvents(name: string, cursor?: number): Promise<CursorResult<DaemonEvent>> {
     const q = cursor !== undefined ? `?cursor=${cursor}` : "";
     return this.request(`/agents/${encodeURIComponent(name)}/events${q}`);
   }
@@ -266,7 +265,10 @@ export class AwClient {
     });
   }
 
-  async waitWorkspace(key: string, timeout?: string): Promise<{ status: string; result?: Record<string, unknown> }> {
+  async waitWorkspace(
+    key: string,
+    timeout?: string,
+  ): Promise<{ status: string; result?: Record<string, unknown> }> {
     const q = timeout ? `?timeout=${timeout}` : "";
     return this.request(`/workspaces/${encodeURIComponent(key)}/wait${q}`);
   }
@@ -335,10 +337,7 @@ export class AwClient {
     );
   }
 
-  async readWorkspaceEvents(
-    key: string,
-    cursor?: number,
-  ): Promise<CursorResult<DaemonEvent>> {
+  async readWorkspaceEvents(key: string, cursor?: number): Promise<CursorResult<DaemonEvent>> {
     const q = cursor !== undefined ? `?cursor=${cursor}` : "";
     return this.request(`/workspaces/${encodeURIComponent(key)}/events${q}`);
   }

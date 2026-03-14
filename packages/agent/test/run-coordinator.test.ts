@@ -11,7 +11,11 @@ import type { LoopRun, LoopResult, LoopEvent, LoopStatus } from "@agent-worker/l
 function createMockLoop(
   response = "OK",
 ): AgentLoop & { lastInput: string | { system: string; prompt: string } | null; runCount: number } {
-  const mock: AgentLoop & { lastInput: string | { system: string; prompt: string } | null; runCount: number; _status: LoopStatus } = {
+  const mock: AgentLoop & {
+    lastInput: string | { system: string; prompt: string } | null;
+    runCount: number;
+    _status: LoopStatus;
+  } = {
     supports: ["directTools"],
     lastInput: null,
     runCount: 0,
@@ -259,6 +263,7 @@ describe("RunCoordinator", () => {
       run() {
         return {
           async *[Symbol.asyncIterator]() {
+            yield undefined as never;
             throw err;
           },
           result: resultPromise,

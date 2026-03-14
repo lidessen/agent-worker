@@ -42,8 +42,8 @@ export class EventBus {
   private listeners = new Set<(event: BusEvent) => void>();
 
   /** Emit an event to all listeners. Partial — `ts` is auto-filled if missing. */
-  emit(event: Omit<BusEvent, "ts"> & { ts?: number }): void {
-    const full: BusEvent = { ts: Date.now(), level: "info", ...event };
+  emit(event: BusEvent | (Omit<BusEvent, "ts"> & { ts?: number })): void {
+    const full = { ts: Date.now(), level: "info" as EventLevel, ...event } as BusEvent;
     for (const fn of this.listeners) {
       try {
         fn(full);

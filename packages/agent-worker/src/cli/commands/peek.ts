@@ -22,7 +22,10 @@ export async function peek(args: string[]): Promise<void> {
 
     if (target.agent && !target.channel) {
       // Agent responses (optionally scoped to workspace)
-      const result = await client.readResponses(target.agent, { cursor: 0, workspace: target.workspace });
+      const result = await client.readResponses(target.agent, {
+        cursor: 0,
+        workspace: target.workspace,
+      });
       for (const entry of result.entries) {
         if ((entry as any).text) {
           console.log((entry as any).text);

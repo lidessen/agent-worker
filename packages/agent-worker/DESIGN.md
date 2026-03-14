@@ -32,16 +32,16 @@ All commands that operate on a target use the same addressing scheme:
 
 At least one part is required.
 
-| Input | Agent | Workspace (key) | Channel |
-|-------|-------|-----------------|---------|
-| `alice` | alice | global (implicit) | — |
-| `alice@review` | alice | review | (default) |
-| `alice@review:pr-42` | alice | review:pr-42 | (default) |
-| `@review` | — | review | (default) |
-| `@review:pr-42` | — | review:pr-42 | (default) |
-| `@review#design` | — | review | design |
-| `@review:pr-42#design` | — | review:pr-42 | design |
-| `alice@review#design` | alice | review | design |
+| Input                  | Agent | Workspace (key)   | Channel   |
+| ---------------------- | ----- | ----------------- | --------- |
+| `alice`                | alice | global (implicit) | —         |
+| `alice@review`         | alice | review            | (default) |
+| `alice@review:pr-42`   | alice | review:pr-42      | (default) |
+| `@review`              | —     | review            | (default) |
+| `@review:pr-42`        | —     | review:pr-42      | (default) |
+| `@review#design`       | —     | review            | design    |
+| `@review:pr-42#design` | —     | review:pr-42      | design    |
+| `alice@review#design`  | alice | review            | design    |
 
 ### Workspace key
 
@@ -65,7 +65,7 @@ If a bare `@review` is used when multiple tagged instances exist, the daemon ret
 ```typescript
 interface Target {
   agent?: string;
-  workspace?: string;   // "review" or "review:pr-42"
+  workspace?: string; // "review" or "review:pr-42"
   channel?: string;
 }
 
@@ -103,10 +103,10 @@ The global workspace is addressable as `@global` in target syntax. When `@worksp
 └─────────────────────────────────────────────┘
 ```
 
-| Scope | Create agents | Reference global agents |
-|-------|:------------:|:----------------------:|
-| Global workspace | yes (`aw add`) | — |
-| Declarative workspace | no (YAML-defined only) | yes |
+| Scope                 |     Create agents      | Reference global agents |
+| --------------------- | :--------------------: | :---------------------: |
+| Global workspace      |     yes (`aw add`)     |            —            |
+| Declarative workspace | no (YAML-defined only) |           yes           |
 
 When a bare agent name is used (e.g. `alice`), it resolves to the global workspace. When qualified with `@workspace` (e.g. `alice@review`), it resolves within that workspace.
 
@@ -167,27 +167,27 @@ All daemon state lives under a single data directory (`~/.agent-worker/` by defa
 
 All per-agent data lives under `agents/<name>/` — whether at root level (global) or under a workspace. The `sandbox/` subdirectory is the agent's working directory for bash and file operations. Each workspace also has a top-level `sandbox/` for shared collaborative files visible to all agents — agents never get direct access to the workspace root.
 
-| Stream | Content | Written by |
-|--------|---------|-----------|
-| **Global scope** | | |
-| `agents/<name>/responses.jsonl` | text output, send events | ManagedAgent |
-| `agents/<name>/events.jsonl` | state_change, run_start, run_end, tool_call_*, thinking, error | ManagedAgent |
-| `agents/<name>/inbox.jsonl` | inbox entries | Workspace inbox store |
-| `agents/<name>/timeline.jsonl` | timeline events | Workspace timeline store |
-| `agents/<name>/sandbox/` | agent working directory (bash cwd, file ops) | Agent runtime |
-| `channels/<ch>.jsonl` | global workspace channel messages | Workspace channel store |
-| `status.json` | all agents' current status (per-workspace) | Workspace status store |
-| **Per-workspace scope** | | |
-| `workspaces/<key>/sandbox/` | shared workspace sandbox (collaborative files) | Agent runtime |
-| `workspaces/<key>/agents/<name>/responses.jsonl` | text output, send events | ManagedAgent |
-| `workspaces/<key>/agents/<name>/events.jsonl` | state_change, run_start, run_end, tool_call_*, thinking, error | ManagedAgent |
-| `workspaces/<key>/agents/<name>/inbox.jsonl` | inbox entries | Workspace inbox store |
-| `workspaces/<key>/agents/<name>/timeline.jsonl` | timeline events | Workspace timeline store |
-| `workspaces/<key>/agents/<name>/sandbox/` | agent working directory (bash cwd, file ops) | Agent runtime |
-| `workspaces/<key>/channels/<ch>.jsonl` | channel messages | Workspace channel store |
-| `workspaces/<key>/status.json` | all agents' current status (per-workspace) | Workspace status store |
-| **Daemon-wide** | | |
-| `events.jsonl` | all events (for daemon-level `/events`) | EventBus subscriber |
+| Stream                                           | Content                                                         | Written by               |
+| ------------------------------------------------ | --------------------------------------------------------------- | ------------------------ |
+| **Global scope**                                 |                                                                 |                          |
+| `agents/<name>/responses.jsonl`                  | text output, send events                                        | ManagedAgent             |
+| `agents/<name>/events.jsonl`                     | state*change, run_start, run_end, tool_call*\*, thinking, error | ManagedAgent             |
+| `agents/<name>/inbox.jsonl`                      | inbox entries                                                   | Workspace inbox store    |
+| `agents/<name>/timeline.jsonl`                   | timeline events                                                 | Workspace timeline store |
+| `agents/<name>/sandbox/`                         | agent working directory (bash cwd, file ops)                    | Agent runtime            |
+| `channels/<ch>.jsonl`                            | global workspace channel messages                               | Workspace channel store  |
+| `status.json`                                    | all agents' current status (per-workspace)                      | Workspace status store   |
+| **Per-workspace scope**                          |                                                                 |                          |
+| `workspaces/<key>/sandbox/`                      | shared workspace sandbox (collaborative files)                  | Agent runtime            |
+| `workspaces/<key>/agents/<name>/responses.jsonl` | text output, send events                                        | ManagedAgent             |
+| `workspaces/<key>/agents/<name>/events.jsonl`    | state*change, run_start, run_end, tool_call*\*, thinking, error | ManagedAgent             |
+| `workspaces/<key>/agents/<name>/inbox.jsonl`     | inbox entries                                                   | Workspace inbox store    |
+| `workspaces/<key>/agents/<name>/timeline.jsonl`  | timeline events                                                 | Workspace timeline store |
+| `workspaces/<key>/agents/<name>/sandbox/`        | agent working directory (bash cwd, file ops)                    | Agent runtime            |
+| `workspaces/<key>/channels/<ch>.jsonl`           | channel messages                                                | Workspace channel store  |
+| `workspaces/<key>/status.json`                   | all agents' current status (per-workspace)                      | Workspace status store   |
+| **Daemon-wide**                                  |                                                                 |                          |
+| `events.jsonl`                                   | all events (for daemon-level `/events`)                         | EventBus subscriber      |
 
 All files are append-only JSONL. Cursor = byte offset. Survives daemon restart (files persist, daemon re-reads on startup).
 
@@ -197,13 +197,13 @@ When a workspace YAML explicitly specifies `storage_dir`, that path is used inst
 
 Each cursor-based endpoint has a corresponding SSE stream endpoint for real-time push:
 
-| Polling (cursor) | SSE (stream) |
-|-------------------|-------------|
-| `GET /agents/:name/responses?cursor=N` | `GET /agents/:name/responses/stream` |
-| `GET /agents/:name/events?cursor=N` | `GET /agents/:name/events/stream` |
+| Polling (cursor)                             | SSE (stream)                               |
+| -------------------------------------------- | ------------------------------------------ |
+| `GET /agents/:name/responses?cursor=N`       | `GET /agents/:name/responses/stream`       |
+| `GET /agents/:name/events?cursor=N`          | `GET /agents/:name/events/stream`          |
 | `GET /workspaces/:key/channels/:ch?cursor=N` | `GET /workspaces/:key/channels/:ch/stream` |
-| `GET /workspaces/:key/events?cursor=N` | `GET /workspaces/:key/events/stream` |
-| `GET /events?cursor=N` | `GET /events/stream` |
+| `GET /workspaces/:key/events?cursor=N`       | `GET /workspaces/:key/events/stream`       |
+| `GET /events?cursor=N`                       | `GET /events/stream`                       |
 
 SSE endpoints return `text/event-stream`. Each event is a JSON-encoded line:
 
@@ -221,13 +221,13 @@ Clients can pass `?cursor=N` to replay from a byte offset before switching to li
 
 Different loop backends need different configuration beyond just `model`:
 
-| Runtime | Needs |
-|---------|-------|
-| ai-sdk | provider + model ID, optional API key override |
+| Runtime     | Needs                                                |
+| ----------- | ---------------------------------------------------- |
+| ai-sdk      | provider + model ID, optional API key override       |
 | claude-code | `claude` binary path, model name (sonnet/opus/haiku) |
-| codex | `codex` binary path, model name |
-| cursor | `cursor` binary path, model name |
-| mock | delay, response text (for testing) |
+| codex       | `codex` binary path, model name                      |
+| cursor      | `cursor` binary path, model name                     |
+| mock        | delay, response text (for testing)                   |
 
 CLI runtimes also need execution context: `cwd`, `env` overrides, runner kind (host/sandbox).
 
@@ -361,12 +361,12 @@ aw read <target> [N]          # Read N messages from a stream (default: 1)
 
 `read` consumes N messages from a shared SSE connection, prints each as it arrives, then returns. The target determines which stream:
 
-| Target | Stream |
-|--------|--------|
-| `alice` | All of alice's responses (`/agents/alice/responses/stream`) |
-| `alice@review` | Alice's responses scoped to @review (`/agents/alice/responses/stream?workspace=review`) |
-| `@review` | Default channel (`/workspaces/review/channels/<default>/stream`) |
-| `@review#design` | Named channel (`/workspaces/review/channels/design/stream`) |
+| Target           | Stream                                                                                  |
+| ---------------- | --------------------------------------------------------------------------------------- |
+| `alice`          | All of alice's responses (`/agents/alice/responses/stream`)                             |
+| `alice@review`   | Alice's responses scoped to @review (`/agents/alice/responses/stream?workspace=review`) |
+| `@review`        | Default channel (`/workspaces/review/channels/<default>/stream`)                        |
+| `@review#design` | Named channel (`/workspaces/review/channels/design/stream`)                             |
 
 `--wait` caps the total wait time across all N messages.
 
@@ -384,12 +384,12 @@ aw log [<target>] [options]   # Event log (filtered by target if given)
 
 `peek` is CLI sugar — it reads history from cursor=0 on existing endpoints:
 
-| Target | API call |
-|--------|----------|
-| `alice` | `GET /agents/alice/responses?cursor=0` |
-| `alice@review` | `GET /agents/alice/responses?cursor=0&workspace=review` |
-| `@review` | `GET /workspaces/review/channels/<default>?cursor=0` |
-| `@review#design` | `GET /workspaces/review/channels/design?cursor=0` |
+| Target                | API call                                                      |
+| --------------------- | ------------------------------------------------------------- |
+| `alice`               | `GET /agents/alice/responses?cursor=0`                        |
+| `alice@review`        | `GET /agents/alice/responses?cursor=0&workspace=review`       |
+| `@review`             | `GET /workspaces/review/channels/<default>?cursor=0`          |
+| `@review#design`      | `GET /workspaces/review/channels/design?cursor=0`             |
 | `alice@review#design` | `GET /workspaces/review/channels/design?cursor=0&agent=alice` |
 
 ### Shared documents (workspace)
@@ -517,25 +517,51 @@ export class AwClient {
   createAgent(name: string, runtime: RuntimeConfig): Promise<ManagedAgentInfo>;
   getAgent(name: string): Promise<ManagedAgentInfo>;
   removeAgent(name: string): Promise<void>;
-  sendToAgent(name: string, messages: Array<{ content: string; from?: string; delayMs?: number }>): Promise<SendResult>;
-  readResponses(name: string, opts?: { cursor?: number; workspace?: string }): Promise<CursorResult<DaemonEvent>>;
+  sendToAgent(
+    name: string,
+    messages: Array<{ content: string; from?: string; delayMs?: number }>,
+  ): Promise<SendResult>;
+  readResponses(
+    name: string,
+    opts?: { cursor?: number; workspace?: string },
+  ): Promise<CursorResult<DaemonEvent>>;
   readAgentEvents(name: string, cursor?: number): Promise<CursorResult<DaemonEvent>>;
   getAgentState(name: string): Promise<AgentStateResult>;
-  streamResponses(name: string, opts?: { cursor?: number; workspace?: string }): Promise<AsyncIterable<DaemonEvent>>;
+  streamResponses(
+    name: string,
+    opts?: { cursor?: number; workspace?: string },
+  ): Promise<AsyncIterable<DaemonEvent>>;
   streamAgentEvents(name: string, cursor?: number): Promise<AsyncIterable<DaemonEvent>>;
 
   // Workspaces
   listWorkspaces(): Promise<ManagedWorkspaceInfo[]>;
-  createWorkspace(source: string, opts?: { tag?: string; vars?: Record<string, string>; mode?: "service" | "task" }): Promise<ManagedWorkspaceInfo>;
-  waitWorkspace(key: string, timeout?: string): Promise<{ status: string; result?: Record<string, unknown> }>;
+  createWorkspace(
+    source: string,
+    opts?: { tag?: string; vars?: Record<string, string>; mode?: "service" | "task" },
+  ): Promise<ManagedWorkspaceInfo>;
+  waitWorkspace(
+    key: string,
+    timeout?: string,
+  ): Promise<{ status: string; result?: Record<string, unknown> }>;
   getWorkspace(key: string): Promise<ManagedWorkspaceInfo>;
   getWorkspaceStatus(key: string): Promise<Record<string, unknown>>;
   listChannels(key: string): Promise<string[]>;
   peekInbox(key: string, agent: string): Promise<any[]>;
   stopWorkspace(key: string): Promise<void>;
-  sendToWorkspace(key: string, opts: { content: string; from?: string; agent?: string; channel?: string }): Promise<SendResult>;
-  readChannel(key: string, channel: string, opts?: { limit?: number; since?: string; agent?: string }): Promise<{ channel: string; messages: ChannelMessage[] }>;
-  streamChannel(key: string, channel: string, opts?: { agent?: string }): Promise<AsyncIterable<DaemonEvent>>;
+  sendToWorkspace(
+    key: string,
+    opts: { content: string; from?: string; agent?: string; channel?: string },
+  ): Promise<SendResult>;
+  readChannel(
+    key: string,
+    channel: string,
+    opts?: { limit?: number; since?: string; agent?: string },
+  ): Promise<{ channel: string; messages: ChannelMessage[] }>;
+  streamChannel(
+    key: string,
+    channel: string,
+    opts?: { agent?: string },
+  ): Promise<AsyncIterable<DaemonEvent>>;
   readWorkspaceEvents(key: string, cursor?: number): Promise<CursorResult<DaemonEvent>>;
   streamWorkspaceEvents(key: string, cursor?: number): Promise<AsyncIterable<DaemonEvent>>;
 
@@ -589,22 +615,26 @@ packages/agent-worker/src/
 ## Migration Plan
 
 ### Phase 1: Foundation
+
 1. `parseTarget()` in `cli/target.ts`
 2. Per-agent/workspace storage directories and JSONL writers
 3. `RuntimeConfig` type and loop factory (expand existing `workspace-registry.ts` pattern)
 4. Expand daemon API routes
 
 ### Phase 2: Client + CLI
+
 5. `AwClient` in `client.ts`
 6. CLI commands as AwClient consumers under `cli/commands/`
 7. Wire up `cli/index.ts`, update `package.json` bin
 
 ### Phase 3: Consolidate
+
 8. Merge `agent/src/cli/daemon.ts` (AwDaemon) capabilities into daemon
 9. Merge `workspace/src/cli/daemon.ts` (WsDaemon) capabilities into daemon
 10. Delete old CLIs (`agent/src/cli/`, `workspace/src/cli/`)
 11. Update a2a-test skill to use new `aw` commands
 
 ### Phase 4: Other Interfaces
+
 12. Web UI using AwClient
 13. MCP server using AwClient

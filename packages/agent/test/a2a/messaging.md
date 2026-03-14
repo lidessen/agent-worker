@@ -51,7 +51,7 @@ aw state test-agent > "a2a-artifacts/${TEST_ID}_state.txt"
 
 | Field    | Value                                                                                              |
 | -------- | -------------------------------------------------------------------------------------------------- |
-| Input    | `aw send test-agent "hello world"`                                                                            |
+| Input    | `aw send test-agent "hello world"`                                                                 |
 | Expected | `read` contains at least one text block; `state` shows `idle` + inbox with 1 message (status=read) |
 | Timeout  | 10s (mock: 2s)                                                                                     |
 | Retry    | Yes (network flake)                                                                                |
@@ -74,7 +74,7 @@ aw state test-agent
 
 | Field    | Value                                                             |
 | -------- | ----------------------------------------------------------------- |
-| Input    | `aw send test-agent "msg 1" "msg 2" "msg 3"`                                 |
+| Input    | `aw send test-agent "msg 1" "msg 2" "msg 3"`                      |
 | Expected | `log` shows exactly 1 `run_start`; all 3 messages appear in inbox |
 | Timeout  | 15s (mock: 3s)                                                    |
 | Retry    | No (deterministic batching)                                       |
@@ -142,12 +142,12 @@ aw log --json | grep -c '"type":"run_start"'    # should print: 2
 
 ## T5: Send with delays for precise interleaving
 
-| Field    | Value                                                  |
-| -------- | ------------------------------------------------------ |
-| Input    | `aw send test-agent "step1" +2s "step2" +500ms "step3"`           |
-| Expected | `message_received` timestamps show ~2s and ~500ms gaps |
-| Timeout  | 30s                                                    |
-| Retry    | Yes (timing-sensitive)                                 |
+| Field    | Value                                                   |
+| -------- | ------------------------------------------------------- |
+| Input    | `aw send test-agent "step1" +2s "step2" +500ms "step3"` |
+| Expected | `message_received` timestamps show ~2s and ~500ms gaps  |
+| Timeout  | 30s                                                     |
+| Retry    | Yes (timing-sensitive)                                  |
 
 ```sh
 aw send test-agent "step1" +2s "step2" +500ms "step3"
@@ -265,12 +265,12 @@ aw state test-agent | grep "History"             # Should be higher
 
 ## T10: Stop and restart
 
-| Field    | Value                                               |
-| -------- | --------------------------------------------------- |
+| Field    | Value                                                      |
+| -------- | ---------------------------------------------------------- |
 | Input    | Send message, wait, daemon stop                            |
 | Expected | `daemon stop` succeeds; `state` after stop shows no daemon |
-| Timeout  | 10s                                                 |
-| Retry    | No (deterministic)                                  |
+| Timeout  | 10s                                                        |
+| Retry    | No (deterministic)                                         |
 
 ```sh
 aw send test-agent "will be processed"

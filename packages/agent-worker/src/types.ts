@@ -1,5 +1,4 @@
 import type { AgentConfig, AgentState, AgentLoop } from "@agent-worker/agent";
-import type { ResolvedAgent, ResolvedWorkspace, WorkspaceDef } from "@agent-worker/workspace";
 
 // ── Daemon configuration ──────────────────────────────────────────────────
 

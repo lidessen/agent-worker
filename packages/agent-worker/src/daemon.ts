@@ -93,18 +93,21 @@ export class Daemon {
     this.startedAt = Date.now();
 
     const app = new Hono();
-    app.all('*', async (c) => {
+    app.all("*", async (c) => {
       const response = await this.handleRequest(c.req.raw);
       return response;
     });
     const actualPort = await new Promise<number>((resolve) => {
-      this.server = serve({
-        fetch: app.fetch,
-        port: this.config.port,
-        hostname: this.config.host,
-      }, (info) => {
-        resolve(info.port);
-      });
+      this.server = serve(
+        {
+          fetch: app.fetch,
+          port: this.config.port,
+          hostname: this.config.host,
+        },
+        (info) => {
+          resolve(info.port);
+        },
+      );
     });
     this._port = actualPort;
     const info: DaemonInfo = {
@@ -209,8 +212,10 @@ export class Daemon {
           if (method === "DELETE") return await this.handleRemoveAgent(name);
         }
         if (sub === "/send" && method === "POST") return await this.handleAgentSend(name, req);
-        if (sub === "/responses" && method === "GET") return await this.handleAgentResponses(name, url);
-        if (sub === "/responses/stream" && method === "GET") return this.handleAgentResponsesStream(name, url);
+        if (sub === "/responses" && method === "GET")
+          return await this.handleAgentResponses(name, url);
+        if (sub === "/responses/stream" && method === "GET")
+          return this.handleAgentResponsesStream(name, url);
         if (sub === "/events" && method === "GET") return await this.handleAgentEvents(name, url);
         if (sub === "/events/stream" && method === "GET") return this.handleAgentEventsStream(name);
         if (sub === "/state" && method === "GET") return this.handleAgentState(name);
@@ -427,7 +432,9 @@ export class Daemon {
             push(entry);
           }
           cursor = result.cursor;
-        } catch { /* agent may be removed */ }
+        } catch {
+          /* agent may be removed */
+        }
       }, 500);
       return () => clearInterval(interval);
     });
@@ -457,7 +464,9 @@ export class Daemon {
             push(entry);
           }
           cursor = result.cursor;
-        } catch { /* agent may be removed */ }
+        } catch {
+          /* agent may be removed */
+        }
       }, 500);
       return () => clearInterval(interval);
     });
@@ -497,9 +506,7 @@ export class Daemon {
     if (handle) return handle;
 
     // Check if there are tagged variants
-    const matches = this.workspaces.list().filter(
-      (ws) => ws.name === key && ws.tag,
-    );
+    const matches = this.workspaces.list().filter((ws) => ws.name === key && ws.tag);
     if (matches.length > 0) {
       return Response.json(
         {
@@ -565,7 +572,11 @@ export class Daemon {
         };
         // Auto-remove task workspaces on completion
         if (handle.mode === "task") {
-          try { await this.workspaces.remove(key); } catch { /* already removed */ }
+          try {
+            await this.workspaces.remove(key);
+          } catch {
+            /* already removed */
+          }
         }
         return Response.json({ status, result });
       }
@@ -612,7 +623,9 @@ export class Daemon {
     if (body.agent && !body.channel) {
       // Direct message to agent via default channel with `to` field
       const channel = handle.resolved.def.default_channel ?? "general";
-      await handle.workspace.contextProvider.smartSend(channel, from, body.content, { to: body.agent });
+      await handle.workspace.contextProvider.smartSend(channel, from, body.content, {
+        to: body.agent,
+      });
       return Response.json({ sent: true, routed_to: `agent:${body.agent}` });
     }
 
@@ -620,7 +633,9 @@ export class Daemon {
 
     if (body.agent) {
       // Post to channel AND target agent
-      await handle.workspace.contextProvider.smartSend(channel, from, body.content, { to: body.agent });
+      await handle.workspace.contextProvider.smartSend(channel, from, body.content, {
+        to: body.agent,
+      });
       return Response.json({ sent: true, routed_to: `channel:${channel}+agent:${body.agent}` });
     }
 
@@ -748,9 +763,7 @@ export class Daemon {
     // Filter daemon events to those related to this workspace
     const result = await this.eventLog.read(cursor);
     const wsKey = handle.key;
-    const filtered = result.entries.filter(
-      (e: any) => e.workspace === wsKey,
-    );
+    const filtered = result.entries.filter((e: any) => e.workspace === wsKey);
     return Response.json({ entries: filtered, cursor: result.cursor });
   }
 
@@ -763,7 +776,7 @@ export class Daemon {
     return this.createSSEStream((push) => {
       const unsub = this._bus.on((event: BusEvent) => {
         if ((event as any).workspace === wsKey) {
-          push({ ts: Date.now(), ...event });
+          push({ ...event, ts: Date.now() });
         }
       });
       return unsub;
@@ -836,7 +849,7 @@ export class Daemon {
   private handleEventsStream(): Response {
     return this.createSSEStream((push) => {
       const unsub = this._bus.on((event: BusEvent) => {
-        push({ ts: Date.now(), ...event });
+        push({ ...event, ts: Date.now() });
       });
       return unsub;
     });
@@ -848,15 +861,15 @@ export class Daemon {
    * Create an SSE response. The setup function receives a push callback
    * and returns a cleanup function.
    */
-  private createSSEStream(
-    setup: (push: (data: unknown) => void) => (() => void) | void,
-  ): Response {
+  private createSSEStream(setup: (push: (data: unknown) => void) => (() => void) | void): Response {
     const stream = new ReadableStream({
       start(controller) {
         const push = (data: unknown) => {
           try {
             controller.enqueue(`data: ${JSON.stringify(data)}\n\n`);
-          } catch { /* stream may be closed */ }
+          } catch {
+            /* stream may be closed */
+          }
         };
         const cleanup = setup(push);
         // Store cleanup for cancel
@@ -885,11 +898,16 @@ function parseDuration(str: string): number {
   if (!match) return 60_000;
   const n = parseInt(match[1]!, 10);
   switch (match[2]) {
-    case "ms": return n;
-    case "s": return n * 1000;
-    case "m": return n * 60_000;
-    case "h": return n * 3_600_000;
-    default: return n * 1000; // default to seconds
+    case "ms":
+      return n;
+    case "s":
+      return n * 1000;
+    case "m":
+      return n * 60_000;
+    case "h":
+      return n * 3_600_000;
+    default:
+      return n * 1000; // default to seconds
   }
 }
 

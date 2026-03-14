@@ -2,7 +2,7 @@ import { join } from "node:path";
 import { mkdirSync, existsSync, writeFileSync, appendFileSync } from "node:fs";
 import { Agent } from "@agent-worker/agent";
 import type { AgentConfig, AgentState } from "@agent-worker/agent";
-import type { LoopEvent, LoopResult } from "@agent-worker/loop";
+import type { LoopEvent } from "@agent-worker/loop";
 import type { EventBus } from "@agent-worker/shared";
 import { readFrom, parseJsonl } from "@agent-worker/shared";
 import type { AgentKind, ManagedAgentInfo, DaemonEvent } from "./types.ts";
@@ -106,7 +106,11 @@ export class ManagedAgent {
         durationMs: result.durationMs,
         tokens: result.usage.totalTokens,
       });
-      this._appendTimeline({ type: "run_end", durationMs: result.durationMs, tokens: result.usage.totalTokens });
+      this._appendTimeline({
+        type: "run_end",
+        durationMs: result.durationMs,
+        tokens: result.usage.totalTokens,
+      });
     });
 
     this.agent.on("event", (event: LoopEvent) => {
@@ -221,7 +225,10 @@ export class ManagedAgent {
     this.agent.push(message);
   }
 
-  private _runQueue: Promise<{ text: string; events: LoopEvent[] }> = Promise.resolve({ text: "", events: [] });
+  private _runQueue: Promise<{ text: string; events: LoopEvent[] }> = Promise.resolve({
+    text: "",
+    events: [],
+  });
 
   /**
    * Send a message and collect the text response.
@@ -234,7 +241,10 @@ export class ManagedAgent {
     return next;
   }
 
-  private async _doRun(message: string, from?: string): Promise<{ text: string; events: LoopEvent[] }> {
+  private async _doRun(
+    message: string,
+    from?: string,
+  ): Promise<{ text: string; events: LoopEvent[] }> {
     const events: LoopEvent[] = [];
     const textParts: string[] = [];
 

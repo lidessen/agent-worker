@@ -37,7 +37,7 @@ export interface LoopInput {
 }
 
 export interface AgentLoop {
-  supports: LoopCapability[];
+  supports: readonly LoopCapability[];
   run(input: string | LoopInput): LoopRun;
   cancel(): void;
   get status(): LoopStatus;

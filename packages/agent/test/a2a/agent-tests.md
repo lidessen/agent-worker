@@ -55,12 +55,12 @@ aw state test-agent > "a2a-artifacts/${TEST_ID}_state.txt"
 
 ## 1. Preflight — Provider Availability
 
-| Field    | Value                                       |
-| -------- | ------------------------------------------- |
+| Field    | Value                                                                 |
+| -------- | --------------------------------------------------------------------- |
 | Input    | `aw add test-agent` + `aw rm test-agent; aw daemon stop` per provider |
-| Expected | Daemon starts if API key / CLI is available |
-| Timeout  | 5s per provider                             |
-| Retry    | No                                          |
+| Expected | Daemon starts if API key / CLI is available                           |
+| Timeout  | 5s per provider                                                       |
+| Retry    | No                                                                    |
 
 ```sh
 # Test each provider (skip if key/CLI not available):
@@ -83,12 +83,12 @@ done
 
 ## 2. Simple Message → LLM Response
 
-| Field    | Value                                         |
-| -------- | --------------------------------------------- |
+| Field    | Value                                                   |
+| -------- | ------------------------------------------------------- |
 | Input    | `aw send test-agent "Reply with exactly: AGENT_A2A_OK"` |
 | Expected | `read` output contains string `AGENT_A2A_OK`            |
-| Timeout  | 10s (ai-sdk), 20s (CLI runtimes)              |
-| Retry    | Yes (LLM may not follow instructions exactly) |
+| Timeout  | 10s (ai-sdk), 20s (CLI runtimes)                        |
+| Retry    | Yes (LLM may not follow instructions exactly)           |
 
 ```sh
 aw add test-agent --runtime ai-sdk --model anthropic:claude-haiku-4-5-20251001
@@ -236,12 +236,12 @@ echo "History: $H1 → $H2"
 
 ## 7. Stop During Processing
 
-| Field    | Value                                           |
-| -------- | ----------------------------------------------- |
-| Input    | Send long prompt, stop daemon after 2s           |
+| Field    | Value                                                  |
+| -------- | ------------------------------------------------------ |
+| Input    | Send long prompt, stop daemon after 2s                 |
 | Expected | `daemon stop` completes within 5s, no orphan processes |
-| Timeout  | 10s                                             |
-| Retry    | No                                              |
+| Timeout  | 10s                                                    |
+| Retry    | No                                                     |
 
 ```sh
 aw add test-agent --runtime ai-sdk --model anthropic:claude-haiku-4-5-20251001

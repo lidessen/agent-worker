@@ -220,8 +220,8 @@ function injectCursorMcpConfig(configPath: string, cwd: string): McpSnapshot {
   const merged = {
     ...existing,
     mcpServers: {
-      ...((existing.mcpServers as Record<string, unknown>) ?? {}),
-      ...(agentConfig.mcpServers ?? {}),
+      ...(existing.mcpServers as Record<string, unknown>),
+      ...agentConfig.mcpServers,
     },
   };
 

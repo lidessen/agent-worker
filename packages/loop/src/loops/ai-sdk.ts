@@ -31,7 +31,9 @@ export class AiSdkLoop {
 
   bashToolkit: BashToolkit | null = null;
   tools: ToolSet = {};
-  private _prepareStep: ((opts: any) => Promise<Record<string, unknown>> | Record<string, unknown>) | null = null;
+  private _prepareStep:
+    | ((opts: any) => Promise<Record<string, unknown>> | Record<string, unknown>)
+    | null = null;
   private relevanceEngine: ToolRelevanceEngine | null = null;
 
   constructor(private options: AiSdkLoopOptions) {
@@ -69,6 +71,7 @@ export class AiSdkLoop {
       model,
       instructions,
       tools: this.tools,
+      prepareStep: this._buildPrepareStep(),
     });
   }
 
@@ -100,6 +103,7 @@ export class AiSdkLoop {
           model: this.options.model,
           instructions: inputSystem,
           tools: this.tools,
+          prepareStep: this._buildPrepareStep(),
         });
       }
 
@@ -109,7 +113,6 @@ export class AiSdkLoop {
         const streamResult = await this.agent!.stream({
           prompt,
           abortSignal: this.abortController!.signal,
-          prepareStep: this._buildPrepareStep(),
 
           experimental_onToolCallStart: (event) => {
             const tc = event.toolCall;
@@ -184,7 +187,7 @@ export class AiSdkLoop {
     this.agent = null;
   }
 
-  setPrepareStep(fn: (opts: any) => unknown): void {
+  setPrepareStep(fn: (opts: any) => Promise<Record<string, unknown>> | Record<string, unknown>): void {
     this._prepareStep = fn;
   }
 
@@ -234,7 +237,6 @@ export class AiSdkLoop {
     if (catalog.length === 0) return;
 
     const engine = this.relevanceEngine;
-    const loop = this;
 
     this.tools._activate_tool = tool({
       description:
@@ -246,7 +248,7 @@ export class AiSdkLoop {
       }),
       execute: async ({ action, toolName }) => {
         if (action === "list") {
-          const current = engine.getOnDemandCatalog(loop.tools);
+          const current = engine.getOnDemandCatalog(this.tools);
           return JSON.stringify({ available: current });
         }
         if (!toolName) return "Error: toolName required for activate action";

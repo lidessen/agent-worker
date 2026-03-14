@@ -41,7 +41,10 @@ export async function read(args: string[]): Promise<void> {
       // SSE failed — fall back to cursor polling
       let cursor = 0;
       while (received < count && Date.now() < deadline) {
-        const result = await client.readResponses(target.agent, { cursor, workspace: target.workspace });
+        const result = await client.readResponses(target.agent, {
+          cursor,
+          workspace: target.workspace,
+        });
         for (const entry of result.entries) {
           printEntry(entry, json);
           if (++received >= count) break;
@@ -121,10 +124,15 @@ function parseDuration(str: string): number {
   if (!match) return 60_000;
   const n = parseInt(match[1]!, 10);
   switch (match[2]) {
-    case "ms": return n;
-    case "s": return n * 1000;
-    case "m": return n * 60_000;
-    case "h": return n * 3_600_000;
-    default: return n * 1000;
+    case "ms":
+      return n;
+    case "s":
+      return n * 1000;
+    case "m":
+      return n * 60_000;
+    case "h":
+      return n * 3_600_000;
+    default:
+      return n * 1000;
   }
 }

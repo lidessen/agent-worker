@@ -249,13 +249,15 @@ function zodTypeToSource(schema: ZodTypeAny): string {
   const def = schema._def;
 
   if (def.type === "optional") {
-    return `${zodTypeToSource(def.innerType)}.optional()`;
+    const innerType = (def as unknown as { innerType: ZodTypeAny }).innerType;
+    return `${zodTypeToSource(innerType)}.optional()`;
   }
   if (def.type === "string") return "z.string()";
   if (def.type === "number") return "z.number()";
   if (def.type === "boolean") return "z.boolean()";
   if (def.type === "enum") {
-    return `z.enum(${JSON.stringify(Object.keys(def.entries))})`;
+    const entries = (def as unknown as { entries: Record<string, unknown> }).entries;
+    return `z.enum(${JSON.stringify(Object.keys(entries))})`;
   }
 
   throw new Error(`zodTypeToSource: unsupported type "${def.type}"`);

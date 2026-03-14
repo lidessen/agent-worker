@@ -76,7 +76,9 @@ export async function runSetupSteps(
     const result = await execa("sh", ["-c", cmd], { reject: false });
 
     if (result.exitCode !== 0) {
-      throw new Error(`Setup step failed (exit ${result.exitCode}): ${cmd}\nstderr: ${result.stderr.trim()}`);
+      throw new Error(
+        `Setup step failed (exit ${result.exitCode}): ${cmd}\nstderr: ${result.stderr.trim()}`,
+      );
     }
 
     if (step.as) {
@@ -212,11 +214,10 @@ export function toWorkspaceConfig(
   // Storage backend
   const storageType = def.storage ?? "file";
   const storageDir =
-    opts.storageDir ?? def.storage_dir ?? `/tmp/agent-worker-${def.name}${opts.tag ? `-${opts.tag}` : ""}`;
-  const storage =
-    storageType === "memory"
-      ? new MemoryStorage()
-      : new FileStorage(storageDir);
+    opts.storageDir ??
+    def.storage_dir ??
+    `/tmp/agent-worker-${def.name}${opts.tag ? `-${opts.tag}` : ""}`;
+  const storage = storageType === "memory" ? new MemoryStorage() : new FileStorage(storageDir);
 
   return {
     name: def.name,

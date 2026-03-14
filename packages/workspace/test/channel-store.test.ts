@@ -51,8 +51,8 @@ describe("ChannelStore", () => {
 
     const messages = await store.read("general");
     expect(messages).toHaveLength(2);
-    expect(messages[0].content).toBe("first");
-    expect(messages[1].content).toBe("second");
+    expect(messages[0]!.content).toBe("first");
+    expect(messages[1]!.content).toBe("second");
   });
 
   test("read with limit returns last N messages", async () => {
@@ -67,8 +67,8 @@ describe("ChannelStore", () => {
 
     const messages = await store.read("general", { limit: 2 });
     expect(messages).toHaveLength(2);
-    expect(messages[0].content).toBe("msg-3");
-    expect(messages[1].content).toBe("msg-4");
+    expect(messages[0]!.content).toBe("msg-3");
+    expect(messages[1]!.content).toBe("msg-4");
   });
 
   test("getMessage finds specific message", async () => {
@@ -152,7 +152,7 @@ describe("ChannelStore", () => {
 
     expect(general).toHaveLength(1);
     expect(design).toHaveLength(1);
-    expect(general[0].content).toBe("general msg");
-    expect(design[0].content).toBe("design msg");
+    expect(general[0]!.content).toBe("general msg");
+    expect(design[0]!.content).toBe("design msg");
   });
 });

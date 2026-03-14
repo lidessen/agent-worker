@@ -105,26 +105,28 @@ storage: file
         pollInterval: 2000,
         onInstruction: async (prompt, instruction) => {
           const runId = crypto.randomUUID();
-          this.emitEvent(
-            "workspace.agent_run_start",
-            {
+          this.emitEvent("workspace.agent_run_start", {
+            workspace: key,
+            agent: agent.name,
+            runId,
+            instruction: instruction.content.slice(0, 200),
+          });
+          try {
+            await runner(prompt, instruction);
+            this.emitEvent("workspace.agent_run_end", {
               workspace: key,
               agent: agent.name,
               runId,
-              instruction: instruction.content.slice(0, 200),
-            },
-          );
-          try {
-            await runner(prompt, instruction);
-            this.emitEvent(
-              "workspace.agent_run_end",
-              { workspace: key, agent: agent.name, runId, status: "ok" },
-            );
+              status: "ok",
+            });
           } catch (err) {
-            this.emitEvent(
-              "workspace.agent_error",
-              { workspace: key, agent: agent.name, runId, error: String(err), level: "error" },
-            );
+            this.emitEvent("workspace.agent_error", {
+              workspace: key,
+              agent: agent.name,
+              runId,
+              error: String(err),
+              level: "error",
+            });
           }
         },
       });
@@ -144,10 +146,10 @@ storage: file
 
     this.workspaces.set(key, handle);
 
-    this.emitEvent(
-      "workspace.created",
-      { workspace: key, agents: resolved.agents.map((a) => a.name) },
-    );
+    this.emitEvent("workspace.created", {
+      workspace: key,
+      agents: resolved.agents.map((a) => a.name),
+    });
 
     return handle;
   }
@@ -223,10 +225,11 @@ storage: file
       const run = loop.run(prompt);
       for await (const event of run) {
         if (event.type === "text") {
-          this.emitEvent(
-            "workspace.agent_text",
-            { workspace: workspaceKey, agent: agent.name, text: event.text.slice(0, 500) },
-          );
+          this.emitEvent("workspace.agent_text", {
+            workspace: workspaceKey,
+            agent: agent.name,
+            text: event.text.slice(0, 500),
+          });
         }
       }
 
