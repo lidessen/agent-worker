@@ -72,6 +72,10 @@ async function main() {
       const { connect } = await import("./commands/connect.ts");
       return connect(rest);
     }
+    case "auth": {
+      const { auth } = await import("./commands/auth.ts");
+      return auth(rest);
+    }
     default:
       console.log(`Usage: aw <command>
 
@@ -102,6 +106,13 @@ Documents:
   doc read <name>             Read document
   doc write <name> --content  Write document
   doc append <name> --content Append to document
+
+Auth:
+  auth anthropic              Save Anthropic API key
+  auth openai                 Save OpenAI API key
+  auth deepseek               Save DeepSeek API key
+  auth status                 Show provider auth status
+  auth rm <provider>          Remove a saved API key
 
 Connections:
   connect telegram            Connect a Telegram bot (full setup flow)
