@@ -34,6 +34,11 @@ const PROVIDERS: Record<string, ProviderInfo> = {
     label: "DeepSeek",
     hint: "platform.deepseek.com",
   },
+  "ai-gateway": {
+    envVar: "AI_GATEWAY_API_KEY",
+    label: "Vercel AI Gateway",
+    hint: "vercel.com/ai-gateway",
+  },
 };
 
 function maskKey(key: string): string {
@@ -56,6 +61,7 @@ Commands:
   anthropic    Save Anthropic API key
   openai       Save OpenAI API key
   deepseek     Save DeepSeek API key
+  ai-gateway   Save Vercel AI Gateway API key
   status       Show which providers are authenticated
   rm <name>    Remove a saved API key
 

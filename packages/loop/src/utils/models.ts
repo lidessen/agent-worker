@@ -105,6 +105,7 @@ const PROVIDER_KEYS: Record<string, string[]> = {
   openai: ["OPENAI_API_KEY"],
   google: ["GOOGLE_GENERATIVE_AI_API_KEY", "GOOGLE_API_KEY"],
   deepseek: ["DEEPSEEK_API_KEY"],
+  "ai-gateway": ["AI_GATEWAY_API_KEY"],
 };
 
 const LIST_FNS: Record<string, (key?: string) => Promise<ModelInfo[]>> = {
