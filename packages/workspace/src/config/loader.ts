@@ -195,11 +195,36 @@ export async function loadWorkspaceDef(
   return { def, agents, vars: setupVars, kickoff };
 }
 
+// ── Saved connection loading ──────────────────────────────────────────────
+
+interface TelegramConnection {
+  bot_token: string;
+  chat_id: number;
+}
+
+async function loadSavedTelegramConnection(): Promise<TelegramConnection | null> {
+  try {
+    const { readFile } = await import("node:fs/promises");
+    const { join } = await import("node:path");
+    const { homedir } = await import("node:os");
+    const path = join(homedir(), ".agent-worker", "connections", "telegram.json");
+    const raw = await readFile(path, "utf-8");
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
 // ── Adapter resolution ───────────────────────────────────────────────────
 
 /**
  * Resolve adapter definitions from YAML into ChannelAdapter instances.
  * Currently supports: "telegram".
+ *
+ * Config resolution order (each field independently):
+ *   1. Explicit YAML config value
+ *   2. Environment variable (TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID)
+ *   3. Saved connection from `aw connect` (~/.agent-worker/connections/)
  */
 export async function resolveAdapters(defs?: AdapterDef[]): Promise<ChannelAdapter[]> {
   if (!defs || defs.length === 0) return [];
@@ -215,13 +240,24 @@ export async function resolveAdapters(defs?: AdapterDef[]): Promise<ChannelAdapt
           channel?: string;
           poll_timeout?: number;
         };
-        const botToken = cfg.bot_token ?? process.env.TELEGRAM_BOT_TOKEN;
+
+        // Load saved connection as fallback
+        const saved = await loadSavedTelegramConnection();
+
+        const botToken =
+          cfg.bot_token ??
+          process.env.TELEGRAM_BOT_TOKEN ??
+          saved?.bot_token;
         if (!botToken) {
           throw new Error(
-            "Telegram adapter requires bot_token in config or TELEGRAM_BOT_TOKEN env var",
+            "Telegram adapter requires bot_token in config, TELEGRAM_BOT_TOKEN env var, " +
+            "or a saved connection (run 'aw connect telegram')",
           );
         }
-        const chatId = cfg.chat_id ?? (process.env.TELEGRAM_CHAT_ID ? parseInt(process.env.TELEGRAM_CHAT_ID, 10) : undefined);
+        const chatId =
+          cfg.chat_id ??
+          (process.env.TELEGRAM_CHAT_ID ? parseInt(process.env.TELEGRAM_CHAT_ID, 10) : undefined) ??
+          saved?.chat_id;
         adapters.push(
           new TelegramAdapter({
             botToken,
