@@ -143,13 +143,22 @@ export async function loadWorkspaceDef(
     content = await readFile(pathOrContent, "utf-8");
   }
 
-  // Interpolate ${{ secrets.X }} references before parsing YAML
+  // Interpolate ${{ secrets.X }} references before parsing YAML.
+  // Resolution order: secrets.json → process.env
   if (!opts.skipSetup && content.includes("${{ secrets.")) {
     const { loadSecrets } = await import("./secrets.ts");
     const secrets = await loadSecrets();
     const secretVars: Record<string, string> = {};
-    for (const [k, v] of Object.entries(secrets)) {
-      secretVars[`secrets.${k}`] = v;
+    // Collect all ${{ secrets.KEY }} references from the YAML
+    const refs = new Set<string>();
+    for (const m of content.matchAll(/\$\{\{\s*secrets\.([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g)) {
+      refs.add(m[1]!);
+    }
+    for (const key of refs) {
+      const value = secrets[key] ?? process.env[key];
+      if (value !== undefined) {
+        secretVars[`secrets.${key}`] = value;
+      }
     }
     content = interpolate(content, secretVars);
   }
