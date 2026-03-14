@@ -17,7 +17,6 @@
     "@ai-sdk/anthropic": "^3.0.58",
     "@ai-sdk/deepseek": "^2.0.24",
     "@ai-sdk/google": "^3.0.43",
-    "@ai-sdk/openai": "^3.0.41",
-    "vercel-minimax-ai-provider": "^0.0.2"
+    "@ai-sdk/openai": "^3.0.41"
   }
 }
