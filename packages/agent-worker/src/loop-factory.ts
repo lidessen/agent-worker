@@ -46,6 +46,11 @@ async function createAiSdkLoop(config: RuntimeConfig): Promise<AgentLoop> {
       languageModel = openai(modelId);
       break;
     }
+    case "google": {
+      const { google } = await import("@ai-sdk/google");
+      languageModel = google(modelId);
+      break;
+    }
     case "deepseek": {
       const { deepseek } = await import("@ai-sdk/deepseek");
       languageModel = deepseek(modelId);

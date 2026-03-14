@@ -29,6 +29,11 @@ const PROVIDERS: Record<string, ProviderInfo> = {
     label: "OpenAI",
     hint: "platform.openai.com",
   },
+  google: {
+    envVar: "GOOGLE_GENERATIVE_AI_API_KEY",
+    label: "Google",
+    hint: "aistudio.google.com",
+  },
   deepseek: {
     envVar: "DEEPSEEK_API_KEY",
     label: "DeepSeek",
@@ -60,6 +65,7 @@ export async function auth(args: string[]): Promise<void> {
 Commands:
   anthropic    Save Anthropic API key
   openai       Save OpenAI API key
+  google       Save Google API key
   deepseek     Save DeepSeek API key
   ai-gateway   Save Vercel AI Gateway API key
   status       Show which providers are authenticated
