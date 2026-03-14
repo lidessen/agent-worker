@@ -46,6 +46,8 @@
         "@agent-worker/shared": "workspace:*",
         "@agent-worker/workspace": "workspace:*",
         "@ai-sdk/anthropic": "^3.0.58",
+        "@ai-sdk/deepseek": "^2.0.24",
+        "@ai-sdk/google": "^3.0.43",
         "@ai-sdk/openai": "^3.0.41",
       },
     },
