@@ -421,7 +421,7 @@ const workspace = await createWorkspace({
   channels: ["general", "design", "code-review"],
   defaultChannel: "general",
   agents: ["designer", "reviewer"],
-  adapters: [new TelegramAdapter({ botToken: "...", chatId: "..." })],
+  connections: [new TelegramAdapter({ botToken: "...", chatId: "..." })],
 });
 
 // 2. Create per-agent loops
