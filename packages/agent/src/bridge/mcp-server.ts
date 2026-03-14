@@ -32,11 +32,9 @@ function registerToolForDef(
   (registered as Record<string, unknown>)["inputSchema"] = buildObjectSchema(def.parameters);
 }
 
-/** Build a ZodObject without triggering TS2589 deep type instantiation. */
+/** Build a ZodObject from a dynamic parameter record. */
 function buildObjectSchema(params: Record<string, z.ZodTypeAny>): z.ZodTypeAny {
-  // Use z.object() — Zod v4 handles Record<string, ZodTypeAny> directly.
-  // Cast shape to satisfy the generic inference and avoid TS2589.
-  return z.object(params as z.ZodRawShape);
+  return z.object(params);
 }
 
 /**
