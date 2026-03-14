@@ -32,10 +32,11 @@ const PROVIDER_DEFAULT_MODELS: Record<string, string> = {
   openai: "openai:gpt-4.1",
   google: "google:gemini-2.5-flash",
   deepseek: "deepseek:deepseek-chat",
+  "ai-gateway": "ai-gateway:anthropic/claude-sonnet-4-6",
 };
 
 /** Ordered list of providers to check for AI SDK auto-selection. */
-const PROVIDER_PRIORITY = ["anthropic", "openai", "google", "deepseek"];
+const PROVIDER_PRIORITY = ["anthropic", "openai", "google", "deepseek", "ai-gateway"];
 
 // ── CLI runtime discovery ─────────────────────────────────────────────────
 

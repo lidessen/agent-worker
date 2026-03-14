@@ -51,6 +51,11 @@ async function createAiSdkLoop(config: RuntimeConfig): Promise<AgentLoop> {
       languageModel = deepseek(modelId);
       break;
     }
+    case "ai-gateway": {
+      const { gateway } = await import("ai");
+      languageModel = gateway(modelId);
+      break;
+    }
     default:
       throw new Error(`Unknown AI SDK provider: ${provider}`);
   }
