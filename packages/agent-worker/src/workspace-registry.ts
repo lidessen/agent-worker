@@ -5,6 +5,7 @@ import {
   createAgentTools,
   loadWorkspaceDef,
   toWorkspaceConfig,
+  resolveAdapters,
 } from "@agent-worker/workspace";
 import type { Workspace, WorkspaceAgentLoop, ResolvedAgent } from "@agent-worker/workspace";
 import type { AiSdkLoop } from "@agent-worker/loop";
@@ -86,7 +87,8 @@ storage: file
 
     // Use daemon-managed storage dir unless YAML explicitly specifies one
     const storageDir = resolved.def.storage_dir ? undefined : this.workspaceDir(key);
-    const config = toWorkspaceConfig(resolved, { tag: input.tag, storageDir });
+    const adapters = await resolveAdapters(resolved.def.adapters);
+    const config = toWorkspaceConfig(resolved, { tag: input.tag, storageDir, adapters });
     const workspace = await createWorkspace(config);
 
     // Ensure sandbox directories exist and create loops for each agent

@@ -3,13 +3,14 @@ import { readFile, access } from "node:fs/promises";
 import { execa } from "execa";
 import type {
   WorkspaceDef,
+  AdapterDef,
   ResolvedWorkspace,
   ResolvedAgent,
   ResolvedModel,
   ModelSpec,
   SetupStep,
 } from "./types.ts";
-import type { WorkspaceConfig } from "../types.ts";
+import type { WorkspaceConfig, ChannelAdapter } from "../types.ts";
 import { MemoryStorage, FileStorage } from "../context/storage.ts";
 import { resolveRuntime } from "./resolve-runtime.ts";
 
@@ -194,11 +195,57 @@ export async function loadWorkspaceDef(
   return { def, agents, vars: setupVars, kickoff };
 }
 
+// ── Adapter resolution ───────────────────────────────────────────────────
+
+/**
+ * Resolve adapter definitions from YAML into ChannelAdapter instances.
+ * Currently supports: "telegram".
+ */
+export async function resolveAdapters(defs?: AdapterDef[]): Promise<ChannelAdapter[]> {
+  if (!defs || defs.length === 0) return [];
+
+  const adapters: ChannelAdapter[] = [];
+  for (const def of defs) {
+    switch (def.platform) {
+      case "telegram": {
+        const { TelegramAdapter } = await import("../adapters/telegram.ts");
+        const cfg = def.config as {
+          bot_token?: string;
+          chat_id?: number;
+          channel?: string;
+          poll_timeout?: number;
+        };
+        const botToken = cfg.bot_token ?? process.env.TELEGRAM_BOT_TOKEN;
+        if (!botToken) {
+          throw new Error(
+            "Telegram adapter requires bot_token in config or TELEGRAM_BOT_TOKEN env var",
+          );
+        }
+        const chatId = cfg.chat_id ?? (process.env.TELEGRAM_CHAT_ID ? parseInt(process.env.TELEGRAM_CHAT_ID, 10) : undefined);
+        adapters.push(
+          new TelegramAdapter({
+            botToken,
+            chatId,
+            channel: cfg.channel,
+            pollTimeout: cfg.poll_timeout,
+          }),
+        );
+        break;
+      }
+      default:
+        throw new Error(`Unknown adapter platform: "${def.platform}"`);
+    }
+  }
+  return adapters;
+}
+
 // ── Convert to WorkspaceConfig ────────────────────────────────────────────
 
 export interface ToWorkspaceConfigOptions extends LoadOptions {
   /** Override the storage directory (takes precedence over def.storage_dir and the default). */
   storageDir?: string;
+  /** Pre-resolved adapters to attach. */
+  adapters?: ChannelAdapter[];
 }
 
 /**
@@ -225,6 +272,7 @@ export function toWorkspaceConfig(
     channels: def.channels,
     defaultChannel: def.default_channel,
     agents: resolved.agents.map((a) => a.name),
+    adapters: opts.adapters,
     storage,
     storageDir: storageType === "file" ? storageDir : undefined,
   };

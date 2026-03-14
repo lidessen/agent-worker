@@ -1,5 +1,6 @@
 export type {
   WorkspaceDef,
+  AdapterDef,
   AgentDef,
   ModelSpec,
   ModelDef,
@@ -14,6 +15,7 @@ export {
   parseWorkspaceDef,
   toWorkspaceConfig,
   resolveModel,
+  resolveAdapters,
   interpolate,
   runSetupSteps,
 } from "./loader.ts";

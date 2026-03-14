@@ -68,6 +68,10 @@ async function main() {
       const { doc } = await import("./commands/doc.ts");
       return doc(rest);
     }
+    case "telegram": {
+      const { telegram } = await import("./commands/telegram.ts");
+      return telegram(rest);
+    }
     default:
       console.log(`Usage: aw <command>
 
@@ -98,6 +102,10 @@ Documents:
   doc read <name>             Read document
   doc write <name> --content  Write document
   doc append <name> --content Append to document
+
+Integrations:
+  telegram auth [TOKEN]       Authorize a Telegram chat
+  telegram status             Show Telegram configuration
 
 Target syntax: [agent][@workspace[:tag]][#channel]
   alice, alice@review, @review:pr-42#design

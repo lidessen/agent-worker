@@ -52,6 +52,14 @@ export interface SetupStep {
   as?: string;
 }
 
+/** Adapter definition for external platform bridges. */
+export interface AdapterDef {
+  /** Platform type: "telegram". */
+  platform: string;
+  /** Platform-specific configuration. */
+  config: Record<string, unknown>;
+}
+
 /** Declarative workspace definition (typically loaded from YAML). */
 export interface WorkspaceDef {
   /** Workspace name. Required. */
@@ -70,6 +78,8 @@ export interface WorkspaceDef {
   setup?: SetupStep[];
   /** Kickoff message (template string with ${{ var }} interpolation and @mentions). */
   kickoff?: string;
+  /** External platform adapters. */
+  adapters?: AdapterDef[];
 }
 
 /** Resolved model — normalized from any ModelSpec form. */
