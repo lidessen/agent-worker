@@ -68,9 +68,9 @@ async function main() {
       const { doc } = await import("./commands/doc.ts");
       return doc(rest);
     }
-    case "telegram": {
-      const { telegram } = await import("./commands/telegram.ts");
-      return telegram(rest);
+    case "connect": {
+      const { connect } = await import("./commands/connect.ts");
+      return connect(rest);
     }
     default:
       console.log(`Usage: aw <command>
@@ -103,9 +103,10 @@ Documents:
   doc write <name> --content  Write document
   doc append <name> --content Append to document
 
-Integrations:
-  telegram auth [TOKEN]       Authorize a Telegram chat
-  telegram status             Show Telegram configuration
+Connections:
+  connect telegram            Connect a Telegram bot (full setup flow)
+  connect status              Show all configured connections
+  connect rm <name>           Remove a saved connection
 
 Target syntax: [agent][@workspace[:tag]][#channel]
   alice, alice@review, @review:pr-42#design
