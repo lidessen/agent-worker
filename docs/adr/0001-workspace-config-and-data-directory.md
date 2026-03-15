@@ -41,11 +41,17 @@
         └── ...
 ```
 
-### Naming convention
+### Global workspace naming
 
-- **`_global.yml`**: the underscore prefix is a file naming convention to sort it first and signal "special". It is only used for the config file name.
-- **`global`**: the workspace name (used as the key, data directory name, and API identifier). Derived from `_global.yml` by stripping the `_` prefix.
-- All other workspaces use their name directly: `monitor.yml` → name `monitor`, data dir `monitor/`.
+The global workspace uses three related identifiers:
+
+| Context | Value | Rationale |
+|---------|-------|-----------|
+| Config file name | `_global.yml` | `_` prefix sorts first, signals "system-managed" |
+| Workspace name (key) | `global` | Used in API, CLI target syntax (`@global`), logs |
+| Data directory | `workspace-data/global/` | Matches workspace name |
+
+The `_` prefix is stripped during name resolution (see "Name resolution" below). All other workspaces use their name directly for all three: `monitor.yml` → name `monitor` → data dir `monitor/`.
 
 ### Data directory resolution
 
@@ -58,8 +64,8 @@ One rule with one override:
 
 Workspace name is resolved in priority order (first match wins):
 
-1. **Explicit `name` field in YAML** — always takes precedence when present
-2. **File name inference** — when `name` is omitted: `review.yml` → `review`, `_global.yml` → `global` (strip `_` prefix)
+1. **`name` field in YAML** — e.g. `name: review`
+2. **File name** — `review.yml` → `review`, `_global.yml` → `global` (strip `_` prefix)
 3. **`opts.name`** — passed programmatically by API callers or `ensureDefault()`
 4. **Error** — if none of the above yields a name, loading fails
 
