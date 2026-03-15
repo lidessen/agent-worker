@@ -15,7 +15,6 @@ import type { CreateWorkspaceInput, ManagedWorkspaceInfo } from "./types.ts";
 import { ManagedWorkspace } from "./managed-workspace.ts";
 
 const DEFAULT_GLOBAL_CONFIG = `\
-name: global
 agents:
   default: {}
 storage: file
@@ -23,7 +22,6 @@ storage: file
 
 /** Fallback config when runtime auto-discovery fails (no CLI / no API key). */
 const FALLBACK_GLOBAL_CONFIG = `\
-name: global
 agents: {}
 storage: file
 `;
