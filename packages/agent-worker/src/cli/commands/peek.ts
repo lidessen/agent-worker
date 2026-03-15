@@ -27,10 +27,10 @@ export async function peek(args: string[]): Promise<void> {
         workspace: target.workspace,
       });
       for (const entry of result.entries) {
-        if ((entry as any).text) {
-          console.log((entry as any).text);
-        } else if ((entry as any).content) {
-          console.log(`[${(entry as any).type}] ${(entry as any).content}`);
+        if ("text" in entry && typeof entry.text === "string") {
+          console.log(entry.text);
+        } else if ("content" in entry && typeof entry.content === "string") {
+          console.log(`[${entry.type}] ${entry.content}`);
         }
       }
     } else if (target.workspace && target.channel) {

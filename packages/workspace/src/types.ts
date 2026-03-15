@@ -143,6 +143,8 @@ export interface ChannelBridgeInterface {
   subscribe(callback: BridgeSubscriber): void;
   /** Unsubscribe. */
   unsubscribe(callback: BridgeSubscriber): void;
+  /** Register and start an adapter. */
+  addAdapter(adapter: ChannelAdapter): Promise<void>;
 }
 
 export type BridgeSubscriber = (message: Message) => void;

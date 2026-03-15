@@ -110,9 +110,10 @@ export class AwClient {
       headers: { ...this.headers(), ...opts?.headers },
     });
 
-    const body = (await res.json()) as any;
+    const body: unknown = await res.json();
     if (!res.ok) {
-      throw new Error(body.error ?? `HTTP ${res.status}`);
+      const err = body as { error?: string };
+      throw new Error(err.error ?? `HTTP ${res.status}`);
     }
     return body as T;
   }
@@ -123,7 +124,7 @@ export class AwClient {
     });
 
     if (!res.ok) {
-      const body = (await res.json()) as any;
+      const body = (await res.json()) as { error?: string };
       throw new Error(body.error ?? `HTTP ${res.status}`);
     }
 
