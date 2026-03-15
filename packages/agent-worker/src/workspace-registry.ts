@@ -15,6 +15,7 @@ import type { CreateWorkspaceInput, ManagedWorkspaceInfo } from "./types.ts";
 import { ManagedWorkspace } from "./managed-workspace.ts";
 
 const DEFAULT_GLOBAL_CONFIG = `\
+name: global
 agents:
   default: {}
 storage: file
@@ -22,6 +23,7 @@ storage: file
 
 /** Fallback config when runtime auto-discovery fails (no CLI / no API key). */
 const FALLBACK_GLOBAL_CONFIG = `\
+name: global
 agents: {}
 storage: file
 `;
@@ -65,10 +67,12 @@ export class WorkspaceRegistry {
     const globalDir = join(this._dataDir, "workspaces", "_global");
     const configPath = join(globalDir, "config.yml");
 
-    // Read config.yml if it exists, otherwise use default
+    // Read config.yml if it exists, otherwise use default.
+    // Ensure name is always "global" — user config.yml can omit it.
     let yaml: string;
     try {
-      yaml = await readFile(configPath, "utf-8");
+      const userYaml = await readFile(configPath, "utf-8");
+      yaml = userYaml.includes("name:") ? userYaml : `name: global\n${userYaml}`;
     } catch {
       yaml = DEFAULT_GLOBAL_CONFIG;
     }

@@ -157,9 +157,8 @@ kickoff: |
     expect(def.kickoff).toBeDefined();
   });
 
-  test("defaults name to 'global' when omitted", () => {
-    const def = parseWorkspaceDef("agents:\n  a:\n    model: x");
-    expect(def.name).toBe("global");
+  test("throws on missing name", () => {
+    expect(() => parseWorkspaceDef("agents:\n  a:\n    model: x")).toThrow("'name' is required");
   });
 
   test("throws on missing agents", () => {
