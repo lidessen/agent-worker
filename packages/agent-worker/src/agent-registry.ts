@@ -41,10 +41,10 @@ export class AgentRegistry {
     if (!this._dataDir) return undefined;
     AgentRegistry.validateSegment(name, "agent name");
     if (workspace) {
-      // Workspace-scoped: workspaces/<key>/agents/<name>
+      // Workspace-scoped: workspace-data/<key>/agents/<name>
       const wsDir = workspace.replace(/:/g, "--");
       AgentRegistry.validateSegment(wsDir, "workspace key");
-      return join(this._dataDir, "workspaces", wsDir, "agents", name);
+      return join(this._dataDir, "workspace-data", wsDir, "agents", name);
     }
     // Global: agents/<name>
     return join(this._dataDir, "agents", name);
