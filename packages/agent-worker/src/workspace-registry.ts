@@ -51,21 +51,20 @@ export class WorkspaceRegistry {
     this._bus?.emit({ type, source: "workspace", ...data });
   }
 
-  /** Compute the storage directory for a workspace key. */
+  /** Compute the data directory for a workspace key. */
   private workspaceDir(key: string): string {
     const dirName = key.replace(/:/g, "--");
-    return join(this._dataDir, "workspaces", dirName);
+    return join(this._dataDir, "workspace-data", dirName);
   }
 
   /** Get or create the default global workspace (for standalone agents). */
   async ensureDefault(): Promise<ManagedWorkspace> {
     if (this._defaultWorkspace) return this._defaultWorkspace;
 
-    const globalDir = join(this._dataDir, "workspaces", "_global");
-    const configPath = join(globalDir, "config.yml");
+    const configPath = join(this._dataDir, "workspaces", "_global.yml");
+    const globalDir = this.workspaceDir("global");
 
-    // Try config.yml first, then inline YAML default.
-    // Name is inferred from directory "_global" → "global".
+    // Try _global.yml first, then inline YAML default.
     let resolved;
     try {
       resolved = await loadWorkspaceDef(configPath);
@@ -108,8 +107,8 @@ export class WorkspaceRegistry {
       throw new Error(`Workspace "${key}" already exists`);
     }
 
-    // Use daemon-managed storage dir unless YAML explicitly specifies one
-    const storageDir = resolved.def.storage_dir ? undefined : this.workspaceDir(key);
+    // Use daemon-managed data dir unless YAML explicitly specifies one
+    const storageDir = resolved.def.data_dir ? undefined : this.workspaceDir(key);
     const connections = await resolveConnections(resolved.def.connections);
     const config = toWorkspaceConfig(resolved, { tag: input.tag, storageDir, connections });
     const workspace = await createWorkspace(config);

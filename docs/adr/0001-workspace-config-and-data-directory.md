@@ -45,11 +45,11 @@
 
 The global workspace uses three related identifiers:
 
-| Context | Value | Rationale |
-|---------|-------|-----------|
-| Config file name | `_global.yml` | `_` prefix sorts first, signals "system-managed" |
-| Workspace name (key) | `global` | Used in API, CLI target syntax (`@global`), logs |
-| Data directory | `workspace-data/global/` | Matches workspace name |
+| Context              | Value                    | Rationale                                        |
+| -------------------- | ------------------------ | ------------------------------------------------ |
+| Config file name     | `_global.yml`            | `_` prefix sorts first, signals "system-managed" |
+| Workspace name (key) | `global`                 | Used in API, CLI target syntax (`@global`), logs |
+| Data directory       | `workspace-data/global/` | Matches workspace name                           |
 
 The `_` prefix is stripped during name resolution (see "Name resolution" below). All other workspaces use their name directly for all three: `monitor.yml` → name `monitor` → data dir `monitor/`.
 
@@ -82,15 +82,15 @@ The config source can be a local file path or (future) a URL. The CLI reads the 
 
 ### Scenario mapping
 
-| Scenario | Command | Config source | Workspace name | Data directory |
-|----------|---------|--------------|----------------|----------------|
-| Global workspace | daemon startup | `~/.agent-worker/workspaces/_global.yml` (fallback to built-in default) | `global` | `workspace-data/global/` |
-| Global named | `aw create ~/.agent-worker/workspaces/monitor.yml` | `~/.agent-worker/workspaces/monitor.yml` | `monitor` (from YAML or file name) | `workspace-data/monitor/` |
-| Local file | `aw run ./review.yml` | `./review.yml` | `review` (from YAML or file name) | `workspace-data/review/` |
-| Local + tag | `aw run ./review.yml --tag pr-123` | `./review.yml` | `review` | `workspace-data/review--pr-123/` |
-| Remote URL | `aw run https://.../review.yml` (future) | fetched at runtime | `review` (from YAML or URL file name) | `workspace-data/review/` |
-| API inline | POST /workspaces `{source: "name: foo\nagents: ..."}` | request body YAML | `foo` (from YAML content, name required for inline) | `workspace-data/foo/` |
-| Project-local data | `aw run ./review.yml` (YAML has `data_dir: ./.aw`) | `./review.yml` | `review` | `./.aw/` (relative to config file) |
+| Scenario           | Command                                               | Config source                                                           | Workspace name                                      | Data directory                     |
+| ------------------ | ----------------------------------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------- | ---------------------------------- |
+| Global workspace   | daemon startup                                        | `~/.agent-worker/workspaces/_global.yml` (fallback to built-in default) | `global`                                            | `workspace-data/global/`           |
+| Global named       | `aw create ~/.agent-worker/workspaces/monitor.yml`    | `~/.agent-worker/workspaces/monitor.yml`                                | `monitor` (from YAML or file name)                  | `workspace-data/monitor/`          |
+| Local file         | `aw run ./review.yml`                                 | `./review.yml`                                                          | `review` (from YAML or file name)                   | `workspace-data/review/`           |
+| Local + tag        | `aw run ./review.yml --tag pr-123`                    | `./review.yml`                                                          | `review`                                            | `workspace-data/review--pr-123/`   |
+| Remote URL         | `aw run https://.../review.yml` (future)              | fetched at runtime                                                      | `review` (from YAML or URL file name)               | `workspace-data/review/`           |
+| API inline         | POST /workspaces `{source: "name: foo\nagents: ..."}` | request body YAML                                                       | `foo` (from YAML content, name required for inline) | `workspace-data/foo/`              |
+| Project-local data | `aw run ./review.yml` (YAML has `data_dir: ./.aw`)    | `./review.yml`                                                          | `review`                                            | `./.aw/` (relative to config file) |
 
 ### Global workspace behavior
 
@@ -109,30 +109,34 @@ The config source can be a local file path or (future) a URL. The CLI reads the 
 
 **`WorkspaceDef` type:**
 
-| Field | Before | After |
-|-------|--------|-------|
-| `name` | `string` (required) | `string?` (optional, inferred from file name) |
-| `storage_dir` | `string?` | removed |
-| `data_dir` | — | `string?` (custom data directory, default: `~/.agent-worker/workspace-data/<name>/`) |
-| `storage` | `"memory" \| "file"` | unchanged |
+| Field         | Before               | After                                                                                |
+| ------------- | -------------------- | ------------------------------------------------------------------------------------ |
+| `name`        | `string` (required)  | `string?` (optional, inferred from file name)                                        |
+| `storage_dir` | `string?`            | removed                                                                              |
+| `data_dir`    | —                    | `string?` (custom data directory, default: `~/.agent-worker/workspace-data/<name>/`) |
+| `storage`     | `"memory" \| "file"` | unchanged                                                                            |
 
 ### Code changes required
 
 **`packages/workspace/src/config/types.ts`:**
+
 - `name` → `name?: string`
 - Remove `storage_dir`, add `data_dir?: string`
 
 **`packages/workspace/src/config/loader.ts`:**
+
 - `parseWorkspaceDef()`: allow `name` to be absent
 - `loadWorkspaceDef()`: resolve name using priority order (YAML → file name → opts.name → error)
 - `toWorkspaceConfig()`: replace `def.storage_dir` with `def.data_dir`
 
 **`packages/agent-worker/src/workspace-registry.ts`:**
+
 - `workspaceDir()`: change path from `<dataDir>/workspaces/<key>` to `<dataDir>/workspace-data/<key>`
 - `ensureDefault()`: read from `<dataDir>/workspaces/_global.yml`, data to `<dataDir>/workspace-data/global/`, pass `opts.name = "global"`
 - `create()`: replace `storage_dir` reference with `data_dir`
 
 **`packages/workspace/test/config.test.ts`:**
+
 - Update name-required test to name-optional test
 - Add `data_dir` field test
 

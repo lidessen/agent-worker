@@ -191,7 +191,7 @@ All per-agent data lives under `agents/<name>/` — whether at root level (globa
 
 All files are append-only JSONL. Cursor = byte offset. Survives daemon restart (files persist, daemon re-reads on startup).
 
-When a workspace YAML explicitly specifies `storage_dir`, that path is used instead of `workspaces/<key>/`. This allows workspaces to opt out of the daemon's directory tree (e.g. for project-local storage).
+When a workspace YAML explicitly specifies `data_dir`, that path is used instead of `workspace-data/<key>/`. This allows workspaces to opt out of the daemon's directory tree (e.g. for project-local storage).
 
 ### Polling vs SSE
 

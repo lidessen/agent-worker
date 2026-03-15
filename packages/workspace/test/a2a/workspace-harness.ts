@@ -186,7 +186,10 @@ test("T4", async () => {
   const remaining = await ws.contextProvider.inbox.peek("bob");
   assert(remaining.length === 1, `expected 1 remaining, got ${remaining.length}`);
   assert(remaining[0]!.messageId === task3!.messageId, "only task3 pending");
-  assert(!(await ws.contextProvider.inbox.hasEntry("bob", task2!.messageId)), "acked entry removed");
+  assert(
+    !(await ws.contextProvider.inbox.hasEntry("bob", task2!.messageId)),
+    "acked entry removed",
+  );
 
   await ws.shutdown();
 });

@@ -38,7 +38,15 @@ const PROVIDER_DEFAULT_MODELS: Record<string, string> = {
 };
 
 /** Ordered list of providers to check for AI SDK auto-selection. */
-const PROVIDER_PRIORITY = ["anthropic", "openai", "google", "deepseek", "kimi-code", "minimax", "ai-gateway"];
+const PROVIDER_PRIORITY = [
+  "anthropic",
+  "openai",
+  "google",
+  "deepseek",
+  "kimi-code",
+  "minimax",
+  "ai-gateway",
+];
 
 // ── CLI runtime discovery ─────────────────────────────────────────────────
 

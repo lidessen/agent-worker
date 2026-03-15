@@ -224,6 +224,32 @@ kickoff: "@alice say hello"
     expect(result.kickoff).toBe("@alice say hello");
   });
 
+  test("infers name from opts.name when YAML omits it", async () => {
+    const result = await loadWorkspaceDef(
+      `
+agents:
+  a:
+    model: x
+`,
+      { name: "fallback", skipSetup: true },
+    );
+
+    expect(result.def.name).toBe("fallback");
+  });
+
+  test("throws when no name can be resolved", async () => {
+    await expect(
+      loadWorkspaceDef(
+        `
+agents:
+  a:
+    model: x
+`,
+        { skipSetup: true },
+      ),
+    ).rejects.toThrow("Workspace name is required");
+  });
+
   test("resolves agents with string model", async () => {
     const result = await loadWorkspaceDef(
       `
@@ -386,5 +412,38 @@ agents:
     expect(config.name).toBe("review");
     expect(config.tag).toBe("pr-42");
     expect(config.storage).toBeInstanceOf(FileStorage);
+  });
+
+  test("uses data_dir from YAML when specified", async () => {
+    const resolved = await loadWorkspaceDef(
+      `
+name: local-project
+agents:
+  a:
+    model: x
+data_dir: /custom/data/path
+`,
+      { skipSetup: true },
+    );
+
+    const config = toWorkspaceConfig(resolved);
+    expect(config.storageDir).toBe("/custom/data/path");
+    expect(config.storage).toBeInstanceOf(FileStorage);
+  });
+
+  test("storageDir option overrides data_dir", async () => {
+    const resolved = await loadWorkspaceDef(
+      `
+name: test
+agents:
+  a:
+    model: x
+data_dir: /yaml/path
+`,
+      { skipSetup: true },
+    );
+
+    const config = toWorkspaceConfig(resolved, { storageDir: "/override/path" });
+    expect(config.storageDir).toBe("/override/path");
   });
 });

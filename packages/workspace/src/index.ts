@@ -82,7 +82,10 @@ export type {
 
 // ── Adapters ──────────────────────────────────────────────────────────────
 export { TelegramAdapter, runTelegramAuth } from "./adapters/telegram.ts";
-export type { TelegramAdapterConfig, AuthResult as TelegramAuthResult } from "./adapters/telegram.ts";
+export type {
+  TelegramAdapterConfig,
+  AuthResult as TelegramAuthResult,
+} from "./adapters/telegram.ts";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 export type {

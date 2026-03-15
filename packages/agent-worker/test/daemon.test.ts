@@ -223,7 +223,9 @@ describe("Daemon", () => {
     const body = (await res.json()) as Record<string, unknown>;
     expect((body.entries as unknown[]).length).toBeGreaterThanOrEqual(1);
     // First event should be daemon.started (bus-emitted)
-    const startEvent = (body.entries as Record<string, unknown>[]).find((e) => e.type === "daemon.started");
+    const startEvent = (body.entries as Record<string, unknown>[]).find(
+      (e) => e.type === "daemon.started",
+    );
     expect(startEvent).toBeDefined();
   });
 
@@ -280,9 +282,11 @@ describe("Daemon", () => {
     expect(respRes.status).toBe(200);
     const respBody = (await respRes.json()) as Record<string, unknown>;
     expect((respBody.entries as unknown[]).length).toBeGreaterThan(0);
-    expect((respBody.entries as Record<string, unknown>[]).some((e) => e.type === "text" && e.text === "Dave here")).toBe(
-      true,
-    );
+    expect(
+      (respBody.entries as Record<string, unknown>[]).some(
+        (e) => e.type === "text" && e.text === "Dave here",
+      ),
+    ).toBe(true);
     expect(respBody.cursor).toBeGreaterThan(0);
 
     // Read events

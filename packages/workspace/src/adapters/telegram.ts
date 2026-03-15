@@ -61,9 +61,7 @@ export interface TelegramAdapterConfig {
 
 // ── Bot commands ──────────────────────────────────────────────────────────
 
-const BOT_COMMANDS = [
-  { command: "status", description: "Show connection status" },
-];
+const BOT_COMMANDS = [{ command: "status", description: "Show connection status" }];
 
 // ── Adapter ────────────────────────────────────────────────────────────────
 
