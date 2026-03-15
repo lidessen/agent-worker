@@ -100,8 +100,11 @@ export function parseWorkspaceDef(content: string): WorkspaceDef {
     throw new Error("Invalid workspace definition: expected an object");
   }
 
-  if (!raw.name || typeof raw.name !== "string") {
-    throw new Error("Invalid workspace definition: 'name' is required");
+  if (!raw.name) {
+    raw.name = "global";
+  }
+  if (typeof raw.name !== "string") {
+    throw new Error("Invalid workspace definition: 'name' must be a string");
   }
 
   if (!raw.agents || typeof raw.agents !== "object") {
