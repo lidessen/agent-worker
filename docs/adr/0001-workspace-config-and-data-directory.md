@@ -30,7 +30,7 @@
 │   └── ...
 │
 └── workspace-data/                 # runtime data for all workspaces
-    ├── _global/
+    ├── global/
     │   ├── status.json
     │   ├── channels/
     │   ├── inbox/
@@ -41,6 +41,12 @@
         └── ...
 ```
 
+### Naming convention
+
+- **`_global.yml`**: the underscore prefix is a file naming convention to sort it first and signal "special". It is only used for the config file name.
+- **`global`**: the workspace name (used as the key, data directory name, and API identifier). Derived from `_global.yml` by stripping the `_` prefix.
+- All other workspaces use their name directly: `monitor.yml` → name `monitor`, data dir `monitor/`.
+
 ### Data directory resolution
 
 One rule with one override:
@@ -50,42 +56,65 @@ One rule with one override:
 
 ### Name inference
 
-When YAML omits `name`, infer from context (priority order):
+When YAML omits `name`, it is inferred from the source. Priority:
 
-1. `name` field in YAML content
-2. File name: `review.yml` → `review`, `_global.yml` → `_global`
-3. `opts.name` fallback (from API callers)
-4. Default: `"global"`
+1. File name: `review.yml` → `review`, `_global.yml` → `global` (strip `_` prefix)
+2. `opts.name` (passed by API callers or `ensureDefault()`)
+3. Error — name is required for non-global workspaces
+
+Note: if YAML contains a `name` field, it is always used as-is. Inference only applies when `name` is omitted.
+
+### CLI commands
+
+Commands always take a config file path. No "lookup by name" shorthand.
+
+```bash
+aw create <config.yml> [--tag <tag>] [--var K=V]   # service mode
+aw run <config.yml> [--tag <tag>] [--var K=V]       # task mode (auto-remove on completion)
+```
+
+The config source can be a local file path or (future) a URL. The CLI reads the file, sends the YAML content to the daemon API. The daemon determines the data directory.
 
 ### Scenario mapping
 
-| Scenario | Command | Config source | Data directory |
-|----------|---------|--------------|----------------|
-| Global workspace | daemon startup | `workspaces/_global.yml` (fallback to built-in default) | `workspace-data/_global/` |
-| Global named | `aw create monitor` | `workspaces/monitor.yml` | `workspace-data/monitor/` |
-| Local file | `aw run ./review.yml` | `./review.yml` | `workspace-data/review/` |
-| Local + tag | `aw run ./review.yml --tag pr-123` | `./review.yml` | `workspace-data/review--pr-123/` |
-| Remote URL | `aw run https://.../review.yml` | fetched at runtime | `workspace-data/review/` |
-| API inline | POST /workspaces | request body YAML | `workspace-data/<name>/` |
-| Project-local | YAML has `data_dir: ./.aw` | any | `./.aw/` |
+| Scenario | Command | Config source | Workspace name | Data directory |
+|----------|---------|--------------|----------------|----------------|
+| Global workspace | daemon startup | `~/.agent-worker/workspaces/_global.yml` (fallback to built-in default) | `global` | `workspace-data/global/` |
+| Global named | `aw create ~/.agent-worker/workspaces/monitor.yml` | `~/.agent-worker/workspaces/monitor.yml` | `monitor` (from YAML or file name) | `workspace-data/monitor/` |
+| Local file | `aw run ./review.yml` | `./review.yml` | `review` (from YAML or file name) | `workspace-data/review/` |
+| Local + tag | `aw run ./review.yml --tag pr-123` | `./review.yml` | `review` | `workspace-data/review--pr-123/` |
+| Remote URL | `aw run https://.../review.yml` (future) | fetched at runtime | `review` (from YAML or URL file name) | `workspace-data/review/` |
+| API inline | POST /workspaces `{source: "name: foo\nagents: ..."}` | request body YAML | `foo` (from YAML content) | `workspace-data/foo/` |
+| Project-local data | `aw run ./review.yml` (YAML has `data_dir: ./.aw`) | `./review.yml` | `review` | `./.aw/` (relative to config file) |
 
 ### Global workspace behavior
 
 - Daemon reads `~/.agent-worker/workspaces/_global.yml` at startup
-- If not present, uses built-in default: `agents: { default: {} }, storage: file`
-- The `default` agent triggers runtime auto-discovery (CLI first, then API key)
-- If discovery fails, falls back to empty agents so daemon can still start
+- If file does not exist, uses built-in default config:
+  ```yaml
+  agents:
+    default: {}
+  storage: file
+  ```
+  Name is set to `global` by `ensureDefault()`.
+- The `default: {}` agent triggers runtime auto-discovery (CLI first, then API key)
+- If auto-discovery fails (no CLI, no API key), falls back to empty agents (`agents: {}`) so the daemon can still start
 
 ### YAML schema changes
 
-- `storage_dir` → renamed to `data_dir` (clearer semantics)
-- `name` → optional (inferred from file name or context)
-- `storage` field retained (`"memory" | "file"`, default `"file"`)
+**`WorkspaceDef` type:**
+
+| Field | Before | After |
+|-------|--------|-------|
+| `name` | `string` (required) | `string?` (optional, inferred from file name) |
+| `storage_dir` | `string?` | removed, replaced by `data_dir` |
+| `data_dir` | — | `string?` (custom data directory, default: auto) |
+| `storage` | `"memory" \| "file"` | unchanged |
 
 ## Consequences
 
-- All workspace runtime data has a single default location (`workspace-data/`)
+- All workspace runtime data has a single default location (`~/.agent-worker/workspace-data/`)
 - Config files can live anywhere — no coupling between config location and data location
 - Users can opt into project-local data via `data_dir` in YAML
-- Global workspace becomes user-configurable via `_global.yml`
-- `aw create <name>` can look up configs from `workspaces/` directory
+- Global workspace becomes user-configurable via `~/.agent-worker/workspaces/_global.yml`
+- CLI commands remain `aw create/run <config.yml>` — no new command forms
