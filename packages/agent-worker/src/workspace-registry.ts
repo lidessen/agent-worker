@@ -16,6 +16,17 @@ import { ManagedWorkspace } from "./managed-workspace.ts";
 
 const DEFAULT_GLOBAL_CONFIG = `\
 name: global
+agents:
+  default: {}
+channels:
+  - general
+default_channel: general
+storage: file
+`;
+
+/** Fallback config when runtime auto-discovery fails (no CLI / no API key). */
+const FALLBACK_GLOBAL_CONFIG = `\
+name: global
 agents: {}
 channels:
   - general
@@ -70,7 +81,14 @@ export class WorkspaceRegistry {
       yaml = DEFAULT_GLOBAL_CONFIG;
     }
 
-    const resolved = await loadWorkspaceDef(yaml);
+    // Try loading with auto-discovery; if runtime detection fails,
+    // fall back to empty agents so the daemon can still start.
+    let resolved;
+    try {
+      resolved = await loadWorkspaceDef(yaml);
+    } catch {
+      resolved = await loadWorkspaceDef(FALLBACK_GLOBAL_CONFIG, { skipSetup: true });
+    }
     const config = toWorkspaceConfig(resolved, {
       storageDir: globalDir,
     });
