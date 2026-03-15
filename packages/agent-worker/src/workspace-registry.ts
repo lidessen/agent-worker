@@ -18,9 +18,6 @@ const DEFAULT_GLOBAL_CONFIG = `\
 name: global
 agents:
   default: {}
-channels:
-  - general
-default_channel: general
 storage: file
 `;
 
@@ -28,9 +25,6 @@ storage: file
 const FALLBACK_GLOBAL_CONFIG = `\
 name: global
 agents: {}
-channels:
-  - general
-default_channel: general
 storage: file
 `;
 
