@@ -1,5 +1,6 @@
 import { parse as parseYaml } from "yaml";
 import { readFile, access } from "node:fs/promises";
+import { basename, dirname } from "node:path";
 import { execa } from "execa";
 import type {
   WorkspaceDef,
@@ -100,8 +101,8 @@ export function parseWorkspaceDef(content: string): WorkspaceDef {
     throw new Error("Invalid workspace definition: expected an object");
   }
 
-  if (!raw.name || typeof raw.name !== "string") {
-    throw new Error("Invalid workspace definition: 'name' is required");
+  if (raw.name !== undefined && typeof raw.name !== "string") {
+    throw new Error("Invalid workspace definition: 'name' must be a string");
   }
 
   if (!raw.agents || typeof raw.agents !== "object") {
@@ -120,6 +121,8 @@ export interface LoadOptions {
   vars?: Record<string, string>;
   /** Skip running setup steps (useful for dry-run / validation). */
   skipSetup?: boolean;
+  /** Fallback name when YAML doesn't specify one and path inference isn't possible. */
+  name?: string;
 }
 
 /**
@@ -132,15 +135,17 @@ export async function loadWorkspaceDef(
 ): Promise<ResolvedWorkspace> {
   // Determine if it's a file path or raw YAML content
   let content: string;
+  let filePath: string | undefined;
   if (pathOrContent.includes("\n") || pathOrContent.trimStart().startsWith("name:")) {
     content = pathOrContent;
   } else {
+    filePath = pathOrContent;
     try {
-      await access(pathOrContent);
+      await access(filePath);
     } catch {
-      throw new Error(`Workspace definition not found: ${pathOrContent}`);
+      throw new Error(`Workspace definition not found: ${filePath}`);
     }
-    content = await readFile(pathOrContent, "utf-8");
+    content = await readFile(filePath, "utf-8");
   }
 
   // Interpolate ${{ secrets.X }} references before parsing YAML.
@@ -164,6 +169,25 @@ export async function loadWorkspaceDef(
   }
 
   const def = parseWorkspaceDef(content);
+
+  // Infer name if not specified in YAML:
+  //   - workspaces/<dir>/config.yml  → dir name (strip leading "_", strip "--<tag>" suffix)
+  //   - review.yml                   → "review" (file stem)
+  //   - opts.name                    → fallback
+  if (!def.name && filePath) {
+    const file = basename(filePath);
+    if (file === "config.yml" || file === "config.yaml") {
+      // From directory name: _global → global, my-project--pr-123 → my-project
+      const dir = basename(dirname(filePath));
+      def.name = dir.replace(/^_/, "").replace(/--.*$/, "");
+    } else {
+      // From file name: review.yml → review
+      def.name = file.replace(/\.(ya?ml)$/, "");
+    }
+  }
+  if (!def.name) {
+    def.name = opts.name ?? "global";
+  }
 
   // Resolve agents (runtime + model)
   const agents: ResolvedAgent[] = [];
