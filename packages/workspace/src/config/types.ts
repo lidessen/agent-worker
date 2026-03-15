@@ -64,8 +64,8 @@ export interface ConnectionDef {
 
 /** Declarative workspace definition (typically loaded from YAML). */
 export interface WorkspaceDef {
-  /** Workspace name. Required. */
-  name: string;
+  /** Workspace name. Optional — inferred from file name or opts.name when omitted. */
+  name?: string;
   /** Agent definitions. Keys are agent names. */
   agents: Record<string, AgentDef>;
   /** Channel names to create. Default: ["general"]. */
@@ -74,8 +74,8 @@ export interface WorkspaceDef {
   default_channel?: string;
   /** Storage backend: "memory" | "file". Default: "file". */
   storage?: "memory" | "file";
-  /** Directory for file-based storage. Default: auto-generated from name+tag. */
-  storage_dir?: string;
+  /** Custom data directory. Relative paths resolve from config file location. */
+  data_dir?: string;
   /** Setup steps to run before kickoff. */
   setup?: SetupStep[];
   /** Kickoff message (template string with ${{ var }} interpolation and @mentions). */
@@ -118,8 +118,8 @@ export interface ResolvedAgent {
 
 /** Result of loading and resolving a workspace definition. */
 export interface ResolvedWorkspace {
-  /** The parsed and validated definition. */
-  def: WorkspaceDef;
+  /** The parsed and validated definition (name is guaranteed after resolution). */
+  def: WorkspaceDef & { name: string };
   /** Resolved agents (normalized model specs). */
   agents: ResolvedAgent[];
   /** Variables from setup steps (name → stdout). */

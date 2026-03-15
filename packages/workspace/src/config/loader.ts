@@ -1,6 +1,6 @@
 import { parse as parseYaml } from "yaml";
 import { readFile, access } from "node:fs/promises";
-import { basename, dirname } from "node:path";
+import { basename } from "node:path";
 import { execa } from "execa";
 import type {
   WorkspaceDef,
@@ -136,7 +136,7 @@ export async function loadWorkspaceDef(
   // Determine if it's a file path or raw YAML content
   let content: string;
   let filePath: string | undefined;
-  if (pathOrContent.includes("\n") || pathOrContent.trimStart().startsWith("name:")) {
+  if (pathOrContent.includes("\n") || pathOrContent.trimStart().startsWith("agents:")) {
     content = pathOrContent;
   } else {
     filePath = pathOrContent;
@@ -170,23 +170,19 @@ export async function loadWorkspaceDef(
 
   const def = parseWorkspaceDef(content);
 
-  // Infer name if not specified in YAML:
-  //   - workspaces/<dir>/config.yml  → dir name (strip leading "_", strip "--<tag>" suffix)
-  //   - review.yml                   → "review" (file stem)
-  //   - opts.name                    → fallback
+  // Name resolution priority: YAML name → file name → opts.name → error
   if (!def.name && filePath) {
     const file = basename(filePath);
-    if (file === "config.yml" || file === "config.yaml") {
-      // From directory name: _global → global, my-project--pr-123 → my-project
-      const dir = basename(dirname(filePath));
-      def.name = dir.replace(/^_/, "").replace(/--.*$/, "");
-    } else {
-      // From file name: review.yml → review
-      def.name = file.replace(/\.(ya?ml)$/, "");
-    }
+    // _global.yml → global, review.yml → review
+    def.name = file.replace(/\.(ya?ml)$/, "").replace(/^_/, "");
   }
   if (!def.name) {
-    def.name = opts.name ?? "global";
+    def.name = opts.name;
+  }
+  if (!def.name) {
+    throw new Error(
+      "Workspace name is required: set 'name' in YAML, use a named file, or pass opts.name",
+    );
   }
 
   // Resolve agents (runtime + model)
@@ -207,8 +203,7 @@ export async function loadWorkspaceDef(
     const finalModel = modelSpec ?? (resolution.model ? resolveModel(resolution.model) : undefined);
 
     // Merge workspace-level env + agent-level env (agent wins)
-    const mergedEnv =
-      def.env || agentDef.env ? { ...def.env, ...agentDef.env } : undefined;
+    const mergedEnv = def.env || agentDef.env ? { ...def.env, ...agentDef.env } : undefined;
 
     agents.push({
       name,
@@ -241,7 +236,7 @@ export async function loadWorkspaceDef(
   // Interpolate kickoff
   const kickoff = def.kickoff ? interpolate(def.kickoff, allVars) : undefined;
 
-  return { def, agents, vars: setupVars, kickoff };
+  return { def: def as WorkspaceDef & { name: string }, agents, vars: setupVars, kickoff };
 }
 
 // ── Saved connection loading ──────────────────────────────────────────────
@@ -293,14 +288,11 @@ export async function resolveConnections(defs?: ConnectionDef[]): Promise<Channe
         // Load saved connection as fallback
         const saved = await loadSavedTelegramConnection();
 
-        const botToken =
-          cfg.bot_token ??
-          process.env.TELEGRAM_BOT_TOKEN ??
-          saved?.bot_token;
+        const botToken = cfg.bot_token ?? process.env.TELEGRAM_BOT_TOKEN ?? saved?.bot_token;
         if (!botToken) {
           throw new Error(
             "Telegram connection requires bot_token in config, TELEGRAM_BOT_TOKEN env var, " +
-            "or a saved connection (run 'aw connect telegram')",
+              "or a saved connection (run 'aw connect telegram')",
           );
         }
         const parsedChatId = process.env.TELEGRAM_CHAT_ID
@@ -330,7 +322,7 @@ export async function resolveConnections(defs?: ConnectionDef[]): Promise<Channe
 // ── Convert to WorkspaceConfig ────────────────────────────────────────────
 
 export interface ToWorkspaceConfigOptions extends LoadOptions {
-  /** Override the storage directory (takes precedence over def.storage_dir and the default). */
+  /** Override the data directory (takes precedence over def.data_dir and the default). */
   storageDir?: string;
   /** Pre-resolved connections to attach. */
   connections?: ChannelAdapter[];
@@ -350,7 +342,7 @@ export function toWorkspaceConfig(
   const storageType = def.storage ?? "file";
   const storageDir =
     opts.storageDir ??
-    def.storage_dir ??
+    def.data_dir ??
     `/tmp/agent-worker-${def.name}${opts.tag ? `-${opts.tag}` : ""}`;
   const storage = storageType === "memory" ? new MemoryStorage() : new FileStorage(storageDir);
 

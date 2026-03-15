@@ -46,7 +46,10 @@ export class MockLoop {
       statusSetter();
     };
     return {
-      [Symbol.asyncIterator]: () => iter(() => { this._status = "completed"; }),
+      [Symbol.asyncIterator]: () =>
+        iter(() => {
+          this._status = "completed";
+        }),
       result: resultPromise,
     };
   }

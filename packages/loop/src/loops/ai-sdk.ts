@@ -187,7 +187,9 @@ export class AiSdkLoop {
     this.agent = null;
   }
 
-  setPrepareStep(fn: (opts: any) => Promise<Record<string, unknown>> | Record<string, unknown>): void {
+  setPrepareStep(
+    fn: (opts: any) => Promise<Record<string, unknown>> | Record<string, unknown>,
+  ): void {
     this._prepareStep = fn;
   }
 
