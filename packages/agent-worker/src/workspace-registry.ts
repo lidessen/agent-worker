@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { readFile } from "node:fs/promises";
 import {
   createWorkspace,
   createWiredLoop,
@@ -12,6 +13,15 @@ import type { AgentLoop } from "@agent-worker/agent";
 import type { EventBus } from "@agent-worker/shared";
 import type { CreateWorkspaceInput, ManagedWorkspaceInfo } from "./types.ts";
 import { ManagedWorkspace } from "./managed-workspace.ts";
+
+const DEFAULT_GLOBAL_CONFIG = `\
+name: global
+agents: {}
+channels:
+  - general
+default_channel: general
+storage: file
+`;
 
 /**
  * WorkspaceRegistry manages workspace lifecycle within the daemon.
@@ -49,16 +59,20 @@ export class WorkspaceRegistry {
   async ensureDefault(): Promise<ManagedWorkspace> {
     if (this._defaultWorkspace) return this._defaultWorkspace;
 
-    const globalYaml = `
-name: global
-agents: {}
-storage: file
-`;
+    const globalDir = join(this._dataDir, "workspaces", "_global");
+    const configPath = join(globalDir, "config.yml");
 
-    const resolved = await loadWorkspaceDef(globalYaml);
-    // Global workspace stores at root level (channels/, inbox/ directly under dataDir)
+    // Read config.yml if it exists, otherwise use default
+    let yaml: string;
+    try {
+      yaml = await readFile(configPath, "utf-8");
+    } catch {
+      yaml = DEFAULT_GLOBAL_CONFIG;
+    }
+
+    const resolved = await loadWorkspaceDef(yaml);
     const config = toWorkspaceConfig(resolved, {
-      storageDir: this._dataDir,
+      storageDir: globalDir,
     });
     const workspace = await createWorkspace(config);
 
@@ -67,7 +81,7 @@ storage: file
       resolved,
       loops: [],
       bus: this._bus,
-      statusPath: join(this._dataDir, "status.json"),
+      statusPath: join(globalDir, "status.json"),
     });
 
     return this._defaultWorkspace;
