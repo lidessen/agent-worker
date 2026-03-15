@@ -664,7 +664,7 @@ export class Daemon {
       })),
       channels,
       loops: handle.loops.map((l) => ({
-        name: (l as any).name ?? "unknown",
+        name: l.name,
         running: l.isRunning,
       })),
     });
@@ -775,7 +775,7 @@ export class Daemon {
     const wsKey = handle.key;
     return this.createSSEStream((push) => {
       const unsub = this._bus.on((event: BusEvent) => {
-        if ((event as any).workspace === wsKey) {
+        if (event.workspace === wsKey) {
           push({ ...event, ts: Date.now() });
         }
       });
@@ -862,6 +862,7 @@ export class Daemon {
    * and returns a cleanup function.
    */
   private createSSEStream(setup: (push: (data: unknown) => void) => (() => void) | void): Response {
+    let cleanup: (() => void) | void;
     const stream = new ReadableStream({
       start(controller) {
         const push = (data: unknown) => {
@@ -871,12 +872,10 @@ export class Daemon {
             /* stream may be closed */
           }
         };
-        const cleanup = setup(push);
-        // Store cleanup for cancel
-        (controller as any)._cleanup = cleanup;
+        cleanup = setup(push);
       },
-      cancel(controller: any) {
-        controller._cleanup?.();
+      cancel() {
+        cleanup?.();
       },
     });
 

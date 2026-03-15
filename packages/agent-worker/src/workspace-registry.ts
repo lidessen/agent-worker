@@ -221,7 +221,9 @@ storage: file
       }
 
       if (loop.setTools) {
-        loop.setTools(tools as any);
+        // WorkspaceToolSet → ToolSet: workspace tools are plain functions
+        // that get wrapped by the loop implementation.
+        loop.setTools(tools as import("ai").ToolSet);
       }
 
       const run = loop.run(prompt);
@@ -237,9 +239,10 @@ storage: file
 
       const result = await run.result;
       // Post final response to channel if not handled by tools
-      const textEvents = result.events?.filter((e) => e.type === "text") ?? [];
+      const textEvents =
+        result.events?.filter((e): e is { type: "text"; text: string } => e.type === "text") ?? [];
       if (textEvents.length > 0) {
-        const text = textEvents.map((e) => (e as any).text).join("");
+        const text = textEvents.map((e) => e.text).join("");
         if (text.length > 0) {
           const channel = instruction.channel || (resolved.def.default_channel ?? "general");
           await workspace.contextProvider.smartSend(channel, agent.name, text);
@@ -254,7 +257,7 @@ storage: file
 
     const { createLoopFromConfig } = await import("./loop-factory.ts");
     return createLoopFromConfig({
-      type: agent.runtime as any,
+      type: agent.runtime as import("./types.ts").RuntimeType,
       model: agent.model?.full,
       instructions: agent.instructions,
       env: agent.env,
