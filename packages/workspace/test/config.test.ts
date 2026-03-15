@@ -157,8 +157,9 @@ kickoff: |
     expect(def.kickoff).toBeDefined();
   });
 
-  test("throws on missing name", () => {
-    expect(() => parseWorkspaceDef("agents:\n  a:\n    model: x")).toThrow("'name' is required");
+  test("allows omitting name", () => {
+    const def = parseWorkspaceDef("agents:\n  a:\n    model: x");
+    expect(def.name).toBeUndefined();
   });
 
   test("throws on missing agents", () => {

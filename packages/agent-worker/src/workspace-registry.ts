@@ -1,5 +1,4 @@
 import { join } from "node:path";
-import { readFile } from "node:fs/promises";
 import {
   createWorkspace,
   createWiredLoop,
@@ -15,7 +14,6 @@ import type { CreateWorkspaceInput, ManagedWorkspaceInfo } from "./types.ts";
 import { ManagedWorkspace } from "./managed-workspace.ts";
 
 const DEFAULT_GLOBAL_CONFIG = `\
-name: global
 agents:
   default: {}
 storage: file
@@ -23,7 +21,6 @@ storage: file
 
 /** Fallback config when runtime auto-discovery fails (no CLI / no API key). */
 const FALLBACK_GLOBAL_CONFIG = `\
-name: global
 agents: {}
 storage: file
 `;
@@ -67,23 +64,21 @@ export class WorkspaceRegistry {
     const globalDir = join(this._dataDir, "workspaces", "_global");
     const configPath = join(globalDir, "config.yml");
 
-    // Read config.yml if it exists, otherwise use default.
-    // Ensure name is always "global" — user config.yml can omit it.
-    let yaml: string;
-    try {
-      const userYaml = await readFile(configPath, "utf-8");
-      yaml = userYaml.includes("name:") ? userYaml : `name: global\n${userYaml}`;
-    } catch {
-      yaml = DEFAULT_GLOBAL_CONFIG;
-    }
-
-    // Try loading with auto-discovery; if runtime detection fails,
-    // fall back to empty agents so the daemon can still start.
+    // Try config.yml first, then inline YAML default.
+    // Name is inferred from directory "_global" → "global".
     let resolved;
     try {
-      resolved = await loadWorkspaceDef(yaml);
+      resolved = await loadWorkspaceDef(configPath);
     } catch {
-      resolved = await loadWorkspaceDef(FALLBACK_GLOBAL_CONFIG, { skipSetup: true });
+      // No config.yml or runtime discovery failed — use fallback
+      try {
+        resolved = await loadWorkspaceDef(DEFAULT_GLOBAL_CONFIG, { name: "global" });
+      } catch {
+        resolved = await loadWorkspaceDef(FALLBACK_GLOBAL_CONFIG, {
+          name: "global",
+          skipSetup: true,
+        });
+      }
     }
     const config = toWorkspaceConfig(resolved, {
       storageDir: globalDir,
