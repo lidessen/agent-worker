@@ -90,6 +90,7 @@ export class Daemon {
 
     await this.eventLog.init();
     const globalWs = await this.workspaces.ensureDefault();
+    await globalWs.startLoops();
     await this.registerGlobalAgents(globalWs);
     this.startedAt = Date.now();
 
