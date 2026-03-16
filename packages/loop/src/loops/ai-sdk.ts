@@ -17,8 +17,6 @@ export interface AiSdkLoopOptions {
   tools?: ToolSet;
   /** Options for bash-tool sandbox */
   bashToolOptions?: CreateBashToolOptions;
-  /** Set false to disable built-in bash/readFile/writeFile tools. Default: true */
-  includeBashTools?: boolean;
   /** Tool relevance config for dynamic per-step tool filtering. */
   toolRelevance?: ToolRelevanceConfig;
 }
@@ -48,19 +46,10 @@ export class AiSdkLoop {
 
   /** Initialize bash tools and create the underlying ToolLoopAgent. Called automatically by run(). */
   async init(): Promise<void> {
-    const {
-      model,
-      instructions,
-      tools: userTools = {},
-      bashToolOptions,
-      includeBashTools = true,
-    } = this.options;
+    const { model, instructions, tools: userTools = {}, bashToolOptions } = this.options;
 
-    let builtinTools: ToolSet = {};
-    if (includeBashTools) {
-      this.bashToolkit = await createBashTool(bashToolOptions);
-      builtinTools = this.bashToolkit.tools as unknown as ToolSet;
-    }
+    this.bashToolkit = await createBashTool(bashToolOptions);
+    const builtinTools: ToolSet = this.bashToolkit.tools as unknown as ToolSet;
 
     // Merge: builtins < options.tools < previously set tools (via setTools)
     this.tools = { ...builtinTools, ...userTools, ...this.tools };

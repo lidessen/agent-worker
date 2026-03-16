@@ -30,7 +30,7 @@ describe("Workspace Tools", () => {
     });
 
     test("channel_read returns messages", async () => {
-      await workspace.contextProvider.smartSend("general", "alice", "test msg");
+      await workspace.contextProvider.send({ channel: "general", from: "alice", content: "test msg" });
 
       const { tools } = createAgentTools("bob", workspace);
       const result = await tools.channel_read!({ channel: "general" });
@@ -54,7 +54,7 @@ describe("Workspace Tools", () => {
 
   describe("Inbox tools", () => {
     test("my_inbox shows pending messages", async () => {
-      await workspace.contextProvider.smartSend("general", "alice", "Hey @bob");
+      await workspace.contextProvider.send({ channel: "general", from: "alice", content: "Hey @bob" });
 
       const { tools } = createAgentTools("bob", workspace);
       const result = await tools.my_inbox!({});
@@ -62,7 +62,7 @@ describe("Workspace Tools", () => {
     });
 
     test("my_inbox_ack removes entry", async () => {
-      const msg = await workspace.contextProvider.smartSend("general", "alice", "Hey @bob");
+      const msg = await workspace.contextProvider.send({ channel: "general", from: "alice", content: "Hey @bob" });
 
       const { tools } = createAgentTools("bob", workspace);
       await tools.my_inbox_ack!({ message_id: msg.id });

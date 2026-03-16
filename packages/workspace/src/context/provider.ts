@@ -1,7 +1,5 @@
 import type {
   Message,
-  Priority,
-  EventKind,
   ContextProvider,
   ChannelStoreInterface,
   InboxStoreInterface,
@@ -18,8 +16,8 @@ export interface ContextProviderConfig {
   resources: ResourceStoreInterface;
   status: StatusStoreInterface;
   timeline: TimelineStoreInterface;
-  /** SmartSend threshold. Default: 1200 */
-  smartSendThreshold?: number;
+  /** Max message length in characters. Default: 1200 */
+  maxMessageLength?: number;
 }
 
 export class CompositeContextProvider implements ContextProvider {
@@ -30,7 +28,7 @@ export class CompositeContextProvider implements ContextProvider {
   readonly status: StatusStoreInterface;
   readonly timeline: TimelineStoreInterface;
 
-  private readonly smartSendThreshold: number;
+  private readonly maxMessageLength: number;
 
   constructor(config: ContextProviderConfig) {
     this.channels = config.channels;
@@ -39,43 +37,32 @@ export class CompositeContextProvider implements ContextProvider {
     this.resources = config.resources;
     this.status = config.status;
     this.timeline = config.timeline;
-    this.smartSendThreshold = config.smartSendThreshold ?? 1200;
+    this.maxMessageLength = config.maxMessageLength ?? 1200;
   }
 
-  async smartSend(
-    channel: string,
-    from: string,
-    content: string,
-    opts?: { to?: string; priority?: Priority; kind?: EventKind },
-  ): Promise<Message> {
+  async send(msg: {
+    channel: string;
+    from: string;
+    content: string;
+    to?: string;
+  }): Promise<Message> {
     const { extractMentions } = await import("../utils.ts");
-    const mentions = extractMentions(content);
-    const kind = opts?.kind ?? "message";
 
-    // Only "message" kind goes to channels (Invariant #12)
-    if (kind !== "message") {
-      throw new Error(`Cannot send kind="${kind}" to channel. Only "message" kind is allowed.`);
-    }
-
-    // Hard limit: reject messages that exceed the threshold.
-    // Agents must use resource_create for large content, then send a short
-    // message referencing the resource ID.
-    if (content.length > this.smartSendThreshold) {
+    if (msg.content.length > this.maxMessageLength) {
       throw new Error(
-        `Message too long (${content.length} chars, max ${this.smartSendThreshold}). ` +
+        `Message too long (${msg.content.length} chars, max ${this.maxMessageLength}). ` +
           `Use resource_create to store large content first, then send a short message with the resource ID.`,
       );
     }
 
-    const message = await this.channels.append(channel, {
-      from,
-      channel,
-      content,
+    const mentions = extractMentions(msg.content);
+    return this.channels.append(msg.channel, {
+      from: msg.from,
+      channel: msg.channel,
+      content: msg.content,
       mentions,
-      to: opts?.to,
-      kind,
+      to: msg.to,
+      kind: "message",
     });
-
-    return message;
   }
 }

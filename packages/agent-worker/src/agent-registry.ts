@@ -3,6 +3,10 @@ import type { AgentConfig } from "@agent-worker/agent";
 import type { EventBus } from "@agent-worker/shared";
 import type { CreateAgentInput, ManagedAgentInfo } from "./types.ts";
 import { ManagedAgent } from "./managed-agent.ts";
+import { GlobalAgentStub } from "./global-agent-stub.ts";
+
+/** Common handle type returned by the registry. */
+export type AgentHandle = ManagedAgent | GlobalAgentStub;
 
 /**
  * AgentRegistry manages agent lifecycle within the daemon.
@@ -15,7 +19,7 @@ import { ManagedAgent } from "./managed-agent.ts";
  * Agents emit structured events to the shared EventBus.
  */
 export class AgentRegistry {
-  private agents = new Map<string, ManagedAgent>();
+  private agents = new Map<string, AgentHandle>();
   private _bus?: EventBus;
   private _dataDir?: string;
 
@@ -50,7 +54,7 @@ export class AgentRegistry {
     return join(this._dataDir, "agents", name);
   }
 
-  /** Create and register a new agent. */
+  /** Create and register a new agent with a full Agent/Loop. */
   async create(input: CreateAgentInput): Promise<ManagedAgent> {
     if (this.agents.has(input.name)) {
       throw new Error(`Agent "${input.name}" already exists`);
@@ -89,8 +93,30 @@ export class AgentRegistry {
     return handle;
   }
 
+  /**
+   * Register a lightweight stub for a global workspace agent.
+   * No Agent/Loop is created — the workspace handles execution.
+   */
+  registerGlobal(name: string, opts?: { runtime?: string; getState?: () => import("@agent-worker/agent").AgentState }): GlobalAgentStub {
+    if (this.agents.has(name)) {
+      throw new Error(`Agent "${name}" already exists`);
+    }
+
+    const stub = new GlobalAgentStub({ name, runtime: opts?.runtime, getState: opts?.getState });
+    this.agents.set(name, stub);
+
+    this._bus?.emit({
+      type: "agent.created",
+      source: "daemon",
+      agent: name,
+      kind: "config",
+    });
+
+    return stub;
+  }
+
   /** Get an agent by name. */
-  get(name: string): ManagedAgent | undefined {
+  get(name: string): AgentHandle | undefined {
     return this.agents.get(name);
   }
 

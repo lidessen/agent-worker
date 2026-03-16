@@ -10,58 +10,32 @@ export interface PromptContext {
   currentInstruction?: string;
 }
 
-/** Default prompt sections. Each returns a section string or null. */
-
+/** Agent's custom instructions (from YAML config). */
 export const soulSection: PromptSection = async (ctx) => {
   if (!ctx.instructions) return null;
   return `## Instructions\n\n${ctx.instructions}`;
 };
 
-export const teamSection: PromptSection = async (ctx) => {
-  const members = await ctx.provider.status.getAll();
-  if (members.length === 0) return null;
-
-  const lines = members.map((m) => {
-    const task = m.currentTask ? ` (${m.currentTask})` : "";
-    return `- @${m.name}: ${m.status}${task}`;
-  });
-  return `## Team Members\n\n${lines.join("\n")}`;
-};
-
+/** Pending inbox messages for the agent. */
 export const inboxSection: PromptSection = async (ctx) => {
-  if (ctx.inboxEntries.length === 0) return "## Inbox\n\nNo pending messages.";
+  if (ctx.inboxEntries.length === 0) return null;
 
   const lines: string[] = [];
   for (const entry of ctx.inboxEntries) {
     const msg = await ctx.provider.channels.getMessage(entry.channel, entry.messageId);
     if (!msg) continue;
     const priority = entry.priority !== "normal" ? ` [${entry.priority}]` : "";
-    lines.push(`- [${msg.id}] #${entry.channel} from:@${msg.from}${priority}: "${msg.content}"`);
+    lines.push(`- [${msg.id}] #${entry.channel} from @${msg.from}${priority}: "${msg.content}"`);
   }
 
+  if (lines.length === 0) return null;
   return `## Inbox (${lines.length} pending)\n\n${lines.join("\n")}`;
 };
 
+/** The instruction currently being processed. */
 export const currentTaskSection: PromptSection = async (ctx) => {
   if (!ctx.currentInstruction) return null;
   return `## Current Task\n\n${ctx.currentInstruction}`;
-};
-
-export const messagingSection: PromptSection = async () => {
-  return [
-    "## How to Respond",
-    "",
-    "You MUST use `channel_send` to post your responses — do not just output text.",
-    "Messages are limited to 1200 characters. For longer content:",
-    "1. Call `resource_create` to store the full content",
-    "2. Call `channel_send` with a short summary that includes the resource ID",
-  ].join("\n");
-};
-
-export const docsSection: PromptSection = async (ctx) => {
-  const docs = await ctx.provider.documents.list();
-  if (docs.length === 0) return null;
-  return `## Shared Documents\n\nAvailable: ${docs.join(", ")}`;
 };
 
 /** Assemble all prompt sections. */
@@ -79,12 +53,13 @@ export async function assemblePrompt(
   return parts.join("\n\n---\n\n");
 }
 
-/** Default section list. */
-export const DEFAULT_SECTIONS: PromptSection[] = [
+/**
+ * Base sections — agent-level context only (no workspace awareness).
+ * Used internally by WorkspaceAgentLoop as the foundation; capability-specific
+ * sections (workspace, docs) are appended via promptSections.
+ */
+export const BASE_SECTIONS: PromptSection[] = [
   soulSection,
-  teamSection,
   inboxSection,
   currentTaskSection,
-  messagingSection,
-  docsSection,
 ];

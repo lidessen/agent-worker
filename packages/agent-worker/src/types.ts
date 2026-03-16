@@ -129,22 +129,6 @@ export interface RunnerConfig {
   sandbox?: Record<string, unknown>;
 }
 
-export interface RunRequest {
-  /** Agent name to run against. */
-  agent: string;
-  /** User message. */
-  message: string;
-  /** If true, stream events via SSE. Default: false. */
-  stream?: boolean;
-}
-
-export interface RunResponse {
-  /** Agent's text response. */
-  text: string;
-  /** Events emitted during the run. */
-  events: DaemonEvent[];
-}
-
 // ── Daemon events ─────────────────────────────────────────────────────────
 
 export interface DaemonEvent {

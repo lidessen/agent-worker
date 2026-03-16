@@ -90,12 +90,13 @@ export class WorkspaceRegistry {
     const loops: WorkspaceAgentLoop[] = [];
     for (const agent of resolved.agents) {
       if (!agent.runtime) continue;
-      const { tools } = createAgentTools(agent.name, workspace);
+      const { tools, promptSections } = createAgentTools(agent.name, workspace);
       const runner = await this.createRunner(agent, workspace, resolved, "global", tools);
       const loop = createWiredLoop({
         name: agent.name,
         instructions: agent.instructions,
         runtime: workspace,
+        promptSections,
         pollInterval: 2000,
         onInstruction: async (prompt, instruction) => {
           const runId = crypto.randomUUID();
@@ -111,8 +112,7 @@ export class WorkspaceRegistry {
             workspace: "global",
             agent: agent.name,
             runId,
-            prompt: prompt.slice(0, 2000),
-            promptLength: prompt.length,
+            prompt,
             level: "debug",
           });
           try {
@@ -177,7 +177,7 @@ export class WorkspaceRegistry {
     const loops: WorkspaceAgentLoop[] = [];
     const { mkdirSync } = await import("node:fs");
     for (const agent of resolved.agents) {
-      const { tools, dirs } = createAgentTools(agent.name, workspace);
+      const { tools, promptSections, dirs } = createAgentTools(agent.name, workspace);
       if (dirs.workspaceSandboxDir) mkdirSync(dirs.workspaceSandboxDir, { recursive: true });
       if (dirs.sandboxDir) mkdirSync(dirs.sandboxDir, { recursive: true });
 
@@ -186,6 +186,7 @@ export class WorkspaceRegistry {
         name: agent.name,
         instructions: agent.instructions,
         runtime: workspace,
+        promptSections,
         pollInterval: 2000,
         onInstruction: async (prompt, instruction) => {
           const runId = crypto.randomUUID();
@@ -312,11 +313,11 @@ export class WorkspaceRegistry {
     return async (prompt, instruction) => {
       if (!agent.runtime || agent.runtime === "mock") {
         const channel = instruction.channel || (resolved.def.default_channel ?? "general");
-        await workspace.contextProvider.smartSend(
+        await workspace.contextProvider.send({
           channel,
-          agent.name,
-          `[mock] Processed: ${instruction.content.slice(0, 100)}`,
-        );
+          from: agent.name,
+          content: `[mock] Processed: ${instruction.content.slice(0, 100)}`,
+        });
         return;
       }
 
@@ -391,9 +392,9 @@ function jsonTypeToZod(param: { type: string; description?: string }): z.ZodType
  */
 function wrapWorkspaceToolsForAiSdk(wsTools: WorkspaceToolSet): ToolSet {
   const result: ToolSet = {};
-  const defs = WORKSPACE_TOOL_DEFS as Record<
+  const defs = WORKSPACE_TOOL_DEFS as unknown as Record<
     string,
-    { description: string; parameters: Record<string, { type: string; description?: string }>; required: string[] }
+    { description: string; parameters: Record<string, { type: string; description?: string }>; required: readonly string[] }
   >;
 
   for (const [name, fn] of Object.entries(wsTools)) {

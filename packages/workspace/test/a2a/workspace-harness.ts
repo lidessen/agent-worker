@@ -119,9 +119,9 @@ test("T2", async () => {
     storage: new MemoryStorage(),
   });
 
-  await ws.contextProvider.smartSend("general", "alice", "Hello team!");
-  await ws.contextProvider.smartSend("general", "bob", "Hi alice!");
-  await ws.contextProvider.smartSend("general", "alice", "@bob Can you review?");
+  await ws.contextProvider.send({ channel: "general", from: "alice", content: "Hello team!" });
+  await ws.contextProvider.send({ channel: "general", from: "bob", content: "Hi alice!" });
+  await ws.contextProvider.send({ channel: "general", from: "alice", content: "@bob Can you review?" });
 
   const msgs = await ws.contextProvider.channels.read("general");
   assert(msgs.length === 3, `expected 3 messages, got ${msgs.length}`);
@@ -142,7 +142,7 @@ test("T3", async () => {
     storage: new MemoryStorage(),
   });
 
-  await ws.contextProvider.smartSend("general", "alice", "@bob please review the PR");
+  await ws.contextProvider.send({ channel: "general", from: "alice", content: "@bob please review the PR" });
 
   const bobInbox = await ws.contextProvider.inbox.peek("bob");
   assert(bobInbox.length === 1, `bob should have 1 entry, got ${bobInbox.length}`);
@@ -167,9 +167,9 @@ test("T4", async () => {
     storage: new MemoryStorage(),
   });
 
-  await ws.contextProvider.smartSend("general", "alice", "@bob task 1 — complex");
-  await ws.contextProvider.smartSend("general", "alice", "@bob task 2 — simple ack");
-  await ws.contextProvider.smartSend("general", "alice", "@bob task 3 — medium");
+  await ws.contextProvider.send({ channel: "general", from: "alice", content: "@bob task 1 — complex" });
+  await ws.contextProvider.send({ channel: "general", from: "alice", content: "@bob task 2 — simple ack" });
+  await ws.contextProvider.send({ channel: "general", from: "alice", content: "@bob task 3 — medium" });
 
   const inbox = await ws.contextProvider.inbox.peek("bob");
   assert(inbox.length === 3, "3 inbox entries");
@@ -200,20 +200,20 @@ test("T5", async () => {
     channels: ["general"],
     agents: ["alice"],
     storage: new MemoryStorage(),
-    smartSendThreshold: 100,
+    maxMessageLength: 100,
   });
 
   const longContent = "x".repeat(200);
-  const msg = await ws.contextProvider.smartSend("general", "alice", longContent);
-
-  assert(msg.content.length < 200, "channel message should be truncated");
-  assert(msg.content.includes("resource"), "should reference a resource");
-
-  const resMatch = msg.content.match(/res_[a-zA-Z0-9_-]+/);
-  assert(resMatch !== null, "should contain resource ID");
-  const resource = await ws.contextProvider.resources.read(resMatch![0]);
-  assert(resource !== null, "resource should exist");
-  assert(resource!.content === longContent, "resource should have full content");
+  let threw = false;
+  try {
+    await ws.contextProvider.send({ channel: "general", from: "alice", content: longContent });
+  } catch (err) {
+    threw = true;
+    const msg = err instanceof Error ? err.message : String(err);
+    assert(msg.includes("too long"), "error should mention too long");
+    assert(msg.includes("resource_create"), "error should hint at resource_create");
+  }
+  assert(threw, "send should throw on oversize message");
 
   await ws.shutdown();
 });
@@ -320,9 +320,11 @@ test("T8", async () => {
     storage: new MemoryStorage(),
   });
 
-  await ws.contextProvider.smartSend("general", "alice", "Secret message for you", {
+  await ws.contextProvider.send({
+    channel: "general",
+    from: "alice",
+    content: "Secret message for you",
     to: "bob",
-    priority: "immediate",
   });
 
   const bobInbox = await ws.contextProvider.inbox.peek("bob");
@@ -472,7 +474,7 @@ test("T13", async () => {
     storage: new MemoryStorage(),
   });
 
-  await ws1.contextProvider.smartSend("general", "user", "@reviewer check PR-123");
+  await ws1.contextProvider.send({ channel: "general", from: "user", content: "@reviewer check PR-123" });
 
   const inbox1 = await ws1.contextProvider.inbox.peek("reviewer");
   assert(inbox1.length === 1, "ws1 reviewer has message");
@@ -505,7 +507,7 @@ test("T14", async () => {
     pollInterval: 500,
     onInstruction: async (_prompt, instruction) => {
       processed.push(`alice: ${instruction.content.slice(0, 40)}`);
-      await ws.contextProvider.smartSend("general", "alice", "@bob Got it! Processing.");
+      await ws.contextProvider.send({ channel: "general", from: "alice", content: "@bob Got it! Processing." });
     },
   });
 
@@ -523,7 +525,7 @@ test("T14", async () => {
   await bobLoop.start();
 
   // Kickoff
-  await ws.contextProvider.smartSend("general", "user", "@alice Please coordinate with bob");
+  await ws.contextProvider.send({ channel: "general", from: "user", content: "@alice Please coordinate with bob" });
 
   // Wait for processing
   await new Promise((r) => setTimeout(r, 3000));
@@ -551,8 +553,8 @@ test("T15", async () => {
   await aliceTools.channel_join!({ channel: "design" });
   await bobTools.channel_join!({ channel: "code-review" });
 
-  await ws.contextProvider.smartSend("design", "user", "@alice review the design");
-  await ws.contextProvider.smartSend("code-review", "user", "@bob review the code");
+  await ws.contextProvider.send({ channel: "design", from: "user", content: "@alice review the design" });
+  await ws.contextProvider.send({ channel: "code-review", from: "user", content: "@bob review the code" });
 
   const aliceInbox = await ws.contextProvider.inbox.peek("alice");
   const bobInbox = await ws.contextProvider.inbox.peek("bob");
@@ -576,7 +578,7 @@ test("T16", async () => {
   await ws.contextProvider.status.set("alice", "running", "Reviewing PR");
   await ws.contextProvider.status.set("bob", "idle");
   await ws.contextProvider.documents.create("spec.md", "# Project Spec", "alice");
-  await ws.contextProvider.smartSend("general", "bob", "@alice please check this");
+  await ws.contextProvider.send({ channel: "general", from: "bob", content: "@alice please check this" });
 
   const inboxEntries = await ws.contextProvider.inbox.peek("alice");
 
@@ -635,12 +637,12 @@ test("T18", async () => {
     storage: new MemoryStorage(),
   });
 
-  await ws.contextProvider.smartSend("general", "alice", "Original message");
+  await ws.contextProvider.send({ channel: "general", from: "alice", content: "Original message" });
   const msgs1 = await ws.contextProvider.channels.read("general");
   const originalId = msgs1[0]!.id;
   const originalContent = msgs1[0]!.content;
 
-  await ws.contextProvider.smartSend("general", "alice", "Second message");
+  await ws.contextProvider.send({ channel: "general", from: "alice", content: "Second message" });
   const msgs2 = await ws.contextProvider.channels.read("general");
   assert(msgs2[0]!.id === originalId, "ID must not change");
   assert(msgs2[0]!.content === originalContent, "content must not change");
@@ -661,8 +663,8 @@ test("T19", async () => {
     storage: new MemoryStorage(),
   });
 
-  await ws.contextProvider.smartSend("general", "user", "@alice old task 1");
-  await ws.contextProvider.smartSend("general", "user", "@alice old task 2");
+  await ws.contextProvider.send({ channel: "general", from: "user", content: "@alice old task 1" });
+  await ws.contextProvider.send({ channel: "general", from: "user", content: "@alice old task 2" });
 
   const before = await ws.contextProvider.inbox.peek("alice");
   assert(before.length === 2, "2 stale entries");
@@ -672,7 +674,7 @@ test("T19", async () => {
   const after = await ws.contextProvider.inbox.peek("alice");
   assert(after.length === 0, "stale entries cleared");
 
-  await ws.contextProvider.smartSend("general", "user", "@alice new task");
+  await ws.contextProvider.send({ channel: "general", from: "user", content: "@alice new task" });
   const fresh = await ws.contextProvider.inbox.peek("alice");
   assert(fresh.length === 1, "new messages delivered after epoch");
 

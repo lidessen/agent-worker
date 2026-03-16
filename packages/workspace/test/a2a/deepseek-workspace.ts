@@ -60,7 +60,7 @@ async function createDeepSeekHandler(agentName: string, ws: any) {
 
       // If the LLM mentions sending a message, auto-send to channel
       if (result.text.length > 0) {
-        await ws.contextProvider.smartSend("general", agentName, result.text.slice(0, 500));
+        await ws.contextProvider.send({ channel: "general", from: agentName, content: result.text.slice(0, 500) });
       }
     } catch (err) {
       console.log(`${c.red}[${agentName}] Error: ${err}${c.reset}`);
@@ -117,11 +117,11 @@ async function testSingleAgentWorkspace(): Promise<void> {
   await loop.start();
 
   // Send a message
-  await ws.contextProvider.smartSend(
-    "general",
-    "user",
-    "@assistant What is 2+2? Remember to include ACKNOWLEDGED.",
-  );
+  await ws.contextProvider.send({
+    channel: "general",
+    from: "user",
+    content: "@assistant What is 2+2? Remember to include ACKNOWLEDGED.",
+  });
 
   // Wait for processing
   await new Promise((r) => setTimeout(r, 15000));
@@ -179,7 +179,7 @@ async function testTwoAgentCollaboration(): Promise<void> {
 
       // Post planner's response mentioning executor
       const response = result.text.includes("@executor") ? result.text : `@executor ${result.text}`;
-      await ws.contextProvider.smartSend("general", "planner", response.slice(0, 300));
+      await ws.contextProvider.send({ channel: "general", from: "planner", content: response.slice(0, 300) });
     },
   });
 
@@ -203,7 +203,7 @@ async function testTwoAgentCollaboration(): Promise<void> {
 
       console.log(`${c.cyan}[executor]${c.reset} ${result.text.slice(0, 120)}`);
 
-      await ws.contextProvider.smartSend("general", "executor", result.text.slice(0, 200));
+      await ws.contextProvider.send({ channel: "general", from: "executor", content: result.text.slice(0, 200) });
     },
   });
 
@@ -211,11 +211,11 @@ async function testTwoAgentCollaboration(): Promise<void> {
   await executorLoop.start();
 
   // Kickoff: ask planner to create a plan
-  await ws.contextProvider.smartSend(
-    "general",
-    "user",
-    "@planner Please create a brief plan to organize a code review. Include PLAN_READY in your answer and delegate to @executor.",
-  );
+  await ws.contextProvider.send({
+    channel: "general",
+    from: "user",
+    content: "@planner Please create a brief plan to organize a code review. Include PLAN_READY in your answer and delegate to @executor.",
+  });
 
   // Wait for the chain: user → planner → executor
   await new Promise((r) => setTimeout(r, 25000));
@@ -331,20 +331,20 @@ async function testDeepSeekWithInboxCycle(): Promise<void> {
         maxOutputTokens: 100,
       });
 
-      await ws.contextProvider.smartSend("general", "responder", result.text.slice(0, 200));
+      await ws.contextProvider.send({ channel: "general", from: "responder", content: result.text.slice(0, 200) });
     },
   });
 
   await loop.start();
 
   // Send 3 messages with delays
-  await ws.contextProvider.smartSend("general", "user", "@responder Message 1: What is Bun?");
+  await ws.contextProvider.send({ channel: "general", from: "user", content: "@responder Message 1: What is Bun?" });
   await new Promise((r) => setTimeout(r, 8000));
 
-  await ws.contextProvider.smartSend("general", "user", "@responder Message 2: What is Deno?");
+  await ws.contextProvider.send({ channel: "general", from: "user", content: "@responder Message 2: What is Deno?" });
   await new Promise((r) => setTimeout(r, 8000));
 
-  await ws.contextProvider.smartSend("general", "user", "@responder Message 3: What is Node?");
+  await ws.contextProvider.send({ channel: "general", from: "user", content: "@responder Message 3: What is Node?" });
   await new Promise((r) => setTimeout(r, 10000));
 
   await loop.stop();

@@ -34,20 +34,24 @@ export async function state(args: string[]): Promise<void> {
       return;
     }
 
-    // Standalone agent state
+    // Agent state
     if (target.agent) {
       const result = await client.getAgentState(target.agent);
       console.log(`State: ${result.state}`);
-      console.log(`History: ${result.history} turns`);
+      if (result.currentTask) console.log(`Task: ${result.currentTask}`);
+      if (result.history != null) console.log(`History: ${result.history} turns`);
 
-      if (result.inbox.length > 0) {
+      if (result.inbox?.length > 0) {
         console.log(`\nInbox (${result.inbox.length}):`);
         for (const msg of result.inbox) {
-          console.log(`  [${msg.status}] ${msg.from ?? "?"}: ${msg.content.slice(0, 80)}`);
+          const label = msg.status ?? msg.priority ?? "?";
+          const from = msg.from ?? "?";
+          const content = msg.content?.slice(0, 80) ?? "";
+          console.log(`  [${label}] ${from}: ${content}`);
         }
       }
 
-      if (result.todos.length > 0) {
+      if (result.todos?.length > 0) {
         console.log(`\nTodos (${result.todos.length}):`);
         for (const t of result.todos) {
           const mark = t.status === "done" ? "✓" : " ";

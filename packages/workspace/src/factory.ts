@@ -1,7 +1,9 @@
 import type { WorkspaceConfig } from "./types.ts";
 import { Workspace } from "./workspace.ts";
 import { WorkspaceAgentLoop } from "./loop/loop.ts";
+import type { PromptSection } from "./loop/prompt.ts";
 import { createWorkspaceTools, type WorkspaceToolSet } from "./context/mcp/server.ts";
+import { WORKSPACE_PROMPT_SECTIONS } from "./context/mcp/prompts.ts";
 import type { Instruction } from "./types.ts";
 
 // ── createWorkspace ────────────────────────────────────────────────────────
@@ -33,6 +35,8 @@ export interface WiredLoopConfig {
   name: string;
   instructions?: string;
   runtime: Workspace;
+  /** Extra prompt sections injected by capabilities (e.g. workspace tools). */
+  promptSections?: PromptSection[];
   /** Handler called with assembled prompt + instruction. */
   onInstruction: (prompt: string, instruction: Instruction) => Promise<void>;
   /** Polling interval in ms. Default: 5000 */
@@ -47,6 +51,7 @@ export function createWiredLoop(config: WiredLoopConfig): WorkspaceAgentLoop {
     queue: config.runtime.instructionQueue,
     eventLog: config.runtime.eventLog,
     pollInterval: config.pollInterval,
+    sections: config.promptSections,
     onInstruction: config.onInstruction,
   });
 }
@@ -61,16 +66,16 @@ export interface AgentDirs {
   sandboxDir: string | undefined;
 }
 
-/** Create the full workspace tool set and directory info for a specific agent. */
+/** Create the full workspace tool set, prompt sections, and directory info for a specific agent. */
 export function createAgentTools(
   agentName: string,
   runtime: Workspace,
-): { tools: WorkspaceToolSet; dirs: AgentDirs } {
+): { tools: WorkspaceToolSet; promptSections: PromptSection[]; dirs: AgentDirs } {
   const channels = runtime.getAgentChannels(agentName);
   const tools = createWorkspaceTools(agentName, runtime.contextProvider, channels);
   const dirs: AgentDirs = {
     workspaceSandboxDir: runtime.workspaceSandboxDir,
     sandboxDir: runtime.agentSandboxDir(agentName),
   };
-  return { tools, dirs };
+  return { tools, promptSections: WORKSPACE_PROMPT_SECTIONS, dirs };
 }

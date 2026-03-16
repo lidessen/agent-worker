@@ -753,7 +753,6 @@ const agent = new Agent({
   instructions: "You are a research assistant.",
   loop: new AiSdkLoop({
     model: anthropic("claude-sonnet-4-20250514"),
-    includeBashTools: true,
   }),
   maxRuns: 5,
   memory: {

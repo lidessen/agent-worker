@@ -64,7 +64,7 @@ export class Workspace implements WorkspaceRuntime {
       resources: resourceStore,
       status: this.statusStore,
       timeline: timelineStore,
-      smartSendThreshold: config.smartSendThreshold,
+      maxMessageLength: config.maxMessageLength,
     });
 
     // Event log

@@ -82,7 +82,7 @@ export class ManagedWorkspace {
   async kickoff(): Promise<void> {
     if (!this.resolved.kickoff) return;
     const channel = this.resolved.def.default_channel ?? "general";
-    await this.workspace.contextProvider.smartSend(channel, "user", this.resolved.kickoff);
+    await this.workspace.contextProvider.send({ channel, from: "user", content: this.resolved.kickoff });
     this._bus?.emit({
       type: "workspace.kickoff",
       source: "workspace",
@@ -94,7 +94,7 @@ export class ManagedWorkspace {
 
   /** Send a message to a channel. */
   async send(channel: string, from: string, content: string): Promise<void> {
-    await this.workspace.contextProvider.smartSend(channel, from, content);
+    await this.workspace.contextProvider.send({ channel, from, content });
   }
 
   /**

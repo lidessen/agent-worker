@@ -35,10 +35,12 @@
  *   GET    /events                              — daemon event log (cursor-based)
  *   GET    /events/stream                       — SSE: all daemon events
  */
-import type { DaemonConfig, DaemonInfo, RuntimeConfig, RuntimeType } from "./types.ts";
+import type { DaemonConfig, DaemonInfo, RuntimeConfig } from "./types.ts";
 import { EventBus } from "@agent-worker/shared";
 import type { BusEvent } from "@agent-worker/shared";
 import { AgentRegistry } from "./agent-registry.ts";
+import { ManagedAgent } from "./managed-agent.ts";
+import { GlobalAgentStub } from "./global-agent-stub.ts";
 import { WorkspaceRegistry } from "./workspace-registry.ts";
 import { ManagedWorkspace } from "./managed-workspace.ts";
 import { DaemonEventLog } from "./event-log.ts";
@@ -91,7 +93,7 @@ export class Daemon {
     await this.eventLog.init();
     const globalWs = await this.workspaces.ensureDefault();
     await globalWs.startLoops();
-    await this.registerGlobalAgents(globalWs);
+    this.registerGlobalAgents(globalWs);
     this.startedAt = Date.now();
 
     const app = new Hono();
@@ -151,34 +153,26 @@ export class Daemon {
    * Register global workspace agents into AgentRegistry so they appear
    * in GET /agents and health.agents count.
    *
-   * These agents are backed by the global workspace loops — no standalone
-   * AgentLoop is created.  handleAgentSend() detects the "global" workspace
-   * marker and routes messages through the workspace channel instead.
+   * These agents are backed by WorkspaceAgentLoop — only lightweight stubs
+   * are needed in the registry for route detection and API visibility.
    */
-  private async registerGlobalAgents(globalWs: ManagedWorkspace): Promise<void> {
+  private registerGlobalAgents(globalWs: ManagedWorkspace): void {
+    const statusStore = globalWs.workspace.contextProvider.status;
     for (const agent of globalWs.resolved.agents) {
       if (!agent.runtime) continue;
+      const agentName = agent.name;
       try {
-        // Register without a loop — messages are routed via the workspace.
-        // A dummy loop is still needed by ManagedAgent/Agent, but it won't
-        // receive messages since handleAgentSend redirects to the workspace.
-        const loop = await createLoopFromConfig({
-          type: agent.runtime as RuntimeType,
-          model: agent.model?.full,
-          instructions: agent.instructions,
-          env: agent.env,
-        });
-        await this.agents.create({
-          name: agent.name,
-          instructions: agent.instructions,
-          loop,
-          kind: "config",
+        this.agents.registerGlobal(agentName, {
           runtime: agent.runtime,
-          workspace: "global",
+          getState: () => {
+            const ws = statusStore.getCached(agentName)?.status;
+            if (!ws || ws === "idle") return "idle";
+            if (ws === "running") return "processing";
+            return "stopped";
+          },
         });
       } catch (err) {
-        // Discovery may fail (no CLI, no API key) — don't block startup
-        console.error(`[daemon] failed to register global agent "${agent.name}":`, err);
+        console.error(`[daemon] failed to register global agent "${agentName}":`, err);
       }
     }
   }
@@ -435,7 +429,7 @@ export class Daemon {
 
     // Global agents are backed by workspace loops — route messages through
     // the global workspace channel so the WorkspaceAgentLoop processes them.
-    if (handle.info.workspace === "global") {
+    if (handle instanceof GlobalAgentStub) {
       const globalWs = this.workspaces.get("global");
       if (globalWs) {
         let sent = 0;
@@ -444,28 +438,30 @@ export class Daemon {
             await new Promise((r) => setTimeout(r, msg.delayMs));
           }
           const from = msg.from ?? "user";
-          await globalWs.workspace.contextProvider.smartSend(
-            globalWs.defaultChannel,
+          await globalWs.workspace.contextProvider.send({
+            channel: globalWs.defaultChannel,
             from,
-            msg.content,
-            { to: name },
-          );
+            content: msg.content,
+            to: name,
+          });
           sent++;
         }
         return Response.json({ sent, routed_to: `workspace:global` });
       }
     }
 
+    // Non-global agents: push directly to the standalone agent.
+    const managed = handle as ManagedAgent;
     let sent = 0;
     for (const msg of body.messages) {
       if (msg.delayMs && msg.delayMs > 0) {
         await new Promise((r) => setTimeout(r, msg.delayMs));
       }
-      handle.push({ content: msg.content, from: msg.from });
+      managed.push({ content: msg.content, from: msg.from });
       sent++;
     }
 
-    return Response.json({ sent, state: handle.state });
+    return Response.json({ sent, state: managed.state });
   }
 
   private async handleAgentResponses(name: string, url: URL): Promise<Response> {
@@ -473,8 +469,33 @@ export class Daemon {
     if (!handle) {
       return Response.json({ error: `Agent "${name}" not found` }, { status: 404 });
     }
+
+    // Global agents: read responses from all workspace channels.
+    if (handle instanceof GlobalAgentStub) {
+      const globalWs = this.workspaces.get("global");
+      if (globalWs) {
+        const channels = globalWs.workspace.contextProvider.channels.listChannels();
+        const allMessages = [];
+        for (const ch of channels) {
+          const msgs = await globalWs.workspace.contextProvider.channels.read(ch);
+          allMessages.push(...msgs.filter((m) => m.from === name));
+        }
+        allMessages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+        const agentMessages = allMessages.map((m) => ({
+          ts: new Date(m.timestamp).getTime(),
+          type: "text",
+          text: m.content,
+          channel: m.channel,
+        }));
+        const cursor = parseInt(url.searchParams.get("cursor") ?? "0", 10);
+        const entries = agentMessages.slice(cursor);
+        return Response.json({ entries, cursor: cursor + entries.length });
+      }
+    }
+
+    const managed = handle as ManagedAgent;
     const cursor = parseInt(url.searchParams.get("cursor") ?? "0", 10);
-    const result = await handle.readResponses(cursor);
+    const result = await managed.readResponses(cursor);
     return Response.json(result);
   }
 
@@ -486,7 +507,7 @@ export class Daemon {
 
     // Global agents: stream responses from the workspace channel instead
     // of the standalone agent's responses.jsonl (which won't receive data).
-    if (handle.info.workspace === "global") {
+    if (handle instanceof GlobalAgentStub) {
       const globalWs = this.workspaces.get("global");
       if (globalWs) {
         const ch = globalWs.defaultChannel;
@@ -509,12 +530,12 @@ export class Daemon {
       }
     }
 
+    const managed = handle as ManagedAgent;
     return this.createSSEStream((push) => {
-      // Poll responses file for new data
       let cursor = 0;
       const interval = setInterval(async () => {
         try {
-          const result = await handle.readResponses(cursor);
+          const result = await managed.readResponses(cursor);
           for (const entry of result.entries) {
             push(entry);
           }
@@ -532,8 +553,18 @@ export class Daemon {
     if (!handle) {
       return Response.json({ error: `Agent "${name}" not found` }, { status: 404 });
     }
+
+    // Global agents: filter daemon event log by agent name.
+    if (handle instanceof GlobalAgentStub) {
+      const cursor = parseInt(url.searchParams.get("cursor") ?? "0", 10);
+      const result = await this.eventLog.read(cursor);
+      const entries = result.entries.filter((e: any) => e.agent === name);
+      return Response.json({ entries, cursor: result.cursor });
+    }
+
+    const managed = handle as ManagedAgent;
     const cursor = parseInt(url.searchParams.get("cursor") ?? "0", 10);
-    const result = await handle.readEvents(cursor);
+    const result = await managed.readEvents(cursor);
     return Response.json(result);
   }
 
@@ -542,11 +573,32 @@ export class Daemon {
     if (!handle) {
       return Response.json({ error: `Agent "${name}" not found` }, { status: 404 });
     }
+
+    // Global agents: stream from daemon event log filtered by agent name.
+    if (handle instanceof GlobalAgentStub) {
+      return this.createSSEStream((push) => {
+        let cursor = 0;
+        const interval = setInterval(async () => {
+          try {
+            const result = await this.eventLog.read(cursor);
+            for (const entry of result.entries) {
+              if ((entry as any).agent === name) push(entry);
+            }
+            cursor = result.cursor;
+          } catch {
+            /* log may be rotated */
+          }
+        }, 500);
+        return () => clearInterval(interval);
+      });
+    }
+
+    const managed = handle as ManagedAgent;
     return this.createSSEStream((push) => {
       let cursor = 0;
       const interval = setInterval(async () => {
         try {
-          const result = await handle.readEvents(cursor);
+          const result = await managed.readEvents(cursor);
           for (const entry of result.entries) {
             push(entry);
           }
@@ -559,26 +611,58 @@ export class Daemon {
     });
   }
 
-  private handleAgentState(name: string): Response {
+  private async handleAgentState(name: string): Promise<Response> {
     const handle = this.agents.get(name);
     if (!handle) {
       return Response.json({ error: `Agent "${name}" not found` }, { status: 404 });
     }
+
+    // Global agents: read state from the workspace.
+    if (handle instanceof GlobalAgentStub) {
+      const globalWs = this.workspaces.get("global");
+      if (globalWs) {
+        const provider = globalWs.workspace.contextProvider;
+        const statusEntry = (await provider.status.getAll()).find((s) => s.name === name);
+        const inboxEntries = await provider.inbox.peek(name);
+        const inbox = [];
+        for (const entry of inboxEntries) {
+          const msg = await provider.channels.getMessage(entry.channel, entry.messageId);
+          if (msg) {
+            inbox.push({
+              id: entry.messageId,
+              status: entry.state,
+              from: msg.from,
+              content: msg.content,
+              channel: entry.channel,
+              priority: entry.priority,
+            });
+          }
+        }
+        return Response.json({
+          state: statusEntry?.status ?? "idle",
+          currentTask: statusEntry?.currentTask,
+          inbox,
+          workspace: "global",
+        });
+      }
+    }
+
+    const managed = handle as ManagedAgent;
     return Response.json({
-      state: handle.state,
-      inbox: handle.agent.inboxMessages.map((m) => ({
+      state: managed.state,
+      inbox: managed.agent.inboxMessages.map((m) => ({
         id: m.id,
         status: m.status,
         from: m.from,
         content: m.content,
         timestamp: m.timestamp,
       })),
-      todos: handle.agent.todos.map((t) => ({
+      todos: managed.agent.todos.map((t) => ({
         id: t.id,
         status: t.status,
         text: t.text,
       })),
-      history: handle.agent.context.length,
+      history: managed.agent.context.length,
     });
   }
 
@@ -706,13 +790,16 @@ export class Daemon {
 
     // Workspace send semantics:
     // - Only channel → broadcast to channel
-    // - Only agent → direct message via smartSend with `to` field
+    // - Only agent → direct message via send with `to` field
     // - Both → post to channel with `to` targeting agent
     // - Neither → post to default_channel
     if (body.agent && !body.channel) {
       // Direct message to agent via default channel with `to` field
       const channel = handle.resolved.def.default_channel ?? "general";
-      await handle.workspace.contextProvider.smartSend(channel, from, body.content, {
+      await handle.workspace.contextProvider.send({
+        channel,
+        from,
+        content: body.content,
         to: body.agent,
       });
       return Response.json({ sent: true, routed_to: `agent:${body.agent}` });
@@ -722,7 +809,10 @@ export class Daemon {
 
     if (body.agent) {
       // Post to channel AND target agent
-      await handle.workspace.contextProvider.smartSend(channel, from, body.content, {
+      await handle.workspace.contextProvider.send({
+        channel,
+        from,
+        content: body.content,
         to: body.agent,
       });
       return Response.json({ sent: true, routed_to: `channel:${channel}+agent:${body.agent}` });
