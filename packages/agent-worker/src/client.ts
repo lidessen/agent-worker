@@ -405,9 +405,7 @@ async function autoStartDaemon(dataDir: string): Promise<DaemonInfo> {
   // (e.g. --import tsx) so TypeScript files are handled correctly.
   const isBun = !!process.versions.bun;
   const command = isBun ? "bun" : process.execPath;
-  const args = isBun
-    ? ["run", cliEntry, "daemon", "start"]
-    : [...process.execArgv, cliEntry, "daemon", "start"];
+  const args = [...(isBun ? ["run"] : process.execArgv), cliEntry, "daemon", "start"];
 
   const child = spawn(command, args, {
     detached: true,
