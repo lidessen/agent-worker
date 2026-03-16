@@ -6,6 +6,8 @@ import {
   loadWorkspaceDef,
   toWorkspaceConfig,
   resolveConnections,
+  discoverCliRuntime,
+  detectAiSdkModel,
 } from "@agent-worker/workspace";
 import type { Workspace, WorkspaceAgentLoop, ResolvedAgent } from "@agent-worker/workspace";
 import type { AgentLoop } from "@agent-worker/agent";
@@ -13,15 +15,8 @@ import type { EventBus } from "@agent-worker/shared";
 import type { CreateWorkspaceInput, ManagedWorkspaceInfo } from "./types.ts";
 import { ManagedWorkspace } from "./managed-workspace.ts";
 
-const DEFAULT_GLOBAL_CONFIG = `\
-agents:
-  default:
-    runtime: auto
-storage: file
-`;
-
-/** Fallback config when runtime auto-discovery fails (no CLI / no API key). */
-const FALLBACK_GLOBAL_CONFIG = `\
+/** Fallback config when no runtime can be discovered. */
+const EMPTY_GLOBAL_CONFIG = `\
 agents: {}
 storage: file
 `;
@@ -65,7 +60,7 @@ export class WorkspaceRegistry {
     const configPath = join(this._dataDir, "workspaces", "_global.yml");
     const globalDir = this.workspaceDir("global");
 
-    // Try _global.yml first, then inline YAML default.
+    // Try _global.yml first, then auto-discover a runtime and build config dynamically.
     // Only fall back if the config file doesn't exist — surface parse/permission errors.
     let resolved;
     try {
@@ -76,15 +71,12 @@ export class WorkspaceRegistry {
         // Config file exists but failed to load — surface the error
         throw err;
       }
-      // No config file — use built-in default
-      try {
-        resolved = await loadWorkspaceDef(DEFAULT_GLOBAL_CONFIG, { name: "global" });
-      } catch {
-        resolved = await loadWorkspaceDef(FALLBACK_GLOBAL_CONFIG, {
-          name: "global",
-          skipSetup: true,
-        });
-      }
+      // No config file — discover available runtime and build config
+      const globalConfig = await this.buildGlobalConfig();
+      resolved = await loadWorkspaceDef(globalConfig, {
+        name: "global",
+        skipSetup: true,
+      });
     }
     const config = toWorkspaceConfig(resolved, {
       storageDir: globalDir,
@@ -229,6 +221,28 @@ export class WorkspaceRegistry {
   }
 
   // ── Internal ────────────────────────────────────────────────────────────
+
+  /**
+   * Build the global workspace YAML config dynamically by discovering
+   * available runtimes. Agent names match the discovered runtime
+   * (e.g. "claude-code", "ai-sdk") instead of a generic "default".
+   */
+  private async buildGlobalConfig(): Promise<string> {
+    // Try CLI discovery first (preferred)
+    const cli = await discoverCliRuntime();
+    if (cli) {
+      return `agents:\n  ${cli.runtime}:\n    runtime: ${cli.runtime}\nstorage: file\n`;
+    }
+
+    // Fall back to AI SDK with auto-detected model
+    const model = detectAiSdkModel();
+    if (model) {
+      return `agents:\n  ai-sdk:\n    runtime: ai-sdk\n    model: ${model}\nstorage: file\n`;
+    }
+
+    // Nothing available — empty agents
+    return EMPTY_GLOBAL_CONFIG;
+  }
 
   private async createRunner(
     agent: ResolvedAgent,
