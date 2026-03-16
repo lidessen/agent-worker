@@ -360,10 +360,12 @@ export class WorkspaceRegistry {
     if (!agent.model && agent.runtime === "ai-sdk") return null;
 
     const { createLoopFromConfig } = await import("./loop-factory.ts");
+    // Don't pass instructions here — WorkspaceAgentLoop already includes them
+    // in the assembled prompt via soulSection. Passing them here would cause
+    // the model to see instructions twice (system prompt + user message).
     return createLoopFromConfig({
       type: agent.runtime as import("./types.ts").RuntimeType,
       model: agent.model?.full,
-      instructions: agent.instructions,
       env: agent.env,
     });
   }
