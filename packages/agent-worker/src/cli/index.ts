@@ -126,7 +126,7 @@ async function main() {
       return connect(rest);
     }
     case "repl": {
-      const { repl } = await import("./commands/repl.ts");
+      const { repl } = await import("./commands/repl.tsx");
       return repl(rest);
     }
     case "auth": {

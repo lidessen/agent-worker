@@ -37,9 +37,11 @@ export interface SendResult {
 
 export interface AgentStateResult {
   state: string;
+  currentTask?: string;
   inbox: Array<{
     id: string;
     status: string;
+    priority?: string;
     from?: string;
     content: string;
     timestamp: number;
