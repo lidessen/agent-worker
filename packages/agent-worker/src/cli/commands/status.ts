@@ -1,7 +1,11 @@
 import { AwClient } from "../../client.ts";
-import { formatUptime } from "../output.ts";
+import { formatUptime, wantsHelp } from "../output.ts";
 
-export async function status(_args: string[]): Promise<void> {
+export async function status(args: string[]): Promise<void> {
+  if (wantsHelp(args)) {
+    console.log("Usage: aw status");
+    return;
+  }
   try {
     const client = await AwClient.discover();
     const [health, agents, workspaces] = await Promise.all([

@@ -1,7 +1,13 @@
 import { AwClient } from "../../client.ts";
 import { parseTarget } from "../target.ts";
+import { wantsHelp } from "../output.ts";
 
 export async function log(args: string[]): Promise<void> {
+  if (wantsHelp(args)) {
+    console.log("Usage: aw log [<target>] [-f|--follow] [--json]");
+    return;
+  }
+
   const follow = args.includes("-f") || args.includes("--follow");
   const json = args.includes("--json");
   const targetRaw = args.find((a) => !a.startsWith("-"));

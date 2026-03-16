@@ -1,7 +1,12 @@
 import { AwClient } from "../../client.ts";
 import { parseTarget } from "../target.ts";
+import { wantsHelp } from "../output.ts";
 
 export async function send(args: string[]): Promise<void> {
+  if (wantsHelp(args)) {
+    console.log('Usage: aw send <target> "message" [+Ns "message2" ...] [--from <name>]');
+    return;
+  }
   const raw = args[0];
   if (!raw || args.length < 2) {
     console.error('Usage: aw send <target> "message" [+Ns "message2" ...] [--from <name>]');

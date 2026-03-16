@@ -1,7 +1,12 @@
 import { AwClient } from "../../client.ts";
 import { parseTarget } from "../target.ts";
+import { wantsHelp } from "../output.ts";
 
 export async function read(args: string[]): Promise<void> {
+  if (wantsHelp(args)) {
+    console.log("Usage: aw read <target> [N] [--wait <duration>] [--json]");
+    return;
+  }
   const raw = args[0];
   if (!raw) {
     console.error("Usage: aw read <target> [N] [--wait <duration>] [--json]");

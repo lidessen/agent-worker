@@ -1,8 +1,13 @@
 import { createInterface } from "node:readline/promises";
 import { AwClient } from "../../client.ts";
 import { parseTarget } from "../target.ts";
+import { wantsHelp } from "../output.ts";
 
 export async function repl(args: string[]): Promise<void> {
+  if (wantsHelp(args)) {
+    console.log("Usage: aw repl <target> [--from <name>] [--json]");
+    return;
+  }
   const raw = args[0];
   if (!raw) {
     console.error("Usage: aw repl <target> [--from <name>] [--json]");

@@ -1,6 +1,11 @@
 import { AwClient } from "../../client.ts";
+import { wantsHelp } from "../output.ts";
 
 export async function doc(args: string[]): Promise<void> {
+  if (wantsHelp(args)) {
+    console.log("Usage: aw doc <ls|read|write|append> [name] [@workspace] [--content '...']");
+    return;
+  }
   const sub = args[0];
 
   if (!sub || !["ls", "read", "write", "append"].includes(sub)) {

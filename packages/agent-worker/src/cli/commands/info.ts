@@ -1,7 +1,12 @@
 import { AwClient } from "../../client.ts";
 import { parseTarget } from "../target.ts";
+import { wantsHelp } from "../output.ts";
 
 export async function info(args: string[]): Promise<void> {
+  if (wantsHelp(args)) {
+    console.log("Usage: aw info <target>");
+    return;
+  }
   const raw = args[0];
   if (!raw) {
     console.error("Usage: aw info <target>");

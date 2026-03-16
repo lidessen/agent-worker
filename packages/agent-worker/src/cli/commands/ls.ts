@@ -1,7 +1,11 @@
 import { AwClient } from "../../client.ts";
-import { table } from "../output.ts";
+import { table, wantsHelp } from "../output.ts";
 
-export async function ls(_args: string[]): Promise<void> {
+export async function ls(args: string[]): Promise<void> {
+  if (wantsHelp(args)) {
+    console.log("Usage: aw ls");
+    return;
+  }
   try {
     const client = await AwClient.discover();
     const [agents, workspaces] = await Promise.all([client.listAgents(), client.listWorkspaces()]);
