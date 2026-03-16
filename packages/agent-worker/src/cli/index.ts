@@ -72,6 +72,10 @@ async function main() {
       const { connect } = await import("./commands/connect.ts");
       return connect(rest);
     }
+    case "repl": {
+      const { repl } = await import("./commands/repl.ts");
+      return repl(rest);
+    }
     case "auth": {
       const { auth } = await import("./commands/auth.ts");
       return auth(rest);
@@ -95,6 +99,7 @@ Resources:
 Messaging:
   send <target> "message"     Send message(s)
   read <target> [N]           Read N messages from a stream
+  repl <target>               Interactive chat (non-blocking send/receive)
 
 Inspection:
   state <target>              Agent state, inbox, todos
