@@ -47,6 +47,17 @@ export const currentTaskSection: PromptSection = async (ctx) => {
   return `## Current Task\n\n${ctx.currentInstruction}`;
 };
 
+export const messagingSection: PromptSection = async () => {
+  return [
+    "## How to Respond",
+    "",
+    "You MUST use `channel_send` to post your responses — do not just output text.",
+    "Messages are limited to 1200 characters. For longer content:",
+    "1. Call `resource_create` to store the full content",
+    "2. Call `channel_send` with a short summary that includes the resource ID",
+  ].join("\n");
+};
+
 export const docsSection: PromptSection = async (ctx) => {
   const docs = await ctx.provider.documents.list();
   if (docs.length === 0) return null;
@@ -74,5 +85,6 @@ export const DEFAULT_SECTIONS: PromptSection[] = [
   teamSection,
   inboxSection,
   currentTaskSection,
+  messagingSection,
   docsSection,
 ];
