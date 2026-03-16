@@ -8,11 +8,14 @@ import {
   resolveConnections,
   discoverCliRuntime,
   detectAiSdkModel,
+  WORKSPACE_TOOL_DEFS,
 } from "@agent-worker/workspace";
-import type { Workspace, WorkspaceAgentLoop, ResolvedAgent } from "@agent-worker/workspace";
+import type { Workspace, WorkspaceAgentLoop, ResolvedAgent, WorkspaceToolSet } from "@agent-worker/workspace";
 import type { AgentLoop } from "@agent-worker/agent";
 import type { EventBus } from "@agent-worker/shared";
 import type { CreateWorkspaceInput, ManagedWorkspaceInfo } from "./types.ts";
+import { tool, type ToolSet } from "ai";
+import { z } from "zod";
 import { ManagedWorkspace } from "./managed-workspace.ts";
 
 /** Fallback config when no runtime can be discovered. */
@@ -100,6 +103,8 @@ export class WorkspaceRegistry {
             workspace: "global",
             agent: agent.name,
             runId,
+            runtime: agent.runtime,
+            model: agent.model?.full,
             instruction: instruction.content.slice(0, 200),
           });
           this.emitEvent("workspace.agent_prompt", {
@@ -188,6 +193,8 @@ export class WorkspaceRegistry {
             workspace: key,
             agent: agent.name,
             runId,
+            runtime: agent.runtime,
+            model: agent.model?.full,
             instruction: instruction.content.slice(0, 200),
           });
           try {
@@ -319,11 +326,19 @@ export class WorkspaceRegistry {
         throw new Error(`No loop available for runtime: ${agent.runtime}`);
       }
 
+      const aiSdkTools = wrapWorkspaceToolsForAiSdk(tools);
       if (loop.setTools) {
-        // WorkspaceToolSet → ToolSet: workspace tools are plain functions
-        // that get wrapped by the loop implementation.
-        loop.setTools(tools as unknown as import("ai").ToolSet);
+        loop.setTools(aiSdkTools);
       }
+
+      this.emitEvent("workspace.agent_tools", {
+        workspace: workspaceKey,
+        agent: agent.name,
+        runtime: agent.runtime,
+        model: agent.model?.full,
+        tools: Object.keys(aiSdkTools),
+        level: "debug",
+      });
 
       const run = loop.run(prompt);
       for await (const event of run) {
@@ -352,4 +367,51 @@ export class WorkspaceRegistry {
       env: agent.env,
     });
   }
+}
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+/** JSON-schema type → zod schema (only string/number/boolean — covers all workspace tool params). */
+function jsonTypeToZod(param: { type: string; description?: string }): z.ZodTypeAny {
+  switch (param.type) {
+    case "number":
+      return z.number().describe(param.description ?? "");
+    case "boolean":
+      return z.boolean().describe(param.description ?? "");
+    default:
+      return z.string().describe(param.description ?? "");
+  }
+}
+
+/**
+ * Wrap workspace tools (plain functions) + WORKSPACE_TOOL_DEFS (JSON-schema metadata)
+ * into proper AI SDK tools with zod parameter schemas.
+ */
+function wrapWorkspaceToolsForAiSdk(wsTools: WorkspaceToolSet): ToolSet {
+  const result: ToolSet = {};
+  const defs = WORKSPACE_TOOL_DEFS as Record<
+    string,
+    { description: string; parameters: Record<string, { type: string; description?: string }>; required: string[] }
+  >;
+
+  for (const [name, fn] of Object.entries(wsTools)) {
+    const def = defs[name];
+    if (!def) continue;
+
+    // Build zod object schema from JSON-schema params
+    const shape: Record<string, z.ZodTypeAny> = {};
+    const required = new Set(def.required);
+    for (const [key, param] of Object.entries(def.parameters)) {
+      const base = jsonTypeToZod(param);
+      shape[key] = required.has(key) ? base : base.optional();
+    }
+
+    result[name] = tool({
+      description: def.description,
+      inputSchema: z.object(shape),
+      execute: async (args) => fn(args as Record<string, unknown>),
+    });
+  }
+
+  return result;
 }

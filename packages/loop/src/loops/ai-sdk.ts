@@ -62,10 +62,14 @@ export class AiSdkLoop {
       builtinTools = this.bashToolkit.tools as unknown as ToolSet;
     }
 
-    this.tools = { ...builtinTools, ...userTools };
+    // Merge: builtins < options.tools < previously set tools (via setTools)
+    this.tools = { ...builtinTools, ...userTools, ...this.tools };
 
     // Inject discovery tool if relevance engine has on-demand tools
     this._injectDiscoveryTool();
+
+    const toolNames = Object.keys(this.tools);
+    console.error(`[AiSdkLoop] init: ${toolNames.length} tools: [${toolNames.join(", ")}]`);
 
     this.agent = new ToolLoopAgent({
       model,
@@ -182,6 +186,8 @@ export class AiSdkLoop {
   }
 
   setTools(tools: ToolSet): void {
+    const newNames = Object.keys(tools);
+    console.error(`[AiSdkLoop] setTools: adding ${newNames.length} tools: [${newNames.join(", ")}]`);
     this.tools = { ...this.tools, ...tools };
     // Re-create agent on next run to pick up new tools
     this.agent = null;
