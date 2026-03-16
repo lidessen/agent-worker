@@ -102,6 +102,14 @@ export class WorkspaceRegistry {
             runId,
             instruction: instruction.content.slice(0, 200),
           });
+          this.emitEvent("workspace.agent_prompt", {
+            workspace: "global",
+            agent: agent.name,
+            runId,
+            prompt: prompt.slice(0, 2000),
+            promptLength: prompt.length,
+            level: "debug",
+          });
           try {
             await runner(prompt, instruction);
             this.emitEvent("workspace.agent_run_end", {
@@ -328,17 +336,7 @@ export class WorkspaceRegistry {
         }
       }
 
-      const result = await run.result;
-      // Post final response to channel if not handled by tools
-      const textEvents =
-        result.events?.filter((e): e is { type: "text"; text: string } => e.type === "text") ?? [];
-      if (textEvents.length > 0) {
-        const text = textEvents.map((e) => e.text).join("");
-        if (text.length > 0) {
-          const channel = instruction.channel || (resolved.def.default_channel ?? "general");
-          await workspace.contextProvider.smartSend(channel, agent.name, text);
-        }
-      }
+      await run.result;
     };
   }
 

@@ -32,6 +32,7 @@ export {
   teamSection,
   inboxSection,
   currentTaskSection,
+  messagingSection,
   docsSection,
 } from "./loop/prompt.ts";
 export type { PromptSection, PromptContext } from "./loop/prompt.ts";
