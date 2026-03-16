@@ -140,10 +140,9 @@ function mapClaudeEvent(data: unknown): RawCliEvent | RawCliEvent[] {
           },
         };
       }
-      const resultText = event.result as string;
-      if (resultText) {
-        return { type: "text", text: resultText };
-      }
+      // Don't emit text from the result event — the same text was already
+      // streamed via "assistant" events, so emitting it again causes
+      // duplicate messages in the REPL.
       return null;
     }
 
