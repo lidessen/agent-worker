@@ -125,7 +125,7 @@ export interface WorkspaceConfig {
   storageDir?: string;
   queueConfig?: QueueConfig;
   /** SmartSend threshold in characters. Default: 1200 */
-  smartSendThreshold?: number;
+  maxMessageLength?: number;
 }
 
 // ── Channel Bridge & Adapter ───────────────────────────────────────────────
@@ -184,13 +184,8 @@ export interface ContextProvider {
   readonly status: StatusStoreInterface;
   readonly timeline: TimelineStoreInterface;
 
-  /** Post a message, auto-routing to resource if too long. */
-  smartSend(
-    channel: string,
-    from: string,
-    content: string,
-    opts?: { to?: string; priority?: Priority; kind?: EventKind },
-  ): Promise<Message>;
+  /** Post a message to a channel. Throws if content exceeds the length limit. */
+  send(msg: { channel: string; from: string; content: string; to?: string }): Promise<Message>;
 }
 
 // ── Store interfaces ───────────────────────────────────────────────────────
@@ -233,6 +228,8 @@ export interface StatusStoreInterface {
   set(name: string, status: AgentStatus, currentTask?: string): Promise<void>;
   get(name: string): Promise<AgentStatusEntry | null>;
   getAll(): Promise<AgentStatusEntry[]>;
+  /** Sync read from in-memory cache (for use in non-async contexts). */
+  getCached(name: string): AgentStatusEntry | null;
 }
 
 export interface TimelineStoreInterface {

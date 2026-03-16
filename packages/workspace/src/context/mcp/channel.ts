@@ -16,8 +16,20 @@ export function createChannelTools(
   return {
     async channel_send(args) {
       const { channel, content, to } = args;
-      const msg = await provider.smartSend(channel, agentName, content, { to });
-      return `Sent message ${msg.id} to #${channel}`;
+      try {
+        const msg = await provider.send({ channel, from: agentName, content, to });
+        return `Sent message ${msg.id} to #${channel}`;
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        if (errMsg.includes("too long")) {
+          return (
+            `ERROR: ${errMsg}\n\n` +
+            "To fix: call resource_create with the full content, then call channel_send " +
+            "with a short summary that includes the resource ID."
+          );
+        }
+        throw err;
+      }
     },
 
     async channel_read(args) {

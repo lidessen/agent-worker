@@ -27,6 +27,10 @@ export class StatusStore implements StatusStoreInterface {
     return this.statuses.get(name) ?? null;
   }
 
+  getCached(name: string): AgentStatusEntry | null {
+    return this.statuses.get(name) ?? null;
+  }
+
   async getAll(): Promise<AgentStatusEntry[]> {
     return [...this.statuses.values()];
   }

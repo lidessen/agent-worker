@@ -111,7 +111,6 @@ async function createAiSdkLoop(config: RuntimeConfig): Promise<AgentLoop> {
   return new AiSdkLoop({
     model: languageModel,
     instructions: config.instructions,
-    includeBashTools: false,
   });
 }
 

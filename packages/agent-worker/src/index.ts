@@ -18,7 +18,9 @@ export { WorkspaceRegistry } from "./workspace-registry.ts";
 
 // ── Managed instances ─────────────────────────────────────────────────────
 export { ManagedAgent } from "./managed-agent.ts";
+export { GlobalAgentStub } from "./global-agent-stub.ts";
 export { ManagedWorkspace } from "./managed-workspace.ts";
+export type { AgentHandle } from "./agent-registry.ts";
 
 // ── Event log ─────────────────────────────────────────────────────────────
 export { DaemonEventLog } from "./event-log.ts";
@@ -53,8 +55,6 @@ export type {
   WorkspaceStatus,
   RunnerKind,
   RunnerConfig,
-  RunRequest,
-  RunResponse,
 } from "./types.ts";
 
 // ── Loop factory ─────────────────────────────────────────────────────────

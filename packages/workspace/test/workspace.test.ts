@@ -34,8 +34,8 @@ describe("Workspace", () => {
     expect(aliceChannels.has("general")).toBe(true);
   });
 
-  test("smartSend posts message to channel", async () => {
-    const msg = await workspace.contextProvider.smartSend("general", "alice", "Hello team!");
+  test("send posts message to channel", async () => {
+    const msg = await workspace.contextProvider.send({ channel: "general", from: "alice", content: "Hello team!" });
 
     expect(msg.id).toBeTruthy();
     expect(msg.content).toBe("Hello team!");
@@ -45,16 +45,16 @@ describe("Workspace", () => {
     expect(messages[0]!.content).toBe("Hello team!");
   });
 
-  test("smartSend rejects messages exceeding the length limit", async () => {
+  test("send rejects messages exceeding the length limit", async () => {
     const longContent = "x".repeat(2000);
     await expect(
-      workspace.contextProvider.smartSend("general", "alice", longContent),
+      workspace.contextProvider.send({ channel: "general", from: "alice", content: longContent }),
     ).rejects.toThrow("Message too long");
   });
 
   test("message routing to inbox on @mention", async () => {
     // Alice sends a message mentioning bob
-    await workspace.contextProvider.smartSend("general", "alice", "Hey @bob please review");
+    await workspace.contextProvider.send({ channel: "general", from: "alice", content: "Hey @bob please review" });
 
     // Bob should have an inbox entry
     const bobInbox = await workspace.contextProvider.inbox.peek("bob");
@@ -63,16 +63,14 @@ describe("Workspace", () => {
   });
 
   test("message not self-delivered", async () => {
-    await workspace.contextProvider.smartSend("general", "alice", "Hey @alice talking to myself");
+    await workspace.contextProvider.send({ channel: "general", from: "alice", content: "Hey @alice talking to myself" });
 
     const aliceInbox = await workspace.contextProvider.inbox.peek("alice");
     expect(aliceInbox).toHaveLength(0);
   });
 
   test("DM routing with immediate priority", async () => {
-    await workspace.contextProvider.smartSend("general", "alice", "Private note", {
-      to: "bob",
-    });
+    await workspace.contextProvider.send({ channel: "general", from: "alice", content: "Private note", to: "bob" });
 
     const bobInbox = await workspace.contextProvider.inbox.peek("bob");
     expect(bobInbox).toHaveLength(1);
@@ -81,7 +79,7 @@ describe("Workspace", () => {
 
   test("channel broadcast with background priority", async () => {
     // No @mentions, just a broadcast to the channel
-    await workspace.contextProvider.smartSend("general", "alice", "General announcement");
+    await workspace.contextProvider.send({ channel: "general", from: "alice", content: "General announcement" });
 
     const bobInbox = await workspace.contextProvider.inbox.peek("bob");
     expect(bobInbox).toHaveLength(1);
@@ -119,8 +117,8 @@ describe("Workspace", () => {
       storage: new MemoryStorage(),
     });
 
-    await ws1.contextProvider.smartSend("general", "alice", "msg in pr-123");
-    await ws2.contextProvider.smartSend("general", "alice", "msg in pr-456");
+    await ws1.contextProvider.send({ channel: "general", from: "alice", content: "msg in pr-123" });
+    await ws2.contextProvider.send({ channel: "general", from: "alice", content: "msg in pr-456" });
 
     const msgs1 = await ws1.contextProvider.channels.read("general");
     const msgs2 = await ws2.contextProvider.channels.read("general");

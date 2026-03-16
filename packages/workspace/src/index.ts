@@ -27,14 +27,21 @@ export { InstructionQueue } from "./loop/priority-queue.ts";
 // ── Prompt ─────────────────────────────────────────────────────────────────
 export {
   assemblePrompt,
-  DEFAULT_SECTIONS,
+  BASE_SECTIONS,
   soulSection,
-  teamSection,
   inboxSection,
   currentTaskSection,
-  messagingSection,
-  docsSection,
 } from "./loop/prompt.ts";
+export {
+  workspacePromptSection,
+  docsPromptSection,
+  WORKSPACE_PROMPT_SECTIONS,
+} from "./context/mcp/prompts.ts";
+
+// Re-export DEFAULT_SECTIONS as the full set (base + workspace) for external callers.
+import { BASE_SECTIONS } from "./loop/prompt.ts";
+import { WORKSPACE_PROMPT_SECTIONS } from "./context/mcp/prompts.ts";
+export const DEFAULT_SECTIONS = [...BASE_SECTIONS, ...WORKSPACE_PROMPT_SECTIONS];
 export type { PromptSection, PromptContext } from "./loop/prompt.ts";
 
 // ── MCP tools ──────────────────────────────────────────────────────────────

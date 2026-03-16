@@ -20,7 +20,6 @@ describe("AiSdkLoop", () => {
   test("run transitions to running status", async () => {
     const loop = new AiSdkLoop({
       model: "anthropic:claude-sonnet-4-20250514" as any,
-      includeBashTools: false,
     });
 
     const run = loop.run("test prompt");

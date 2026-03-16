@@ -1,5 +1,6 @@
 import { test, expect, describe } from "bun:test";
-import { assemblePrompt, DEFAULT_SECTIONS, soulSection, inboxSection } from "../src/loop/prompt.ts";
+import { assemblePrompt, soulSection, inboxSection } from "../src/loop/prompt.ts";
+import { DEFAULT_SECTIONS } from "../src/index.ts";
 import { MemoryStorage } from "../src/context/storage.ts";
 import { createWorkspace } from "../src/factory.ts";
 
@@ -45,7 +46,7 @@ describe("Prompt assembly", () => {
       storage: new MemoryStorage(),
     });
 
-    await workspace.contextProvider.smartSend("general", "alice", "Hey @bob review this");
+    await workspace.contextProvider.send({ channel: "general", from: "alice", content: "Hey @bob review this" });
 
     const entries = await workspace.contextProvider.inbox.peek("bob");
 

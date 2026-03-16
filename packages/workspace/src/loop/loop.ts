@@ -6,7 +6,7 @@ import type {
   EventLog,
   Priority,
 } from "../types.ts";
-import { assemblePrompt, DEFAULT_SECTIONS, type PromptSection } from "./prompt.ts";
+import { assemblePrompt, BASE_SECTIONS, type PromptSection } from "./prompt.ts";
 
 export interface AgentLoopConfig {
   name: string;
@@ -16,7 +16,7 @@ export interface AgentLoopConfig {
   eventLog: EventLog;
   /** Polling interval in ms. Default: 5000 */
   pollInterval?: number;
-  /** Prompt sections. Default: DEFAULT_SECTIONS */
+  /** Extra prompt sections (from capabilities). Appended after BASE_SECTIONS. */
   sections?: PromptSection[];
   /** Handler called with assembled prompt; returns when done. */
   onInstruction: (prompt: string, instruction: Instruction) => Promise<void>;
@@ -32,7 +32,9 @@ export class WorkspaceAgentLoop {
 
   constructor(private readonly config: AgentLoopConfig) {
     this.pollInterval = config.pollInterval ?? 5000;
-    this.sections = config.sections ?? DEFAULT_SECTIONS;
+    // Base sections first (soul/instructions), then capability-injected sections.
+    const extra = config.sections ?? [];
+    this.sections = [...BASE_SECTIONS, ...extra];
   }
 
   get name(): string {
