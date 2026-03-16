@@ -16,6 +16,7 @@ export async function daemon(args: string[]): Promise<void> {
     default:
       console.log(`Usage: aw daemon <command>
 
+Commands:
   start [-p PORT]    Start daemon (foreground)
   stop               Stop daemon
 `);

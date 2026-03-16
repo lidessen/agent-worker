@@ -88,7 +88,7 @@ Commands:
 Keys are saved to ~/.agent-worker/secrets.json and also resolved
 from environment variables (e.g. ANTHROPIC_API_KEY in .env or shell).
 `);
-  if (sub) {
+  if (sub && !wantsHelp(args)) {
     console.error(`Unknown provider: ${sub}`);
     process.exit(1);
   }
