@@ -6,6 +6,7 @@
   ],
   "scripts": {
     "aw": "bun packages/agent-worker/src/cli/index.ts",
+    "aw:node": "cd packages/agent-worker && tsx src/cli/index.ts",
     "typecheck": "tsgo --build",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
