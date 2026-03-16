@@ -126,4 +126,6 @@ export interface ResolvedWorkspace {
   vars: Record<string, string>;
   /** The interpolated kickoff message (or undefined if no kickoff). */
   kickoff?: string;
+  /** Directory of the source config file (used to resolve relative data_dir). */
+  configDir?: string;
 }

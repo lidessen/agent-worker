@@ -1,6 +1,6 @@
 import { parse as parseYaml } from "yaml";
 import { readFile, access } from "node:fs/promises";
-import { basename } from "node:path";
+import { basename, dirname, resolve } from "node:path";
 import { execa } from "execa";
 import type {
   WorkspaceDef,
@@ -236,7 +236,13 @@ export async function loadWorkspaceDef(
   // Interpolate kickoff
   const kickoff = def.kickoff ? interpolate(def.kickoff, allVars) : undefined;
 
-  return { def: def as WorkspaceDef & { name: string }, agents, vars: setupVars, kickoff };
+  return {
+    def: def as WorkspaceDef & { name: string },
+    agents,
+    vars: setupVars,
+    kickoff,
+    configDir: filePath ? dirname(filePath) : undefined,
+  };
 }
 
 // ── Saved connection loading ──────────────────────────────────────────────
@@ -340,9 +346,14 @@ export function toWorkspaceConfig(
 
   // Storage backend
   const storageType = def.storage ?? "file";
+  // Resolve data_dir relative to config file directory (per ADR-0001)
+  let resolvedDataDir = def.data_dir;
+  if (resolvedDataDir && resolved.configDir && !resolvedDataDir.startsWith("/")) {
+    resolvedDataDir = resolve(resolved.configDir, resolvedDataDir);
+  }
   const storageDir =
     opts.storageDir ??
-    def.data_dir ??
+    resolvedDataDir ??
     `/tmp/agent-worker-${def.name}${opts.tag ? `-${opts.tag}` : ""}`;
   const storage = storageType === "memory" ? new MemoryStorage() : new FileStorage(storageDir);
 

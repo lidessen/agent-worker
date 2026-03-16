@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { join, dirname } from "node:path";
 import {
   createWorkspace,
   createWiredLoop,
@@ -65,11 +65,17 @@ export class WorkspaceRegistry {
     const globalDir = this.workspaceDir("global");
 
     // Try _global.yml first, then inline YAML default.
+    // Only fall back if the config file doesn't exist — surface parse/permission errors.
     let resolved;
     try {
       resolved = await loadWorkspaceDef(configPath);
-    } catch {
-      // No config.yml or runtime discovery failed — use fallback
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "";
+      if (!msg.includes("not found")) {
+        // Config file exists but failed to load — surface the error
+        throw err;
+      }
+      // No config file — use built-in default
       try {
         resolved = await loadWorkspaceDef(DEFAULT_GLOBAL_CONFIG, { name: "global" });
       } catch {
@@ -100,7 +106,14 @@ export class WorkspaceRegistry {
     const resolved = await loadWorkspaceDef(input.source, {
       tag: input.tag,
       vars: input.vars,
+      name: input.name,
     });
+    // CLI sends YAML content (not file path), so configDir won't be set by
+    // loadWorkspaceDef. Patch it from the input so relative data_dir resolves
+    // against the original config file location.
+    if (input.configDir && !resolved.configDir) {
+      resolved.configDir = input.configDir;
+    }
 
     const key = input.tag ? `${resolved.def.name}:${input.tag}` : resolved.def.name;
     if (this.workspaces.has(key)) {

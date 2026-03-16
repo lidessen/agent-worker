@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { basename, dirname, resolve } from "node:path";
 import { AwClient } from "../../client.ts";
 
 export async function create(args: string[]): Promise<void> {
@@ -12,10 +13,12 @@ export async function create(args: string[]): Promise<void> {
   const vars = parseVars(args);
 
   try {
-    // Read YAML from file
+    // Read YAML from file, derive fallback name from filename
     const yaml = await readFile(source, "utf-8");
+    const name = basename(source).replace(/\.(ya?ml)$/, "").replace(/^_/, "");
+    const configDir = resolve(dirname(source));
     const client = await AwClient.discover();
-    const info = await client.createWorkspace(yaml, { tag, vars });
+    const info = await client.createWorkspace(yaml, { name, configDir, tag, vars });
     const key = info.tag ? `${info.name}:${info.tag}` : info.name;
     console.log(`Created workspace @${key}`);
     console.log(`  Agents:   ${info.agents.join(", ")}`);

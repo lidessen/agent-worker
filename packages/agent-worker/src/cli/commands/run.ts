@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { basename, dirname, resolve } from "node:path";
 import { AwClient } from "../../client.ts";
 
 export async function run(args: string[]): Promise<void> {
@@ -16,9 +17,11 @@ export async function run(args: string[]): Promise<void> {
 
   try {
     const yaml = await readFile(source, "utf-8");
+    const name = basename(source).replace(/\.(ya?ml)$/, "").replace(/^_/, "");
+    const configDir = resolve(dirname(source));
     const client = await AwClient.discover();
 
-    const info = await client.createWorkspace(yaml, { tag, vars, mode: "task" });
+    const info = await client.createWorkspace(yaml, { name, configDir, tag, vars, mode: "task" });
     const key = info.tag ? `${info.name}:${info.tag}` : info.name;
     console.log(`Running workspace @${key}...`);
 

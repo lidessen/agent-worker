@@ -258,7 +258,13 @@ export class AwClient {
 
   async createWorkspace(
     source: string,
-    opts?: { tag?: string; vars?: Record<string, string>; mode?: "service" | "task" },
+    opts?: {
+      name?: string;
+      configDir?: string;
+      tag?: string;
+      vars?: Record<string, string>;
+      mode?: "service" | "task";
+    },
   ): Promise<ManagedWorkspaceInfo> {
     return this.request("/workspaces", {
       method: "POST",

@@ -71,6 +71,10 @@ export interface ManagedWorkspaceInfo {
 export interface CreateWorkspaceInput {
   /** Workspace YAML source (path or raw content). */
   source: string;
+  /** Fallback workspace name (used when YAML doesn't specify one). */
+  name?: string;
+  /** Directory of the source config file (used to resolve relative data_dir). */
+  configDir?: string;
   /** Instance tag (e.g. "pr-123"). */
   tag?: string;
   /** Extra variables for template interpolation. */
