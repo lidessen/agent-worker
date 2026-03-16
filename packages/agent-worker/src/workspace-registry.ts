@@ -15,7 +15,8 @@ import { ManagedWorkspace } from "./managed-workspace.ts";
 
 const DEFAULT_GLOBAL_CONFIG = `\
 agents:
-  default: {}
+  default:
+    runtime: auto
 storage: file
 `;
 

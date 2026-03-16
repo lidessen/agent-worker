@@ -35,7 +35,7 @@
  *   GET    /events                              — daemon event log (cursor-based)
  *   GET    /events/stream                       — SSE: all daemon events
  */
-import type { DaemonConfig, DaemonInfo, RuntimeConfig } from "./types.ts";
+import type { DaemonConfig, DaemonInfo, RuntimeConfig, RuntimeType } from "./types.ts";
 import { EventBus } from "@agent-worker/shared";
 import type { BusEvent } from "@agent-worker/shared";
 import { AgentRegistry } from "./agent-registry.ts";
@@ -89,7 +89,8 @@ export class Daemon {
     mkdirSync(this.config.dataDir, { recursive: true });
 
     await this.eventLog.init();
-    await this.workspaces.ensureDefault();
+    const globalWs = await this.workspaces.ensureDefault();
+    await this.registerGlobalAgents(globalWs);
     this.startedAt = Date.now();
 
     const app = new Hono();
@@ -143,6 +144,35 @@ export class Daemon {
     }
 
     await removeDaemonInfo(this.config.dataDir);
+  }
+
+  /**
+   * Register global workspace agents into AgentRegistry so they appear
+   * in GET /agents and health.agents count.
+   */
+  private async registerGlobalAgents(globalWs: ManagedWorkspace): Promise<void> {
+    for (const agent of globalWs.resolved.agents) {
+      if (!agent.runtime) continue;
+      try {
+        const loop = await createLoopFromConfig({
+          type: agent.runtime as RuntimeType,
+          model: agent.model?.full,
+          instructions: agent.instructions,
+          env: agent.env,
+        });
+        await this.agents.create({
+          name: agent.name,
+          instructions: agent.instructions,
+          loop,
+          kind: "config",
+          runtime: agent.runtime,
+          workspace: "global",
+        });
+      } catch (err) {
+        // Discovery may fail (no CLI, no API key) — don't block startup
+        console.error(`[daemon] failed to register global agent "${agent.name}":`, err);
+      }
+    }
   }
 
   /** Direct access to registries (for programmatic use). */

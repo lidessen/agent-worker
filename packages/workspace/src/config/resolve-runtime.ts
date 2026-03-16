@@ -120,6 +120,9 @@ export async function discoverCliRuntime(): Promise<RuntimeResolution | null> {
  *    - CLI      → no model (use CLI default)
  */
 export async function resolveRuntime(runtime?: string, model?: string): Promise<RuntimeResolution> {
+  // Treat "auto" as unspecified — trigger full discovery
+  if (runtime === "auto") runtime = undefined;
+
   // Case 1: model specified, runtime omitted → ai-sdk
   if (model && !runtime) {
     return {

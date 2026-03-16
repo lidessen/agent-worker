@@ -73,6 +73,12 @@ describe("resolveRuntime", () => {
     expect(r.model).toBe("anthropic:claude-sonnet-4-5");
   });
 
+  test("runtime 'auto' with model → ai-sdk (treated as unspecified)", async () => {
+    const r = await resolveRuntime("auto", "anthropic:claude-sonnet-4-5");
+    expect(r.runtime).toBe("ai-sdk");
+    expect(r.model).toBe("anthropic:claude-sonnet-4-5");
+  });
+
   test("both specified → pass through", async () => {
     const r = await resolveRuntime("claude-code", "sonnet");
     expect(r.runtime).toBe("claude-code");
