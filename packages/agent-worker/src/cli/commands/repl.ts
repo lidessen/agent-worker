@@ -112,11 +112,21 @@ async function startResponseStream(
   } else if (target.workspace) {
     // Workspace channel stream
     const ch = target.channel ?? (await resolveDefaultChannel(client, target.workspace));
+    // For workspace channels, use timestamp-based dedup since readChannel
+    // doesn't support numeric cursors.
+    let lastSeenId: string | undefined;
     await streamWithFallback(
       () => client.streamChannel(target.workspace!, ch),
       async (cursor) => {
-        const result = await client.readChannel(target.workspace!, ch, { limit: 50 });
-        return { entries: result.messages, cursor: cursor + result.messages.length };
+        const result = await client.readChannel(target.workspace!, ch, {
+          limit: 50,
+          since: lastSeenId,
+        });
+        const msgs = result.messages;
+        if (msgs.length > 0) {
+          lastSeenId = msgs[msgs.length - 1]!.id;
+        }
+        return { entries: msgs, cursor };
       },
       print,
       isAlive,
