@@ -480,7 +480,9 @@ export class Daemon {
           const msgs = await globalWs.workspace.contextProvider.channels.read(ch);
           allMessages.push(...msgs.filter((m) => m.from === name));
         }
-        allMessages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+        allMessages.sort(
+          (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+        );
         const agentMessages = allMessages.map((m) => ({
           ts: new Date(m.timestamp).getTime(),
           type: "text",

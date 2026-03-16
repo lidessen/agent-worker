@@ -5,9 +5,7 @@ import { wantsHelp } from "../output.ts";
 
 export async function run(args: string[]): Promise<void> {
   if (wantsHelp(args)) {
-    console.log(
-      "Usage: aw run <config.yaml> [--tag <tag>] [--var KEY=VALUE] [--wait <duration>]",
-    );
+    console.log("Usage: aw run <config.yaml> [--tag <tag>] [--var KEY=VALUE] [--wait <duration>]");
     return;
   }
   const source = args[0];
@@ -24,7 +22,9 @@ export async function run(args: string[]): Promise<void> {
 
   try {
     const yaml = await readFile(source, "utf-8");
-    const name = basename(source).replace(/\.(ya?ml)$/, "").replace(/^_/, "");
+    const name = basename(source)
+      .replace(/\.(ya?ml)$/, "")
+      .replace(/^_/, "");
     const configDir = resolve(dirname(source));
     const client = await AwClient.discover();
 

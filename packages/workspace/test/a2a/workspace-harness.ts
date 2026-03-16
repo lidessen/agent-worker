@@ -121,7 +121,11 @@ test("T2", async () => {
 
   await ws.contextProvider.send({ channel: "general", from: "alice", content: "Hello team!" });
   await ws.contextProvider.send({ channel: "general", from: "bob", content: "Hi alice!" });
-  await ws.contextProvider.send({ channel: "general", from: "alice", content: "@bob Can you review?" });
+  await ws.contextProvider.send({
+    channel: "general",
+    from: "alice",
+    content: "@bob Can you review?",
+  });
 
   const msgs = await ws.contextProvider.channels.read("general");
   assert(msgs.length === 3, `expected 3 messages, got ${msgs.length}`);
@@ -142,7 +146,11 @@ test("T3", async () => {
     storage: new MemoryStorage(),
   });
 
-  await ws.contextProvider.send({ channel: "general", from: "alice", content: "@bob please review the PR" });
+  await ws.contextProvider.send({
+    channel: "general",
+    from: "alice",
+    content: "@bob please review the PR",
+  });
 
   const bobInbox = await ws.contextProvider.inbox.peek("bob");
   assert(bobInbox.length === 1, `bob should have 1 entry, got ${bobInbox.length}`);
@@ -167,9 +175,21 @@ test("T4", async () => {
     storage: new MemoryStorage(),
   });
 
-  await ws.contextProvider.send({ channel: "general", from: "alice", content: "@bob task 1 — complex" });
-  await ws.contextProvider.send({ channel: "general", from: "alice", content: "@bob task 2 — simple ack" });
-  await ws.contextProvider.send({ channel: "general", from: "alice", content: "@bob task 3 — medium" });
+  await ws.contextProvider.send({
+    channel: "general",
+    from: "alice",
+    content: "@bob task 1 — complex",
+  });
+  await ws.contextProvider.send({
+    channel: "general",
+    from: "alice",
+    content: "@bob task 2 — simple ack",
+  });
+  await ws.contextProvider.send({
+    channel: "general",
+    from: "alice",
+    content: "@bob task 3 — medium",
+  });
 
   const inbox = await ws.contextProvider.inbox.peek("bob");
   assert(inbox.length === 3, "3 inbox entries");
@@ -474,7 +494,11 @@ test("T13", async () => {
     storage: new MemoryStorage(),
   });
 
-  await ws1.contextProvider.send({ channel: "general", from: "user", content: "@reviewer check PR-123" });
+  await ws1.contextProvider.send({
+    channel: "general",
+    from: "user",
+    content: "@reviewer check PR-123",
+  });
 
   const inbox1 = await ws1.contextProvider.inbox.peek("reviewer");
   assert(inbox1.length === 1, "ws1 reviewer has message");
@@ -507,7 +531,11 @@ test("T14", async () => {
     pollInterval: 500,
     onInstruction: async (_prompt, instruction) => {
       processed.push(`alice: ${instruction.content.slice(0, 40)}`);
-      await ws.contextProvider.send({ channel: "general", from: "alice", content: "@bob Got it! Processing." });
+      await ws.contextProvider.send({
+        channel: "general",
+        from: "alice",
+        content: "@bob Got it! Processing.",
+      });
     },
   });
 
@@ -525,7 +553,11 @@ test("T14", async () => {
   await bobLoop.start();
 
   // Kickoff
-  await ws.contextProvider.send({ channel: "general", from: "user", content: "@alice Please coordinate with bob" });
+  await ws.contextProvider.send({
+    channel: "general",
+    from: "user",
+    content: "@alice Please coordinate with bob",
+  });
 
   // Wait for processing
   await new Promise((r) => setTimeout(r, 3000));
@@ -553,8 +585,16 @@ test("T15", async () => {
   await aliceTools.channel_join!({ channel: "design" });
   await bobTools.channel_join!({ channel: "code-review" });
 
-  await ws.contextProvider.send({ channel: "design", from: "user", content: "@alice review the design" });
-  await ws.contextProvider.send({ channel: "code-review", from: "user", content: "@bob review the code" });
+  await ws.contextProvider.send({
+    channel: "design",
+    from: "user",
+    content: "@alice review the design",
+  });
+  await ws.contextProvider.send({
+    channel: "code-review",
+    from: "user",
+    content: "@bob review the code",
+  });
 
   const aliceInbox = await ws.contextProvider.inbox.peek("alice");
   const bobInbox = await ws.contextProvider.inbox.peek("bob");
@@ -578,7 +618,11 @@ test("T16", async () => {
   await ws.contextProvider.status.set("alice", "running", "Reviewing PR");
   await ws.contextProvider.status.set("bob", "idle");
   await ws.contextProvider.documents.create("spec.md", "# Project Spec", "alice");
-  await ws.contextProvider.send({ channel: "general", from: "bob", content: "@alice please check this" });
+  await ws.contextProvider.send({
+    channel: "general",
+    from: "bob",
+    content: "@alice please check this",
+  });
 
   const inboxEntries = await ws.contextProvider.inbox.peek("alice");
 

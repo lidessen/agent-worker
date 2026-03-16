@@ -10,7 +10,12 @@ import {
   detectAiSdkModel,
   WORKSPACE_TOOL_DEFS,
 } from "@agent-worker/workspace";
-import type { Workspace, WorkspaceAgentLoop, ResolvedAgent, WorkspaceToolSet } from "@agent-worker/workspace";
+import type {
+  Workspace,
+  WorkspaceAgentLoop,
+  ResolvedAgent,
+  WorkspaceToolSet,
+} from "@agent-worker/workspace";
 import type { AgentLoop } from "@agent-worker/agent";
 import type { EventBus } from "@agent-worker/shared";
 import type { CreateWorkspaceInput, ManagedWorkspaceInfo } from "./types.ts";
@@ -394,7 +399,11 @@ function wrapWorkspaceToolsForAiSdk(wsTools: WorkspaceToolSet): ToolSet {
   const result: ToolSet = {};
   const defs = WORKSPACE_TOOL_DEFS as unknown as Record<
     string,
-    { description: string; parameters: Record<string, { type: string; description?: string }>; required: readonly string[] }
+    {
+      description: string;
+      parameters: Record<string, { type: string; description?: string }>;
+      required: readonly string[];
+    }
   >;
 
   for (const [name, fn] of Object.entries(wsTools)) {

@@ -97,7 +97,10 @@ export class AgentRegistry {
    * Register a lightweight stub for a global workspace agent.
    * No Agent/Loop is created — the workspace handles execution.
    */
-  registerGlobal(name: string, opts?: { runtime?: string; getState?: () => import("@agent-worker/agent").AgentState }): GlobalAgentStub {
+  registerGlobal(
+    name: string,
+    opts?: { runtime?: string; getState?: () => import("@agent-worker/agent").AgentState },
+  ): GlobalAgentStub {
     if (this.agents.has(name)) {
       throw new Error(`Agent "${name}" already exists`);
     }

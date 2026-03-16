@@ -20,7 +20,9 @@ export async function create(args: string[]): Promise<void> {
   try {
     // Read YAML from file, derive fallback name from filename
     const yaml = await readFile(source, "utf-8");
-    const name = basename(source).replace(/\.(ya?ml)$/, "").replace(/^_/, "");
+    const name = basename(source)
+      .replace(/\.(ya?ml)$/, "")
+      .replace(/^_/, "");
     const configDir = resolve(dirname(source));
     const client = await AwClient.discover();
     const info = await client.createWorkspace(yaml, { name, configDir, tag, vars });

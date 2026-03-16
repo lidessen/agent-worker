@@ -58,8 +58,4 @@ export async function assemblePrompt(
  * Used internally by WorkspaceAgentLoop as the foundation; capability-specific
  * sections (workspace, docs) are appended via promptSections.
  */
-export const BASE_SECTIONS: PromptSection[] = [
-  soulSection,
-  inboxSection,
-  currentTaskSection,
-];
+export const BASE_SECTIONS: PromptSection[] = [soulSection, inboxSection, currentTaskSection];

@@ -46,7 +46,11 @@ describe("Prompt assembly", () => {
       storage: new MemoryStorage(),
     });
 
-    await workspace.contextProvider.send({ channel: "general", from: "alice", content: "Hey @bob review this" });
+    await workspace.contextProvider.send({
+      channel: "general",
+      from: "alice",
+      content: "Hey @bob review this",
+    });
 
     const entries = await workspace.contextProvider.inbox.peek("bob");
 

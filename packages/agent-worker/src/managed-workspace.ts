@@ -82,7 +82,11 @@ export class ManagedWorkspace {
   async kickoff(): Promise<void> {
     if (!this.resolved.kickoff) return;
     const channel = this.resolved.def.default_channel ?? "general";
-    await this.workspace.contextProvider.send({ channel, from: "user", content: this.resolved.kickoff });
+    await this.workspace.contextProvider.send({
+      channel,
+      from: "user",
+      content: this.resolved.kickoff,
+    });
     this._bus?.emit({
       type: "workspace.kickoff",
       source: "workspace",

@@ -35,7 +35,11 @@ describe("Workspace", () => {
   });
 
   test("send posts message to channel", async () => {
-    const msg = await workspace.contextProvider.send({ channel: "general", from: "alice", content: "Hello team!" });
+    const msg = await workspace.contextProvider.send({
+      channel: "general",
+      from: "alice",
+      content: "Hello team!",
+    });
 
     expect(msg.id).toBeTruthy();
     expect(msg.content).toBe("Hello team!");
@@ -54,7 +58,11 @@ describe("Workspace", () => {
 
   test("message routing to inbox on @mention", async () => {
     // Alice sends a message mentioning bob
-    await workspace.contextProvider.send({ channel: "general", from: "alice", content: "Hey @bob please review" });
+    await workspace.contextProvider.send({
+      channel: "general",
+      from: "alice",
+      content: "Hey @bob please review",
+    });
 
     // Bob should have an inbox entry
     const bobInbox = await workspace.contextProvider.inbox.peek("bob");
@@ -63,14 +71,23 @@ describe("Workspace", () => {
   });
 
   test("message not self-delivered", async () => {
-    await workspace.contextProvider.send({ channel: "general", from: "alice", content: "Hey @alice talking to myself" });
+    await workspace.contextProvider.send({
+      channel: "general",
+      from: "alice",
+      content: "Hey @alice talking to myself",
+    });
 
     const aliceInbox = await workspace.contextProvider.inbox.peek("alice");
     expect(aliceInbox).toHaveLength(0);
   });
 
   test("DM routing with immediate priority", async () => {
-    await workspace.contextProvider.send({ channel: "general", from: "alice", content: "Private note", to: "bob" });
+    await workspace.contextProvider.send({
+      channel: "general",
+      from: "alice",
+      content: "Private note",
+      to: "bob",
+    });
 
     const bobInbox = await workspace.contextProvider.inbox.peek("bob");
     expect(bobInbox).toHaveLength(1);
@@ -79,7 +96,11 @@ describe("Workspace", () => {
 
   test("channel broadcast with background priority", async () => {
     // No @mentions, just a broadcast to the channel
-    await workspace.contextProvider.send({ channel: "general", from: "alice", content: "General announcement" });
+    await workspace.contextProvider.send({
+      channel: "general",
+      from: "alice",
+      content: "General announcement",
+    });
 
     const bobInbox = await workspace.contextProvider.inbox.peek("bob");
     expect(bobInbox).toHaveLength(1);

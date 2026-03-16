@@ -247,7 +247,10 @@ export class Agent {
         else if (this._state !== "stopped") this.setState("idle");
       })
       .catch((err) => {
-        this.emit("event", { type: "error", error: err instanceof Error ? err : new Error(String(err)) });
+        this.emit("event", {
+          type: "error",
+          error: err instanceof Error ? err : new Error(String(err)),
+        });
         this.busEmit("agent.error", {
           error: String(err),
           level: "error",

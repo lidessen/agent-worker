@@ -176,7 +176,9 @@ export class AiSdkLoop {
 
   setTools(tools: ToolSet): void {
     const newNames = Object.keys(tools);
-    console.error(`[AiSdkLoop] setTools: adding ${newNames.length} tools: [${newNames.join(", ")}]`);
+    console.error(
+      `[AiSdkLoop] setTools: adding ${newNames.length} tools: [${newNames.join(", ")}]`,
+    );
     this.tools = { ...this.tools, ...tools };
     // Re-create agent on next run to pick up new tools
     this.agent = null;
