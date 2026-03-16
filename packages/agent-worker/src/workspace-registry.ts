@@ -83,10 +83,51 @@ export class WorkspaceRegistry {
     });
     const workspace = await createWorkspace(config);
 
+    // Create workspace loops for each agent (mirrors create() logic)
+    const loops: WorkspaceAgentLoop[] = [];
+    for (const agent of resolved.agents) {
+      if (!agent.runtime) continue;
+      const { tools } = createAgentTools(agent.name, workspace);
+      const runner = await this.createRunner(agent, workspace, resolved, "global", tools);
+      const loop = createWiredLoop({
+        name: agent.name,
+        instructions: agent.instructions,
+        runtime: workspace,
+        pollInterval: 2000,
+        onInstruction: async (prompt, instruction) => {
+          const runId = crypto.randomUUID();
+          this.emitEvent("workspace.agent_run_start", {
+            workspace: "global",
+            agent: agent.name,
+            runId,
+            instruction: instruction.content.slice(0, 200),
+          });
+          try {
+            await runner(prompt, instruction);
+            this.emitEvent("workspace.agent_run_end", {
+              workspace: "global",
+              agent: agent.name,
+              runId,
+              status: "ok",
+            });
+          } catch (err) {
+            this.emitEvent("workspace.agent_error", {
+              workspace: "global",
+              agent: agent.name,
+              runId,
+              error: String(err),
+              level: "error",
+            });
+          }
+        },
+      });
+      loops.push(loop);
+    }
+
     this._defaultWorkspace = new ManagedWorkspace({
       workspace,
       resolved,
-      loops: [],
+      loops,
       bus: this._bus,
       statusPath: join(globalDir, "status.json"),
     });
