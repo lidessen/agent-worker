@@ -43,9 +43,7 @@ Documents:
   doc append <name> --content Append to document
 
 Auth:
-  auth anthropic              Save Anthropic API key
-  auth openai                 Save OpenAI API key
-  auth deepseek               Save DeepSeek API key
+  auth <provider>             Save API key (anthropic, openai, google, deepseek, ...)
   auth status                 Show provider auth status
   auth rm <provider>          Remove a saved API key
 
