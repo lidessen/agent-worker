@@ -115,7 +115,7 @@ export class ManagedAgent {
 
     this.agent.on("event", (event: LoopEvent) => {
       if (event.type === "text") {
-        this._appendResponse({ type: "text", text: event.text });
+        this._appendEvent({ type: "text", text: event.text });
       } else if (event.type === "tool_call_start") {
         this._appendEvent({ type: "tool_call_start", name: event.name, args: event.args });
       } else if (event.type === "tool_call_end") {
