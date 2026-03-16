@@ -76,7 +76,7 @@ describe("AwClient", () => {
     await setup();
     const agents = await client.listAgents();
     // Only config-created agents (from auto-discovery) may exist; no ephemeral ones
-    expect(agents.every((a: any) => a.kind === "config")).toBe(true);
+    expect(agents.every((a) => a.kind === "config")).toBe(true);
   });
 
   test("createAgent via HTTP with mock runtime", async () => {
@@ -131,7 +131,7 @@ describe("AwClient", () => {
 
     await client.removeAgent("temp");
     const agents = await client.listAgents();
-    expect(agents.some((a: any) => a.name === "temp")).toBe(false);
+    expect(agents.some((a) => a.name === "temp")).toBe(false);
   });
 
   test("listWorkspaces includes global workspace", async () => {
