@@ -63,10 +63,17 @@ export function createWorkspaceTools(
 /** Tool descriptions for MCP server registration. */
 export const WORKSPACE_TOOL_DEFS = {
   channel_send: {
-    description: "Send a message to a channel",
+    description:
+      "Send a message to a channel. Content must be under 1200 characters. " +
+      "For longer content, first call resource_create to store it, then send a short " +
+      "message here that summarizes the content and includes the resource ID so others " +
+      "can call resource_read to view the full version.",
     parameters: {
       channel: { type: "string", description: "Channel name" },
-      content: { type: "string", description: "Message content" },
+      content: {
+        type: "string",
+        description: "Message content (max 1200 chars). Reference resource IDs for large content.",
+      },
       to: { type: "string", description: "DM recipient (optional)" },
     },
     required: ["channel", "content"],
@@ -175,10 +182,9 @@ export const WORKSPACE_TOOL_DEFS = {
     required: ["content"],
   },
   resource_read: {
-    description:
-      "Read a resource by ID. Messages containing [resource:res_...] are references to stored content — call this tool with the ID to retrieve the full content before responding.",
+    description: "Read a resource by ID. Use this to retrieve content stored via resource_create.",
     parameters: {
-      id: { type: "string", description: "Resource ID (e.g. res_abc123)" },
+      id: { type: "string", description: "Resource ID" },
     },
     required: ["id"],
   },

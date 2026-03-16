@@ -45,13 +45,11 @@ describe("Workspace", () => {
     expect(messages[0]!.content).toBe("Hello team!");
   });
 
-  test("smartSend stores long content as resource", async () => {
+  test("smartSend rejects messages exceeding the length limit", async () => {
     const longContent = "x".repeat(2000);
-    const msg = await workspace.contextProvider.smartSend("general", "alice", longContent);
-
-    // Should contain resource reference marker
-    expect(msg.content).toMatch(/^\[resource:res_/);
-    expect(msg.content.length).toBeLessThan(longContent.length);
+    await expect(
+      workspace.contextProvider.smartSend("general", "alice", longContent),
+    ).rejects.toThrow("Message too long");
   });
 
   test("message routing to inbox on @mention", async () => {
