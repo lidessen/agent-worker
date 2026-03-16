@@ -49,8 +49,8 @@ describe("Workspace", () => {
     const longContent = "x".repeat(2000);
     const msg = await workspace.contextProvider.smartSend("general", "alice", longContent);
 
-    // Should contain resource reference
-    expect(msg.content).toContain("resource_read(");
+    // Should contain resource reference marker
+    expect(msg.content).toMatch(/^\[resource:res_/);
     expect(msg.content.length).toBeLessThan(longContent.length);
   });
 

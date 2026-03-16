@@ -175,9 +175,10 @@ export const WORKSPACE_TOOL_DEFS = {
     required: ["content"],
   },
   resource_read: {
-    description: "Read a resource by ID",
+    description:
+      "Read a resource by ID. Messages containing [resource:res_...] are references to stored content — call this tool with the ID to retrieve the full content before responding.",
     parameters: {
-      id: { type: "string", description: "Resource ID" },
+      id: { type: "string", description: "Resource ID (e.g. res_abc123)" },
     },
     required: ["id"],
   },
