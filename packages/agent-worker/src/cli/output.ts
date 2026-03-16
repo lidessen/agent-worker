@@ -25,6 +25,11 @@ export function formatUptime(ms: number): string {
   return `${h}h ${m % 60}m`;
 }
 
+/** Check if args contain --help or -h. */
+export function wantsHelp(args: string[]): boolean {
+  return args.includes("--help") || args.includes("-h");
+}
+
 /** Print error and exit. */
 export function fatal(message: string): never {
   console.error(`error: ${message}`);

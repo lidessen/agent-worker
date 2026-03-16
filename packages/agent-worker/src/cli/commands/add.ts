@@ -1,7 +1,14 @@
 import { AwClient } from "../../client.ts";
 import type { RuntimeConfig, RuntimeType } from "../../types.ts";
+import { wantsHelp } from "../output.ts";
 
 export async function add(args: string[]): Promise<void> {
+  if (wantsHelp(args)) {
+    console.log(
+      "Usage: aw add <name> --runtime <type> [--model <id>] [--instructions <text>] [--cwd <path>]",
+    );
+    return;
+  }
   const name = args[0];
   if (!name) {
     console.error(

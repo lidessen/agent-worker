@@ -1,5 +1,6 @@
 import { startDaemon } from "../../daemon.ts";
 import { AwClient } from "../../client.ts";
+import { wantsHelp } from "../output.ts";
 
 export async function daemon(args: string[]): Promise<void> {
   const sub = args[0];
@@ -10,13 +11,15 @@ export async function daemon(args: string[]): Promise<void> {
       return daemonStart(rest);
     case "stop":
       return daemonStop(rest);
+    case "--help":
+    case "-h":
     default:
       console.log(`Usage: aw daemon <command>
 
   start [-p PORT]    Start daemon (foreground)
   stop               Stop daemon
 `);
-      if (sub) {
+      if (sub && sub !== "--help" && sub !== "-h") {
         console.error(`Unknown daemon command: ${sub}`);
         process.exit(1);
       }

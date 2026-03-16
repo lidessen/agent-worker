@@ -10,7 +10,62 @@ const args = process.argv.slice(2);
 const command = args[0];
 const rest = args.slice(1);
 
+function printUsage() {
+  console.log(`Usage: aw <command>
+
+Daemon:
+  daemon start [-p PORT]    Start daemon (foreground)
+  daemon stop               Stop daemon
+  status                    Daemon, agents, and workspaces overview
+
+Resources:
+  add <name> [options]        Add standalone agent
+  create <config.yaml>        Create workspace (service mode)
+  run <config.yaml>           Run workspace as task (exits when done)
+  ls                          List all agents + workspaces
+  info <target>               Details about agent/workspace
+  rm <target>                 Remove agent or stop workspace
+
+Messaging:
+  send <target> "message"     Send message(s)
+  read <target> [N]           Read N messages from a stream
+  repl <target>               Interactive chat (non-blocking send/receive)
+
+Inspection:
+  state <target>              Agent state, inbox, todos
+  peek <target>               Read history from start
+  log [<target>] [-f]         Event log (--follow for streaming)
+
+Documents:
+  doc ls [@workspace]         List documents
+  doc read <name>             Read document
+  doc write <name> --content  Write document
+  doc append <name> --content Append to document
+
+Auth:
+  auth anthropic              Save Anthropic API key
+  auth openai                 Save OpenAI API key
+  auth deepseek               Save DeepSeek API key
+  auth status                 Show provider auth status
+  auth rm <provider>          Remove a saved API key
+
+Connections:
+  connect telegram            Connect a Telegram bot (full setup flow)
+  connect status              Show all configured connections
+  connect rm <name>           Remove a saved connection
+
+Target syntax: [agent][@workspace[:tag]][#channel]
+  alice, alice@review, @review:pr-42#design
+
+The daemon is auto-started when needed. Use 'aw daemon start' for manual control.`);
+}
+
 async function main() {
+  if (!command || command === "--help" || command === "-h") {
+    printUsage();
+    return;
+  }
+
   switch (command) {
     case "daemon": {
       const { daemon } = await import("./commands/daemon.ts");
@@ -81,58 +136,9 @@ async function main() {
       return auth(rest);
     }
     default:
-      console.log(`Usage: aw <command>
-
-Daemon:
-  daemon start [-p PORT]    Start daemon (foreground)
-  daemon stop               Stop daemon
-  status                    Daemon, agents, and workspaces overview
-
-Resources:
-  add <name> [options]        Add standalone agent
-  create <config.yaml>        Create workspace (service mode)
-  run <config.yaml>           Run workspace as task (exits when done)
-  ls                          List all agents + workspaces
-  info <target>               Details about agent/workspace
-  rm <target>                 Remove agent or stop workspace
-
-Messaging:
-  send <target> "message"     Send message(s)
-  read <target> [N]           Read N messages from a stream
-  repl <target>               Interactive chat (non-blocking send/receive)
-
-Inspection:
-  state <target>              Agent state, inbox, todos
-  peek <target>               Read history from start
-  log [<target>] [-f]         Event log (--follow for streaming)
-
-Documents:
-  doc ls [@workspace]         List documents
-  doc read <name>             Read document
-  doc write <name> --content  Write document
-  doc append <name> --content Append to document
-
-Auth:
-  auth anthropic              Save Anthropic API key
-  auth openai                 Save OpenAI API key
-  auth deepseek               Save DeepSeek API key
-  auth status                 Show provider auth status
-  auth rm <provider>          Remove a saved API key
-
-Connections:
-  connect telegram            Connect a Telegram bot (full setup flow)
-  connect status              Show all configured connections
-  connect rm <name>           Remove a saved connection
-
-Target syntax: [agent][@workspace[:tag]][#channel]
-  alice, alice@review, @review:pr-42#design
-
-The daemon is auto-started when needed. Use 'aw daemon start' for manual control.
-`);
-      if (command) {
-        console.error(`Unknown command: ${command}`);
-        process.exit(1);
-      }
+      printUsage();
+      console.error(`\nUnknown command: ${command}`);
+      process.exit(1);
   }
 }
 

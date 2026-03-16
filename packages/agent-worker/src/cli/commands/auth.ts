@@ -8,7 +8,7 @@
  */
 
 import { createInterface } from "node:readline/promises";
-import { fatal } from "../output.ts";
+import { fatal, wantsHelp } from "../output.ts";
 
 // ── Provider definitions ────────────────────────────────────────────────────
 
@@ -66,9 +66,11 @@ function maskKey(key: string): string {
 export async function auth(args: string[]): Promise<void> {
   const sub = args[0];
 
-  if (sub === "status") return authStatus();
-  if (sub === "rm") return authRm(args[1]);
-  if (sub && sub in PROVIDERS) return authProvider(sub);
+  if (!wantsHelp(args)) {
+    if (sub === "status") return authStatus();
+    if (sub === "rm") return authRm(args[1]);
+    if (sub && sub in PROVIDERS) return authProvider(sub);
+  }
 
   console.log(`Usage: aw auth <command>
 

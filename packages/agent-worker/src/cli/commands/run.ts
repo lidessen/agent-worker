@@ -1,8 +1,15 @@
 import { readFile } from "node:fs/promises";
 import { basename, dirname, resolve } from "node:path";
 import { AwClient } from "../../client.ts";
+import { wantsHelp } from "../output.ts";
 
 export async function run(args: string[]): Promise<void> {
+  if (wantsHelp(args)) {
+    console.log(
+      "Usage: aw run <config.yaml> [--tag <tag>] [--var KEY=VALUE] [--wait <duration>]",
+    );
+    return;
+  }
   const source = args[0];
   if (!source) {
     console.error(

@@ -11,7 +11,7 @@ import { readFile, writeFile, mkdir, readdir, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { createInterface } from "node:readline/promises";
-import { fatal } from "../output.ts";
+import { fatal, wantsHelp } from "../output.ts";
 
 const CONNECTIONS_DIR = join(homedir(), ".agent-worker", "connections");
 
@@ -72,15 +72,18 @@ async function listConnections(): Promise<Connection[]> {
 export async function connect(args: string[]): Promise<void> {
   const sub = args[0];
 
-  switch (sub) {
-    case "telegram":
-      return connectTelegram();
-    case "status":
-      return connectStatus();
-    case "rm":
-      return connectRm(args[1]);
-    default:
-      console.log(`Usage: aw connect <command>
+  if (!wantsHelp(args)) {
+    switch (sub) {
+      case "telegram":
+        return connectTelegram();
+      case "status":
+        return connectStatus();
+      case "rm":
+        return connectRm(args[1]);
+    }
+  }
+
+  console.log(`Usage: aw connect <command>
 
 Commands:
   telegram     Connect a Telegram bot (full setup flow)
@@ -90,10 +93,9 @@ Commands:
 Connections are saved to ~/.agent-worker/connections/ and automatically
 used by workspace connections when config is not specified in YAML.
 `);
-      if (sub) {
-        console.error(`Unknown subcommand: ${sub}`);
-        process.exit(1);
-      }
+  if (sub && !wantsHelp(args)) {
+    console.error(`Unknown subcommand: ${sub}`);
+    process.exit(1);
   }
 }
 
