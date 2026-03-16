@@ -246,7 +246,12 @@ export class Agent {
         if (outcome === "error") this.setState("error");
         else if (this._state !== "stopped") this.setState("idle");
       })
-      .catch(() => {
+      .catch((err) => {
+        this.emit("event", { type: "error", error: err instanceof Error ? err : new Error(String(err)) });
+        this.busEmit("agent.error", {
+          error: String(err),
+          level: "error",
+        });
         this.setState("error");
       });
   }

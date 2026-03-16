@@ -197,7 +197,11 @@ export class RunCoordinator {
         if (this.deps.memory?.shouldExtract("checkpoint")) {
           await this.deps.memory.extract(this.history.slice(-5), `run_${runCount}`);
         }
-      } catch {
+      } catch (err) {
+        callbacks.onEvent?.({
+          type: "error",
+          error: err instanceof Error ? err : new Error(String(err)),
+        });
         return "error";
       }
     }

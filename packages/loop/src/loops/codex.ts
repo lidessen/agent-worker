@@ -108,21 +108,31 @@ function escapeToml(value: string): string {
  * Codex CLI has no --mcp-config flag. MCP servers are configured via
  * `-c` TOML overrides against the `mcp_servers` config section.
  * This is additive — the user's existing ~/.codex/config.toml is preserved.
+ *
+ * Supports both stdio servers (command + args) and HTTP servers (url).
  */
 function buildMcpOverrides(configPath: string): string[] {
   const config = JSON.parse(readFileSync(configPath, "utf-8")) as {
-    mcpServers?: Record<string, { command: string; args?: string[] }>;
+    mcpServers?: Record<string, { type?: string; command?: string; args?: string[]; url?: string }>;
   };
   const servers = config.mcpServers ?? {};
   const flags: string[] = [];
 
   for (const [name, server] of Object.entries(servers)) {
     const key = quoteTomlKey(name);
-    flags.push("-c", `mcp_servers.${key}.type="stdio"`);
-    flags.push("-c", `mcp_servers.${key}.command="${escapeToml(server.command)}"`);
-    if (server.args?.length) {
-      const tomlArray = "[" + server.args.map((a) => `"${escapeToml(a)}"`).join(", ") + "]";
-      flags.push("-c", `mcp_servers.${key}.args=${tomlArray}`);
+
+    if (server.url || server.type === "http") {
+      // HTTP/streamable MCP server
+      flags.push("-c", `mcp_servers.${key}.type="http"`);
+      flags.push("-c", `mcp_servers.${key}.url="${escapeToml(server.url!)}"`);
+    } else if (server.command) {
+      // stdio MCP server
+      flags.push("-c", `mcp_servers.${key}.type="stdio"`);
+      flags.push("-c", `mcp_servers.${key}.command="${escapeToml(server.command)}"`);
+      if (server.args?.length) {
+        const tomlArray = "[" + server.args.map((a) => `"${escapeToml(a)}"`).join(", ") + "]";
+        flags.push("-c", `mcp_servers.${key}.args=${tomlArray}`);
+      }
     }
   }
 

@@ -526,6 +526,8 @@ export class Daemon {
   private async handleCreateWorkspace(req: Request): Promise<Response> {
     const body = (await req.json()) as {
       source: string;
+      name?: string;
+      configDir?: string;
       tag?: string;
       vars?: Record<string, string>;
       mode?: "service" | "task";
