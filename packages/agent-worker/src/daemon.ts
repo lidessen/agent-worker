@@ -150,11 +150,18 @@ export class Daemon {
   /**
    * Register global workspace agents into AgentRegistry so they appear
    * in GET /agents and health.agents count.
+   *
+   * These agents are backed by the global workspace loops — no standalone
+   * AgentLoop is created.  handleAgentSend() detects the "global" workspace
+   * marker and routes messages through the workspace channel instead.
    */
   private async registerGlobalAgents(globalWs: ManagedWorkspace): Promise<void> {
     for (const agent of globalWs.resolved.agents) {
       if (!agent.runtime) continue;
       try {
+        // Register without a loop — messages are routed via the workspace.
+        // A dummy loop is still needed by ManagedAgent/Agent, but it won't
+        // receive messages since handleAgentSend redirects to the workspace.
         const loop = await createLoopFromConfig({
           type: agent.runtime as RuntimeType,
           model: agent.model?.full,
@@ -426,6 +433,29 @@ export class Daemon {
       return Response.json({ error: "messages array is required" }, { status: 400 });
     }
 
+    // Global agents are backed by workspace loops — route messages through
+    // the global workspace channel so the WorkspaceAgentLoop processes them.
+    if (handle.info.workspace === "global") {
+      const globalWs = this.workspaces.get("global");
+      if (globalWs) {
+        let sent = 0;
+        for (const msg of body.messages) {
+          if (msg.delayMs && msg.delayMs > 0) {
+            await new Promise((r) => setTimeout(r, msg.delayMs));
+          }
+          const from = msg.from ?? "user";
+          await globalWs.workspace.contextProvider.smartSend(
+            globalWs.defaultChannel,
+            from,
+            msg.content,
+            { to: name },
+          );
+          sent++;
+        }
+        return Response.json({ sent, routed_to: `workspace:global` });
+      }
+    }
+
     let sent = 0;
     for (const msg of body.messages) {
       if (msg.delayMs && msg.delayMs > 0) {
@@ -453,6 +483,32 @@ export class Daemon {
     if (!handle) {
       return Response.json({ error: `Agent "${name}" not found` }, { status: 404 });
     }
+
+    // Global agents: stream responses from the workspace channel instead
+    // of the standalone agent's responses.jsonl (which won't receive data).
+    if (handle.info.workspace === "global") {
+      const globalWs = this.workspaces.get("global");
+      if (globalWs) {
+        const ch = globalWs.defaultChannel;
+        return this.createSSEStream((push) => {
+          const listener = (msg: any) => {
+            // Only forward messages from this agent (not user messages)
+            if (msg.from === name) {
+              push({
+                ts: Date.now(),
+                type: "text",
+                text: msg.content,
+              });
+            }
+          };
+          globalWs.workspace.contextProvider.channels.on("message", listener);
+          return () => {
+            globalWs.workspace.contextProvider.channels.off("message", listener);
+          };
+        });
+      }
+    }
+
     return this.createSSEStream((push) => {
       // Poll responses file for new data
       let cursor = 0;
