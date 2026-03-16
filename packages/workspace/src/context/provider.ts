@@ -57,19 +57,20 @@ export class CompositeContextProvider implements ContextProvider {
       throw new Error(`Cannot send kind="${kind}" to channel. Only "message" kind is allowed.`);
     }
 
-    let finalContent = content;
-
-    // SmartSend: store long content as resource, post a minimal reference.
-    // The receiving agent should call resource_read() to get the full content.
+    // Hard limit: reject messages that exceed the threshold.
+    // Agents must use resource_create for large content, then send a short
+    // message referencing the resource ID.
     if (content.length > this.smartSendThreshold) {
-      const resource = await this.resources.create(content, from);
-      finalContent = `[resource:${resource.id}]`;
+      throw new Error(
+        `Message too long (${content.length} chars, max ${this.smartSendThreshold}). ` +
+          `Use resource_create to store large content first, then send a short message with the resource ID.`,
+      );
     }
 
     const message = await this.channels.append(channel, {
       from,
       channel,
-      content: finalContent,
+      content,
       mentions,
       to: opts?.to,
       kind,
