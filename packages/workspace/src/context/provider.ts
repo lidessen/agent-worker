@@ -59,10 +59,11 @@ export class CompositeContextProvider implements ContextProvider {
 
     let finalContent = content;
 
-    // SmartSend: store long content as resource
+    // SmartSend: store long content as resource, keep a preview in the channel
     if (content.length > this.smartSendThreshold) {
       const resource = await this.resources.create(content, from);
-      finalContent = `Read the full content: resource_read("${resource.id}")`;
+      const preview = content.slice(0, this.smartSendThreshold).trimEnd();
+      finalContent = `${preview}\n\n[Content truncated — full version stored in resource_read("${resource.id}")]`;
     }
 
     const message = await this.channels.append(channel, {
