@@ -32,6 +32,7 @@ function createMockBridge(): ChannelBridgeInterface & {
     unsubscribe(callback: (msg: Message) => void): void {
       subscribers.delete(callback);
     },
+    async addAdapter(_adapter: import("../src/types.ts").ChannelAdapter): Promise<void> {},
   };
 }
 

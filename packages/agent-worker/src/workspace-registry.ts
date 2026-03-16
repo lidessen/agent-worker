@@ -1,4 +1,4 @@
-import { join, dirname } from "node:path";
+import { join } from "node:path";
 import {
   createWorkspace,
   createWiredLoop,
@@ -273,7 +273,7 @@ export class WorkspaceRegistry {
       if (loop.setTools) {
         // WorkspaceToolSet → ToolSet: workspace tools are plain functions
         // that get wrapped by the loop implementation.
-        loop.setTools(tools as import("ai").ToolSet);
+        loop.setTools(tools as unknown as import("ai").ToolSet);
       }
 
       const run = loop.run(prompt);
