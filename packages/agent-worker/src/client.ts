@@ -399,7 +399,17 @@ async function autoStartDaemon(dataDir: string): Promise<DaemonInfo> {
   const env = { ...process.env };
   delete env.CLAUDECODE;
 
-  const child = spawn("bun", ["run", cliEntry, "daemon", "start"], {
+  // Detect current runtime to spawn the daemon with the same one.
+  // Under bun: spawn "bun run <file>".
+  // Under node/tsx: spawn the same node binary with the same exec flags
+  // (e.g. --import tsx) so TypeScript files are handled correctly.
+  const isBun = !!process.versions.bun;
+  const command = isBun ? "bun" : process.execPath;
+  const args = isBun
+    ? ["run", cliEntry, "daemon", "start"]
+    : [...process.execArgv, cliEntry, "daemon", "start"];
+
+  const child = spawn(command, args, {
     detached: true,
     stdio: "ignore",
     env,
