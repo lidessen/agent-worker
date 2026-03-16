@@ -40,3 +40,14 @@ export { extractProvider, hasProviderKey } from "./utils/models.ts";
 // ── Tool relevance ─────────────────────────────────────────────────────────
 export { ToolRelevanceEngine } from "./tool-relevance.ts";
 export type { ToolRelevanceConfig, StepContext, ToolTier } from "./tool-relevance.ts";
+
+// ── Built-in tools ─────────────────────────────────────────────────────────
+export {
+  createLoopTools,
+  createGrepTool,
+  createWebFetchTool,
+  createWebSearchTool,
+  createWebBrowseTool,
+  closeBrowser,
+} from "./tools/index.ts";
+export type { LoopToolsOptions, WebSearchOptions } from "./tools/index.ts";

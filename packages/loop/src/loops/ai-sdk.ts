@@ -5,6 +5,7 @@ import type { LoopEvent, LoopResult, LoopRun, LoopStatus, PreflightResult } from
 import { createEventChannel } from "../types.ts";
 import { extractProvider, hasProviderKey } from "../utils/models.ts";
 import { ToolRelevanceEngine, type ToolRelevanceConfig } from "../tool-relevance.ts";
+import { createLoopTools, closeBrowser, type LoopToolsOptions } from "../tools/index.ts";
 
 // No typed model union — AI SDK supports any provider:model string
 
@@ -19,6 +20,8 @@ export interface AiSdkLoopOptions {
   bashToolOptions?: CreateBashToolOptions;
   /** Tool relevance config for dynamic per-step tool filtering. */
   toolRelevance?: ToolRelevanceConfig;
+  /** Options for built-in loop tools (grep, web_fetch, web_search, web_browse). */
+  loopTools?: LoopToolsOptions | false;
 }
 
 export class AiSdkLoop {
@@ -51,8 +54,15 @@ export class AiSdkLoop {
     this.bashToolkit = await createBashTool(bashToolOptions);
     const builtinTools: ToolSet = this.bashToolkit.tools as unknown as ToolSet;
 
-    // Merge: builtins < options.tools < previously set tools (via setTools)
-    this.tools = { ...builtinTools, ...userTools, ...this.tools };
+    // Built-in loop tools (grep, web_fetch, web_search, web_browse)
+    const loopToolsOpts = this.options.loopTools;
+    const loopTools =
+      loopToolsOpts === false
+        ? {}
+        : createLoopTools({ cwd: bashToolOptions?.destination, ...loopToolsOpts });
+
+    // Merge: builtins < loopTools < options.tools < previously set tools (via setTools)
+    this.tools = { ...builtinTools, ...loopTools, ...userTools, ...this.tools };
 
     // Inject discovery tool if relevance engine has on-demand tools
     this._injectDiscoveryTool();
@@ -202,6 +212,7 @@ export class AiSdkLoop {
     if (this.bashToolkit?.sandbox && "stop" in this.bashToolkit.sandbox) {
       await (this.bashToolkit.sandbox as { stop(): Promise<void> }).stop();
     }
+    await closeBrowser();
   }
 
   /** Check if the environment looks configured (provider API key present). Not a runtime test. */

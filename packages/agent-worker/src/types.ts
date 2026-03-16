@@ -1,4 +1,5 @@
 import type { AgentConfig, AgentState, AgentLoop } from "@agent-worker/agent";
+import type { LoopToolsOptions } from "@agent-worker/loop";
 
 // ── Daemon configuration ──────────────────────────────────────────────────
 
@@ -109,6 +110,10 @@ export interface RuntimeConfig {
 
   /** Runner kind. Default: "host". */
   runner?: "host" | "sandbox";
+
+  /** Loop tools config (grep, web_fetch, web_search, web_browse). ai-sdk only.
+   *  Set to false to disable all loop tools. */
+  loopTools?: LoopToolsOptions | false;
 
   /** Mock-specific: response delay in ms. */
   mockDelay?: number;
