@@ -155,6 +155,16 @@ function mapCursorEvent(data: unknown): RawCliEvent | RawCliEvent[] {
       return { type: "unknown", data: event };
     }
 
+    case "thinking": {
+      const subtype = event.subtype as string;
+      if (subtype === "delta") {
+        const text = event.text as string;
+        if (text) return { type: "thinking", text };
+      }
+      // thinking:completed — no actionable content
+      return null;
+    }
+
     case "result": {
       const resultText = event.result as string;
       if (resultText) {
@@ -162,6 +172,11 @@ function mapCursorEvent(data: unknown): RawCliEvent | RawCliEvent[] {
       }
       return null;
     }
+
+    // Internal lifecycle events — skip silently
+    case "system":
+    case "user":
+      return null;
 
     default:
       return { type: "unknown", data: event };

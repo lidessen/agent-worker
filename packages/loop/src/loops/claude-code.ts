@@ -146,6 +146,12 @@ function mapClaudeEvent(data: unknown): RawCliEvent | RawCliEvent[] {
       return null;
     }
 
+    // Internal lifecycle events — skip silently
+    case "system":
+    case "user":
+    case "rate_limit_event":
+      return null;
+
     default:
       return { type: "unknown", data: event };
   }
