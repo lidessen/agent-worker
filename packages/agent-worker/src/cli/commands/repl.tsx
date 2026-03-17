@@ -1,11 +1,12 @@
 /** @jsxImportSource semajsx/terminal */
-import { signal, computed } from "semajsx";
-import { render, onKeypress, useExit, onCleanup } from "semajsx/terminal";
+import { signal } from "semajsx";
+import { render, onCleanup, Static, TextInput } from "semajsx/terminal";
 import { AwClient } from "../../client.ts";
 import { parseTarget } from "../target.ts";
 import { wantsHelp } from "../output.ts";
 
 interface Message {
+  id: string;
   from: string;
   content: string;
 }
@@ -14,16 +15,18 @@ interface Message {
 
 const SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
-// ANSI helpers for inline colored text within a single <text> node
+// ANSI helpers
 const c = {
   cyan: (s: string) => `\x1b[36m${s}\x1b[0m`,
   cyanBold: (s: string) => `\x1b[1m\x1b[36m${s}\x1b[0m`,
-  green: (s: string) => `\x1b[32m${s}\x1b[0m`,
   yellow: (s: string) => `\x1b[1m\x1b[33m${s}\x1b[0m`,
   red: (s: string) => `\x1b[31m${s}\x1b[0m`,
   dim: (s: string) => `\x1b[2m${s}\x1b[0m`,
-  gray: (s: string) => `\x1b[90m${s}\x1b[0m`,
 };
+
+function highlightMentions(text: string): string {
+  return text.replace(/@[\w-]+/g, (match) => c.yellow(match));
+}
 
 function ReplApp({
   client,
@@ -31,18 +34,20 @@ function ReplApp({
   from,
   json,
   label,
+  onExit,
 }: {
   client: AwClient;
   target: ReturnType<typeof parseTarget>;
   from: string | undefined;
   json: boolean;
   label: string;
+  onExit: () => void;
 }) {
   const messages = signal<Message[]>([]);
   const input = signal("");
-  const error = signal("");
   const activity = signal("");
   const spinnerIdx = signal(0);
+  const error = signal("");
 
   // ── Spinner timer ───────────────────────────────────────────────────
   const spinnerTimer = setInterval(() => {
@@ -52,86 +57,55 @@ function ReplApp({
   }, 80);
   onCleanup(() => clearInterval(spinnerTimer));
 
-  // ── Computed display lines ──────────────────────────────────────────
-  // Status: spinner + activity text (single <text>, needs ANSI for mixed colors)
-  const statusLine = computed([activity, spinnerIdx], (text: string, idx: number) => {
+  // ── Status line (dynamic, re-renders) ─────────────────────────────
+  const statusLine = () => {
+    const text = activity.value;
     if (!text) return "";
+    const idx = spinnerIdx.value;
     return `${c.cyan(SPINNER[idx]!)} ${c.dim(text)}`;
-  });
+  };
 
-  // Prompt: "> input█" (single <text>, dynamic content needs ANSI)
-  const promptLine = computed([input], (v: string) => `${c.green(">")} ${v}${c.gray("█")}`);
-
-  // Messages: each msg is a static <text> with inline ANSI for mixed styling
-  const messageList = computed([messages], (msgs: Message[]) =>
-    msgs.map((msg) => <text>{`${c.cyanBold(msg.from)} ${highlightMentions(msg.content)}`}</text>),
-  );
-
-  // Error line
-  const errorLine = computed([error], (v: string) => (v ? c.red(`Error: ${v}`) : ""));
-
-  const exit = useExit();
-
-  // ── Keyboard input ──────────────────────────────────────────────────
-  const specialKeys = new Set([
-    "up",
-    "down",
-    "left",
-    "right",
-    "home",
-    "end",
-    "pageup",
-    "pagedown",
-    "delete",
-    "insert",
-    "tab",
-    "escape",
-  ]);
-
-  onKeypress((event) => {
-    if (event.key === "return") {
-      const text = input.value.trim();
-      if (!text) return;
-      if (text === ".exit" || text === ".quit") {
-        exit();
-        return;
-      }
-      input.value = "";
-      sendMessage(client, target, text, from).catch((err) => {
-        error.value = err instanceof Error ? err.message : String(err);
-      });
-    } else if (event.key === "backspace") {
-      input.value = input.value.slice(0, -1);
-    } else if (event.ctrl && event.key === "u") {
-      input.value = "";
-    } else if (event.key === "space") {
-      input.value += " ";
-    } else if (!event.ctrl && !event.meta && !specialKeys.has(event.key)) {
-      // Accept single chars, multi-char IME input, and Unicode
-      input.value += event.key;
+  // ── Submit handler ────────────────────────────────────────────────
+  const onSubmit = (text: string) => {
+    text = text.trim();
+    if (!text) return;
+    if (text === ".exit" || text === ".quit") {
+      onExit();
+      return;
     }
-  });
+    input.value = "";
+    sendMessage(client, target, text, from).catch((err) => {
+      error.value = err instanceof Error ? err.message : String(err);
+    });
+  };
 
   // ── Stream responses & events in background ─────────────────────────
   const controller = new AbortController();
   onCleanup(() => controller.abort());
 
-  streamResponses(client, target, json, label, messages, controller.signal);
+  const seenIds = new Set<string>();
+  const pushMessage = (entry: any) => {
+    const msg = formatEntry(entry, json, label);
+    if (!msg) return;
+    if (seenIds.has(msg.id)) return;
+    seenIds.add(msg.id);
+    messages.value = [...messages.value, msg];
+  };
+
+  streamResponses(client, target, json, label, pushMessage, controller.signal);
   streamAgentStatus(client, target, activity, controller.signal);
 
   return (
     <box flexDirection="column" width="100%">
-      <text bold color="cyan" paddingLeft={1}>
-        {`${label} ${c.dim("— .exit to quit")}`}
-      </text>
-      {statusLine}
-      <box flexDirection="column" marginTop={1}>
-        {messageList}
-      </box>
-      {errorLine}
-      <text marginTop={1} paddingLeft={1}>
-        {promptLine}
-      </text>
+      <Static
+        items={messages}
+        render={(msg: Message) => (
+          <text>{`${c.cyanBold(msg.from)} ${highlightMentions(msg.content)}`}</text>
+        )}
+      />
+      <text>{statusLine}</text>
+      <text>{error.value ? c.red(`Error: ${error.value}`) : ""}</text>
+      <TextInput value={input} onSubmit={onSubmit} placeholder="Type a message..." />
     </box>
   );
 }
@@ -167,7 +141,6 @@ async function streamAgentStatus(
   if (!target.agent && !target.workspace) return;
 
   const update = (event: any) => {
-    // For workspace events, show which agent is active
     const agent = event.agent ? `${event.agent}: ` : "";
     // Normalize: workspace events have "workspace.agent_*" prefix
     const type = (event.type as string).replace(/^workspace\.agent_/, "");
@@ -197,7 +170,6 @@ async function streamAgentStatus(
   };
 
   try {
-    // Get current cursor to skip historical events
     const current = target.workspace
       ? await client.readWorkspaceEvents(target.workspace)
       : await client.readAgentEvents(target.agent!);
@@ -222,16 +194,10 @@ async function streamResponses(
   target: ReturnType<typeof parseTarget>,
   json: boolean,
   label: string,
-  messages: ReturnType<typeof signal<Message[]>>,
+  push: (entry: any) => void,
   abortSignal: AbortSignal,
 ): Promise<void> {
-  const push = (entry: any) => {
-    const msg = formatEntry(entry, json, label);
-    if (msg) messages.value = [...messages.value, msg];
-  };
-
   if (target.agent && !target.workspace) {
-    // Get current cursor so we only show new messages
     const current = await client.readResponses(target.agent!);
     const startCursor = current.cursor;
 
@@ -244,7 +210,6 @@ async function streamResponses(
   } else if (target.workspace) {
     const ch = target.channel ?? (await resolveDefaultChannel(client, target.workspace));
 
-    // Read existing messages to get the latest id, so we skip history
     const existing = await client.readChannel(target.workspace!, ch, { limit: 1 });
     let lastSeenId: string | undefined =
       existing.messages.length > 0
@@ -309,20 +274,24 @@ async function resolveDefaultChannel(client: AwClient, workspace: string): Promi
   }
 }
 
+let msgCounter = 0;
+
 function formatEntry(entry: any, json: boolean, label: string): Message | null {
-  if (json) return { from: label, content: JSON.stringify(entry) };
+  if (json) {
+    return { id: entry.id ?? `msg-${++msgCounter}`, from: label, content: JSON.stringify(entry) };
+  }
 
   if (entry.type === "text" && entry.text) {
-    return { from: label, content: entry.text };
+    return { id: entry.id ?? `msg-${++msgCounter}`, from: label, content: entry.text };
   }
   if (entry.content) {
-    return { from: entry.from ?? label, content: entry.content };
+    return {
+      id: entry.id ?? `msg-${++msgCounter}`,
+      from: entry.from ?? label,
+      content: entry.content,
+    };
   }
   return null;
-}
-
-function highlightMentions(text: string): string {
-  return text.replace(/@[\w-]+/g, (match) => c.yellow(match));
 }
 
 function getFlag(args: string[], flag: string): string | undefined {
@@ -365,8 +334,17 @@ export async function repl(args: string[]): Promise<void> {
     process.exit(1);
   }
 
+  console.log(`${c.cyanBold(label)} ${c.dim("— .exit to quit")}\n`);
+
   const { waitUntilExit } = render(
-    <ReplApp client={client} target={target} from={from} json={json} label={label} />,
+    <ReplApp
+      client={client}
+      target={target}
+      from={from}
+      json={json}
+      label={label}
+      onExit={() => process.exit(0)}
+    />,
   );
 
   await waitUntilExit();
