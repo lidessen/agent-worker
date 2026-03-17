@@ -131,26 +131,19 @@ export class Workspace implements WorkspaceRuntime {
     // Only route "message" kind to inboxes (Invariant #12)
     if (message.kind && message.kind !== "message") return;
 
-    const isFromAgent = this.agentChannels.has(message.from);
-
-    // DMs: always route to recipient
+    // DMs: only route to recipient
     if (message.to) {
       await this.enqueueToAgent(message, message.to);
       return;
     }
 
-    // Channel messages: route to agents who joined this channel
+    // Channel messages: route to all agents who joined this channel
     for (const [agentName, channels] of this.agentChannels) {
       if (agentName === message.from) continue; // Don't self-deliver
       if (!channels.has(message.channel)) continue;
 
+      // Check if agent is mentioned or if this is a channel broadcast
       const isMentioned = message.mentions.includes(agentName);
-
-      // Anti-loop: agent-to-agent messages only route to explicitly mentioned agents.
-      // Background broadcasts from agents are skipped — agents can use channel_read
-      // to catch up. This prevents the @everyone ping-pong death spiral.
-      if (isFromAgent && !isMentioned) continue;
-
       await this.enqueueToAgent(message, agentName, isMentioned ? "normal" : "background");
     }
   }

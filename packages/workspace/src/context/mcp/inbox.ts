@@ -4,6 +4,7 @@ export interface InboxTools {
   my_inbox: () => Promise<string>;
   my_inbox_ack: (args: { message_id: string }) => Promise<string>;
   my_inbox_defer: (args: { message_id: string; until?: string }) => Promise<string>;
+  no_action: (args: { reason: string }) => Promise<string>;
   my_status_set: (args: { status: AgentStatus; task?: string }) => Promise<string>;
 }
 
@@ -33,6 +34,10 @@ export function createInboxTools(agentName: string, provider: ContextProvider): 
     async my_inbox_defer(args) {
       await provider.inbox.defer(agentName, args.message_id, args.until);
       return `Deferred ${args.message_id}${args.until ? ` until ${args.until}` : ""}`;
+    },
+
+    async no_action(args) {
+      return `No action taken: ${args.reason}`;
     },
 
     async my_status_set(args) {
