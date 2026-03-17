@@ -88,7 +88,7 @@ export class CursorLoop {
 function buildArgs(prompt: string, opts: CursorLoopOptions): string[] {
   // `agent` CLI: prompt is positional, `-p`/`--print` is a boolean flag for headless mode,
   // `--yolo` skips workspace trust + auto-approves commands.
-  const args = ["-p", "--output-format", "stream-json", "--yolo"];
+  const args = ["-p", "--output-format", "stream-json", "--yolo", "--approve-mcps"];
 
   if (opts.model) args.push("--model", opts.model);
   if (opts.extraArgs?.length) args.push(...opts.extraArgs);
