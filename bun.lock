@@ -50,6 +50,7 @@
         "@ai-sdk/google": "^3.0.43",
         "@ai-sdk/openai": "^3.0.41",
         "semajsx": "^0.11.0",
+        "yoga-layout-prebuilt": "^1.10.0",
         "zod": "^4.3.6",
       },
     },
@@ -234,6 +235,8 @@
     "@types/turndown": ["@types/turndown@5.0.6", "", {}, "sha512-ru00MoyeeouE5BX4gRL+6m/BsDfbRayOskWqUvh7CLGW+UXxHQItqALa38kKnOiZPqJrtzJUgAC2+F0rL1S4Pg=="],
 
     "@types/unist": ["@types/unist@3.0.3", "", {}, "sha512-ko/gIFJRv177XgZsZcBwnqJN5x/Gien8qNOn0D5bQU/zAzVf9Zt3BlcUiLqhV9y4ARk0GbT3tnUiPNgnTXzc/Q=="],
+
+    "@types/yoga-layout": ["@types/yoga-layout@1.9.2", "", {}, "sha512-S9q47ByT2pPvD65IvrWp7qppVMpk9WGMbVq9wbWZOHg6tnXSD4vyhao6nOSBwwfDdV2p3Kx9evA9vI+XWTfDvw=="],
 
     "@typescript/native-preview": ["@typescript/native-preview@7.0.0-dev.20260310.1", "", { "optionalDependencies": { "@typescript/native-preview-darwin-arm64": "7.0.0-dev.20260310.1", "@typescript/native-preview-darwin-x64": "7.0.0-dev.20260310.1", "@typescript/native-preview-linux-arm": "7.0.0-dev.20260310.1", "@typescript/native-preview-linux-arm64": "7.0.0-dev.20260310.1", "@typescript/native-preview-linux-x64": "7.0.0-dev.20260310.1", "@typescript/native-preview-win32-arm64": "7.0.0-dev.20260310.1", "@typescript/native-preview-win32-x64": "7.0.0-dev.20260310.1" }, "bin": { "tsgo": "bin/tsgo.js" } }, "sha512-g1Hi6V5YTYLzh4cf9yJwUMLmnFvqhqe/5V/rZ6Lx70P4BwSW5QuQBcXQMPWSD9CpsiO/xbhGfmtHZaxClAzosw=="],
 
@@ -852,6 +855,8 @@
     "yaml": ["yaml@2.8.2", "", { "bin": { "yaml": "bin.mjs" } }, "sha512-mplynKqc1C2hTVYxd0PU2xQAc22TI1vShAYGksCCfxbn/dFwnHTNi1bvYsBTkhdUNtGIf5xNOg938rrSSYvS9A=="],
 
     "yoctocolors": ["yoctocolors@2.1.2", "", {}, "sha512-CzhO+pFNo8ajLM2d2IW/R93ipy99LWjtwblvC1RsoSUMZgyLbYFr221TnSNT7GjGdYui6P459mw9JH/g/zW2ug=="],
+
+    "yoga-layout-prebuilt": ["yoga-layout-prebuilt@1.10.0", "", { "dependencies": { "@types/yoga-layout": "1.9.2" } }, "sha512-YnOmtSbv4MTf7RGJMK0FvZ+KD8OEe/J5BNnR0GHhD8J/XcG/Qvxgszm0Un6FTHWW4uHlTgP0IztiXQnGyIR45g=="],
 
     "zod": ["zod@4.3.6", "", {}, "sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg=="],
 

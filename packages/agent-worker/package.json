@@ -19,6 +19,7 @@
     "@ai-sdk/google": "^3.0.43",
     "@ai-sdk/openai": "^3.0.41",
     "semajsx": "^0.11.0",
+    "yoga-layout-prebuilt": "^1.10.0",
     "zod": "^4.3.6"
   }
 }
