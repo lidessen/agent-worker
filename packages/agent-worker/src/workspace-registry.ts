@@ -95,10 +95,16 @@ export class WorkspaceRegistry {
 
     // Create workspace loops for each agent (mirrors create() logic)
     const loops: WorkspaceAgentLoop[] = [];
+    const { mkdirSync } = await import("node:fs");
     for (const agent of resolved.agents) {
       if (!agent.runtime) continue;
-      const { tools, promptSections } = createAgentTools(agent.name, workspace);
-      const runner = await this.createRunner(agent, workspace, resolved, "global", tools);
+      const { tools, promptSections, dirs } = createAgentTools(agent.name, workspace);
+      if (dirs.workspaceSandboxDir) mkdirSync(dirs.workspaceSandboxDir, { recursive: true });
+      if (dirs.sandboxDir) mkdirSync(dirs.sandboxDir, { recursive: true });
+      const agentCwd = dirs.sandboxDir ?? dirs.workspaceSandboxDir;
+      const runner = await this.createRunner(agent, workspace, resolved, "global", tools, {
+        cwd: agentCwd,
+      });
       const loop = createWiredLoop({
         name: agent.name,
         instructions: agent.instructions,
@@ -187,8 +193,10 @@ export class WorkspaceRegistry {
       const { tools, promptSections, dirs } = createAgentTools(agent.name, workspace);
       if (dirs.workspaceSandboxDir) mkdirSync(dirs.workspaceSandboxDir, { recursive: true });
       if (dirs.sandboxDir) mkdirSync(dirs.sandboxDir, { recursive: true });
-
-      const runner = await this.createRunner(agent, workspace, resolved, key, tools);
+      const agentCwd = dirs.sandboxDir ?? dirs.workspaceSandboxDir;
+      const runner = await this.createRunner(agent, workspace, resolved, key, tools, {
+        cwd: agentCwd,
+      });
       const loop = createWiredLoop({
         name: agent.name,
         instructions: agent.instructions,
@@ -314,6 +322,7 @@ export class WorkspaceRegistry {
     resolved: import("@agent-worker/workspace").ResolvedWorkspace,
     workspaceKey: string,
     tools: import("@agent-worker/workspace").WorkspaceToolSet,
+    opts?: { cwd?: string },
   ): Promise<
     (prompt: string, instruction: import("@agent-worker/workspace").Instruction) => Promise<void>
   > {
@@ -329,7 +338,7 @@ export class WorkspaceRegistry {
       }
 
       // For AI SDK runtimes, create a loop and run
-      const loop = await this.createAgentLoop(agent);
+      const loop = await this.createAgentLoop(agent, opts?.cwd);
       if (!loop) {
         throw new Error(`No loop available for runtime: ${agent.runtime}`);
       }
@@ -363,7 +372,10 @@ export class WorkspaceRegistry {
     };
   }
 
-  private async createAgentLoop(agent: ResolvedAgent): Promise<AgentLoop | null> {
+  private async createAgentLoop(
+    agent: ResolvedAgent,
+    cwd?: string,
+  ): Promise<AgentLoop | null> {
     if (!agent.runtime || agent.runtime === "mock") return null;
     if (!agent.model && agent.runtime === "ai-sdk") return null;
 
@@ -375,6 +387,7 @@ export class WorkspaceRegistry {
       type: agent.runtime as import("./types.ts").RuntimeType,
       model: agent.model?.full,
       env: agent.env,
+      cwd,
     });
   }
 }
