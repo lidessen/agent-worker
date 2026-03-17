@@ -276,7 +276,12 @@ async function loadSavedTelegramConnection(): Promise<TelegramConnection | null>
  *   2. Environment variable (TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID)
  *   3. Saved connection from `aw connect` (~/.agent-worker/connections/)
  */
-export async function resolveConnections(defs?: ConnectionDef[]): Promise<ChannelAdapter[]> {
+export async function resolveConnections(
+  defs?: ConnectionDef[],
+  opts?: {
+    getAgents?: () => Promise<Array<{ name: string; status: string; task?: string }>>;
+  },
+): Promise<ChannelAdapter[]> {
   if (!defs || defs.length === 0) return [];
 
   const adapters: ChannelAdapter[] = [];
@@ -314,6 +319,7 @@ export async function resolveConnections(defs?: ConnectionDef[]): Promise<Channe
             chatId,
             channel: cfg.channel,
             pollTimeout: cfg.poll_timeout,
+            getAgents: opts?.getAgents,
           }),
         );
         break;

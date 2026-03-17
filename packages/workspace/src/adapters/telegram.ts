@@ -57,6 +57,8 @@ export interface TelegramAdapterConfig {
   channel?: string;
   /** Polling timeout in seconds. Default: 30. */
   pollTimeout?: number;
+  /** Optional callback to get agent status for /status command. */
+  getAgents?: () => Promise<Array<{ name: string; status: string; task?: string }>>;
 }
 
 // ── Bot commands ──────────────────────────────────────────────────────────
@@ -73,6 +75,7 @@ export class TelegramAdapter implements ChannelAdapter {
   private readonly channel: string;
   private readonly pollTimeout: number;
   private readonly baseUrl: string;
+  private readonly getAgents: TelegramAdapterConfig["getAgents"];
 
   private bridge: ChannelBridgeInterface | null = null;
   private bridgeSubscriber: ((msg: Message) => void) | null = null;
@@ -83,6 +86,7 @@ export class TelegramAdapter implements ChannelAdapter {
   constructor(config: TelegramAdapterConfig) {
     this.token = config.botToken;
     this.chatId = config.chatId;
+    this.getAgents = config.getAgents;
     this.channel = config.channel ?? "general";
     this.pollTimeout = config.pollTimeout ?? 30;
     this.baseUrl = `https://api.telegram.org/bot${this.token}`;
@@ -116,6 +120,32 @@ export class TelegramAdapter implements ChannelAdapter {
     }
     this.bridgeSubscriber = null;
     this.bridge = null;
+  }
+
+  private async sendStatus(chatId: number): Promise<void> {
+    const lines = [
+      `Running: ${this.running}`,
+      `Workspace: ${this.bridge ? "connected" : "not connected"}`,
+      `Default channel: #${this.channel}`,
+      `Chat ID: ${chatId}`,
+    ];
+
+    if (this.getAgents) {
+      const agents = await this.getAgents();
+      if (agents.length > 0) {
+        lines.push("", "Agents:");
+        for (const a of agents) {
+          const task = a.task ? ` — ${a.task}` : "";
+          lines.push(`  @${a.name}: ${a.status}${task}`);
+        }
+      }
+    }
+
+    if (this.bridge) {
+      lines.push("", 'Tip: "#channel message" to post to a specific channel.');
+    }
+
+    await this.api("sendMessage", { chat_id: chatId, text: lines.join("\n") });
   }
 
   // ── Telegram Bot API calls ─────────────────────────────────────────────
@@ -200,19 +230,7 @@ export class TelegramAdapter implements ChannelAdapter {
 
     switch (cmd) {
       case "/status": {
-        const lines = [
-          `Running: ${this.running}`,
-          `Workspace: ${this.bridge ? "connected" : "not connected"}`,
-          `Default channel: #${this.channel}`,
-          `Chat ID: ${msg.chat.id}`,
-        ];
-        if (this.bridge) {
-          lines.push("", 'Tip: Send "#channel message" to post to a specific channel.');
-        }
-        this.api("sendMessage", {
-          chat_id: msg.chat.id,
-          text: lines.join("\n"),
-        }).catch((err) => {
+        this.sendStatus(msg.chat.id).catch((err) => {
           console.error("[telegram] /status reply failed:", err);
         });
         break;
