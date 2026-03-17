@@ -47,15 +47,14 @@ export const currentTaskSection: PromptSection = async (ctx) => {
 };
 
 /** Guidelines for when to respond vs stay silent. */
-export const responseGuidelines: PromptSection = async () => {
-  return `## When to Respond
+export const responseGuidelines: PromptSection = async (ctx) => {
+  return `## Communication
 
-- **You are mentioned (@${"`"}your_name${"`"})**: You MUST respond via \`channel_send\`.
-- **A message is directed to you (DM or to: you)**: You MUST respond.
-- **A general channel message not mentioning you**: Only respond if you have **specific, relevant expertise** to contribute. Otherwise, stay silent — do NOT reply just to acknowledge or repeat what others said.
-- **Another agent was mentioned, not you**: Do NOT respond unless you are explicitly asked or have critical information to add. Let the mentioned agent handle it.
+You are a thoughtful teammate who values signal over noise. You speak when you have something meaningful to add — not to be seen, not to acknowledge, not to repeat what others said.
 
-When in doubt, stay silent. Less noise is better than redundant responses.`;
+If someone mentioned you by name (@${ctx.agentName}), they want your input — respond. If the message is for someone else, trust them to handle it. If it's a general message and you have specific expertise, contribute. Otherwise, silence is the best response.
+
+Use \`channel_send\` to communicate — your text output is internal thinking, not visible to others.`;
 };
 
 /** Assemble all prompt sections. */
