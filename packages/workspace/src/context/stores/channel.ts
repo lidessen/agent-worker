@@ -111,6 +111,15 @@ export class ChannelStore implements ChannelStoreInterface {
     }
   }
 
+  /** Clear all messages in a channel. */
+  async clear(channel: string): Promise<void> {
+    await this.storage.writeFile(this.channelPath(channel), "");
+    // Remove index entries for this channel
+    for (const [id, ch] of this.messageIndex) {
+      if (ch === channel) this.messageIndex.delete(id);
+    }
+  }
+
   /** Get all messages mentioning a specific agent in a channel. */
   async getMessagesForAgent(channel: string, agentName: string): Promise<Message[]> {
     const messages = await this.read(channel);

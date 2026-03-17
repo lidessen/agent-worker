@@ -133,6 +133,10 @@ async function main() {
       const { auth } = await import("./commands/auth.ts");
       return auth(rest);
     }
+    case "clear": {
+      const { clear } = await import("./commands/clear.ts");
+      return clear(rest);
+    }
     default:
       printUsage();
       console.error(`\nUnknown command: ${command}`);

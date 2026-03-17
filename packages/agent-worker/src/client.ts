@@ -333,6 +333,13 @@ export class AwClient {
     );
   }
 
+  async clearChannel(key: string, channel: string): Promise<void> {
+    await this.request(
+      `/workspaces/${encodeURIComponent(key)}/channels/${encodeURIComponent(channel)}`,
+      { method: "DELETE" },
+    );
+  }
+
   streamChannel(
     key: string,
     channel: string,

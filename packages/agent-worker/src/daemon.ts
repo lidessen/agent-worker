@@ -306,6 +306,9 @@ export class Daemon {
           if (method === "GET") {
             return await this.handleWorkspaceChannel(key, ch, url);
           }
+          if (method === "DELETE") {
+            return await this.handleClearChannel(key, ch);
+          }
         }
 
         // Doc routes: /workspaces/:key/docs[/:name]
@@ -907,6 +910,14 @@ export class Daemon {
         to: m.to,
       })),
     });
+  }
+
+  private async handleClearChannel(key: string, ch: string): Promise<Response> {
+    const resolved = this.resolveWorkspace(key);
+    if (resolved instanceof Response) return resolved;
+
+    await resolved.workspace.contextProvider.channels.clear(ch);
+    return Response.json({ cleared: ch });
   }
 
   private handleWorkspaceChannelStream(key: string, ch: string, _url: URL): Response {

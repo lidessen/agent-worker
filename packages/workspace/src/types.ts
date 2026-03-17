@@ -196,6 +196,7 @@ export interface ChannelStoreInterface {
   getMessage(channel: string, messageId: string): Promise<Message | null>;
   listChannels(): string[];
   createChannel(name: string): void;
+  clear(channel: string): Promise<void>;
 
   on(event: "message", listener: (message: Message) => void): void;
   off(event: "message", listener: (message: Message) => void): void;
