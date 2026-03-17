@@ -80,7 +80,7 @@ async function createAiSdkLoop(config: RuntimeConfig): Promise<AgentLoop> {
     case "kimi-code": {
       const { createAnthropic } = await import("@ai-sdk/anthropic");
       const kimi = createAnthropic({
-        baseURL: resolveEnv("KIMI_CODE_BASE_URL", config.env) ?? "https://api.kimi.com/coding/",
+        baseURL: resolveEnv("KIMI_CODE_BASE_URL", config.env) ?? "https://api.kimi.com/coding/v1",
         apiKey: resolveEnv("KIMI_CODE_API_KEY", config.env),
       });
       languageModel = kimi(modelId);
