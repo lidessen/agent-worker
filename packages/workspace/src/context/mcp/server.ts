@@ -37,6 +37,8 @@ export function createWorkspaceTools(
       inboxTools.my_inbox_ack(args as Parameters<typeof inboxTools.my_inbox_ack>[0]),
     my_inbox_defer: (args) =>
       inboxTools.my_inbox_defer(args as Parameters<typeof inboxTools.my_inbox_defer>[0]),
+    no_action: (args) =>
+      inboxTools.no_action(args as Parameters<typeof inboxTools.no_action>[0]),
     my_status_set: (args) =>
       inboxTools.my_status_set(args as Parameters<typeof inboxTools.my_status_set>[0]),
 
@@ -124,6 +126,16 @@ export const WORKSPACE_TOOL_DEFS = {
       until: { type: "string", description: "ISO timestamp to defer until (optional)" },
     },
     required: ["message_id"],
+  },
+  no_action: {
+    description:
+      "Explicitly decline to act on the current task. Use this instead of staying silent " +
+      "when you've read the message but determined you should not respond — e.g. the message " +
+      "is not relevant to you, it's a loop you shouldn't continue, or another agent is better suited.",
+    parameters: {
+      reason: { type: "string", description: "Why you chose not to act" },
+    },
+    required: ["reason"],
   },
   my_status_set: {
     description: "Update your status",

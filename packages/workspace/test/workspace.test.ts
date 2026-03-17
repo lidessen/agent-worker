@@ -94,9 +94,8 @@ describe("Workspace", () => {
     expect(bobInbox[0]!.priority).toBe("immediate");
   });
 
-  test("agent-to-agent broadcast does not route to inbox (anti-loop)", async () => {
-    // Agent broadcasts without @mention should NOT trigger other agents' inboxes.
-    // This prevents the ping-pong death spiral where agents endlessly reply to each other.
+  test("channel broadcast with background priority", async () => {
+    // No @mentions, just a broadcast to the channel
     await workspace.contextProvider.send({
       channel: "general",
       from: "alice",
@@ -104,20 +103,8 @@ describe("Workspace", () => {
     });
 
     const bobInbox = await workspace.contextProvider.inbox.peek("bob");
-    expect(bobInbox).toHaveLength(0);
-  });
-
-  test("external broadcast routes with background priority", async () => {
-    // Messages from non-agent sources (users, telegram) should still broadcast
-    await workspace.contextProvider.send({
-      channel: "general",
-      from: "user",
-      content: "Hello everyone",
-    });
-
-    const aliceInbox = await workspace.contextProvider.inbox.peek("alice");
-    expect(aliceInbox).toHaveLength(1);
-    expect(aliceInbox[0]!.priority).toBe("background");
+    expect(bobInbox).toHaveLength(1);
+    expect(bobInbox[0]!.priority).toBe("background");
   });
 
   test("shutdown completes without error", async () => {
