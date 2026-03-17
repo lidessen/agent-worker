@@ -31,6 +31,15 @@ async function daemonStart(args: string[]): Promise<void> {
   const portIdx = args.indexOf("-p");
   const port = portIdx >= 0 ? parseInt(args[portIdx + 1]!, 10) : 0;
 
+  // Load saved secrets into process.env so runtimes can resolve API keys
+  const { loadSecrets } = await import("@agent-worker/workspace");
+  const secrets = await loadSecrets();
+  for (const [key, value] of Object.entries(secrets)) {
+    if (!process.env[key]) {
+      process.env[key] = value;
+    }
+  }
+
   console.log("Starting agent-worker daemon...");
   const { daemon, info } = await startDaemon({ port });
   console.log(`Daemon running on http://${info.host}:${info.port}`);

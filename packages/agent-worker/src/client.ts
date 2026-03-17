@@ -12,7 +12,7 @@ import type {
   RuntimeConfig,
 } from "./types.ts";
 import { readDaemonInfo, defaultDataDir } from "./discovery.ts";
-import { spawn } from "node:child_process";
+import { execa } from "execa";
 import { fileURLToPath } from "node:url";
 import { join, dirname } from "node:path";
 
@@ -401,20 +401,19 @@ async function autoStartDaemon(dataDir: string): Promise<DaemonInfo> {
   const env = { ...process.env };
   delete env.CLAUDECODE;
 
-  // Detect current runtime to spawn the daemon with the same one.
-  // Under bun: spawn "bun run <file>".
-  // Under node/tsx: spawn the same node binary with the same exec flags
-  // (e.g. --import tsx) so TypeScript files are handled correctly.
+  // Spawn daemon as a detached background process via login shell.
+  // Using a login shell ensures user profile (~/.zshrc, ~/.bashrc) is loaded,
+  // so API keys set in shell profiles are available to the daemon.
   const isBun = !!process.versions.bun;
-  const command = isBun ? "bun" : process.execPath;
-  const args = [...(isBun ? ["run"] : process.execArgv), cliEntry, "daemon", "start"];
+  const runtime = isBun ? "bun" : process.execPath;
+  const runtimeArgs = [...(isBun ? ["run"] : process.execArgv), cliEntry, "daemon", "start"];
 
-  const child = spawn(command, args, {
+  const subprocess = execa(runtime, runtimeArgs, {
+    env,
     detached: true,
     stdio: "ignore",
-    env,
   });
-  child.unref();
+  subprocess.unref();
 
   // Poll for daemon.json (up to 5s)
   const deadline = Date.now() + 5000;

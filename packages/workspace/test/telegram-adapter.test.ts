@@ -76,6 +76,20 @@ describe("TelegramAdapter", () => {
     expect(bridge.subscribers.size).toBe(1);
   });
 
+  test("unsubscribes from bridge on shutdown", async () => {
+    mockFetch();
+    adapter = new TelegramAdapter({ botToken: "test-token", chatId: 123 });
+    const bridge = createMockBridge();
+    await adapter.start(bridge);
+
+    expect(bridge.subscribers.size).toBe(1);
+
+    await adapter.shutdown();
+    adapter = null;
+
+    expect(bridge.subscribers.size).toBe(0);
+  });
+
   test("anti-loop: ignores messages from telegram sources", async () => {
     const calls = mockFetch();
     adapter = new TelegramAdapter({ botToken: "test-token", chatId: 123 });
@@ -168,6 +182,49 @@ describe("TelegramAdapter", () => {
     await new Promise((r) => setTimeout(r, 20));
     const sendCalls = calls.filter((c) => c.url.includes("sendMessage"));
     expect(sendCalls).toHaveLength(0);
+  });
+
+  test("routes inbound #channel prefix to target channel", async () => {
+    mockFetch();
+    adapter = new TelegramAdapter({ botToken: "test-token", chatId: 123, channel: "general" });
+    const bridge = createMockBridge();
+    await adapter.start(bridge);
+
+    (adapter as any).handleMessage({
+      message_id: 1,
+      chat: { id: 123, type: "private" },
+      date: Math.floor(Date.now() / 1000),
+      text: "#design review this",
+      from: { id: 1, is_bot: false, first_name: "Jane", username: "jane" },
+    });
+
+    expect(bridge.sent).toEqual([
+      {
+        channel: "design",
+        from: "telegram:jane",
+        content: "review this",
+      },
+    ]);
+  });
+
+  test("replies when telegram message arrives without a connected workspace", async () => {
+    const calls = mockFetch();
+    adapter = new TelegramAdapter({ botToken: "test-token", chatId: 123 });
+
+    (adapter as any).handleMessage({
+      message_id: 1,
+      chat: { id: 123, type: "private" },
+      date: Math.floor(Date.now() / 1000),
+      text: "hello?",
+      from: { id: 1, is_bot: false, first_name: "Jane" },
+    });
+
+    await new Promise((r) => setTimeout(r, 20));
+    const sendCalls = calls.filter((c) => c.url.includes("sendMessage"));
+    expect(sendCalls).toHaveLength(1);
+    const body = JSON.parse(sendCalls[0]!.body!);
+    expect(body.chat_id).toBe(123);
+    expect(body.text).toContain("No workspace connected");
   });
 });
 

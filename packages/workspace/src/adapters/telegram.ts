@@ -75,6 +75,7 @@ export class TelegramAdapter implements ChannelAdapter {
   private readonly baseUrl: string;
 
   private bridge: ChannelBridgeInterface | null = null;
+  private bridgeSubscriber: ((msg: Message) => void) | null = null;
   private offset = 0;
   private running = false;
   private pollController: AbortController | null = null;
@@ -92,7 +93,7 @@ export class TelegramAdapter implements ChannelAdapter {
     this.running = true;
 
     // Subscribe to outbound channel messages → send to Telegram
-    bridge.subscribe((msg: Message) => {
+    this.bridgeSubscriber = (msg: Message) => {
       // Anti-loop: don't echo messages that came from Telegram
       if (msg.from.startsWith("telegram:")) return;
       // Only forward messages from the configured channel
@@ -100,7 +101,8 @@ export class TelegramAdapter implements ChannelAdapter {
       this.sendToTelegram(msg.content, msg.from).catch((err) => {
         console.error("[telegram] failed to send:", err);
       });
-    });
+    };
+    bridge.subscribe(this.bridgeSubscriber);
 
     // Start long-polling loop
     this.poll();
@@ -109,6 +111,10 @@ export class TelegramAdapter implements ChannelAdapter {
   async shutdown(): Promise<void> {
     this.running = false;
     this.pollController?.abort();
+    if (this.bridge && this.bridgeSubscriber) {
+      this.bridge.unsubscribe(this.bridgeSubscriber);
+    }
+    this.bridgeSubscriber = null;
     this.bridge = null;
   }
 
@@ -162,7 +168,6 @@ export class TelegramAdapter implements ChannelAdapter {
 
   private handleMessage(msg: TelegramMessage): void {
     if (!msg.text) return;
-    if (!this.bridge) return;
 
     // Authorization check
     if (this.chatId && msg.chat.id !== this.chatId) return;
@@ -173,8 +178,19 @@ export class TelegramAdapter implements ChannelAdapter {
       return;
     }
 
+    if (!this.bridge) {
+      this.api("sendMessage", {
+        chat_id: msg.chat.id,
+        text: "No workspace connected. Start a workspace with this Telegram connection first.",
+      }).catch(() => {});
+      return;
+    }
+
+    // Parse #channel prefix: "#design hello" → channel="design", content="hello"
+    const { channel, content } = parseChannelPrefix(msg.text, this.channel);
+
     const from = telegramUserLabel(msg.from);
-    this.bridge.send(this.channel, `telegram:${from}`, msg.text).catch((err) => {
+    this.bridge.send(channel, `telegram:${from}`, content).catch((err) => {
       console.error("[telegram] failed to inject message:", err);
     });
   }
@@ -183,20 +199,36 @@ export class TelegramAdapter implements ChannelAdapter {
     const cmd = msg.text!.split(/\s|@/)[0]!.toLowerCase();
 
     switch (cmd) {
-      case "/status":
+      case "/status": {
+        const lines = [
+          `Running: ${this.running}`,
+          `Workspace: ${this.bridge ? "connected" : "not connected"}`,
+          `Default channel: #${this.channel}`,
+          `Chat ID: ${msg.chat.id}`,
+        ];
+        if (this.bridge) {
+          lines.push("", 'Tip: Send "#channel message" to post to a specific channel.');
+        }
         this.api("sendMessage", {
           chat_id: msg.chat.id,
-          text: [
-            `Channel: ${this.channel}`,
-            `Running: ${this.running}`,
-            `Chat ID: ${msg.chat.id}`,
-          ].join("\n"),
-        }).catch(() => {});
+          text: lines.join("\n"),
+        }).catch((err) => {
+          console.error("[telegram] /status reply failed:", err);
+        });
         break;
+      }
       default: {
+        if (!this.bridge) {
+          this.api("sendMessage", {
+            chat_id: msg.chat.id,
+            text: "No workspace connected. Start a workspace with this Telegram connection first.",
+          }).catch(() => {});
+          return;
+        }
         // Unknown command — forward to workspace as regular message
         const from = telegramUserLabel(msg.from);
-        this.bridge!.send(this.channel, `telegram:${from}`, msg.text!).catch((err) => {
+        const { channel, content } = parseChannelPrefix(msg.text!, this.channel);
+        this.bridge.send(channel, `telegram:${from}`, content).catch((err) => {
           console.error("[telegram] failed to inject message:", err);
         });
       }
@@ -289,6 +321,22 @@ export async function runTelegramAuth(
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
+
+/**
+ * Parse "#channel message" prefix from text.
+ * Returns the target channel and remaining content.
+ * If no prefix, returns the default channel with full text.
+ */
+function parseChannelPrefix(
+  text: string,
+  defaultChannel: string,
+): { channel: string; content: string } {
+  const match = text.match(/^#([\w-]+)\s+([\s\S]+)/);
+  if (match) {
+    return { channel: match[1]!, content: match[2]! };
+  }
+  return { channel: defaultChannel, content: text };
+}
 
 function telegramUserLabel(user?: TelegramUser): string {
   if (!user) return "unknown";
