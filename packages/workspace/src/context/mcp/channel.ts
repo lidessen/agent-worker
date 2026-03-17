@@ -15,7 +15,9 @@ export function createChannelTools(
 ): ChannelTools {
   return {
     async channel_send(args) {
-      const { channel, content, to } = args;
+      // Strip leading # — agents often write "#general" instead of "general"
+      const channel = args.channel.replace(/^#/, "");
+      const { content, to } = args;
       try {
         const msg = await provider.send({ channel, from: agentName, content, to });
         return `Sent message ${msg.id} to #${channel}`;
@@ -33,7 +35,8 @@ export function createChannelTools(
     },
 
     async channel_read(args) {
-      const { channel, limit } = args;
+      const channel = args.channel.replace(/^#/, "");
+      const { limit } = args;
       const messages = await provider.channels.read(channel, { limit: limit ?? 20 });
       if (messages.length === 0) return `#${channel}: no messages`;
 
@@ -53,13 +56,15 @@ export function createChannelTools(
     },
 
     async channel_join(args) {
-      agentChannels.add(args.channel);
-      return `Joined #${args.channel}`;
+      const channel = args.channel.replace(/^#/, "");
+      agentChannels.add(channel);
+      return `Joined #${channel}`;
     },
 
     async channel_leave(args) {
-      agentChannels.delete(args.channel);
-      return `Left #${args.channel}`;
+      const channel = args.channel.replace(/^#/, "");
+      agentChannels.delete(channel);
+      return `Left #${channel}`;
     },
   };
 }
