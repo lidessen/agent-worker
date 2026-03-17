@@ -196,6 +196,12 @@ function mapCodexEvent(data: unknown): RawCliEvent {
       return { type: "unknown", data: event };
     }
 
+    // Internal lifecycle events — skip silently
+    case "turn.started":
+    case "turn.completed":
+    case "thread.started":
+      return null;
+
     default:
       return { type: "unknown", data: event };
   }
