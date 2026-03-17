@@ -354,6 +354,16 @@ export class WorkspaceRegistry {
       ? join(opts.storageDir, "agents", agent.name, "runs")
       : undefined;
 
+    // For CLI agents, start a workspace MCP server once (persists across runs)
+    let mcpConfigPath: string | undefined;
+    const isCliRuntime =
+      agent.runtime === "claude-code" || agent.runtime === "codex" || agent.runtime === "cursor";
+    if (isCliRuntime) {
+      const { WorkspaceMcpServer } = await import("@agent-worker/workspace");
+      const mcpServer = new WorkspaceMcpServer(agent.name, tools);
+      mcpConfigPath = await mcpServer.start();
+    }
+
     return async (prompt, instruction, runId) => {
       if (!agent.runtime || agent.runtime === "mock") {
         const channel = instruction.channel || (resolved.def.default_channel ?? "general");
@@ -371,9 +381,16 @@ export class WorkspaceRegistry {
         throw new Error(`No loop available for runtime: ${agent.runtime}`);
       }
 
-      const aiSdkTools = wrapWorkspaceToolsForAiSdk(tools);
+      const toolNames = Object.keys(tools);
+
       if (loop.setTools) {
+        // AI SDK agents: inject tools directly
+        const aiSdkTools = wrapWorkspaceToolsForAiSdk(tools);
         loop.setTools(aiSdkTools);
+      }
+      if (loop.setMcpConfig && mcpConfigPath) {
+        // CLI agents: point to the pre-started workspace MCP server
+        loop.setMcpConfig(mcpConfigPath);
       }
 
       this.emitEvent("workspace.agent_tools", {
@@ -381,7 +398,7 @@ export class WorkspaceRegistry {
         agent: agent.name,
         runtime: agent.runtime,
         model: agent.model?.full,
-        tools: Object.keys(aiSdkTools),
+        tools: toolNames,
         level: "debug",
       });
 
