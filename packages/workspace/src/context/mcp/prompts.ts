@@ -38,6 +38,24 @@ export const workspacePromptSection: PromptSection = async (ctx) => {
   return lines.join("\n");
 };
 
+/** Recent channel history so agents know what's already been said. */
+export const recentHistorySection: PromptSection = async (ctx) => {
+  const channels = ctx.provider.channels.listChannels();
+  if (channels.length === 0) return null;
+
+  const sections: string[] = [];
+  for (const ch of channels) {
+    const msgs = await ctx.provider.channels.read(ch, { limit: 10 });
+    if (msgs.length === 0) continue;
+
+    const lines = msgs.map((m) => `  @${m.from}: ${m.content.slice(0, 150)}`);
+    sections.push(`#${ch}:\n${lines.join("\n")}`);
+  }
+
+  if (sections.length === 0) return null;
+  return `## Recent Messages\n\n${sections.join("\n\n")}`;
+};
+
 /** Shared documents available in the workspace. */
 export const docsPromptSection: PromptSection = async (ctx) => {
   const docs = await ctx.provider.documents.list();
@@ -48,5 +66,6 @@ export const docsPromptSection: PromptSection = async (ctx) => {
 /** All workspace prompt sections, in order. */
 export const WORKSPACE_PROMPT_SECTIONS: PromptSection[] = [
   workspacePromptSection,
+  recentHistorySection,
   docsPromptSection,
 ];
