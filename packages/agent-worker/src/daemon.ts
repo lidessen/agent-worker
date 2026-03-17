@@ -91,11 +91,8 @@ export class Daemon {
     mkdirSync(this.config.dataDir, { recursive: true });
 
     await this.eventLog.init();
-    const globalWs = await this.workspaces.ensureDefault();
-    await globalWs.startLoops();
-    this.registerGlobalAgents(globalWs);
-    this.startedAt = Date.now();
 
+    // Start HTTP server first so we know the port
     const app = new Hono();
     app.all("*", async (c) => {
       const response = await this.handleRequest(c.req.raw);
@@ -114,6 +111,19 @@ export class Daemon {
       );
     });
     this._port = actualPort;
+    this.startedAt = Date.now();
+
+    // Set daemon info before creating workspaces (CLI agents need it for MCP)
+    this.workspaces.setDaemonInfo(
+      `http://${this.config.host}:${actualPort}`,
+      this.config.token,
+    );
+
+    // Now create global workspace and start agent loops
+    const globalWs = await this.workspaces.ensureDefault();
+    await globalWs.startLoops();
+    this.registerGlobalAgents(globalWs);
+
     const info: DaemonInfo = {
       pid: process.pid,
       host: this.config.host,
@@ -123,12 +133,6 @@ export class Daemon {
     };
 
     await writeDaemonInfo(info, this.config.dataDir);
-
-    // Tell workspace registry how to reach the daemon (for CLI agent MCP proxying)
-    this.workspaces.setDaemonInfo(
-      `http://${this.config.host}:${actualPort}`,
-      this.config.token,
-    );
 
     this._bus.emit({
       type: "daemon.started",
