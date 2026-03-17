@@ -41,7 +41,7 @@ export const currentTaskSection: PromptSection = async (ctx) => {
   // Annotate with routing context so agent knows whether it was directly addressed
   const priority = ctx.currentPriority ?? "normal";
   if (priority === "background") {
-    return `## Current Task\n\n${ctx.currentInstruction}\n\n> _This message was not directed at you. Only respond if you have something specific to contribute._`;
+    return `## Current Task\n\n${ctx.currentInstruction}\n\n> _You were not specifically mentioned. Use your judgment — respond if this is relevant to you, use \`no_action\` if not._`;
   }
   return `## Current Task\n\n${ctx.currentInstruction}`;
 };
