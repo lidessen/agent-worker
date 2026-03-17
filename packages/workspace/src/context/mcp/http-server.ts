@@ -70,7 +70,13 @@ export class WorkspaceMcpServer {
     await this.server.connect(this.transport);
 
     this.httpServer = createServer((req, res) => {
-      this.transport!.handleRequest(req, res);
+      this.transport!.handleRequest(req, res).catch((err) => {
+        console.error(`[workspace-mcp:${this.agentName}] request error:`, err);
+        if (!res.headersSent) {
+          res.writeHead(500, { "Content-Type": "text/plain" });
+          res.end(String(err));
+        }
+      });
     });
 
     await new Promise<void>((resolve, reject) => {
