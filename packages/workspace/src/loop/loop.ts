@@ -166,7 +166,7 @@ export class WorkspaceAgentLoop {
 
     // 3. Build prompt
     const currentInbox = await this.config.provider.inbox.peek(this.config.name);
-    const prompt = await this.buildPrompt(currentInbox, instruction.content);
+    const prompt = await this.buildPrompt(currentInbox, instruction.content, instruction.priority);
 
     // 4. Execute
     try {
@@ -186,6 +186,7 @@ export class WorkspaceAgentLoop {
   private async buildPrompt(
     inboxEntries: InboxEntry[],
     currentInstruction?: string,
+    currentPriority?: string,
   ): Promise<string> {
     return assemblePrompt(this.sections, {
       agentName: this.config.name,
@@ -193,6 +194,7 @@ export class WorkspaceAgentLoop {
       provider: this.config.provider,
       inboxEntries,
       currentInstruction,
+      currentPriority,
     });
   }
 

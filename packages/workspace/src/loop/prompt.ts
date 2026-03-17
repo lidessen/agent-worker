@@ -8,6 +8,8 @@ export interface PromptContext {
   provider: ContextProvider;
   inboxEntries: InboxEntry[];
   currentInstruction?: string;
+  /** Priority of the current instruction (immediate/normal/background). */
+  currentPriority?: string;
 }
 
 /** Agent's custom instructions (from YAML config). */
@@ -35,7 +37,25 @@ export const inboxSection: PromptSection = async (ctx) => {
 /** The instruction currently being processed. */
 export const currentTaskSection: PromptSection = async (ctx) => {
   if (!ctx.currentInstruction) return null;
+
+  // Annotate with routing context so agent knows whether it was directly addressed
+  const priority = ctx.currentPriority ?? "normal";
+  if (priority === "background") {
+    return `## Current Task\n\n${ctx.currentInstruction}\n\n> _This message was not directed at you. Only respond if you have something specific to contribute._`;
+  }
   return `## Current Task\n\n${ctx.currentInstruction}`;
+};
+
+/** Guidelines for when to respond vs stay silent. */
+export const responseGuidelines: PromptSection = async () => {
+  return `## When to Respond
+
+- **You are mentioned (@${"`"}your_name${"`"})**: You MUST respond via \`channel_send\`.
+- **A message is directed to you (DM or to: you)**: You MUST respond.
+- **A general channel message not mentioning you**: Only respond if you have **specific, relevant expertise** to contribute. Otherwise, stay silent — do NOT reply just to acknowledge or repeat what others said.
+- **Another agent was mentioned, not you**: Do NOT respond unless you are explicitly asked or have critical information to add. Let the mentioned agent handle it.
+
+When in doubt, stay silent. Less noise is better than redundant responses.`;
 };
 
 /** Assemble all prompt sections. */
@@ -58,4 +78,9 @@ export async function assemblePrompt(
  * Used internally by WorkspaceAgentLoop as the foundation; capability-specific
  * sections (workspace, docs) are appended via promptSections.
  */
-export const BASE_SECTIONS: PromptSection[] = [soulSection, inboxSection, currentTaskSection];
+export const BASE_SECTIONS: PromptSection[] = [
+  currentTaskSection,
+  soulSection,
+  responseGuidelines,
+  inboxSection,
+];
