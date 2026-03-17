@@ -87,12 +87,20 @@ export class WorkspaceRegistry {
         skipSetup: true,
       });
     }
-    const connections = await resolveConnections(resolved.def.connections);
+    // Lazy status callback — workspace doesn't exist yet, so we capture it in a closure
+    let workspaceRef: Workspace | null = null;
+    const getAgents = async () => {
+      if (!workspaceRef) return [];
+      const members = await workspaceRef.contextProvider.status.getAll();
+      return members.map((m) => ({ name: m.name, status: m.status, task: m.currentTask }));
+    };
+    const connections = await resolveConnections(resolved.def.connections, { getAgents });
     const config = toWorkspaceConfig(resolved, {
       storageDir: globalDir,
       connections,
     });
     const workspace = await createWorkspace(config);
+    workspaceRef = workspace;
 
     // Create workspace loops for each agent (mirrors create() logic)
     const loops: WorkspaceAgentLoop[] = [];
@@ -184,9 +192,16 @@ export class WorkspaceRegistry {
 
     // Use daemon-managed data dir unless YAML explicitly specifies one
     const storageDir = resolved.def.data_dir ? undefined : this.workspaceDir(key);
-    const connections = await resolveConnections(resolved.def.connections);
+    let workspaceRef: Workspace | null = null;
+    const getAgents = async () => {
+      if (!workspaceRef) return [];
+      const members = await workspaceRef.contextProvider.status.getAll();
+      return members.map((m) => ({ name: m.name, status: m.status, task: m.currentTask }));
+    };
+    const connections = await resolveConnections(resolved.def.connections, { getAgents });
     const config = toWorkspaceConfig(resolved, { tag: input.tag, storageDir, connections });
     const workspace = await createWorkspace(config);
+    workspaceRef = workspace;
 
     // Ensure sandbox directories exist and create loops for each agent
     const loops: WorkspaceAgentLoop[] = [];
