@@ -41,9 +41,17 @@ export class WorkspaceRegistry {
   private _bus?: EventBus;
   private _defaultWorkspace: ManagedWorkspace | null = null;
   private _dataDir: string;
+  private _daemonUrl?: string;
+  private _daemonToken?: string;
 
   constructor(dataDir: string) {
     this._dataDir = dataDir;
+  }
+
+  /** Set daemon connection info for CLI agent MCP proxying. */
+  setDaemonInfo(url: string, token: string): void {
+    this._daemonUrl = url;
+    this._daemonToken = token;
   }
 
   /** Set the shared event bus. */
@@ -354,14 +362,30 @@ export class WorkspaceRegistry {
       ? join(opts.storageDir, "agents", agent.name, "runs")
       : undefined;
 
-    // For CLI agents, start a workspace MCP server once (persists across runs)
+    // For CLI agents, set up MCP config for workspace tools
     let mcpConfigPath: string | undefined;
     const isCliRuntime =
       agent.runtime === "claude-code" || agent.runtime === "codex" || agent.runtime === "cursor";
-    if (isCliRuntime) {
-      const { WorkspaceMcpServer } = await import("@agent-worker/workspace");
-      const mcpServer = new WorkspaceMcpServer(agent.name, tools);
-      mcpConfigPath = await mcpServer.start();
+    if (isCliRuntime && this._daemonUrl && this._daemonToken) {
+      const { WorkspaceMcpServer, createWorkspaceMcpConfig } = await import(
+        "@agent-worker/workspace"
+      );
+
+      // codex/cursor: start HTTP MCP server; claude-code: use stdio proxy
+      let httpUrl: string | undefined;
+      if (agent.runtime !== "claude-code") {
+        const mcpServer = new WorkspaceMcpServer(agent.name, tools);
+        await mcpServer.start();
+        httpUrl = mcpServer.url!;
+      }
+
+      const mcpConfig = await createWorkspaceMcpConfig(agent.name, agent.runtime, {
+        httpUrl,
+        daemonUrl: this._daemonUrl,
+        daemonToken: this._daemonToken,
+        workspaceKey,
+      });
+      mcpConfigPath = mcpConfig.configPath;
     }
 
     return async (prompt, instruction, runId) => {

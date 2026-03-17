@@ -51,7 +51,7 @@ export { createChannelTools } from "./context/mcp/channel.ts";
 export { createInboxTools } from "./context/mcp/inbox.ts";
 export { createTeamTools } from "./context/mcp/team.ts";
 export { createResourceTools } from "./context/mcp/resource.ts";
-export { WorkspaceMcpServer } from "./context/mcp/http-server.ts";
+export { WorkspaceMcpServer, createWorkspaceMcpConfig } from "./context/mcp/http-server.ts";
 
 // ── Utilities ──────────────────────────────────────────────────────────────
 export { nanoid, extractMentions } from "./utils.ts";

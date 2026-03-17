@@ -124,6 +124,12 @@ export class Daemon {
 
     await writeDaemonInfo(info, this.config.dataDir);
 
+    // Tell workspace registry how to reach the daemon (for CLI agent MCP proxying)
+    this.workspaces.setDaemonInfo(
+      `http://${this.config.host}:${actualPort}`,
+      this.config.token,
+    );
+
     this._bus.emit({
       type: "daemon.started",
       source: "daemon",
