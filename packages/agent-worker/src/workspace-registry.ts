@@ -86,8 +86,10 @@ export class WorkspaceRegistry {
         skipSetup: true,
       });
     }
+    const connections = await resolveConnections(resolved.def.connections);
     const config = toWorkspaceConfig(resolved, {
       storageDir: globalDir,
+      connections,
     });
     const workspace = await createWorkspace(config);
 
