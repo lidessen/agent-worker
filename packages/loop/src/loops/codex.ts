@@ -148,7 +148,7 @@ function mapCodexEvent(data: unknown): RawCliEvent {
       if ((event.role as string) === "assistant") {
         return { type: "text", text: (event.content as string) ?? "" };
       }
-      return null;
+      return { type: "unknown", data: event };
     }
 
     case "function_call":
@@ -195,12 +195,6 @@ function mapCodexEvent(data: unknown): RawCliEvent {
       }
       return { type: "unknown", data: event };
     }
-
-    // Internal lifecycle events — skip silently
-    case "turn.started":
-    case "turn.completed":
-    case "thread.started":
-      return null;
 
     default:
       return { type: "unknown", data: event };

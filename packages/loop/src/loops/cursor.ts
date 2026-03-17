@@ -107,7 +107,7 @@ function mapCursorEvent(data: unknown): RawCliEvent | RawCliEvent[] {
     case "assistant": {
       const message = event.message as Record<string, unknown> | undefined;
       const content = message?.content as Array<Record<string, unknown>> | undefined;
-      if (!Array.isArray(content)) return null;
+      if (!Array.isArray(content)) return { type: "unknown", data: event };
 
       const events: RawCliEvent[] = [];
       for (const block of content) {
@@ -122,7 +122,7 @@ function mapCursorEvent(data: unknown): RawCliEvent | RawCliEvent[] {
           events.push({ type: "text", text: block.text as string });
         }
       }
-      return events.length === 1 ? events[0]! : events.length > 1 ? events : null;
+      return events.length > 0 ? events : { type: "unknown", data: event };
     }
 
     case "tool_call": {
@@ -161,8 +161,7 @@ function mapCursorEvent(data: unknown): RawCliEvent | RawCliEvent[] {
         const text = event.text as string;
         if (text) return { type: "thinking", text };
       }
-      // thinking:completed — no actionable content
-      return null;
+      return { type: "unknown", data: event };
     }
 
     case "result": {
@@ -170,13 +169,8 @@ function mapCursorEvent(data: unknown): RawCliEvent | RawCliEvent[] {
       if (resultText) {
         return { type: "text", text: resultText };
       }
-      return null;
+      return { type: "unknown", data: event };
     }
-
-    // Internal lifecycle events — skip silently
-    case "system":
-    case "user":
-      return null;
 
     default:
       return { type: "unknown", data: event };

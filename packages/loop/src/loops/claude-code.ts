@@ -100,7 +100,7 @@ function mapClaudeEvent(data: unknown): RawCliEvent | RawCliEvent[] {
     case "assistant": {
       const message = event.message as Record<string, unknown> | undefined;
       const content = message?.content as Array<Record<string, unknown>> | undefined;
-      if (!Array.isArray(content)) return null;
+      if (!Array.isArray(content)) return { type: "unknown", data: event };
 
       const events: RawCliEvent[] = [];
       for (const block of content) {
@@ -117,7 +117,7 @@ function mapClaudeEvent(data: unknown): RawCliEvent | RawCliEvent[] {
           events.push({ type: "text", text: block.text as string });
         }
       }
-      return events.length === 1 ? events[0]! : events.length > 1 ? events : null;
+      return events.length > 0 ? events : { type: "unknown", data: event };
     }
 
     case "tool":
@@ -140,17 +140,8 @@ function mapClaudeEvent(data: unknown): RawCliEvent | RawCliEvent[] {
           },
         };
       }
-      // Don't emit text from the result event — the same text was already
-      // streamed via "assistant" events, so emitting it again causes
-      // duplicate messages in the REPL.
-      return null;
+      return { type: "unknown", data: event };
     }
-
-    // Internal lifecycle events — skip silently
-    case "system":
-    case "user":
-    case "rate_limit_event":
-      return null;
 
     default:
       return { type: "unknown", data: event };
