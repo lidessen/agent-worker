@@ -77,7 +77,7 @@ function buildArgs(
   opts: CodexLoopOptions,
   mcpConfigPath?: string | null,
 ): string[] {
-  const args = ["exec", prompt, "--json"];
+  const args = ["exec", prompt, "--json", "--skip-git-repo-check"];
 
   if (opts.model) args.push("--model", opts.model);
   if (opts.fullAuto) args.push("--full-auto");
