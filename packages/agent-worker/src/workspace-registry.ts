@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { mkdirSync, appendFileSync } from "node:fs";
 import {
   createWorkspace,
   createWiredLoop,
@@ -104,6 +105,7 @@ export class WorkspaceRegistry {
       const agentCwd = dirs.sandboxDir ?? dirs.workspaceSandboxDir;
       const runner = await this.createRunner(agent, workspace, resolved, "global", tools, {
         cwd: agentCwd,
+        storageDir: globalDir,
       });
       const loop = createWiredLoop({
         name: agent.name,
@@ -129,7 +131,7 @@ export class WorkspaceRegistry {
             level: "debug",
           });
           try {
-            await runner(prompt, instruction);
+            await runner(prompt, instruction, runId);
             this.emitEvent("workspace.agent_run_end", {
               workspace: "global",
               agent: agent.name,
@@ -194,8 +196,10 @@ export class WorkspaceRegistry {
       if (dirs.workspaceSandboxDir) mkdirSync(dirs.workspaceSandboxDir, { recursive: true });
       if (dirs.sandboxDir) mkdirSync(dirs.sandboxDir, { recursive: true });
       const agentCwd = dirs.sandboxDir ?? dirs.workspaceSandboxDir;
+      const actualStorageDir = storageDir ?? this.workspaceDir(key);
       const runner = await this.createRunner(agent, workspace, resolved, key, tools, {
         cwd: agentCwd,
+        storageDir: actualStorageDir,
       });
       const loop = createWiredLoop({
         name: agent.name,
@@ -214,7 +218,7 @@ export class WorkspaceRegistry {
             instruction: instruction.content.slice(0, 200),
           });
           try {
-            await runner(prompt, instruction);
+            await runner(prompt, instruction, runId);
             this.emitEvent("workspace.agent_run_end", {
               workspace: key,
               agent: agent.name,
@@ -322,11 +326,20 @@ export class WorkspaceRegistry {
     resolved: import("@agent-worker/workspace").ResolvedWorkspace,
     workspaceKey: string,
     tools: import("@agent-worker/workspace").WorkspaceToolSet,
-    opts?: { cwd?: string },
+    opts?: { cwd?: string; storageDir?: string },
   ): Promise<
-    (prompt: string, instruction: import("@agent-worker/workspace").Instruction) => Promise<void>
+    (
+      prompt: string,
+      instruction: import("@agent-worker/workspace").Instruction,
+      runId: string,
+    ) => Promise<void>
   > {
-    return async (prompt, instruction) => {
+    // Per-agent runs directory for detailed logs
+    const runsDir = opts?.storageDir
+      ? join(opts.storageDir, "agents", agent.name, "runs")
+      : undefined;
+
+    return async (prompt, instruction, runId) => {
       if (!agent.runtime || agent.runtime === "mock") {
         const channel = instruction.channel || (resolved.def.default_channel ?? "general");
         await workspace.contextProvider.send({
@@ -357,18 +370,36 @@ export class WorkspaceRegistry {
         level: "debug",
       });
 
-      const run = loop.run(prompt);
-      for await (const event of run) {
-        if (event.type === "text") {
-          this.emitEvent("workspace.agent_text", {
-            workspace: workspaceKey,
-            agent: agent.name,
-            text: event.text.slice(0, 500),
-          });
-        }
-      }
+      // Create per-run log file
+      const log = runsDir ? createRunLog(runsDir, runId) : undefined;
+      log?.write({
+        type: "run_start",
+        instruction: instruction.content,
+        prompt,
+        runtime: agent.runtime,
+        model: agent.model?.full,
+      });
 
-      await run.result;
+      try {
+        const run = loop.run(prompt);
+        for await (const event of run) {
+          // Global bus: only text (truncated) for overview
+          if (event.type === "text") {
+            this.emitEvent("workspace.agent_text", {
+              workspace: workspaceKey,
+              agent: agent.name,
+              text: event.text.slice(0, 500),
+            });
+          }
+          // Agent log: full detail per event
+          log?.write(serializeLoopEvent(event));
+        }
+        await run.result;
+        log?.write({ type: "run_end", status: "ok" });
+      } catch (err) {
+        log?.write({ type: "run_end", status: "error", error: String(err) });
+        throw err;
+      }
     };
   }
 
@@ -441,4 +472,52 @@ function wrapWorkspaceToolsForAiSdk(wsTools: WorkspaceToolSet): ToolSet {
   }
 
   return result;
+}
+
+// ── Per-agent run logging ──────────────────────────────────────────────────
+
+interface RunLog {
+  write(entry: Record<string, unknown>): void;
+}
+
+function createRunLog(runsDir: string, runId: string): RunLog {
+  mkdirSync(runsDir, { recursive: true });
+  const filePath = join(runsDir, `${runId}.jsonl`);
+  return {
+    write(entry) {
+      const line = JSON.stringify({ ts: Date.now(), ...entry }) + "\n";
+      appendFileSync(filePath, line);
+    },
+  };
+}
+
+import type { LoopEvent } from "@agent-worker/loop";
+
+function serializeLoopEvent(event: LoopEvent): Record<string, unknown> {
+  switch (event.type) {
+    case "text":
+      return { type: "text", text: event.text };
+    case "thinking":
+      return { type: "thinking", text: event.text };
+    case "tool_call_start":
+      return {
+        type: "tool_call_start",
+        name: event.name,
+        callId: event.callId,
+        args: event.args,
+      };
+    case "tool_call_end":
+      return {
+        type: "tool_call_end",
+        name: event.name,
+        callId: event.callId,
+        result: typeof event.result === "string" ? event.result.slice(0, 2000) : event.result,
+        durationMs: event.durationMs,
+        error: event.error,
+      };
+    case "error":
+      return { type: "error", error: String(event.error) };
+    default:
+      return { type: "unknown", data: (event as any).data };
+  }
 }
