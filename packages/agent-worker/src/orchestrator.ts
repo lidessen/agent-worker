@@ -152,12 +152,18 @@ export class WorkspaceOrchestrator {
       const existing = this.config.queue.peek(this.config.name);
       if (existing?.messageId === entry.messageId) continue;
 
+      // Include sender and channel so the agent knows this is a channel
+      // message, not a bare instruction. Prevents identity confusion
+      // (e.g. agent seeing "@codex do X" and thinking it IS codex).
+      const content = msg.to
+        ? `DM from @${msg.from}: ${msg.content}`
+        : `@${msg.from} in #${entry.channel}: ${msg.content}`;
       const instruction: Instruction = {
         id: nanoid(),
         agentName: this.config.name,
         messageId: entry.messageId,
         channel: entry.channel,
-        content: msg.content,
+        content,
         priority: entry.priority,
         enqueuedAt: entry.enqueuedAt,
       };
