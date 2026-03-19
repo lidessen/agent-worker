@@ -256,5 +256,7 @@ export interface InstructionQueueInterface {
   dequeue(agentName: string): Instruction | null;
   peek(agentName: string): Instruction | null;
   shouldYield(agentName: string): boolean;
+  /** List all pending instructions across all agents (debug/admin use). */
+  listAll(): Instruction[];
   readonly size: number;
 }

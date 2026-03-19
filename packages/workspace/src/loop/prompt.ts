@@ -76,7 +76,7 @@ export async function assemblePrompt(
 
 /**
  * Base sections — agent-level context only (no workspace awareness).
- * Used internally by WorkspaceAgentLoop as the foundation; capability-specific
+ * Used as the foundation for prompt assembly; capability-specific
  * sections (workspace, docs) are appended via promptSections.
  */
 export const BASE_SECTIONS: PromptSection[] = [

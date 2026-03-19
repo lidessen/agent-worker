@@ -74,6 +74,10 @@ export class InstructionQueue implements InstructionQueueInterface {
     return this.lanes.immediate.length + this.lanes.normal.length + this.lanes.background.length;
   }
 
+  listAll(): Instruction[] {
+    return [...this.lanes.immediate, ...this.lanes.normal, ...this.lanes.background];
+  }
+
   // ── Internal ──────────────────────────────────────────────────────────
 
   private dequeueFromLane(priority: Priority, agentName: string): Instruction | null {

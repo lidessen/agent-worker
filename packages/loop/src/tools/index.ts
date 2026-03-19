@@ -40,8 +40,7 @@ export function createLoopTools(opts: LoopToolsOptions = {}): ToolSet {
   }
 
   if (opts.web_search !== false) {
-    const searchOpts =
-      typeof opts.web_search === "object" ? opts.web_search : {};
+    const searchOpts = typeof opts.web_search === "object" ? opts.web_search : {};
     // Only include by default if API key is available
     if (opts.web_search === true || searchOpts.apiKey || process.env.BRAVE_SEARCH_API_KEY) {
       tools.web_search = createWebSearchTool(searchOpts);

@@ -58,7 +58,7 @@ describe("AwClient", () => {
 
   async function setup() {
     const dataDir = tmpDataDir();
-    daemon = new Daemon({ port: 0, dataDir });
+    daemon = new Daemon({ port: 0, mcpPort: 0, dataDir });
     const info = await daemon.start();
     client = AwClient.fromInfo(info);
     return { info, dataDir };

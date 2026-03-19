@@ -1,7 +1,7 @@
 // ── Workspace ──────────────────────────────────────────────────────────────
 export { Workspace } from "./workspace.ts";
-export { createWorkspace, createWiredLoop, createAgentTools } from "./factory.ts";
-export type { WiredLoopConfig, AgentDirs } from "./factory.ts";
+export { createWorkspace, createAgentTools } from "./factory.ts";
+export type { AgentDirs } from "./factory.ts";
 
 // ── Context ────────────────────────────────────────────────────────────────
 export { CompositeContextProvider } from "./context/provider.ts";
@@ -19,9 +19,7 @@ export { TimelineStore } from "./context/stores/timeline.ts";
 // ── Storage backends ───────────────────────────────────────────────────────
 export { MemoryStorage, FileStorage } from "./context/storage.ts";
 
-// ── Loop ───────────────────────────────────────────────────────────────────
-export { WorkspaceAgentLoop } from "./loop/loop.ts";
-export type { AgentLoopConfig } from "./loop/loop.ts";
+// ── Instruction Queue ─────────────────────────────────────────────────────
 export { InstructionQueue } from "./loop/priority-queue.ts";
 
 // ── Prompt ─────────────────────────────────────────────────────────────────
@@ -51,7 +49,11 @@ export { createChannelTools } from "./context/mcp/channel.ts";
 export { createInboxTools } from "./context/mcp/inbox.ts";
 export { createTeamTools } from "./context/mcp/team.ts";
 export { createResourceTools } from "./context/mcp/resource.ts";
-export { WorkspaceMcpServer, createWorkspaceMcpConfig } from "./context/mcp/http-server.ts";
+export { createWorkspaceMcpConfig } from "./context/mcp/http-server.ts";
+
+// ── Workspace MCP Hub (per-workspace, debug + agent tools) ──────────────
+export { WorkspaceMcpHub } from "./mcp-server.ts";
+export type { WorkspaceMcpHubOptions } from "./mcp-server.ts";
 
 // ── Utilities ──────────────────────────────────────────────────────────────
 export { nanoid, extractMentions } from "./utils.ts";
@@ -68,9 +70,6 @@ export {
   setSecret,
   deleteSecret,
   getSecretsPath,
-  resolveRuntime,
-  discoverCliRuntime,
-  detectAiSdkModel,
   interpolate,
   runSetupSteps,
 } from "./config/index.ts";
@@ -84,9 +83,9 @@ export type {
   ResolvedWorkspace,
   ResolvedAgent,
   ResolvedModel,
-  RuntimeResolution,
   LoadOptions,
   ToWorkspaceConfigOptions,
+  RuntimeResolver,
 } from "./config/index.ts";
 
 // ── Adapters ──────────────────────────────────────────────────────────────

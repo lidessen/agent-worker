@@ -12,7 +12,6 @@
 
 import {
   createWorkspace,
-  createWiredLoop,
   createAgentTools,
   InstructionQueue,
   MemoryStorage,
@@ -20,6 +19,7 @@ import {
   DEFAULT_SECTIONS,
   nanoid,
 } from "../../src/index.ts";
+import { createOrchestrator } from "agent-worker";
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -525,9 +525,11 @@ test("T14", async () => {
 
   const processed: string[] = [];
 
-  const aliceLoop = createWiredLoop({
+  const aliceLoop = createOrchestrator({
     name: "alice",
-    runtime: ws,
+    provider: ws.contextProvider,
+    queue: ws.instructionQueue,
+    eventLog: ws.eventLog,
     pollInterval: 500,
     onInstruction: async (_prompt, instruction) => {
       processed.push(`alice: ${instruction.content.slice(0, 40)}`);
@@ -539,9 +541,11 @@ test("T14", async () => {
     },
   });
 
-  const bobLoop = createWiredLoop({
+  const bobLoop = createOrchestrator({
     name: "bob",
-    runtime: ws,
+    provider: ws.contextProvider,
+    queue: ws.instructionQueue,
+    eventLog: ws.eventLog,
     pollInterval: 500,
     onInstruction: async (_prompt, instruction) => {
       processed.push(`bob: ${instruction.content.slice(0, 40)}`);

@@ -23,17 +23,14 @@ export function createWebFetchTool() {
       prefer_llms_txt: z
         .boolean()
         .optional()
-        .describe(
-          "Try /llms.txt or /llms-full.txt at the origin first (default: true)",
-        ),
+        .describe("Try /llms.txt or /llms-full.txt at the origin first (default: true)"),
       llms_txt_variant: z
         .enum(["brief", "full"])
         .optional()
-        .describe('Which llms.txt variant to prefer: "brief" (/llms.txt) or "full" (/llms-full.txt). Default: "full"'),
-      raw: z
-        .boolean()
-        .optional()
-        .describe("Return raw HTML without conversion (default: false)"),
+        .describe(
+          'Which llms.txt variant to prefer: "brief" (/llms.txt) or "full" (/llms-full.txt). Default: "full"',
+        ),
+      raw: z.boolean().optional().describe("Return raw HTML without conversion (default: false)"),
     }),
     execute: async (args) => {
       const maxLength = args.max_length ?? 20_000;

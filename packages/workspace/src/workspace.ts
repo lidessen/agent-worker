@@ -108,6 +108,11 @@ export class Workspace implements WorkspaceRuntime {
     await this.inboxStore.markRunStart(name);
   }
 
+  /** Whether an agent is registered in this workspace. */
+  hasAgent(name: string): boolean {
+    return this.agentChannels.has(name);
+  }
+
   /** Get the set of channels an agent has joined. */
   getAgentChannels(name: string): Set<string> {
     return this.agentChannels.get(name) ?? new Set();

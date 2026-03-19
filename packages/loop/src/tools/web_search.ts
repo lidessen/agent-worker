@@ -20,10 +20,7 @@ export function createWebSearchTool(opts: WebSearchOptions = {}) {
       "Requires BRAVE_SEARCH_API_KEY environment variable.",
     inputSchema: z.object({
       query: z.string().describe("Search query"),
-      max_results: z
-        .number()
-        .optional()
-        .describe("Max number of results (default: 5, max: 20)"),
+      max_results: z.number().optional().describe("Max number of results (default: 5, max: 20)"),
       country: z
         .string()
         .optional()
@@ -31,9 +28,7 @@ export function createWebSearchTool(opts: WebSearchOptions = {}) {
       freshness: z
         .enum(["pd", "pw", "pm", "py"])
         .optional()
-        .describe(
-          "Time filter: pd=past day, pw=past week, pm=past month, py=past year",
-        ),
+        .describe("Time filter: pd=past day, pw=past week, pm=past month, py=past year"),
     }),
     execute: async (args) => {
       const apiKey = opts.apiKey ?? process.env.BRAVE_SEARCH_API_KEY;

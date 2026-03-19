@@ -4,7 +4,9 @@ import { wantsHelp } from "../output.ts";
 
 export async function clear(args: string[]): Promise<void> {
   if (wantsHelp(args) || args.length === 0) {
-    console.log("Usage: aw clear <target>\n\nClear channel history.\n\nExamples:\n  aw clear @global          Clear default channel\n  aw clear @global#design   Clear #design channel");
+    console.log(
+      "Usage: aw clear <target>\n\nClear channel history.\n\nExamples:\n  aw clear @global          Clear default channel\n  aw clear @global#design   Clear #design channel",
+    );
     return;
   }
 

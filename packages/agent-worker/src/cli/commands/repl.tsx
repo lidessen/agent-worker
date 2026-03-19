@@ -103,7 +103,7 @@ function ReplApp({
           <text>{`${c.cyanBold(msg.from)} ${highlightMentions(msg.content)}`}</text>
         )}
       />
-      <text>{statusLine}</text>
+      <text>{statusLine()}</text>
       <text>{error.value ? c.red(`Error: ${error.value}`) : ""}</text>
       <TextInput value={input} onSubmit={onSubmit} placeholder="Type a message..." />
     </box>

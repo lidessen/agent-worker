@@ -71,8 +71,16 @@ export type { AgentConfig, AgentState, AgentLoop } from "@agent-worker/agent";
 export { AiSdkLoop, ClaudeCodeLoop, CodexLoop, CursorLoop, MockLoop } from "@agent-worker/loop";
 export type { LoopRun, LoopEvent, LoopResult, LoopStatus } from "@agent-worker/loop";
 
-export { Workspace, createWorkspace, createWiredLoop } from "@agent-worker/workspace";
+export { Workspace, createWorkspace } from "@agent-worker/workspace";
 export type { WorkspaceDef, ResolvedWorkspace, ResolvedAgent } from "@agent-worker/workspace";
+
+// ── Orchestrator (moved from workspace) ──────────────────────────────────
+export { WorkspaceOrchestrator, createOrchestrator } from "./orchestrator.ts";
+export type { OrchestratorConfig } from "./orchestrator.ts";
+
+// ── Runtime resolution (moved from workspace) ───────────────────────────
+export { resolveRuntime, discoverCliRuntime, detectAiSdkModel } from "./resolve-runtime.ts";
+export type { RuntimeResolution } from "./resolve-runtime.ts";
 
 export { EventBus, bus } from "@agent-worker/shared";
 export type { BusEvent, EventLevel, EventFilter, EventSubscription } from "@agent-worker/shared";

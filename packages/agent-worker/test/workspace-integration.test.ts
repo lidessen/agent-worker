@@ -31,7 +31,7 @@ describe("Unified daemon (workspace routes)", () => {
       `aw-cli-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
     );
     mkdirSync(dataDir, { recursive: true });
-    daemon = new Daemon({ port: 0, dataDir });
+    daemon = new Daemon({ port: 0, mcpPort: 0, dataDir });
     const info = await daemon.start();
     client = AwClient.fromInfo(info);
     return info;

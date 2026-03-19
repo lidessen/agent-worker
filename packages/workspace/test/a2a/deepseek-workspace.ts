@@ -8,12 +8,8 @@
  *   DEEPSEEK_API_KEY=sk-... bun packages/workspace/test/a2a/deepseek-workspace.ts
  */
 
-import {
-  createWorkspace,
-  createWiredLoop,
-  createAgentTools,
-  MemoryStorage,
-} from "../../src/index.ts";
+import { createWorkspace, createAgentTools, MemoryStorage } from "../../src/index.ts";
+import { createOrchestrator } from "agent-worker";
 import type { Instruction } from "../../src/types.ts";
 
 // ── Helpers ──────────────────────────────────────────────────────────────
@@ -109,11 +105,13 @@ async function testSingleAgentWorkspace(): Promise<void> {
 
   const handler = await createDeepSeekHandler("assistant", ws);
 
-  const loop = createWiredLoop({
+  const loop = createOrchestrator({
     name: "assistant",
     instructions:
       "You are a helpful assistant. When you receive a message, respond concisely. Always include the word ACKNOWLEDGED in your response.",
-    runtime: ws,
+    provider: ws.contextProvider,
+    queue: ws.instructionQueue,
+    eventLog: ws.eventLog,
     pollInterval: 1000,
     onInstruction: handler,
   });
@@ -161,11 +159,13 @@ async function testTwoAgentCollaboration(): Promise<void> {
   let plannerProcessed = false;
   let executorProcessed = false;
 
-  const plannerLoop = createWiredLoop({
+  const plannerLoop = createOrchestrator({
     name: "planner",
     instructions:
       "You are Planner. When asked to plan, create a brief 2-step plan and @mention executor to carry it out. Keep responses under 100 words. Always include PLAN_READY in your response.",
-    runtime: ws,
+    provider: ws.contextProvider,
+    queue: ws.instructionQueue,
+    eventLog: ws.eventLog,
     pollInterval: 1000,
     onInstruction: async (prompt, instruction) => {
       plannerProcessed = true;
@@ -191,11 +191,13 @@ async function testTwoAgentCollaboration(): Promise<void> {
     },
   });
 
-  const executorLoop = createWiredLoop({
+  const executorLoop = createOrchestrator({
     name: "executor",
     instructions:
       "You are Executor. When you receive instructions from planner, acknowledge them briefly. Always include EXECUTING in your response. Keep responses under 50 words.",
-    runtime: ws,
+    provider: ws.contextProvider,
+    queue: ws.instructionQueue,
+    eventLog: ws.eventLog,
     pollInterval: 1000,
     onInstruction: async (prompt, instruction) => {
       executorProcessed = true;
@@ -327,11 +329,13 @@ async function testDeepSeekWithInboxCycle(): Promise<void> {
 
   let runCount = 0;
 
-  const loop = createWiredLoop({
+  const loop = createOrchestrator({
     name: "responder",
     instructions:
       "You are a responder. Reply briefly to each message. Include the word REPLY_N where N is the message number you are responding to.",
-    runtime: ws,
+    provider: ws.contextProvider,
+    queue: ws.instructionQueue,
+    eventLog: ws.eventLog,
     pollInterval: 1000,
     onInstruction: async (prompt, instruction) => {
       runCount++;

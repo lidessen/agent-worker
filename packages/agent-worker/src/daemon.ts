@@ -46,6 +46,7 @@ import { ManagedWorkspace } from "./managed-workspace.ts";
 import { DaemonEventLog } from "./event-log.ts";
 import { createLoopFromConfig } from "./loop-factory.ts";
 import { writeDaemonInfo, removeDaemonInfo, generateToken, defaultDataDir } from "./discovery.ts";
+import { WorkspaceMcpHub } from "@agent-worker/workspace";
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
 import type { ServerType } from "@hono/node-server";
@@ -53,6 +54,7 @@ import type { ServerType } from "@hono/node-server";
 export class Daemon {
   private server: ServerType | null = null;
   private _port = 0;
+  private mcpHub: WorkspaceMcpHub | null = null;
   private readonly agents: AgentRegistry;
   private readonly workspaces: WorkspaceRegistry;
   private readonly eventLog: DaemonEventLog;
@@ -67,6 +69,7 @@ export class Daemon {
       host: config.host ?? "127.0.0.1",
       dataDir,
       token: config.token ?? generateToken(),
+      mcpPort: config.mcpPort ?? 42424,
     };
 
     this._bus = new EventBus();
@@ -113,16 +116,28 @@ export class Daemon {
     this._port = actualPort;
     this.startedAt = Date.now();
 
-    // Set daemon info before creating workspaces (CLI agents need it for MCP)
-    this.workspaces.setDaemonInfo(
-      `http://${this.config.host}:${actualPort}`,
-      this.config.token,
-    );
+    const { join } = await import("node:path");
 
-    // Now create global workspace and start agent loops
+    // Set daemon info before creating workspaces (CLI agents need it for MCP)
+    this.workspaces.setDaemonInfo(`http://${this.config.host}:${actualPort}`, this.config.token);
+
+    // Create global workspace and start agent loops
     const globalWs = await this.workspaces.ensureDefault();
     await globalWs.startLoops();
     this.registerGlobalAgents(globalWs);
+
+    // Start workspace MCP hub, then update daemon info with hub URL
+    // so subsequent workspace creates (via API) route CLI agents to the hub.
+    this.mcpHub = new WorkspaceMcpHub(globalWs.workspace);
+    await this.mcpHub.start({
+      port: this.config.mcpPort,
+      storageDir: join(this.config.dataDir, "workspace-data", "global"),
+    });
+    this.workspaces.setDaemonInfo(
+      `http://${this.config.host}:${actualPort}`,
+      this.config.token,
+      this.mcpHub.url ?? undefined,
+    );
 
     const info: DaemonInfo = {
       pid: process.pid,
@@ -130,6 +145,7 @@ export class Daemon {
       port: actualPort,
       token: this.config.token,
       startedAt: this.startedAt,
+      mcpPort: this.mcpHub.port ?? undefined,
     };
 
     await writeDaemonInfo(info, this.config.dataDir);
@@ -150,6 +166,11 @@ export class Daemon {
 
     await this.agents.stopAll();
     await this.workspaces.stopAll();
+
+    if (this.mcpHub) {
+      await this.mcpHub.stop();
+      this.mcpHub = null;
+    }
 
     if (this.server) {
       this.server.close();
@@ -525,7 +546,6 @@ export class Daemon {
     if (handle instanceof GlobalAgentStub) {
       const globalWs = this.workspaces.get("global");
       if (globalWs) {
-        const ch = globalWs.defaultChannel;
         return this.createSSEStream((push) => {
           const listener = (msg: any) => {
             // Only forward messages from this agent (not user messages)

@@ -211,6 +211,7 @@ describe("CursorLoop", () => {
         "--output-format",
         "stream-json",
         "--yolo",
+        "--approve-mcps",
         "--model",
         "claude-sonnet-4",
         "--debug",

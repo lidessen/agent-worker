@@ -64,7 +64,7 @@ describe("Daemon", () => {
 
   test("starts and exposes health endpoint", async () => {
     const dataDir = tmpDataDir();
-    daemon = new Daemon({ port: 0, dataDir });
+    daemon = new Daemon({ port: 0, mcpPort: 0, dataDir });
     const info = await daemon.start();
 
     expect(info.port).toBeGreaterThan(0);
@@ -81,7 +81,7 @@ describe("Daemon", () => {
 
   test("writes daemon.json for discovery", async () => {
     const dataDir = tmpDataDir();
-    daemon = new Daemon({ port: 0, dataDir });
+    daemon = new Daemon({ port: 0, mcpPort: 0, dataDir });
     const info = await daemon.start();
 
     const discovered = await readDaemonInfo(dataDir);
@@ -92,7 +92,7 @@ describe("Daemon", () => {
 
   test("cleans up daemon.json on shutdown", async () => {
     const dataDir = tmpDataDir();
-    daemon = new Daemon({ port: 0, dataDir });
+    daemon = new Daemon({ port: 0, mcpPort: 0, dataDir });
     await daemon.start();
     await daemon.shutdown();
 
@@ -102,7 +102,7 @@ describe("Daemon", () => {
 
   test("requires auth for non-health endpoints", async () => {
     const dataDir = tmpDataDir();
-    daemon = new Daemon({ port: 0, dataDir });
+    daemon = new Daemon({ port: 0, mcpPort: 0, dataDir });
     const info = await daemon.start();
 
     const res = await fetch(`http://${info.host}:${info.port}/agents`);
@@ -111,7 +111,7 @@ describe("Daemon", () => {
 
   test("lists agents (includes auto-discovered global agents)", async () => {
     const dataDir = tmpDataDir();
-    daemon = new Daemon({ port: 0, dataDir });
+    daemon = new Daemon({ port: 0, mcpPort: 0, dataDir });
     const info = await daemon.start();
 
     const res = await fetch(`http://${info.host}:${info.port}/agents`, {
@@ -130,7 +130,7 @@ describe("Daemon", () => {
 
   test("registers agent programmatically and runs message", async () => {
     const dataDir = tmpDataDir();
-    daemon = new Daemon({ port: 0, dataDir });
+    daemon = new Daemon({ port: 0, mcpPort: 0, dataDir });
     const info = await daemon.start();
 
     // Create agent via programmatic API
@@ -166,7 +166,7 @@ describe("Daemon", () => {
 
   test("sends async message via /agents/:name/send", async () => {
     const dataDir = tmpDataDir();
-    daemon = new Daemon({ port: 0, dataDir });
+    daemon = new Daemon({ port: 0, mcpPort: 0, dataDir });
     const info = await daemon.start();
 
     await daemon.agentRegistry.create({
@@ -194,7 +194,7 @@ describe("Daemon", () => {
 
   test("removes ephemeral agent via DELETE", async () => {
     const dataDir = tmpDataDir();
-    daemon = new Daemon({ port: 0, dataDir });
+    daemon = new Daemon({ port: 0, mcpPort: 0, dataDir });
     const info = await daemon.start();
 
     await daemon.agentRegistry.create({
@@ -220,7 +220,7 @@ describe("Daemon", () => {
 
   test("reads events log via /events", async () => {
     const dataDir = tmpDataDir();
-    daemon = new Daemon({ port: 0, dataDir });
+    daemon = new Daemon({ port: 0, mcpPort: 0, dataDir });
     const info = await daemon.start();
 
     // Wait a tick for events to flush
@@ -241,7 +241,7 @@ describe("Daemon", () => {
 
   test("sends messages via /agents/:name/send", async () => {
     const dataDir = tmpDataDir();
-    daemon = new Daemon({ port: 0, dataDir });
+    daemon = new Daemon({ port: 0, mcpPort: 0, dataDir });
     const info = await daemon.start();
 
     await daemon.agentRegistry.create({
@@ -262,7 +262,7 @@ describe("Daemon", () => {
 
   test("reads per-agent responses and events", async () => {
     const dataDir = tmpDataDir();
-    daemon = new Daemon({ port: 0, dataDir });
+    daemon = new Daemon({ port: 0, mcpPort: 0, dataDir });
     const info = await daemon.start();
 
     await daemon.agentRegistry.create({
@@ -325,7 +325,7 @@ describe("Daemon", () => {
 
   test("reads agent state via /agents/:name/state", async () => {
     const dataDir = tmpDataDir();
-    daemon = new Daemon({ port: 0, dataDir });
+    daemon = new Daemon({ port: 0, mcpPort: 0, dataDir });
     const info = await daemon.start();
 
     await daemon.agentRegistry.create({
@@ -346,7 +346,7 @@ describe("Daemon", () => {
 
   test("shutdown via POST /shutdown", async () => {
     const dataDir = tmpDataDir();
-    daemon = new Daemon({ port: 0, dataDir });
+    daemon = new Daemon({ port: 0, mcpPort: 0, dataDir });
     const info = await daemon.start();
 
     const res = await fetch(`http://${info.host}:${info.port}/shutdown`, {

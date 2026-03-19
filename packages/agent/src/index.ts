@@ -15,6 +15,10 @@ export { RunCoordinator } from "./run-coordinator.ts";
 export { AgentMcpServer, LoopWiring } from "./bridge/index.ts";
 export type { LoopWiringDeps } from "./bridge/index.ts";
 
+// ── Workspace MCP client ────────────────────────────────────────────────────
+export { WorkspaceClient } from "./workspace-client.ts";
+export type { WorkspaceClientOptions } from "./workspace-client.ts";
+
 // ── Storage implementations ─────────────────────────────────────────────────
 export { FileNotesStorage } from "./storage/file-notes.ts";
 export { FileMemoryStorage } from "./storage/file-memory.ts";

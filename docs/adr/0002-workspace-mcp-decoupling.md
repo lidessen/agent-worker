@@ -75,6 +75,7 @@ Pure LLM execution abstraction. Does not know about agent or workspace.
 Provides channels, documents, inboxes, and message routing as an MCP server. Does not know what an "agent loop" is, does not import `@agent-worker/agent` or `@agent-worker/loop`.
 
 Keeps:
+
 - `Workspace` class — manages channels, stores, message routing
 - All stores — `ChannelStore`, `InboxStore`, `DocumentStore`, `ResourceStore`, `StatusStore`, `TimelineStore`
 - `CompositeContextProvider` — unified store access
@@ -84,11 +85,13 @@ Keeps:
 - Secrets management
 
 Adds:
+
 - `startMcpServer(workspace, opts)` — starts HTTP MCP server exposing all workspace tools
 - Agent registration via MCP — `agent_register` / `agent_unregister` tools, or implicit on connect/disconnect
 - Prompt sections exposed as MCP prompts/resources (instead of direct function return)
 
 Removes (moves to `agent-worker`):
+
 - `WorkspaceAgentLoop` — polling/activation logic is orchestration, not infrastructure
 - `createWiredLoop()` — orchestration
 - `createAgentTools()` — replaced by MCP dynamic discovery
@@ -96,6 +99,7 @@ Removes (moves to `agent-worker`):
 - Model resolution (`resolveRuntime`, `detectAiSdkModel`) — agent configuration, not workspace concern
 
 Exports after change:
+
 ```
 workspace
 ├── Workspace, createWorkspace()
@@ -115,6 +119,7 @@ workspace
 Manages agent subsystems and loop execution. Connects to workspace(s) as an MCP client.
 
 Keeps:
+
 - `Agent` class — state machine + subsystem orchestration
 - All subsystems — `Inbox`, `TodoManager`, `NotesStorage`, `MemoryManager`, `ReminderManager`, `SendGuard`, `ContextEngine`, `RunCoordinator`
 - Built-in tools — `agent_todo`, `agent_notes`, `agent_reminder`, `agent_memory`
@@ -122,13 +127,16 @@ Keeps:
 - `AgentMcpServer` — exposes agent built-in tools to CLI loops
 
 Changes:
+
 - `agent_inbox` and `agent_send` removed from built-in tools — these are now workspace MCP tools (`my_inbox`, `channel_send`)
 - `LoopWiring` merges two tool sources: agent built-in tools + workspace MCP tools (discovered dynamically)
 
 Adds:
+
 - `WorkspaceClient` — MCP client that connects to a workspace MCP server, discovers tools, manages connection lifecycle
 
 Exports after change:
+
 ```
 agent
 ├── Agent, AgentConfig, AgentState
@@ -145,6 +153,7 @@ agent
 Reads config.yml, starts workspace MCP servers, creates agent loops, connects agents to workspaces, manages lifecycle.
 
 Keeps:
+
 - `Daemon` — HTTP server, event bus
 - `WorkspaceRegistry` — workspace lifecycle management
 - `AgentRegistry` — agent lifecycle management
@@ -154,11 +163,13 @@ Keeps:
 - `AwClient` — HTTP client for daemon API
 
 Absorbs (from workspace):
+
 - `WorkspaceAgentLoop` logic — polling, prompt assembly, instruction dispatch
 - `createWiredLoop()` equivalent — now orchestrated here
 - Model/runtime resolution — resolves agent config to concrete loop instances
 
 Orchestration flow:
+
 ```
 1. Parse config.yml (agents + workspace definition)
 2. createWorkspace() → Workspace instance
@@ -204,6 +215,7 @@ claude mcp add my-workspace http://localhost:<port>/mcp
 ```
 
 The daemon exposes workspace MCP endpoints at:
+
 ```
 http://localhost:<daemon-port>/workspace/<name>/mcp
 ```
