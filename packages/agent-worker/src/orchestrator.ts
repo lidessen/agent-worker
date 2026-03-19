@@ -1,3 +1,11 @@
+/**
+ * Orchestrator — polling loop that dequeues instructions from a workspace
+ * and dispatches them to an agent loop.
+ *
+ * This was previously WorkspaceAgentLoop inside @agent-worker/workspace.
+ * Moved here because it's orchestration logic (connecting workspace + agent),
+ * not workspace infrastructure.
+ */
 import type {
   ContextProvider,
   InstructionQueueInterface,
@@ -5,10 +13,11 @@ import type {
   InboxEntry,
   EventLog,
   Priority,
-} from "../types.ts";
-import { assemblePrompt, BASE_SECTIONS, type PromptSection } from "./prompt.ts";
+  PromptSection,
+} from "@agent-worker/workspace";
+import { assemblePrompt, BASE_SECTIONS, nanoid } from "@agent-worker/workspace";
 
-export interface AgentLoopConfig {
+export interface OrchestratorConfig {
   name: string;
   instructions?: string;
   provider: ContextProvider;
@@ -17,12 +26,19 @@ export interface AgentLoopConfig {
   /** Polling interval in ms. Default: 5000 */
   pollInterval?: number;
   /** Extra prompt sections (from capabilities). Appended after BASE_SECTIONS. */
-  sections?: PromptSection[];
+  promptSections?: PromptSection[];
   /** Handler called with assembled prompt; returns when done. */
   onInstruction: (prompt: string, instruction: Instruction) => Promise<void>;
 }
 
-export class WorkspaceAgentLoop {
+/**
+ * Polling loop that reads from a workspace's instruction queue and
+ * dispatches to an agent handler.
+ *
+ * Equivalent to the former WorkspaceAgentLoop, but lives in the
+ * orchestration layer (agent-worker) rather than workspace.
+ */
+export class WorkspaceOrchestrator {
   private running = false;
   private pollTimer: ReturnType<typeof setTimeout> | null = null;
   private wakeResolve: (() => void) | null = null;
@@ -30,10 +46,9 @@ export class WorkspaceAgentLoop {
   private readonly pollInterval: number;
   private readonly sections: PromptSection[];
 
-  constructor(private readonly config: AgentLoopConfig) {
+  constructor(private readonly config: OrchestratorConfig) {
     this.pollInterval = config.pollInterval ?? 5000;
-    // Base sections first (soul/instructions), then capability-injected sections.
-    const extra = config.sections ?? [];
+    const extra = config.promptSections ?? [];
     this.sections = [...BASE_SECTIONS, ...extra];
   }
 
@@ -63,7 +78,6 @@ export class WorkspaceAgentLoop {
       clearTimeout(this.pollTimer);
       this.pollTimer = null;
     }
-    // Wake any sleeping poll
     this.wakeResolve?.();
 
     await this.config.provider.status.set(this.config.name, "stopped");
@@ -72,12 +86,15 @@ export class WorkspaceAgentLoop {
 
   /** Wake the loop immediately (interrupt poll wait). */
   wake(): void {
+    if (this.pollTimer) {
+      clearTimeout(this.pollTimer);
+      this.pollTimer = null;
+    }
     this.wakeResolve?.();
   }
 
   /** Send a direct instruction (bypasses poll, synchronous). */
   async sendDirect(content: string, priority: Priority = "immediate"): Promise<void> {
-    const { nanoid } = await import("../utils.ts");
     const instruction: Instruction = {
       id: nanoid(),
       agentName: this.config.name,
@@ -94,7 +111,6 @@ export class WorkspaceAgentLoop {
 
   /** Enqueue an instruction with explicit priority. */
   async enqueue(content: string, priority: Priority, messageId = "", channel = ""): Promise<void> {
-    const { nanoid } = await import("../utils.ts");
     const instruction: Instruction = {
       id: nanoid(),
       agentName: this.config.name,
@@ -119,8 +135,6 @@ export class WorkspaceAgentLoop {
       }
 
       if (!this.running) break;
-
-      // Wait for poll interval or wake signal
       await this.sleep(this.pollInterval);
     }
   }
@@ -130,18 +144,14 @@ export class WorkspaceAgentLoop {
     const inboxEntries = await this.config.provider.inbox.peek(this.config.name);
 
     for (const entry of inboxEntries) {
-      // Resolve message content
       const msg = await this.config.provider.channels.getMessage(entry.channel, entry.messageId);
       if (!msg) continue;
 
-      // Mark as seen
       await this.config.provider.inbox.markSeen(this.config.name, entry.messageId);
 
-      // Create instruction from inbox entry (if not already queued)
       const existing = this.config.queue.peek(this.config.name);
       if (existing?.messageId === entry.messageId) continue;
 
-      const { nanoid } = await import("../utils.ts");
       const instruction: Instruction = {
         id: nanoid(),
         agentName: this.config.name,
@@ -172,7 +182,6 @@ export class WorkspaceAgentLoop {
     try {
       await this.config.onInstruction(prompt, instruction);
 
-      // 5. Ack inbox entry
       if (instruction.messageId) {
         await this.config.provider.inbox.ack(this.config.name, instruction.messageId);
       }
@@ -207,4 +216,11 @@ export class WorkspaceAgentLoop {
       }, ms);
     });
   }
+}
+
+// ── Factory ─────────────────────────────────────────────────────────────────
+
+/** Create a WorkspaceOrchestrator (replaces createWiredLoop). */
+export function createOrchestrator(config: OrchestratorConfig): WorkspaceOrchestrator {
+  return new WorkspaceOrchestrator(config);
 }

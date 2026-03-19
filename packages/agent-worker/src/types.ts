@@ -12,6 +12,8 @@ export interface DaemonConfig {
   dataDir?: string;
   /** Auth token. Default: auto-generated. */
   token?: string;
+  /** MCP hub port. Default: 42424. Set to 0 for auto-assign (useful in tests). */
+  mcpPort?: number;
 }
 
 // ── Daemon discovery ──────────────────────────────────────────────────────
@@ -22,6 +24,8 @@ export interface DaemonInfo {
   port: number;
   token: string;
   startedAt: number;
+  /** Port of the workspace MCP hub (debug + agent tools via MCP protocol). */
+  mcpPort?: number;
 }
 
 // ── Managed agent ─────────────────────────────────────────────────────────

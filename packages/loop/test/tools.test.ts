@@ -1,4 +1,4 @@
-import { test, expect, describe, afterAll } from "bun:test";
+import { test, expect, describe, afterAll, beforeAll } from "bun:test";
 import {
   createGrepTool,
   createWebFetchTool,
@@ -173,8 +173,15 @@ describe("web_search", () => {
 
 describe("web_browse", () => {
   const webBrowse = createWebBrowseTool();
+  let hasAgentBrowser = false;
+
+  beforeAll(async () => {
+    const result = await exec(webBrowse, { command: "open https://example.com" });
+    hasAgentBrowser = !result.includes("not installed");
+  });
 
   test("opens a page and gets title", async () => {
+    if (!hasAgentBrowser) return; // skip when agent-browser not installed
     const result = await exec(webBrowse, {
       command: "open https://example.com",
     });
@@ -182,6 +189,7 @@ describe("web_browse", () => {
   });
 
   test("takes a snapshot of interactive elements", async () => {
+    if (!hasAgentBrowser) return;
     const result = await exec(webBrowse, {
       command: "snapshot -i",
     });
@@ -190,6 +198,7 @@ describe("web_browse", () => {
   });
 
   test("gets text from a ref", async () => {
+    if (!hasAgentBrowser) return;
     const result = await exec(webBrowse, {
       command: "get text @e1",
     });
@@ -197,6 +206,7 @@ describe("web_browse", () => {
   });
 
   test("gets current URL", async () => {
+    if (!hasAgentBrowser) return;
     const result = await exec(webBrowse, {
       command: "get url",
     });
@@ -204,7 +214,7 @@ describe("web_browse", () => {
   });
 
   afterAll(async () => {
-    await exec(webBrowse, { command: "close" });
+    if (hasAgentBrowser) await exec(webBrowse, { command: "close" });
   });
 });
 

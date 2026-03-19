@@ -37,8 +37,7 @@ export function createWorkspaceTools(
       inboxTools.my_inbox_ack(args as Parameters<typeof inboxTools.my_inbox_ack>[0]),
     my_inbox_defer: (args) =>
       inboxTools.my_inbox_defer(args as Parameters<typeof inboxTools.my_inbox_defer>[0]),
-    no_action: (args) =>
-      inboxTools.no_action(args as Parameters<typeof inboxTools.no_action>[0]),
+    no_action: (args) => inboxTools.no_action(args as Parameters<typeof inboxTools.no_action>[0]),
     my_status_set: (args) =>
       inboxTools.my_status_set(args as Parameters<typeof inboxTools.my_status_set>[0]),
 

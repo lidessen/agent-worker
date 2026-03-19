@@ -1,6 +1,11 @@
 /**
  * Runtime + model resolution logic.
  *
+ * Moved from @agent-worker/workspace to agent-worker because it depends
+ * on @agent-worker/loop (CLI availability checks, provider key detection).
+ * This is orchestration logic — "which runtime should this agent use" —
+ * not workspace infrastructure.
+ *
  * Rules:
  * 1. model specified, runtime omitted   → runtime = "ai-sdk"
  * 2. neither model nor runtime specified → discovery mode (prefer CLIs)
@@ -70,7 +75,7 @@ const CLI_CANDIDATES: CliCandidate[] = [
   {
     runtime: "cursor",
     command: "agent",
-    checkAuth: async () => ({ authenticated: true }), // cursor has no auth check
+    checkAuth: async () => ({ authenticated: true }),
   },
 ];
 
@@ -111,16 +116,8 @@ export async function discoverCliRuntime(): Promise<RuntimeResolution | null> {
 
 /**
  * Resolve runtime and model for an agent definition.
- *
- * Priority:
- * 1. model specified, runtime omitted   → runtime = "ai-sdk"
- * 2. neither specified                   → discover CLI first, fall back to AI SDK
- * 3. runtime specified, model omitted:
- *    - "ai-sdk" → auto-detect model from env vars
- *    - CLI      → no model (use CLI default)
  */
 export async function resolveRuntime(runtime?: string, model?: string): Promise<RuntimeResolution> {
-  // Treat "auto" as unspecified — trigger full discovery
   if (runtime === "auto") runtime = undefined;
 
   // Case 1: model specified, runtime omitted → ai-sdk
@@ -134,11 +131,9 @@ export async function resolveRuntime(runtime?: string, model?: string): Promise<
 
   // Case 2: neither specified → discovery mode
   if (!model && !runtime) {
-    // Try CLIs first (preferred for workspace agents)
     const cli = await discoverCliRuntime();
     if (cli) return cli;
 
-    // Fall back to AI SDK with auto-detected model
     const detected = detectAiSdkModel();
     if (detected) {
       return {
@@ -171,14 +166,13 @@ export async function resolveRuntime(runtime?: string, model?: string): Promise<
       };
     }
 
-    // CLI runtimes — use their default model
     return {
       runtime,
       reason: `${runtime} runtime, using CLI default model`,
     };
   }
 
-  // Case 4: both specified — pass through
+  // Case 4: both specified
   return {
     runtime: runtime!,
     model,

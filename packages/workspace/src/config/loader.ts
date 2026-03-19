@@ -13,7 +13,11 @@ import type {
 } from "./types.ts";
 import type { WorkspaceConfig, ChannelAdapter } from "../types.ts";
 import { MemoryStorage, FileStorage } from "../context/storage.ts";
-import { resolveRuntime } from "./resolve-runtime.ts";
+/** Callback to resolve runtime+model for an agent. Injected by the orchestrator. */
+export type RuntimeResolver = (
+  runtime?: string,
+  model?: string,
+) => Promise<{ runtime: string; model?: string }>;
 
 // ── Template interpolation ────────────────────────────────────────────────
 
@@ -123,6 +127,8 @@ export interface LoadOptions {
   skipSetup?: boolean;
   /** Fallback name when YAML doesn't specify one and path inference isn't possible. */
   name?: string;
+  /** Optional callback to resolve runtime+model for agents. If not provided, uses simple defaults. */
+  resolveRuntime?: RuntimeResolver;
 }
 
 /**
@@ -191,13 +197,14 @@ export async function loadWorkspaceDef(
     const modelSpec = agentDef.model ? resolveModel(agentDef.model) : undefined;
 
     // Resolve runtime with defaults/discovery
-    const resolution = opts.skipSetup
-      ? // In dry-run mode, don't do CLI discovery — just apply simple defaults
-        {
-          runtime: agentDef.runtime ?? (modelSpec ? "ai-sdk" : undefined),
-          model: modelSpec?.full,
-        }
-      : await resolveRuntime(agentDef.runtime, modelSpec?.full);
+    const simpleDefault = {
+      runtime: agentDef.runtime ?? (modelSpec ? "ai-sdk" : undefined),
+      model: modelSpec?.full,
+    };
+    const resolution =
+      opts.skipSetup || !opts.resolveRuntime
+        ? simpleDefault
+        : await opts.resolveRuntime(agentDef.runtime, modelSpec?.full);
 
     // If runtime resolution found a model and agent didn't specify one, use it
     const finalModel = modelSpec ?? (resolution.model ? resolveModel(resolution.model) : undefined);

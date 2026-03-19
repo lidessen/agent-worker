@@ -1,10 +1,8 @@
 import type { WorkspaceConfig } from "./types.ts";
 import { Workspace } from "./workspace.ts";
-import { WorkspaceAgentLoop } from "./loop/loop.ts";
-import type { PromptSection } from "./loop/prompt.ts";
 import { createWorkspaceTools, type WorkspaceToolSet } from "./context/mcp/server.ts";
 import { WORKSPACE_PROMPT_SECTIONS } from "./context/mcp/prompts.ts";
-import type { Instruction } from "./types.ts";
+import type { PromptSection } from "./loop/prompt.ts";
 
 // ── createWorkspace ────────────────────────────────────────────────────────
 
@@ -27,33 +25,6 @@ export async function createWorkspace(config: WorkspaceConfig): Promise<Workspac
 
   await workspace.init();
   return workspace;
-}
-
-// ── createWiredLoop ────────────────────────────────────────────────────────
-
-export interface WiredLoopConfig {
-  name: string;
-  instructions?: string;
-  runtime: Workspace;
-  /** Extra prompt sections injected by capabilities (e.g. workspace tools). */
-  promptSections?: PromptSection[];
-  /** Handler called with assembled prompt + instruction. */
-  onInstruction: (prompt: string, instruction: Instruction) => Promise<void>;
-  /** Polling interval in ms. Default: 5000 */
-  pollInterval?: number;
-}
-
-export function createWiredLoop(config: WiredLoopConfig): WorkspaceAgentLoop {
-  return new WorkspaceAgentLoop({
-    name: config.name,
-    instructions: config.instructions,
-    provider: config.runtime.contextProvider,
-    queue: config.runtime.instructionQueue,
-    eventLog: config.runtime.eventLog,
-    pollInterval: config.pollInterval,
-    sections: config.promptSections,
-    onInstruction: config.onInstruction,
-  });
 }
 
 // ── createAgentTools ───────────────────────────────────────────────────────

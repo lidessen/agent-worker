@@ -1,7 +1,7 @@
 import { writeFileSync } from "node:fs";
 import type { Workspace } from "@agent-worker/workspace";
-import type { WorkspaceAgentLoop } from "@agent-worker/workspace";
 import type { ResolvedWorkspace } from "@agent-worker/workspace";
+import type { WorkspaceOrchestrator } from "./orchestrator.ts";
 import type { EventBus } from "@agent-worker/shared";
 import type { ManagedWorkspaceInfo, WorkspaceMode, WorkspaceStatus } from "./types.ts";
 
@@ -16,7 +16,7 @@ export class ManagedWorkspace {
 
   readonly workspace: Workspace;
   readonly resolved: ResolvedWorkspace;
-  readonly loops: WorkspaceAgentLoop[];
+  readonly loops: WorkspaceOrchestrator[];
 
   private _bus?: EventBus;
   private _status: WorkspaceStatus = "running";
@@ -25,7 +25,7 @@ export class ManagedWorkspace {
   constructor(opts: {
     workspace: Workspace;
     resolved: ResolvedWorkspace;
-    loops: WorkspaceAgentLoop[];
+    loops: WorkspaceOrchestrator[];
     tag?: string;
     mode?: WorkspaceMode;
     bus?: EventBus;

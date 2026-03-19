@@ -20,10 +20,8 @@ export {
   runSetupSteps,
 } from "./loader.ts";
 
-export type { LoadOptions, ToWorkspaceConfigOptions } from "./loader.ts";
+export type { LoadOptions, ToWorkspaceConfigOptions, RuntimeResolver } from "./loader.ts";
 
 export { loadSecrets, saveSecrets, setSecret, deleteSecret, getSecretsPath } from "./secrets.ts";
 
-export { resolveRuntime, discoverCliRuntime, detectAiSdkModel } from "./resolve-runtime.ts";
-
-export type { RuntimeResolution } from "./resolve-runtime.ts";
+// resolve-runtime moved to @agent-worker/agent-worker (orchestration concern)

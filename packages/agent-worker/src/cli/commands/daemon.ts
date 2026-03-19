@@ -1,7 +1,6 @@
 import { startDaemon } from "../../daemon.ts";
 import { AwClient } from "../../client.ts";
-import { readDaemonInfo, removeDaemonInfo, defaultDataDir } from "../../discovery.ts";
-import { wantsHelp } from "../output.ts";
+import { readDaemonInfo, removeDaemonInfo } from "../../discovery.ts";
 
 export async function daemon(args: string[]): Promise<void> {
   const sub = args[0];

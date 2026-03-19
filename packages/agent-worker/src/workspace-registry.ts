@@ -2,22 +2,16 @@ import { join } from "node:path";
 import { mkdirSync, appendFileSync } from "node:fs";
 import {
   createWorkspace,
-  createWiredLoop,
   createAgentTools,
   loadWorkspaceDef,
   toWorkspaceConfig,
   resolveConnections,
-  discoverCliRuntime,
-  detectAiSdkModel,
   WORKSPACE_TOOL_DEFS,
 } from "@agent-worker/workspace";
-import type {
-  Workspace,
-  WorkspaceAgentLoop,
-  ResolvedAgent,
-  WorkspaceToolSet,
-} from "@agent-worker/workspace";
+import type { Workspace, ResolvedAgent, WorkspaceToolSet } from "@agent-worker/workspace";
 import type { AgentLoop } from "@agent-worker/agent";
+import { WorkspaceOrchestrator, createOrchestrator } from "./orchestrator.ts";
+import { resolveRuntime, discoverCliRuntime, detectAiSdkModel } from "./resolve-runtime.ts";
 import type { EventBus } from "@agent-worker/shared";
 import type { CreateWorkspaceInput, ManagedWorkspaceInfo } from "./types.ts";
 import { tool, type ToolSet } from "ai";
@@ -43,15 +37,17 @@ export class WorkspaceRegistry {
   private _dataDir: string;
   private _daemonUrl?: string;
   private _daemonToken?: string;
+  private _mcpHubUrl?: string;
 
   constructor(dataDir: string) {
     this._dataDir = dataDir;
   }
 
   /** Set daemon connection info for CLI agent MCP proxying. */
-  setDaemonInfo(url: string, token: string): void {
+  setDaemonInfo(url: string, token: string, mcpHubUrl?: string): void {
     this._daemonUrl = url;
     this._daemonToken = token;
+    this._mcpHubUrl = mcpHubUrl;
   }
 
   /** Set the shared event bus. */
@@ -81,7 +77,7 @@ export class WorkspaceRegistry {
     // Only fall back if the config file doesn't exist — surface parse/permission errors.
     let resolved;
     try {
-      resolved = await loadWorkspaceDef(configPath);
+      resolved = await loadWorkspaceDef(configPath, { resolveRuntime });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "";
       if (!msg.includes("not found")) {
@@ -111,8 +107,7 @@ export class WorkspaceRegistry {
     workspaceRef = workspace;
 
     // Create workspace loops for each agent (mirrors create() logic)
-    const loops: WorkspaceAgentLoop[] = [];
-    const { mkdirSync } = await import("node:fs");
+    const loops: WorkspaceOrchestrator[] = [];
     for (const agent of resolved.agents) {
       if (!agent.runtime) continue;
       const { tools, promptSections, dirs } = createAgentTools(agent.name, workspace);
@@ -123,10 +118,12 @@ export class WorkspaceRegistry {
         cwd: agentCwd,
         storageDir: globalDir,
       });
-      const loop = createWiredLoop({
+      const orch = createOrchestrator({
         name: agent.name,
         instructions: agent.instructions,
-        runtime: workspace,
+        provider: workspace.contextProvider,
+        queue: workspace.instructionQueue,
+        eventLog: workspace.eventLog,
         promptSections,
         pollInterval: 2000,
         onInstruction: async (prompt, instruction) => {
@@ -165,7 +162,7 @@ export class WorkspaceRegistry {
           }
         },
       });
-      loops.push(loop);
+      loops.push(orch);
     }
 
     this._defaultWorkspace = new ManagedWorkspace({
@@ -185,6 +182,7 @@ export class WorkspaceRegistry {
       tag: input.tag,
       vars: input.vars,
       name: input.name,
+      resolveRuntime,
     });
     // CLI sends YAML content (not file path), so configDir won't be set by
     // loadWorkspaceDef. Patch it from the input so relative data_dir resolves
@@ -212,8 +210,7 @@ export class WorkspaceRegistry {
     workspaceRef = workspace;
 
     // Ensure sandbox directories exist and create loops for each agent
-    const loops: WorkspaceAgentLoop[] = [];
-    const { mkdirSync } = await import("node:fs");
+    const loops: WorkspaceOrchestrator[] = [];
     for (const agent of resolved.agents) {
       const { tools, promptSections, dirs } = createAgentTools(agent.name, workspace);
       if (dirs.workspaceSandboxDir) mkdirSync(dirs.workspaceSandboxDir, { recursive: true });
@@ -224,10 +221,12 @@ export class WorkspaceRegistry {
         cwd: agentCwd,
         storageDir: actualStorageDir,
       });
-      const loop = createWiredLoop({
+      const orch = createOrchestrator({
         name: agent.name,
         instructions: agent.instructions,
-        runtime: workspace,
+        provider: workspace.contextProvider,
+        queue: workspace.instructionQueue,
+        eventLog: workspace.eventLog,
         promptSections,
         pollInterval: 2000,
         onInstruction: async (prompt, instruction) => {
@@ -259,7 +258,7 @@ export class WorkspaceRegistry {
           }
         },
       });
-      loops.push(loop);
+      loops.push(orch);
     }
 
     const actualStorageDir = storageDir ?? this.workspaceDir(key);
@@ -367,19 +366,17 @@ export class WorkspaceRegistry {
     const isCliRuntime =
       agent.runtime === "claude-code" || agent.runtime === "codex" || agent.runtime === "cursor";
     if (isCliRuntime && this._daemonUrl && this._daemonToken) {
-      const { WorkspaceMcpServer, createWorkspaceMcpConfig } = await import(
-        "@agent-worker/workspace"
-      );
+      const { createWorkspaceMcpConfig } = await import("@agent-worker/workspace");
 
-      // codex/cursor: start HTTP MCP server; claude-code: use stdio proxy
-      let httpUrl: string | undefined;
-      if (agent.runtime !== "claude-code") {
-        const mcpServer = new WorkspaceMcpServer(agent.name, tools);
-        await mcpServer.start();
-        httpUrl = mcpServer.url!;
-      }
+      // codex/cursor: point to WorkspaceMcpHub; claude-code: use stdio proxy
+      // NOTE: _mcpHubUrl currently points to the global workspace hub only.
+      // Non-global workspaces with CLI agents will need per-workspace hubs.
+      const httpUrl =
+        agent.runtime !== "claude-code" && this._mcpHubUrl
+          ? `${this._mcpHubUrl}/mcp/${agent.name}`
+          : undefined;
 
-      const mcpConfig = await createWorkspaceMcpConfig(agent.name, agent.runtime, {
+      const mcpConfig = await createWorkspaceMcpConfig(agent.name, agent.runtime!, {
         httpUrl,
         daemonUrl: this._daemonUrl,
         daemonToken: this._daemonToken,
@@ -459,15 +456,12 @@ export class WorkspaceRegistry {
     };
   }
 
-  private async createAgentLoop(
-    agent: ResolvedAgent,
-    cwd?: string,
-  ): Promise<AgentLoop | null> {
+  private async createAgentLoop(agent: ResolvedAgent, cwd?: string): Promise<AgentLoop | null> {
     if (!agent.runtime || agent.runtime === "mock") return null;
     if (!agent.model && agent.runtime === "ai-sdk") return null;
 
     const { createLoopFromConfig } = await import("./loop-factory.ts");
-    // Don't pass instructions here — WorkspaceAgentLoop already includes them
+    // Don't pass instructions here — WorkspaceOrchestrator already includes them
     // in the assembled prompt via soulSection. Passing them here would cause
     // the model to see instructions twice (system prompt + user message).
     return createLoopFromConfig({

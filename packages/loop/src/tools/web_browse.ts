@@ -28,7 +28,7 @@ export function createWebBrowseTool() {
         .string()
         .describe(
           'agent-browser command, e.g. "open https://example.com", ' +
-          '"snapshot -i", "click @e1", "fill @e2 hello", "get text @e3", "close"',
+            '"snapshot -i", "click @e1", "fill @e2 hello", "get text @e3", "close"',
         ),
     }),
     execute: async (args) => {
