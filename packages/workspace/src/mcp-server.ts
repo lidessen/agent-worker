@@ -528,9 +528,9 @@ function formatRunEntry(entry: Record<string, unknown>): string {
       return `[start] ${runtime}${model}: ${instr}`;
     }
     case "text":
-      return `  [text] ${String(entry.text ?? "").slice(0, 300)}`;
+      return `  [text] ${String(entry.text ?? "").slice(0, 500)}`;
     case "thinking":
-      return `  [think] ${String(entry.text ?? "").slice(0, 200)}`;
+      return `  [think] ${String(entry.text ?? "").slice(0, 500)}`;
     case "tool_call_start":
       return `  [call] ${entry.name}(${JSON.stringify(entry.args ?? {}).slice(0, 150)})`;
     case "tool_call_end": {
@@ -541,8 +541,16 @@ function formatRunEntry(entry: Record<string, unknown>): string {
     }
     case "error":
       return `  [error] ${entry.error}`;
-    case "run_end":
-      return `[end] ${entry.status}${entry.error ? `: ${entry.error}` : ""}`;
+    case "run_end": {
+      const usage = entry.usage as
+        | { inputTokens?: number; outputTokens?: number; totalTokens?: number }
+        | undefined;
+      const dur = entry.durationMs ? ` ${entry.durationMs}ms` : "";
+      const tokens = usage?.totalTokens
+        ? ` (${usage.inputTokens}in/${usage.outputTokens}out/${usage.totalTokens}total)`
+        : "";
+      return `[end] ${entry.status}${dur}${tokens}${entry.error ? `: ${entry.error}` : ""}`;
+    }
     default:
       return `  [?] ${JSON.stringify(entry).slice(0, 200)}`;
   }
