@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { mkdirSync, appendFileSync } from "node:fs";
+import { mkdirSync, appendFileSync, symlinkSync, existsSync } from "node:fs";
 import {
   createWorkspace,
   createAgentTools,
@@ -113,6 +113,15 @@ export class WorkspaceRegistry {
       const { tools, promptSections, dirs } = createAgentTools(agent.name, workspace);
       if (dirs.workspaceSandboxDir) mkdirSync(dirs.workspaceSandboxDir, { recursive: true });
       if (dirs.sandboxDir) mkdirSync(dirs.sandboxDir, { recursive: true });
+      // Create symlinks for agent mounts
+      if (agent.mounts && dirs.sandboxDir) {
+        for (const mount of agent.mounts) {
+          const linkPath = join(dirs.sandboxDir, mount.target!);
+          if (!existsSync(linkPath)) {
+            symlinkSync(mount.source, linkPath);
+          }
+        }
+      }
       const agentCwd = dirs.sandboxDir ?? dirs.workspaceSandboxDir;
       const runner = await this.createRunner(agent, workspace, resolved, "global", tools, {
         cwd: agentCwd,
@@ -215,6 +224,15 @@ export class WorkspaceRegistry {
       const { tools, promptSections, dirs } = createAgentTools(agent.name, workspace);
       if (dirs.workspaceSandboxDir) mkdirSync(dirs.workspaceSandboxDir, { recursive: true });
       if (dirs.sandboxDir) mkdirSync(dirs.sandboxDir, { recursive: true });
+      // Create symlinks for agent mounts
+      if (agent.mounts && dirs.sandboxDir) {
+        for (const mount of agent.mounts) {
+          const linkPath = join(dirs.sandboxDir, mount.target!);
+          if (!existsSync(linkPath)) {
+            symlinkSync(mount.source, linkPath);
+          }
+        }
+      }
       const agentCwd = dirs.sandboxDir ?? dirs.workspaceSandboxDir;
       const actualStorageDir = storageDir ?? this.workspaceDir(key);
       const runner = await this.createRunner(agent, workspace, resolved, key, tools, {

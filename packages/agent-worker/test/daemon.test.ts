@@ -109,6 +109,59 @@ describe("Daemon", () => {
     expect(res.status).toBe(401);
   });
 
+  test("POST /agents resolves ai-sdk default model via resolveRuntime", async () => {
+    // Make sure only one provider key is available so auto-detection is deterministic.
+    const savedEnv: Record<string, string | undefined> = {};
+    const envKeys = [
+      "ANTHROPIC_API_KEY",
+      "OPENAI_API_KEY",
+      "GOOGLE_GENERATIVE_AI_API_KEY",
+      "DEEPSEEK_API_KEY",
+      "KIMI_CODE_API_KEY",
+      "MINIMAX_API_KEY",
+      "AI_GATEWAY_API_KEY",
+    ];
+
+    for (const key of envKeys) {
+      savedEnv[key] = process.env[key];
+      delete process.env[key];
+    }
+
+    try {
+      process.env.DEEPSEEK_API_KEY = "sk-test";
+
+      const dataDir = tmpDataDir();
+      daemon = new Daemon({ port: 0, mcpPort: 0, dataDir });
+      const info = await daemon.start();
+
+      const res = await fetch(`http://${info.host}:${info.port}/agents`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${info.token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: "ds-agent",
+          runtime: {
+            type: "ai-sdk",
+            instructions: "You are a test agent.",
+          },
+        }),
+      });
+
+      // Without resolveRuntime, ai-sdk would hard-code anthropic and fail
+      // when anthropic adapter isn't available/configured.
+      expect(res.status).toBe(201);
+      const body = (await res.json()) as Record<string, unknown>;
+      expect(body.name).toBe("ds-agent");
+    } finally {
+      for (const key of envKeys) {
+        if (savedEnv[key] !== undefined) process.env[key] = savedEnv[key];
+        else delete process.env[key];
+      }
+    }
+  });
+
   test("lists agents (includes auto-discovered global agents)", async () => {
     const dataDir = tmpDataDir();
     daemon = new Daemon({ port: 0, mcpPort: 0, dataDir });

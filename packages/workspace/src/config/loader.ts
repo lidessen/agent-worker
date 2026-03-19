@@ -9,6 +9,7 @@ import type {
   ResolvedAgent,
   ResolvedModel,
   ModelSpec,
+  MountDef,
   SetupStep,
 } from "./types.ts";
 import type { WorkspaceConfig, ChannelAdapter } from "../types.ts";
@@ -209,6 +210,20 @@ export async function loadWorkspaceDef(
     // Merge workspace-level env + agent-level env (agent wins)
     const mergedEnv = def.env || agentDef.env ? { ...def.env, ...agentDef.env } : undefined;
 
+    // Normalize mounts: string → MountDef, resolve relative paths
+    const configDir = filePath ? dirname(filePath) : undefined;
+    const resolvedMounts = agentDef.mounts?.map((m): MountDef => {
+      const mount: MountDef =
+        typeof m === "string"
+          ? { source: m, target: basename(m) }
+          : { ...m, target: m.target ?? basename(m.source) };
+      // Resolve relative source paths against config file directory
+      if (!mount.source.startsWith("/") && configDir) {
+        mount.source = resolve(configDir, mount.source);
+      }
+      return mount;
+    });
+
     // If runtime resolution found a model and agent didn't specify one, use it
     const finalModel = modelSpec ?? (resolution.model ? resolveModel(resolution.model) : undefined);
 
@@ -219,6 +234,7 @@ export async function loadWorkspaceDef(
       instructions: agentDef.instructions,
       channels: agentDef.channels,
       env: mergedEnv,
+      mounts: resolvedMounts,
     });
   }
 

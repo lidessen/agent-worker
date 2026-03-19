@@ -7,6 +7,7 @@ import type {
   ResourceStoreInterface,
   StatusStoreInterface,
   TimelineStoreInterface,
+  ChronicleStoreInterface,
 } from "../types.ts";
 
 export interface ContextProviderConfig {
@@ -16,6 +17,7 @@ export interface ContextProviderConfig {
   resources: ResourceStoreInterface;
   status: StatusStoreInterface;
   timeline: TimelineStoreInterface;
+  chronicle: ChronicleStoreInterface;
   /** Max message length in characters. Default: 1200 */
   maxMessageLength?: number;
 }
@@ -27,6 +29,7 @@ export class CompositeContextProvider implements ContextProvider {
   readonly resources: ResourceStoreInterface;
   readonly status: StatusStoreInterface;
   readonly timeline: TimelineStoreInterface;
+  readonly chronicle: ChronicleStoreInterface;
 
   private readonly maxMessageLength: number;
 
@@ -37,6 +40,7 @@ export class CompositeContextProvider implements ContextProvider {
     this.resources = config.resources;
     this.status = config.status;
     this.timeline = config.timeline;
+    this.chronicle = config.chronicle;
     this.maxMessageLength = config.maxMessageLength ?? 1200;
   }
 

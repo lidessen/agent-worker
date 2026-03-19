@@ -47,6 +47,7 @@ import { DaemonEventLog } from "./event-log.ts";
 import { createLoopFromConfig } from "./loop-factory.ts";
 import { writeDaemonInfo, removeDaemonInfo, generateToken, defaultDataDir } from "./discovery.ts";
 import { WorkspaceMcpHub } from "@agent-worker/workspace";
+import { resolveRuntime } from "./resolve-runtime.ts";
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
 import type { ServerType } from "@hono/node-server";
@@ -126,6 +127,26 @@ export class Daemon {
     await this.mcpHub.start({
       port: this.config.mcpPort,
       storageDir: join(this.config.dataDir, "workspace-data", "global"),
+      pauseAgent: async (name) => {
+        const loop = globalWs.loops.find((l) => l.name === name);
+        if (!loop) throw new Error(`Agent "${name}" not found`);
+        await loop.pause();
+      },
+      resumeAgent: async (name) => {
+        const loop = globalWs.loops.find((l) => l.name === name);
+        if (!loop) throw new Error(`Agent "${name}" not found`);
+        await loop.resume();
+      },
+      pauseAll: async () => {
+        for (const loop of globalWs.loops) await loop.pause();
+      },
+      resumeAll: async () => {
+        for (const loop of globalWs.loops) await loop.resume();
+      },
+      isAgentPaused: (name) => {
+        const loop = globalWs.loops.find((l) => l.name === name);
+        return loop?.isPaused ?? false;
+      },
     });
 
     // Now set daemon info WITH the MCP hub URL, then start agent loops
@@ -412,13 +433,22 @@ export class Daemon {
     }
 
     try {
-      const loop = await createLoopFromConfig(body.runtime);
+      // Ensure "ai-sdk" missing model falls back to best available provider
+      // (vs hard-coding anthropic inside createLoopFromConfig).
+      const resolved = await resolveRuntime(body.runtime.type, body.runtime.model);
+      const runtimeForLoop: RuntimeConfig = {
+        ...body.runtime,
+        type: resolved.runtime as RuntimeConfig["type"],
+        ...(resolved.model ? { model: resolved.model } : {}),
+      };
+
+      const loop = await createLoopFromConfig(runtimeForLoop);
       const handle = await this.agents.create({
         name: body.name,
         instructions: body.runtime.instructions,
         loop,
         kind: "ephemeral",
-        runtime: body.runtime.type,
+        runtime: runtimeForLoop.type,
       });
       return Response.json(handle.info, { status: 201 });
     } catch (err) {

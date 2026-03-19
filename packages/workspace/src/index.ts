@@ -131,4 +131,6 @@ export type {
   ResourceStoreInterface,
   StatusStoreInterface,
   TimelineStoreInterface,
+  ChronicleEntry,
+  ChronicleStoreInterface,
 } from "./types.ts";
