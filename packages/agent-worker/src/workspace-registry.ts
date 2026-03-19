@@ -91,14 +91,26 @@ export class WorkspaceRegistry {
         skipSetup: true,
       });
     }
-    // Lazy status callback — workspace doesn't exist yet, so we capture it in a closure
+    // Lazy callbacks — workspace/loops don't exist yet, so we capture them in closures
     let workspaceRef: Workspace | null = null;
+    let loopsRef: WorkspaceOrchestrator[] = [];
     const getAgents = async () => {
       if (!workspaceRef) return [];
       const members = await workspaceRef.contextProvider.status.getAll();
       return members.map((m) => ({ name: m.name, status: m.status, task: m.currentTask }));
     };
-    const connections = await resolveConnections(resolved.def.connections, { getAgents });
+    const findLoop = (name: string) => {
+      const loop = loopsRef.find((l) => l.name === name);
+      if (!loop) throw new Error(`Agent "${name}" not found`);
+      return loop;
+    };
+    const connections = await resolveConnections(resolved.def.connections, {
+      getAgents,
+      pauseAll: async () => { for (const l of loopsRef) await l.pause(); },
+      resumeAll: async () => { for (const l of loopsRef) await l.resume(); },
+      pauseAgent: async (name) => { await findLoop(name).pause(); },
+      resumeAgent: async (name) => { await findLoop(name).resume(); },
+    });
     const config = toWorkspaceConfig(resolved, {
       storageDir: globalDir,
       connections,
@@ -107,7 +119,7 @@ export class WorkspaceRegistry {
     workspaceRef = workspace;
 
     // Create workspace loops for each agent (mirrors create() logic)
-    const loops: WorkspaceOrchestrator[] = [];
+    const loops: WorkspaceOrchestrator[] = loopsRef;
     for (const agent of resolved.agents) {
       if (!agent.runtime) continue;
       const { tools, promptSections, dirs } = createAgentTools(agent.name, workspace);
@@ -208,18 +220,30 @@ export class WorkspaceRegistry {
     // Use daemon-managed data dir unless YAML explicitly specifies one
     const storageDir = resolved.def.data_dir ? undefined : this.workspaceDir(key);
     let workspaceRef: Workspace | null = null;
+    let loopsRef: WorkspaceOrchestrator[] = [];
     const getAgents = async () => {
       if (!workspaceRef) return [];
       const members = await workspaceRef.contextProvider.status.getAll();
       return members.map((m) => ({ name: m.name, status: m.status, task: m.currentTask }));
     };
-    const connections = await resolveConnections(resolved.def.connections, { getAgents });
+    const findLoop = (name: string) => {
+      const loop = loopsRef.find((l) => l.name === name);
+      if (!loop) throw new Error(`Agent "${name}" not found`);
+      return loop;
+    };
+    const connections = await resolveConnections(resolved.def.connections, {
+      getAgents,
+      pauseAll: async () => { for (const l of loopsRef) await l.pause(); },
+      resumeAll: async () => { for (const l of loopsRef) await l.resume(); },
+      pauseAgent: async (name) => { await findLoop(name).pause(); },
+      resumeAgent: async (name) => { await findLoop(name).resume(); },
+    });
     const config = toWorkspaceConfig(resolved, { tag: input.tag, storageDir, connections });
     const workspace = await createWorkspace(config);
     workspaceRef = workspace;
 
     // Ensure sandbox directories exist and create loops for each agent
-    const loops: WorkspaceOrchestrator[] = [];
+    const loops: WorkspaceOrchestrator[] = loopsRef;
     for (const agent of resolved.agents) {
       const { tools, promptSections, dirs } = createAgentTools(agent.name, workspace);
       if (dirs.workspaceSandboxDir) mkdirSync(dirs.workspaceSandboxDir, { recursive: true });

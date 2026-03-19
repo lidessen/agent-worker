@@ -59,11 +59,23 @@ export interface TelegramAdapterConfig {
   pollTimeout?: number;
   /** Optional callback to get agent status for /status command. */
   getAgents?: () => Promise<Array<{ name: string; status: string; task?: string }>>;
+  /** Pause all agents. */
+  pauseAll?: () => Promise<void>;
+  /** Resume all agents. */
+  resumeAll?: () => Promise<void>;
+  /** Pause a specific agent by name. */
+  pauseAgent?: (name: string) => Promise<void>;
+  /** Resume a specific agent by name. */
+  resumeAgent?: (name: string) => Promise<void>;
 }
 
 // ── Bot commands ──────────────────────────────────────────────────────────
 
-const BOT_COMMANDS = [{ command: "status", description: "Show connection status" }];
+const BOT_COMMANDS = [
+  { command: "status", description: "Show connection status" },
+  { command: "pause", description: "Pause all agents (or /pause <agent>)" },
+  { command: "resume", description: "Resume all agents (or /resume <agent>)" },
+];
 
 // ── Adapter ────────────────────────────────────────────────────────────────
 
@@ -76,6 +88,10 @@ export class TelegramAdapter implements ChannelAdapter {
   private readonly pollTimeout: number;
   private readonly baseUrl: string;
   private readonly getAgents: TelegramAdapterConfig["getAgents"];
+  private readonly pauseAll: TelegramAdapterConfig["pauseAll"];
+  private readonly resumeAll: TelegramAdapterConfig["resumeAll"];
+  private readonly pauseAgent: TelegramAdapterConfig["pauseAgent"];
+  private readonly resumeAgent: TelegramAdapterConfig["resumeAgent"];
 
   private bridge: ChannelBridgeInterface | null = null;
   private bridgeSubscriber: ((msg: Message) => void) | null = null;
@@ -87,6 +103,10 @@ export class TelegramAdapter implements ChannelAdapter {
     this.token = config.botToken;
     this.chatId = config.chatId;
     this.getAgents = config.getAgents;
+    this.pauseAll = config.pauseAll;
+    this.resumeAll = config.resumeAll;
+    this.pauseAgent = config.pauseAgent;
+    this.resumeAgent = config.resumeAgent;
     this.channel = config.channel ?? "general";
     this.pollTimeout = config.pollTimeout ?? 30;
     this.baseUrl = `https://api.telegram.org/bot${this.token}`;
@@ -226,12 +246,25 @@ export class TelegramAdapter implements ChannelAdapter {
   }
 
   private handleCommand(msg: TelegramMessage): void {
-    const cmd = msg.text!.split(/\s|@/)[0]!.toLowerCase();
+    const parts = msg.text!.split(/\s+/);
+    const cmd = parts[0]!.split("@")[0]!.toLowerCase();
 
     switch (cmd) {
       case "/status": {
         this.sendStatus(msg.chat.id).catch((err) => {
           console.error("[telegram] /status reply failed:", err);
+        });
+        break;
+      }
+      case "/pause": {
+        this.handlePause(msg.chat.id, parts[1]).catch((err) => {
+          console.error("[telegram] /pause reply failed:", err);
+        });
+        break;
+      }
+      case "/resume": {
+        this.handleResume(msg.chat.id, parts[1]).catch((err) => {
+          console.error("[telegram] /resume reply failed:", err);
         });
         break;
       }
@@ -249,6 +282,62 @@ export class TelegramAdapter implements ChannelAdapter {
         this.bridge.send(channel, `telegram:${from}`, content).catch((err) => {
           console.error("[telegram] failed to inject message:", err);
         });
+      }
+    }
+  }
+
+  private async handlePause(chatId: number, agentName?: string): Promise<void> {
+    if (agentName) {
+      if (!this.pauseAgent) {
+        await this.api("sendMessage", { chat_id: chatId, text: "Pause not available." });
+        return;
+      }
+      try {
+        await this.pauseAgent(agentName);
+        await this.api("sendMessage", { chat_id: chatId, text: `Paused @${agentName}.` });
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        await this.api("sendMessage", { chat_id: chatId, text: `Failed to pause @${agentName}: ${msg}` });
+      }
+    } else {
+      if (!this.pauseAll) {
+        await this.api("sendMessage", { chat_id: chatId, text: "Pause not available." });
+        return;
+      }
+      try {
+        await this.pauseAll();
+        await this.api("sendMessage", { chat_id: chatId, text: "All agents paused." });
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        await this.api("sendMessage", { chat_id: chatId, text: `Failed to pause all: ${msg}` });
+      }
+    }
+  }
+
+  private async handleResume(chatId: number, agentName?: string): Promise<void> {
+    if (agentName) {
+      if (!this.resumeAgent) {
+        await this.api("sendMessage", { chat_id: chatId, text: "Resume not available." });
+        return;
+      }
+      try {
+        await this.resumeAgent(agentName);
+        await this.api("sendMessage", { chat_id: chatId, text: `Resumed @${agentName}.` });
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        await this.api("sendMessage", { chat_id: chatId, text: `Failed to resume @${agentName}: ${msg}` });
+      }
+    } else {
+      if (!this.resumeAll) {
+        await this.api("sendMessage", { chat_id: chatId, text: "Resume not available." });
+        return;
+      }
+      try {
+        await this.resumeAll();
+        await this.api("sendMessage", { chat_id: chatId, text: "All agents resumed." });
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        await this.api("sendMessage", { chat_id: chatId, text: `Failed to resume all: ${msg}` });
       }
     }
   }

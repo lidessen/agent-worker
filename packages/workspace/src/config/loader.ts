@@ -303,6 +303,10 @@ export async function resolveConnections(
   defs?: ConnectionDef[],
   opts?: {
     getAgents?: () => Promise<Array<{ name: string; status: string; task?: string }>>;
+    pauseAll?: () => Promise<void>;
+    resumeAll?: () => Promise<void>;
+    pauseAgent?: (name: string) => Promise<void>;
+    resumeAgent?: (name: string) => Promise<void>;
   },
 ): Promise<ChannelAdapter[]> {
   if (!defs || defs.length === 0) return [];
@@ -343,6 +347,10 @@ export async function resolveConnections(
             channel: cfg.channel,
             pollTimeout: cfg.poll_timeout,
             getAgents: opts?.getAgents,
+            pauseAll: opts?.pauseAll,
+            resumeAll: opts?.resumeAll,
+            pauseAgent: opts?.pauseAgent,
+            resumeAgent: opts?.resumeAgent,
           }),
         );
         break;
