@@ -81,7 +81,9 @@ export class AwClient {
     const dir = dataDir ?? defaultDataDir();
     const info = await readDaemonInfo(dir);
     if (!info) {
-      throw new Error("Daemon is not running (use 'aw daemon start' or any command that auto-starts it)");
+      throw new Error(
+        "Daemon is not running (use 'aw daemon start' or any command that auto-starts it)",
+      );
     }
     return new AwClient({
       baseUrl: `http://${info.host}:${info.port}`,
