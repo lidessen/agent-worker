@@ -125,7 +125,7 @@ register("anthropic", {
 
 register("openai", {
   envKeys: ["OPENAI_API_KEY"],
-  defaultModel: "openai:gpt-4.1",
+  defaultModel: "openai:gpt-5.4",
   priority: 60,
   adapter: openaiAdapter,
 });
