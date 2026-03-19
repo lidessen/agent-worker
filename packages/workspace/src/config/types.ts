@@ -32,6 +32,16 @@ export interface ModelDef {
  */
 export type ModelSpec = string | ModelDef;
 
+/** Mount point definition — maps an external directory into an agent's sandbox. */
+export interface MountDef {
+  /** Absolute or config-relative path to the source directory. */
+  source: string;
+  /** Target name inside the sandbox (defaults to basename of source). */
+  target?: string;
+  /** If true, mount is read-only (advisory — enforced at runtime layer). */
+  readonly?: boolean;
+}
+
 /** Agent definition within a workspace. */
 export interface AgentDef {
   /** LLM runtime: "ai-sdk" | "claude-code" | "codex" | "cursor" | "mock". */
@@ -44,6 +54,8 @@ export interface AgentDef {
   channels?: string[];
   /** Environment variable overrides for this agent (merged on top of workspace-level env). */
   env?: Record<string, string>;
+  /** Filesystem mount points (symlinked into the agent's sandbox). */
+  mounts?: (string | MountDef)[];
 }
 
 /** Setup step: run a shell command, optionally capture output as a variable. */
@@ -114,6 +126,8 @@ export interface ResolvedAgent {
   channels?: string[];
   /** Merged environment variables (workspace defaults + agent overrides). */
   env?: Record<string, string>;
+  /** Resolved filesystem mount points. */
+  mounts?: MountDef[];
 }
 
 /** Result of loading and resolving a workspace definition. */

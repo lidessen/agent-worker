@@ -368,6 +368,86 @@ kickoff: "env=\${{ env }}"
   });
 });
 
+// ── mounts ────────────────────────────────────────────────────────────
+
+describe("agent mounts", () => {
+  test("parses string mounts and normalizes to MountDef[]", async () => {
+    const result = await loadWorkspaceDef(
+      `
+name: test
+agents:
+  alice:
+    model: x
+    mounts:
+      - /data/shared
+      - /opt/tools
+`,
+      { skipSetup: true },
+    );
+
+    expect(result.agents[0]!.mounts).toEqual([
+      { source: "/data/shared", target: "shared" },
+      { source: "/opt/tools", target: "tools" },
+    ]);
+  });
+
+  test("parses object mounts with source, target, and readonly", async () => {
+    const result = await loadWorkspaceDef(
+      `
+name: test
+agents:
+  bob:
+    model: x
+    mounts:
+      - source: /data/repo
+        target: project
+        readonly: true
+      - source: /tmp/scratch
+`,
+      { skipSetup: true },
+    );
+
+    expect(result.agents[0]!.mounts).toEqual([
+      { source: "/data/repo", target: "project", readonly: true },
+      { source: "/tmp/scratch", target: "scratch" },
+    ]);
+  });
+
+  test("mixed string and object mounts", async () => {
+    const result = await loadWorkspaceDef(
+      `
+name: test
+agents:
+  coder:
+    model: x
+    mounts:
+      - /home/user/docs
+      - source: /var/data
+        target: mydata
+`,
+      { skipSetup: true },
+    );
+
+    expect(result.agents[0]!.mounts).toHaveLength(2);
+    expect(result.agents[0]!.mounts![0]).toEqual({ source: "/home/user/docs", target: "docs" });
+    expect(result.agents[0]!.mounts![1]).toEqual({ source: "/var/data", target: "mydata" });
+  });
+
+  test("agents without mounts have undefined mounts", async () => {
+    const result = await loadWorkspaceDef(
+      `
+name: test
+agents:
+  plain:
+    model: x
+`,
+      { skipSetup: true },
+    );
+
+    expect(result.agents[0]!.mounts).toBeUndefined();
+  });
+});
+
 // ── toWorkspaceConfig ─────────────────────────────────────────────────────
 
 describe("toWorkspaceConfig", () => {

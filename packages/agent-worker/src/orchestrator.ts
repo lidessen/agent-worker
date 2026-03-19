@@ -40,6 +40,7 @@ export interface OrchestratorConfig {
  */
 export class WorkspaceOrchestrator {
   private running = false;
+  private paused = false;
   private pollTimer: ReturnType<typeof setTimeout> | null = null;
   private wakeResolve: (() => void) | null = null;
 
@@ -69,6 +70,23 @@ export class WorkspaceOrchestrator {
     await this.config.eventLog.log(this.config.name, "system", "Agent loop started");
 
     this.loop();
+  }
+
+  /** Pause the orchestrator — tick() becomes a no-op but polling continues. */
+  async pause(): Promise<void> {
+    this.paused = true;
+    await this.config.eventLog.log(this.config.name, "system", "Agent loop paused");
+  }
+
+  /** Resume the orchestrator after a pause. */
+  async resume(): Promise<void> {
+    this.paused = false;
+    await this.config.eventLog.log(this.config.name, "system", "Agent loop resumed");
+    this.wake();
+  }
+
+  get isPaused(): boolean {
+    return this.paused;
   }
 
   /** Stop the polling loop. */
@@ -140,6 +158,8 @@ export class WorkspaceOrchestrator {
   }
 
   private async tick(): Promise<void> {
+    if (this.paused) return;
+
     // 1. Check inbox for new messages → enqueue as instructions
     const inboxEntries = await this.config.provider.inbox.peek(this.config.name);
 

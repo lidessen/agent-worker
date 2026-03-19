@@ -52,6 +52,23 @@ export interface QueueConfig {
   normalQuota?: number;
   maxBackgroundWait?: number;
   maxPreemptions?: number;
+  backgroundTtl?: number;   // ms, default 5 * 60 * 1000
+  maxSize?: number;          // default 200
+}
+
+// ── Chronicle types ───────────────────────────────────────────────────────
+
+export interface ChronicleEntry {
+  id: string;
+  timestamp: string;
+  author: string;
+  category: string; // decision, plan, task, correction, pattern, milestone, insight
+  content: string;
+}
+
+export interface ChronicleStoreInterface {
+  append(entry: Omit<ChronicleEntry, "id" | "timestamp">): Promise<ChronicleEntry>;
+  read(opts?: { limit?: number; category?: string }): Promise<ChronicleEntry[]>;
 }
 
 // ── Event Log types ────────────────────────────────────────────────────────
@@ -183,6 +200,7 @@ export interface ContextProvider {
   readonly resources: ResourceStoreInterface;
   readonly status: StatusStoreInterface;
   readonly timeline: TimelineStoreInterface;
+  readonly chronicle: ChronicleStoreInterface;
 
   /** Post a message to a channel. Throws if content exceeds the length limit. */
   send(msg: { channel: string; from: string; content: string; to?: string }): Promise<Message>;
@@ -210,6 +228,8 @@ export interface InboxStoreInterface {
   markSeen(agentName: string, messageId: string): Promise<void>;
   markRunStart(agentName: string): Promise<void>;
   hasEntry(agentName: string, messageId: string): Promise<boolean>;
+  /** Returns a promise that resolves when a new inbox entry arrives for the agent. */
+  onNewEntry(agentName: string): Promise<void>;
 }
 
 export interface DocumentStoreInterface {

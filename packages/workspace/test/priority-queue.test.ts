@@ -79,14 +79,16 @@ describe("InstructionQueue", () => {
   });
 
   test("starvation protection promotes background tasks", () => {
+    // Use a longer backgroundTtl so TTL pruning doesn't remove the item before promotion
+    const q = new InstructionQueue({ backgroundTtl: 15 * 60 * 1000 });
     const oldDate = new Date(Date.now() - 10 * 60 * 1000).toISOString(); // 10min ago
     const bgInstr = makeInstruction("alice", "background");
     bgInstr.enqueuedAt = oldDate;
 
-    queue.enqueue(bgInstr);
+    q.enqueue(bgInstr);
 
     // Dequeue should promote this to normal (waited > maxBackgroundWait)
-    const result = queue.dequeue("alice");
+    const result = q.dequeue("alice");
     expect(result).not.toBeNull();
     expect(result!.priority).toBe("normal"); // promoted
   });
@@ -106,6 +108,77 @@ describe("InstructionQueue", () => {
     expect(q.dequeue("alice")!.id).toBe("n1");
     // Then back to immediate
     expect(q.dequeue("alice")!.id).toBe("i3");
+  });
+
+  // ── TTL pruning ──────────────────────────────────────────────────────
+
+  test("TTL pruning removes expired background items on dequeue", () => {
+    const q = new InstructionQueue({ backgroundTtl: 1000 }); // 1s TTL
+
+    const expired = makeInstruction("alice", "background", "bg1");
+    expired.enqueuedAt = new Date(Date.now() - 2000).toISOString(); // 2s ago
+
+    const fresh = makeInstruction("alice", "background", "bg2");
+    // fresh.enqueuedAt is now — within TTL
+
+    q.enqueue(expired);
+    q.enqueue(fresh);
+
+    const result = q.dequeue("alice");
+    expect(result).not.toBeNull();
+    expect(result!.id).toBe("bg2"); // expired one was pruned
+    expect(q.size).toBe(0);
+  });
+
+  test("TTL pruning does NOT remove immediate or normal items", () => {
+    const q = new InstructionQueue({ backgroundTtl: 1000 });
+
+    const oldImmediate = makeInstruction("alice", "immediate", "i1");
+    oldImmediate.enqueuedAt = new Date(Date.now() - 5000).toISOString();
+
+    const oldNormal = makeInstruction("alice", "normal", "n1");
+    oldNormal.enqueuedAt = new Date(Date.now() - 5000).toISOString();
+
+    q.enqueue(oldImmediate);
+    q.enqueue(oldNormal);
+
+    expect(q.dequeue("alice")!.id).toBe("i1");
+    expect(q.dequeue("alice")!.id).toBe("n1");
+  });
+
+  // ── Max size cap ────────────────────────────────────────────────────
+
+  test("maxSize drops oldest background item when full", () => {
+    const q = new InstructionQueue({ maxSize: 3 });
+
+    q.enqueue(makeInstruction("alice", "normal", "n1"));
+    q.enqueue(makeInstruction("alice", "background", "bg1"));
+    q.enqueue(makeInstruction("alice", "background", "bg2"));
+    // Queue is full (3). Next enqueue should drop oldest background (bg1).
+    q.enqueue(makeInstruction("alice", "normal", "n2"));
+
+    expect(q.size).toBe(3);
+    const all = q.listAll();
+    const ids = all.map((i) => i.id);
+    expect(ids).toContain("n1");
+    expect(ids).toContain("bg2");
+    expect(ids).toContain("n2");
+    expect(ids).not.toContain("bg1"); // dropped
+  });
+
+  test("maxSize rejects new item when no background items to drop", () => {
+    const q = new InstructionQueue({ maxSize: 2 });
+
+    q.enqueue(makeInstruction("alice", "immediate", "i1"));
+    q.enqueue(makeInstruction("alice", "normal", "n1"));
+    // Queue is full with no background items — new item is rejected
+    q.enqueue(makeInstruction("alice", "normal", "n2"));
+
+    expect(q.size).toBe(2);
+    const ids = q.listAll().map((i) => i.id);
+    expect(ids).toContain("i1");
+    expect(ids).toContain("n1");
+    expect(ids).not.toContain("n2"); // rejected
   });
 
   test("peek does not remove instruction", () => {

@@ -16,7 +16,7 @@ import { join } from "node:path";
 import { readFileSync, existsSync } from "node:fs";
 import { z } from "zod";
 import type { Workspace } from "./workspace.ts";
-import type { Instruction } from "./types.ts";
+import type { Instruction, TimelineEvent } from "./types.ts";
 import { createWorkspaceTools, WORKSPACE_TOOL_DEFS } from "./context/mcp/server.ts";
 
 type ToolDef = {
@@ -37,6 +37,16 @@ export interface WorkspaceMcpHubOptions {
   host?: string;
   /** Storage directory for reading run logs. If omitted, activity_detail is unavailable. */
   storageDir?: string;
+  /** Pause a specific agent's orchestrator loop. */
+  pauseAgent?: (name: string) => Promise<void>;
+  /** Resume a specific agent's orchestrator loop. */
+  resumeAgent?: (name: string) => Promise<void>;
+  /** Pause all agent orchestrator loops. */
+  pauseAll?: () => Promise<void>;
+  /** Resume all agent orchestrator loops. */
+  resumeAll?: () => Promise<void>;
+  /** Check if a specific agent is paused. */
+  isAgentPaused?: (name: string) => boolean;
 }
 
 /**
@@ -54,6 +64,10 @@ export class WorkspaceMcpHub {
   private sessions = new Map<string, McpSession>();
   private _port: number | null = null;
   private _storageDir: string | undefined;
+  private _pauseCallbacks: Pick<
+    WorkspaceMcpHubOptions,
+    "pauseAgent" | "resumeAgent" | "pauseAll" | "resumeAll" | "isAgentPaused"
+  > = {};
 
   constructor(private workspace: Workspace) {}
 
@@ -77,6 +91,13 @@ export class WorkspaceMcpHub {
 
   async start(opts?: WorkspaceMcpHubOptions): Promise<void> {
     this._storageDir = opts?.storageDir;
+    this._pauseCallbacks = {
+      pauseAgent: opts?.pauseAgent,
+      resumeAgent: opts?.resumeAgent,
+      pauseAll: opts?.pauseAll,
+      resumeAll: opts?.resumeAll,
+      isAgentPaused: opts?.isAgentPaused,
+    };
 
     this.httpServer = createServer(async (req, res) => {
       const url = new URL(req.url ?? "/", `http://${req.headers.host}`);
@@ -279,12 +300,19 @@ export class WorkspaceMcpHub {
         if (entries.length === 0) {
           return { content: [{ type: "text", text: "No agents registered." }] };
         }
-        const lines = entries.map((e) => {
-          const task = e.currentTask ? ` — ${e.currentTask}` : "";
-          const channels = ws.getAgentChannels(e.name);
-          const chStr = channels.size > 0 ? ` [${[...channels].join(", ")}]` : "";
-          return `${e.name}: ${e.status}${task}${chStr} (updated ${e.updatedAt})`;
-        });
+        const lines = await Promise.all(
+          entries.map(async (e) => {
+            const paused = this._pauseCallbacks.isAgentPaused?.(e.name);
+            const statusStr = paused ? "paused" : e.status;
+            const task = e.currentTask ? ` — ${e.currentTask}` : "";
+            const channels = ws.getAgentChannels(e.name);
+            const chStr = channels.size > 0 ? ` [${[...channels].join(", ")}]` : "";
+            const events = await provider.timeline.read(e.name, { limit: 3 });
+            const activity = formatRecentActivity(events);
+            const actStr = activity ? ` | last: ${activity}` : "";
+            return `${e.name}: ${statusStr}${task}${chStr}${actStr}`;
+          }),
+        );
         return { content: [{ type: "text", text: lines.join("\n") }] };
       },
     );
@@ -486,6 +514,60 @@ export class WorkspaceMcpHub {
         };
       },
     );
+
+    // ── pause_agent: pause a specific agent ─────────────────────────────
+    server.tool(
+      "pause_agent",
+      "Pause a specific agent's orchestrator loop. The polling loop keeps running but tick() becomes a no-op.",
+      { agent: z.string().describe("Agent name to pause") },
+      async ({ agent }) => {
+        if (!this._pauseCallbacks.pauseAgent) {
+          return { content: [{ type: "text", text: "Pause not available — no orchestrator callbacks configured." }] };
+        }
+        await this._pauseCallbacks.pauseAgent(agent);
+        return { content: [{ type: "text", text: `Paused agent "${agent}".` }] };
+      },
+    );
+
+    // ── resume_agent: resume a specific agent ───────────────────────────
+    server.tool(
+      "resume_agent",
+      "Resume a specific agent's orchestrator loop after a pause.",
+      { agent: z.string().describe("Agent name to resume") },
+      async ({ agent }) => {
+        if (!this._pauseCallbacks.resumeAgent) {
+          return { content: [{ type: "text", text: "Resume not available — no orchestrator callbacks configured." }] };
+        }
+        await this._pauseCallbacks.resumeAgent(agent);
+        return { content: [{ type: "text", text: `Resumed agent "${agent}".` }] };
+      },
+    );
+
+    // ── pause_all: pause all agent loops ────────────────────────────────
+    server.tool(
+      "pause_all",
+      "Pause all agent orchestrator loops in the workspace.",
+      async () => {
+        if (!this._pauseCallbacks.pauseAll) {
+          return { content: [{ type: "text", text: "Pause not available — no orchestrator callbacks configured." }] };
+        }
+        await this._pauseCallbacks.pauseAll();
+        return { content: [{ type: "text", text: "All agents paused." }] };
+      },
+    );
+
+    // ── resume_all: resume all agent loops ──────────────────────────────
+    server.tool(
+      "resume_all",
+      "Resume all agent orchestrator loops in the workspace.",
+      async () => {
+        if (!this._pauseCallbacks.resumeAll) {
+          return { content: [{ type: "text", text: "Resume not available — no orchestrator callbacks configured." }] };
+        }
+        await this._pauseCallbacks.resumeAll();
+        return { content: [{ type: "text", text: "All agents resumed." }] };
+      },
+    );
   }
 }
 
@@ -515,6 +597,19 @@ function buildZodParams(
     result[name] = field;
   }
   return result;
+}
+
+/** Format recent timeline events as relative timestamps. */
+function formatRecentActivity(events: TimelineEvent[]): string {
+  return events
+    .slice(-3)
+    .reverse()
+    .map((ev) => {
+      const ago = Math.round((Date.now() - new Date(ev.timestamp).getTime()) / 1000);
+      const label = ev.toolCall?.name ?? ev.kind;
+      return `${label} (${ago}s ago)`;
+    })
+    .join(", ");
 }
 
 /** Format a single JSONL run log entry for human-readable output. */

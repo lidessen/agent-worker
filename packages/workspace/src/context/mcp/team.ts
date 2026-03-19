@@ -1,4 +1,4 @@
-import type { ContextProvider } from "../../types.ts";
+import type { ContextProvider, TimelineEvent } from "../../types.ts";
 
 export interface TeamTools {
   team_members: () => Promise<string>;
@@ -15,10 +15,15 @@ export function createTeamTools(agentName: string, provider: ContextProvider): T
       const members = await provider.status.getAll();
       if (members.length === 0) return "No team members registered.";
 
-      const lines = members.map((m) => {
-        const task = m.currentTask ? ` — ${m.currentTask}` : "";
-        return `- @${m.name}: ${m.status}${task}`;
-      });
+      const lines = await Promise.all(
+        members.map(async (m) => {
+          const task = m.currentTask ? ` — ${m.currentTask}` : "";
+          const events = await provider.timeline.read(m.name, { limit: 3 });
+          const activity = formatRecentActivity(events);
+          const actStr = activity ? ` | last: ${activity}` : "";
+          return `- @${m.name}: ${m.status}${task}${actStr}`;
+        }),
+      );
       return `Team (${members.length}):\n${lines.join("\n")}`;
     },
 
@@ -49,4 +54,17 @@ export function createTeamTools(agentName: string, provider: ContextProvider): T
       return `Document "${args.name}" created.`;
     },
   };
+}
+
+/** Format recent timeline events as relative timestamps. */
+function formatRecentActivity(events: TimelineEvent[]): string {
+  return events
+    .slice(-3)
+    .reverse()
+    .map((ev) => {
+      const ago = Math.round((Date.now() - new Date(ev.timestamp).getTime()) / 1000);
+      const label = ev.toolCall?.name ?? ev.kind;
+      return `${label} (${ago}s ago)`;
+    })
+    .join(", ");
 }

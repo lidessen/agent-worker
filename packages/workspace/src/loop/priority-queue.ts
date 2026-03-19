@@ -17,19 +17,35 @@ export class InstructionQueue implements InstructionQueueInterface {
   private readonly normalQuota: number;
   private readonly maxBackgroundWait: number;
   private readonly maxPreemptions: number;
+  private readonly backgroundTtl: number;
+  private readonly maxSize: number;
 
   constructor(config: QueueConfig = {}) {
     this.immediateQuota = config.immediateQuota ?? 4;
     this.normalQuota = config.normalQuota ?? 8;
     this.maxBackgroundWait = config.maxBackgroundWait ?? 5 * 60 * 1000; // 5min
     this.maxPreemptions = config.maxPreemptions ?? 3;
+    this.backgroundTtl = config.backgroundTtl ?? 5 * 60 * 1000; // 5min
+    this.maxSize = config.maxSize ?? 200;
   }
 
   enqueue(instruction: Instruction): void {
+    if (this.size >= this.maxSize) {
+      // Drop the oldest background item to make room
+      if (this.lanes.background.length > 0) {
+        this.lanes.background.shift();
+      } else {
+        // No background items to drop — reject the new item
+        return;
+      }
+    }
     this.lanes[instruction.priority].push(instruction);
   }
 
   dequeue(agentName: string): Instruction | null {
+    // Prune expired background items before any other logic
+    this.pruneExpired();
+
     // Apply starvation protection: promote overdue background tasks
     this.promoteStarved();
 
@@ -112,6 +128,13 @@ export class InstructionQueue implements InstructionQueueInterface {
       this.consecutiveImmediate = 0;
       this.consecutiveHighPriority = 0;
     }
+  }
+
+  private pruneExpired(): void {
+    const now = Date.now();
+    this.lanes.background = this.lanes.background.filter((instr) => {
+      return now - new Date(instr.enqueuedAt).getTime() <= this.backgroundTtl;
+    });
   }
 
   private promoteStarved(): void {

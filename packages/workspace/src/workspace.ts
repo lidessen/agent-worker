@@ -15,6 +15,7 @@ import { DocumentStore } from "./context/stores/document.ts";
 import { ResourceStore } from "./context/stores/resource.ts";
 import { StatusStore } from "./context/stores/status.ts";
 import { TimelineStore } from "./context/stores/timeline.ts";
+import { ChronicleStore } from "./context/stores/chronicle.ts";
 import { CompositeContextProvider } from "./context/provider.ts";
 import { WorkspaceEventLog } from "./context/event-log.ts";
 import { ChannelBridge } from "./context/bridge.ts";
@@ -55,6 +56,7 @@ export class Workspace implements WorkspaceRuntime {
     const resourceStore = new ResourceStore(storage);
     this.statusStore = new StatusStore(storage);
     const timelineStore = new TimelineStore(storage);
+    const chronicleStore = new ChronicleStore(storage);
 
     // Composite provider
     this.contextProvider = new CompositeContextProvider({
@@ -64,6 +66,7 @@ export class Workspace implements WorkspaceRuntime {
       resources: resourceStore,
       status: this.statusStore,
       timeline: timelineStore,
+      chronicle: chronicleStore,
       maxMessageLength: config.maxMessageLength,
     });
 

@@ -32,6 +32,32 @@ export function createWorkspaceTools(
       channelTools.channel_leave(args as Parameters<typeof channelTools.channel_leave>[0]),
 
     // Inbox tools
+    wait_inbox: async (args) => {
+      const timeoutMs = (args.timeout as number) ?? 60000;
+      const result = await Promise.race([
+        provider.inbox.onNewEntry(agentName).then(() => "received" as const),
+        new Promise<"timeout">((resolve) => setTimeout(() => resolve("timeout"), timeoutMs)),
+      ]);
+
+      if (result === "timeout") {
+        return "Timeout: no new inbox messages.";
+      }
+
+      // Return current inbox contents using same format as my_inbox
+      const entries = await provider.inbox.peek(agentName);
+      if (entries.length === 0) return "New message received. Inbox: empty (already processed).";
+
+      const lines: string[] = [];
+      for (const entry of entries) {
+        const msg = await provider.channels.getMessage(entry.channel, entry.messageId);
+        if (!msg) continue;
+        const priority = entry.priority !== "normal" ? ` [${entry.priority}]` : "";
+        lines.push(
+          `- [${msg.id}] #${entry.channel} from:@${msg.from}${priority}: "${msg.content}"`,
+        );
+      }
+      return `New message received. Inbox (${lines.length} pending):\n${lines.join("\n")}`;
+    },
     my_inbox: () => inboxTools.my_inbox(),
     my_inbox_ack: (args) =>
       inboxTools.my_inbox_ack(args as Parameters<typeof inboxTools.my_inbox_ack>[0]),
@@ -58,6 +84,21 @@ export function createWorkspaceTools(
       resourceTools.resource_create(args as Parameters<typeof resourceTools.resource_create>[0]),
     resource_read: (args) =>
       resourceTools.resource_read(args as Parameters<typeof resourceTools.resource_read>[0]),
+
+    // Chronicle tools
+    chronicle_append: async (args) => {
+      const { category, content } = args as { category: string; content: string };
+      const entry = await provider.chronicle.append({ author: agentName, category, content });
+      return `Chronicle entry recorded: ${entry.id}`;
+    },
+    chronicle_read: async (args) => {
+      const { limit, category } = args as { limit?: number; category?: string };
+      const entries = await provider.chronicle.read({ limit, category });
+      if (entries.length === 0) return "No chronicle entries.";
+      return entries
+        .map((e) => `[${e.timestamp}] ${e.category} (@${e.author}): ${e.content}`)
+        .join("\n");
+    },
   };
 }
 
@@ -105,6 +146,14 @@ export const WORKSPACE_TOOL_DEFS = {
       channel: { type: "string", description: "Channel name" },
     },
     required: ["channel"],
+  },
+  wait_inbox: {
+    description:
+      "Block and wait for a new inbox message. Returns when a message arrives or timeout expires.",
+    parameters: {
+      timeout: { type: "number", description: "Max wait in ms (default 60000)" },
+    },
+    required: [],
   },
   my_inbox: {
     description: "View your pending inbox messages",
@@ -198,5 +247,28 @@ export const WORKSPACE_TOOL_DEFS = {
       id: { type: "string", description: "Resource ID" },
     },
     required: ["id"],
+  },
+  chronicle_append: {
+    description:
+      "Record an observation to the team chronicle — an append-only log of decisions, plans, " +
+      "corrections, patterns, milestones, and insights. Unlike team_doc (editable shared docs), " +
+      "chronicle entries are immutable and ordered by time.",
+    parameters: {
+      category: {
+        type: "string",
+        description:
+          "Entry category: decision, plan, task, correction, pattern, milestone, or insight",
+      },
+      content: { type: "string", description: "Observation content" },
+    },
+    required: ["category", "content"],
+  },
+  chronicle_read: {
+    description: "Read entries from the team chronicle, optionally filtered by category or limited to recent entries.",
+    parameters: {
+      limit: { type: "number", description: "Max entries to return (most recent)" },
+      category: { type: "string", description: "Filter by category" },
+    },
+    required: [],
   },
 } as const;

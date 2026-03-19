@@ -3,6 +3,8 @@ import type { InboxEntry, StorageBackend, InboxStoreInterface } from "../../type
 export class InboxStore implements InboxStoreInterface {
   /** In-memory inbox per agent: messageId → InboxEntry */
   private inboxes = new Map<string, Map<string, InboxEntry>>();
+  /** One-shot listeners waiting for new inbox entries per agent. */
+  private listeners = new Map<string, Array<() => void>>();
 
   constructor(private readonly storage: StorageBackend) {}
 
@@ -26,6 +28,13 @@ export class InboxStore implements InboxStoreInterface {
 
     inbox.set(entry.messageId, entry);
     await this.storage.appendLine(this.inboxPath(agentName), JSON.stringify(entry));
+
+    // Notify any waiting listeners
+    const cbs = this.listeners.get(agentName);
+    if (cbs && cbs.length > 0) {
+      const batch = cbs.splice(0);
+      for (const cb of batch) cb();
+    }
   }
 
   async peek(agentName: string): Promise<InboxEntry[]> {
@@ -109,6 +118,15 @@ export class InboxStore implements InboxStoreInterface {
         // Skip malformed lines
       }
     }
+  }
+
+  /** Register a one-shot listener for when a new inbox entry arrives. */
+  onNewEntry(agentName: string): Promise<void> {
+    return new Promise((resolve) => {
+      const list = this.listeners.get(agentName) ?? [];
+      list.push(resolve);
+      this.listeners.set(agentName, list);
+    });
   }
 
   private async persistInbox(agentName: string): Promise<void> {
