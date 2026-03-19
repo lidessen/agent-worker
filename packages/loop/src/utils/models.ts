@@ -1,6 +1,11 @@
 /**
  * Provider-level model listing — queries real API endpoints.
  */
+import {
+  extractProvider as extractProviderFromRegistry,
+  getProviderMeta,
+  hasProviderKey as hasProviderKeyFromRegistry,
+} from "../providers/registry.ts";
 
 interface ModelInfo {
   id: string;
@@ -100,19 +105,10 @@ const FALLBACK_MODELS: Record<string, ModelInfo[]> = {
   ],
   "kimi-code": [{ id: "kimi-for-coding", name: "Kimi for Coding" }],
   minimax: [
+    { id: "MiniMax-M2.7", name: "MiniMax M2.7" },
     { id: "MiniMax-M2.5", name: "MiniMax M2.5" },
     { id: "MiniMax-M2", name: "MiniMax M2" },
   ],
-};
-
-const PROVIDER_KEYS: Record<string, string[]> = {
-  anthropic: ["ANTHROPIC_API_KEY"],
-  openai: ["OPENAI_API_KEY"],
-  google: ["GOOGLE_GENERATIVE_AI_API_KEY", "GOOGLE_API_KEY"],
-  deepseek: ["DEEPSEEK_API_KEY"],
-  "kimi-code": ["KIMI_CODE_API_KEY"],
-  minimax: ["MINIMAX_API_KEY"],
-  "ai-gateway": ["AI_GATEWAY_API_KEY"],
 };
 
 const LIST_FNS: Record<string, (key?: string) => Promise<ModelInfo[]>> = {
@@ -126,8 +122,8 @@ const LIST_FNS: Record<string, (key?: string) => Promise<ModelInfo[]>> = {
  * models if the key is present but the API call fails.
  */
 export async function listModelsForProvider(provider: string): Promise<ModelInfo[]> {
-  const envVars = PROVIDER_KEYS[provider];
-  if (!envVars) return [];
+  const envVars = getProviderMeta(provider)?.envKeys;
+  if (!envVars?.length) return [];
 
   const key = envVars.map((v) => process.env[v]).find(Boolean);
   if (!key) return [];
@@ -145,15 +141,12 @@ export async function listModelsForProvider(provider: string): Promise<ModelInfo
  * Extract provider name from AI SDK model string like "anthropic:claude-sonnet-4-6".
  */
 export function extractProvider(model: string): string | null {
-  const idx = model.indexOf(":");
-  return idx !== -1 ? model.slice(0, idx) : null;
+  return extractProviderFromRegistry(model);
 }
 
 /**
  * Check if the environment has an API key for a given provider.
  */
 export function hasProviderKey(provider: string): boolean {
-  const envVars = PROVIDER_KEYS[provider];
-  if (!envVars) return false;
-  return envVars.some((v) => !!process.env[v]);
+  return hasProviderKeyFromRegistry(provider);
 }

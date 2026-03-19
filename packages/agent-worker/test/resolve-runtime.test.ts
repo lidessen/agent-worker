@@ -9,7 +9,6 @@ describe("detectAiSdkModel", () => {
     "ANTHROPIC_API_KEY",
     "OPENAI_API_KEY",
     "GOOGLE_GENERATIVE_AI_API_KEY",
-    "GOOGLE_API_KEY",
     "DEEPSEEK_API_KEY",
     "KIMI_CODE_API_KEY",
     "MINIMAX_API_KEY",
@@ -42,13 +41,18 @@ describe("detectAiSdkModel", () => {
     expect(detectAiSdkModel()).toBe("anthropic:claude-sonnet-4-6");
   });
 
+  test("ignores env override and returns undefined", () => {
+    // Phase A: preflight/autodetect must only look at process.env
+    expect((detectAiSdkModel as any)({ ANTHROPIC_API_KEY: "sk-test" })).toBeUndefined();
+  });
+
   test("returns openai model when OPENAI_API_KEY is set", () => {
     process.env.OPENAI_API_KEY = "sk-test";
     expect(detectAiSdkModel()).toBe("openai:gpt-4.1");
   });
 
-  test("returns google model when GOOGLE_API_KEY is set", () => {
-    process.env.GOOGLE_API_KEY = "test-key";
+  test("returns google model when GOOGLE_GENERATIVE_AI_API_KEY is set", () => {
+    process.env.GOOGLE_GENERATIVE_AI_API_KEY = "test-key";
     expect(detectAiSdkModel()).toBe("google:gemini-2.5-flash");
   });
 
@@ -109,8 +113,7 @@ describe("resolveRuntime", () => {
       "ANTHROPIC_API_KEY",
       "OPENAI_API_KEY",
       "GOOGLE_GENERATIVE_AI_API_KEY",
-      "GOOGLE_API_KEY",
-      "DEEPSEEK_API_KEY",
+        "DEEPSEEK_API_KEY",
       "KIMI_CODE_API_KEY",
       "MINIMAX_API_KEY",
       "AI_GATEWAY_API_KEY",
@@ -138,6 +141,13 @@ describe("resolveRuntime", () => {
       const r = await resolveRuntime("ai-sdk", undefined);
       expect(r.runtime).toBe("ai-sdk");
       expect(r.model).toBe("anthropic:claude-sonnet-4-6");
+    });
+
+    test("ignores env override when auto-detecting (throws)", async () => {
+      // Extra arg is ignored at runtime — resolveRuntime only checks process.env
+      await expect(
+        (resolveRuntime as any)("ai-sdk", undefined, { ANTHROPIC_API_KEY: "sk-test" }),
+      ).rejects.toThrow("requires a model or API key");
     });
 
     test("auto-detects model from OPENAI_API_KEY", async () => {

@@ -62,6 +62,11 @@ describe("hasProviderKey", () => {
     expect(hasProviderKey("anthropic")).toBe(true);
   });
 
+  test("ignores env override provides ANTHROPIC_API_KEY", () => {
+    delete process.env.ANTHROPIC_API_KEY;
+    expect(hasProviderKey("anthropic")).toBe(false);
+  });
+
   test("returns true when OPENAI_API_KEY is set", () => {
     process.env.OPENAI_API_KEY = "test-key";
     expect(hasProviderKey("openai")).toBe(true);
