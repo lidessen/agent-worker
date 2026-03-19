@@ -23,15 +23,10 @@ export { MemoryStorage, FileStorage } from "./context/storage.ts";
 export { InstructionQueue } from "./loop/priority-queue.ts";
 
 // ── Prompt ─────────────────────────────────────────────────────────────────
-export {
-  assemblePrompt,
-  BASE_SECTIONS,
-  soulSection,
-  inboxSection,
-  currentTaskSection,
-} from "./loop/prompt.ts";
+export { assemblePrompt, BASE_SECTIONS, soulSection, inboxSection } from "./loop/prompt.ts";
 export {
   workspacePromptSection,
+  conversationSection,
   docsPromptSection,
   WORKSPACE_PROMPT_SECTIONS,
 } from "./context/mcp/prompts.ts";

@@ -105,7 +105,7 @@ export class WorkspaceOrchestrator {
       enqueuedAt: new Date().toISOString(),
     };
 
-    const prompt = await this.buildPrompt([], content);
+    const prompt = await this.buildPrompt([], instruction);
     await this.config.onInstruction(prompt, instruction);
   }
 
@@ -182,7 +182,7 @@ export class WorkspaceOrchestrator {
 
     // 3. Build prompt
     const currentInbox = await this.config.provider.inbox.peek(this.config.name);
-    const prompt = await this.buildPrompt(currentInbox, instruction.content, instruction.priority);
+    const prompt = await this.buildPrompt(currentInbox, instruction);
 
     // 4. Execute
     try {
@@ -200,16 +200,17 @@ export class WorkspaceOrchestrator {
 
   private async buildPrompt(
     inboxEntries: InboxEntry[],
-    currentInstruction?: string,
-    currentPriority?: string,
+    instruction?: Instruction,
   ): Promise<string> {
     return assemblePrompt(this.sections, {
       agentName: this.config.name,
       instructions: this.config.instructions,
       provider: this.config.provider,
       inboxEntries,
-      currentInstruction,
-      currentPriority,
+      currentInstruction: instruction?.content,
+      currentPriority: instruction?.priority,
+      currentMessageId: instruction?.messageId || undefined,
+      currentChannel: instruction?.channel || undefined,
     });
   }
 
