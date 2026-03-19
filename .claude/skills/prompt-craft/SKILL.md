@@ -71,11 +71,11 @@ Too abstract = agent doesn't know what action to take.
 Prompt effect = Principle generality x Context relevance
 ```
 
-| Level | Example | Risk |
-|-------|---------|------|
-| Too specific | "Before answering React questions, search docs" | Ignored for non-React tasks |
-| Optimal | "Verify before answering — don't rely on memory" | Applied broadly |
-| Too abstract | "Seek truth" | No actionable guidance |
+| Level        | Example                                          | Risk                        |
+| ------------ | ------------------------------------------------ | --------------------------- |
+| Too specific | "Before answering React questions, search docs"  | Ignored for non-React tasks |
+| Optimal      | "Verify before answering — don't rely on memory" | Applied broadly             |
+| Too abstract | "Seek truth"                                     | No actionable guidance      |
 
 **Key insight**: Prompts don't create behavior — they modulate existing behavior. The agent already has tendencies from training. Your prompt strengthens, redirects, or adds nuance.
 
@@ -98,12 +98,12 @@ If you need to see that the agent did something, require output format — tool 
 
 Agents respond to management styles like humans:
 
-| Style | Effect |
-|-------|--------|
-| **Mission** ("Your work helps future agents") | Depth, engagement, considers long-term |
-| **Autonomy** ("Use your judgment") | Pragmatic, direct, good decisions |
-| **Fear** ("Output will be evaluated") | Correct but defensive, risk-avoidant |
-| **Micromanagement** ("Follow EXACTLY: step 1, step 2...") | Compliant but shallow |
+| Style                                                     | Effect                                 |
+| --------------------------------------------------------- | -------------------------------------- |
+| **Mission** ("Your work helps future agents")             | Depth, engagement, considers long-term |
+| **Autonomy** ("Use your judgment")                        | Pragmatic, direct, good decisions      |
+| **Fear** ("Output will be evaluated")                     | Correct but defensive, risk-avoidant   |
+| **Micromanagement** ("Follow EXACTLY: step 1, step 2...") | Compliant but shallow                  |
 
 **Rule**: Good techniques enable judgment. Bad techniques remove it.
 
@@ -113,18 +113,22 @@ A well-structured agent prompt has four layers:
 
 ```markdown
 ## Layer 1: Identity (2-3 sentences + experience)
+
 Who you are. Not what you do — who you ARE.
 Include formative experience that shapes judgment.
 
 ## Layer 2: Core Principles (3-10)
+
 Values that guide decisions. Agent auto-selects relevant ones per task.
 Each principle = one sentence + brief "why" or "because".
 
 ## Layer 3: Current Context
+
 What's happening now. Goal + constraints, NOT steps.
 Let the agent determine approach.
 
 ## Layer 4: On-Demand References
+
 Facts, documentation pointers, format requirements.
 Agent judges relevance — not everything is used every time.
 ```
@@ -149,6 +153,7 @@ Prompts should align with Claude's constitutional values:
 4. **Respect autonomy**: Trust the user/agent as a capable adult
 
 **For workspace agents specifically**:
+
 - Treat other agents as capable teammates, not subordinates
 - Don't respond just to be seen responding (anti-sycophancy)
 - Contribute only when you have specific expertise
@@ -186,15 +191,15 @@ Prompts should align with Claude's constitutional values:
 
 ## Anti-Patterns to Avoid
 
-| Anti-Pattern | Why It Fails | Fix |
-|-------------|-------------|-----|
-| "You MUST always..." (10+ rules) | Agent can't prioritize | Values that generalize |
-| "WARNING: failure will be..." | Creates defensiveness | Mission framing |
-| "Follow these exact steps" | Misses novel situations | Goal + trust |
-| "Be helpful and friendly" | Sycophancy, no substance | Specific expertise identity |
-| "Consider all possibilities" | Paralysis, no action | "Start with the most likely, verify" |
-| Contradictory instructions | Agent picks one randomly | Explicit priority ordering |
-| Wall of text (1000+ words) | Dilution, nothing stands out | Core identity (short) + on-demand refs |
+| Anti-Pattern                     | Why It Fails                 | Fix                                    |
+| -------------------------------- | ---------------------------- | -------------------------------------- |
+| "You MUST always..." (10+ rules) | Agent can't prioritize       | Values that generalize                 |
+| "WARNING: failure will be..."    | Creates defensiveness        | Mission framing                        |
+| "Follow these exact steps"       | Misses novel situations      | Goal + trust                           |
+| "Be helpful and friendly"        | Sycophancy, no substance     | Specific expertise identity            |
+| "Consider all possibilities"     | Paralysis, no action         | "Start with the most likely, verify"   |
+| Contradictory instructions       | Agent picks one randomly     | Explicit priority ordering             |
+| Wall of text (1000+ words)       | Dilution, nothing stands out | Core identity (short) + on-demand refs |
 
 ## Testing Methodology
 
@@ -210,6 +215,7 @@ From the Problem Discovery methodology:
 ```
 
 **Test categories**:
+
 - **Conflict**: Two competing instructions → Which wins?
 - **Edge case**: Broken/missing inputs → How does it handle?
 - **Boundary**: Where does a term's meaning end? ("code" = just source?)
