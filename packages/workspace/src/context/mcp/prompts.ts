@@ -1,6 +1,7 @@
 import type { PromptSection } from "../../loop/prompt.ts";
+import type { Message } from "../../types.ts";
 
-/** Max chars per message before truncation in the Recent Messages section. */
+/** Max chars per message before truncation. */
 const MSG_PREVIEW_LIMIT = 300;
 /** Number of recent messages to include per channel. */
 const RECENT_MSG_LIMIT = 20;
@@ -23,38 +24,33 @@ export const workspacePromptSection: PromptSection = async (ctx) => {
     "- `channel_send` posts to channels. Plain text output is your private thinking — only you see it.",
     "- `@name` in messages notifies that teammate.",
     "- Messages over 1200 chars: use `resource_create` first, then send a summary with the resource ID.",
-    "- `channel_read` shows conversation history — check it before responding to understand context.",
+    "- `channel_read` shows full conversation history beyond what's shown below.",
     "",
     "### Channels",
     channels.length > 0 ? channels.map((ch) => `- #${ch}`).join("\n") : "- (none)",
   ];
 
   if (teammates.length > 0) {
-    lines.push(
-      "",
-      "### Teammates",
-      ...teammates.map((m) => {
-        const status = m.status;
-        return `- @${m.name}: ${status}`;
-      }),
-    );
+    lines.push("", "### Teammates", ...teammates.map((m) => `- @${m.name}: ${m.status}`));
   }
 
   return lines.join("\n");
 };
 
 /**
- * Recent channel history so agents know what's already been said.
+ * Unified conversation section — shows recent channel messages with the
+ * current instruction highlighted in-context using a `→` marker.
  *
- * Shows the last 20 messages per channel with timestamps. Long messages
- * are truncated with a ref hint so the agent can use `channel_read` to
- * see the full version.
+ * Replaces the old separate "Current Task" + "Recent Messages" sections.
+ * The agent sees the full conversation flow and knows exactly which message
+ * it's responding to.
  */
-export const recentHistorySection: PromptSection = async (ctx) => {
+export const conversationSection: PromptSection = async (ctx) => {
   const channels = ctx.provider.channels.listChannels();
-  if (channels.length === 0) return null;
+  if (channels.length === 0 && !ctx.currentInstruction) return null;
 
   const sections: string[] = [];
+
   for (const ch of channels) {
     const allMsgs = await ctx.provider.channels.read(ch);
     if (allMsgs.length === 0) continue;
@@ -64,31 +60,36 @@ export const recentHistorySection: PromptSection = async (ctx) => {
     const omitted = total - recent.length;
 
     const lines = recent.map((m) => {
-      const time = m.timestamp.split("T")[1]?.slice(0, 5) ?? "";
-      const content = m.content;
-      if (content.length > MSG_PREVIEW_LIMIT) {
-        const preview = content.slice(0, MSG_PREVIEW_LIMIT);
-        return `  [${time}] @${m.from}: ${preview}… <msg:${m.id}>`;
-      }
-      return `  [${time}] @${m.from}: ${content}`;
+      const isCurrent = ctx.currentMessageId === m.id;
+      const marker = isCurrent ? "→ " : "  ";
+      return `${marker}${formatMessage(m)}`;
     });
 
     let header = `#${ch}:`;
     if (omitted > 0) {
-      header += ` (${omitted} earlier messages — use \`channel_read\` with higher \`limit\` to see more)`;
+      header += ` (${omitted} earlier — use \`channel_read\` with higher \`limit\` to see more)`;
     }
     sections.push(`${header}\n${lines.join("\n")}`);
   }
 
-  if (sections.length === 0) return null;
+  // If the instruction didn't come from a channel (e.g. direct/API), show it separately
+  const instructionInTimeline = ctx.currentMessageId && sections.some((s) => s.includes(`→ `));
 
-  return [
-    "## Recent Messages",
-    "",
-    "Truncated messages show `<msg:ID>` — use `channel_read` to see the full version.",
-    "",
-    sections.join("\n\n"),
-  ].join("\n");
+  const parts: string[] = ["## Conversation"];
+
+  if (!instructionInTimeline && ctx.currentInstruction) {
+    parts.push("");
+    parts.push(`**Respond to:** ${ctx.currentInstruction}`);
+  }
+
+  if (sections.length > 0) {
+    parts.push("");
+    parts.push("Truncated messages show `<msg:ID>` — use `channel_read` to see full text.");
+    parts.push("");
+    parts.push(sections.join("\n\n"));
+  }
+
+  return parts.join("\n");
 };
 
 /** Shared documents available in the workspace. */
@@ -101,6 +102,18 @@ export const docsPromptSection: PromptSection = async (ctx) => {
 /** All workspace prompt sections, in order. */
 export const WORKSPACE_PROMPT_SECTIONS: PromptSection[] = [
   workspacePromptSection,
-  recentHistorySection,
+  conversationSection,
   docsPromptSection,
 ];
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function formatMessage(m: Message): string {
+  const time = m.timestamp.split("T")[1]?.slice(0, 5) ?? "";
+  const content = m.content;
+  if (content.length > MSG_PREVIEW_LIMIT) {
+    const preview = content.slice(0, MSG_PREVIEW_LIMIT);
+    return `[${time}] @${m.from}: ${preview}… <msg:${m.id}>`;
+  }
+  return `[${time}] @${m.from}: ${content}`;
+}
