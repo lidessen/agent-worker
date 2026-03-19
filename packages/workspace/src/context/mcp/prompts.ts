@@ -56,10 +56,14 @@ export const recentHistorySection: PromptSection = async (ctx) => {
 
   const sections: string[] = [];
   for (const ch of channels) {
-    const msgs = await ctx.provider.channels.read(ch, { limit: RECENT_MSG_LIMIT });
-    if (msgs.length === 0) continue;
+    const allMsgs = await ctx.provider.channels.read(ch);
+    if (allMsgs.length === 0) continue;
 
-    const lines = msgs.map((m) => {
+    const total = allMsgs.length;
+    const recent = allMsgs.slice(-RECENT_MSG_LIMIT);
+    const omitted = total - recent.length;
+
+    const lines = recent.map((m) => {
       const time = m.timestamp.split("T")[1]?.slice(0, 5) ?? "";
       const content = m.content;
       if (content.length > MSG_PREVIEW_LIMIT) {
@@ -68,7 +72,12 @@ export const recentHistorySection: PromptSection = async (ctx) => {
       }
       return `  [${time}] @${m.from}: ${content}`;
     });
-    sections.push(`#${ch}:\n${lines.join("\n")}`);
+
+    let header = `#${ch}:`;
+    if (omitted > 0) {
+      header += ` (${omitted} earlier messages — use \`channel_read\` with higher \`limit\` to see more)`;
+    }
+    sections.push(`${header}\n${lines.join("\n")}`);
   }
 
   if (sections.length === 0) return null;
