@@ -48,7 +48,7 @@ describe("detectAiSdkModel", () => {
 
   test("returns openai model when OPENAI_API_KEY is set", () => {
     process.env.OPENAI_API_KEY = "sk-test";
-    expect(detectAiSdkModel()).toBe("openai:gpt-4.1");
+    expect(detectAiSdkModel()).toBe("openai:gpt-5.4");
   });
 
   test("returns google model when GOOGLE_GENERATIVE_AI_API_KEY is set", () => {
@@ -154,7 +154,7 @@ describe("resolveRuntime", () => {
       process.env.OPENAI_API_KEY = "sk-test";
       const r = await resolveRuntime("ai-sdk", undefined);
       expect(r.runtime).toBe("ai-sdk");
-      expect(r.model).toBe("openai:gpt-4.1");
+      expect(r.model).toBe("openai:gpt-5.4");
     });
 
     test("throws when no API key available", async () => {

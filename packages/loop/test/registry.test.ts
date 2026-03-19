@@ -98,7 +98,7 @@ describe("registry: hasProviderKey", () => {
 describe("registry: getDefaultModel", () => {
   test("returns default model for known providers", () => {
     expect(getDefaultModel("anthropic")).toBe("anthropic:claude-sonnet-4-6");
-    expect(getDefaultModel("openai")).toBe("openai:gpt-4.1");
+    expect(getDefaultModel("openai")).toBe("openai:gpt-5.4");
     expect(getDefaultModel("google")).toBe("google:gemini-2.5-flash");
     expect(getDefaultModel("deepseek")).toBe("deepseek:deepseek-chat");
     expect(getDefaultModel("kimi-code")).toBe("kimi-code:kimi-for-coding");
