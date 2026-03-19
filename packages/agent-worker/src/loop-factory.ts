@@ -131,6 +131,7 @@ async function createCodexLoop(config: RuntimeConfig): Promise<AgentLoop> {
     model: config.model,
     cwd: config.cwd,
     env: config.env,
+    fullAuto: true,
   });
 }
 
