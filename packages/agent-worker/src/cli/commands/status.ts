@@ -1,4 +1,5 @@
 import { AwClient } from "../../client.ts";
+import { readDaemonInfo } from "../../discovery.ts";
 import { formatUptime, wantsHelp } from "../output.ts";
 
 export async function status(args: string[]): Promise<void> {
@@ -7,13 +8,12 @@ export async function status(args: string[]): Promise<void> {
     return;
   }
 
-  let client: AwClient;
-  try {
-    client = await AwClient.discover();
-  } catch {
+  const info = await readDaemonInfo();
+  if (!info) {
     console.log("Daemon:      stopped");
     return;
   }
+  const client = AwClient.fromInfo(info);
 
   try {
     const [health, agents, workspaces] = await Promise.all([
