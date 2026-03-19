@@ -35,7 +35,17 @@ export {
 } from "./utils/cli.ts";
 export { runCliLoop, type CliLoopConfig } from "./utils/cli-loop.ts";
 export { createStreamParser } from "./utils/stream-parser.ts";
-export { extractProvider, hasProviderKey } from "./utils/models.ts";
+export {
+  resolveProvider,
+  getDefaultModel,
+  getProviderPriority,
+  getProviderMeta,
+  extractProvider,
+  hasProviderKey,
+  registerProvider,
+  type ProviderAdapter,
+  type ProviderMeta,
+} from "./providers/registry.ts";
 
 // ── Tool relevance ─────────────────────────────────────────────────────────
 export { ToolRelevanceEngine } from "./tool-relevance.ts";

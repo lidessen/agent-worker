@@ -1,4 +1,16 @@
 {
+  "permissions": {
+    "allow": [
+"Bash(bun test:*)",
+      "Bash(bun run typecheck:*)",
+      "Bash(bun run lint:*)",
+      "Bash(bun run fmt:*)",
+      "Bash(oxlint:*)",
+      "Bash(oxfmt:*)",
+      "Bash(tsgo:*)",
+      "mcp__workspace-debug__*"
+    ]
+  },
   "hooks": {
     "PostToolUse": [
       {

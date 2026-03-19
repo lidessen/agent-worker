@@ -19,6 +19,8 @@ import {
   checkClaudeCodeAuth,
   checkCodexAuth,
   hasProviderKey,
+  getDefaultModel,
+  getProviderPriority,
 } from "@agent-worker/loop";
 
 // ── Types ─────────────────────────────────────────────────────────────────
@@ -30,28 +32,8 @@ export interface RuntimeResolution {
   reason: string;
 }
 
-// ── Provider → default model mapping ──────────────────────────────────────
-
-const PROVIDER_DEFAULT_MODELS: Record<string, string> = {
-  anthropic: "anthropic:claude-sonnet-4-6",
-  openai: "openai:gpt-4.1",
-  google: "google:gemini-2.5-flash",
-  deepseek: "deepseek:deepseek-chat",
-  "kimi-code": "kimi-code:kimi-for-coding",
-  minimax: "minimax:MiniMax-M2.5",
-  "ai-gateway": "ai-gateway:anthropic/claude-sonnet-4-6",
-};
-
-/** Ordered list of providers to check for AI SDK auto-selection. */
-const PROVIDER_PRIORITY = [
-  "anthropic",
-  "openai",
-  "google",
-  "deepseek",
-  "kimi-code",
-  "minimax",
-  "ai-gateway",
-];
+// Provider mapping + auto-detect priority are centralized in
+// @agent-worker/loop/providers/registry.ts
 
 // ── CLI runtime discovery ─────────────────────────────────────────────────
 
@@ -86,9 +68,9 @@ const CLI_CANDIDATES: CliCandidate[] = [
  * Returns the first provider that has an API key set.
  */
 export function detectAiSdkModel(): string | undefined {
-  for (const provider of PROVIDER_PRIORITY) {
+  for (const provider of getProviderPriority()) {
     if (hasProviderKey(provider)) {
-      return PROVIDER_DEFAULT_MODELS[provider];
+      return getDefaultModel(provider);
     }
   }
   return undefined;
@@ -117,7 +99,10 @@ export async function discoverCliRuntime(): Promise<RuntimeResolution | null> {
 /**
  * Resolve runtime and model for an agent definition.
  */
-export async function resolveRuntime(runtime?: string, model?: string): Promise<RuntimeResolution> {
+export async function resolveRuntime(
+  runtime?: string,
+  model?: string,
+): Promise<RuntimeResolution> {
   if (runtime === "auto") runtime = undefined;
 
   // Case 1: model specified, runtime omitted → ai-sdk
