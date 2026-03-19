@@ -226,6 +226,156 @@ describe("TelegramAdapter", () => {
     expect(body.chat_id).toBe(123);
     expect(body.text).toContain("No workspace connected");
   });
+
+  test("/pause without agent calls pauseAll", async () => {
+    const calls = mockFetch();
+    let paused = false;
+    adapter = new TelegramAdapter({
+      botToken: "test-token",
+      chatId: 123,
+      pauseAll: async () => { paused = true; },
+    });
+    const bridge = createMockBridge();
+    await adapter.start(bridge);
+
+    (adapter as any).handleCommand({
+      message_id: 1,
+      chat: { id: 123, type: "private" },
+      date: Math.floor(Date.now() / 1000),
+      text: "/pause",
+      from: { id: 1, is_bot: false, first_name: "Jane" },
+    });
+
+    await new Promise((r) => setTimeout(r, 50));
+    expect(paused).toBe(true);
+    const sendCalls = calls.filter((c) => c.url.includes("sendMessage"));
+    expect(sendCalls.length).toBeGreaterThanOrEqual(1);
+    const body = JSON.parse(sendCalls[sendCalls.length - 1]!.body!);
+    expect(body.text).toContain("All agents paused");
+  });
+
+  test("/pause <agent> calls pauseAgent with name", async () => {
+    const calls = mockFetch();
+    let pausedName = "";
+    adapter = new TelegramAdapter({
+      botToken: "test-token",
+      chatId: 123,
+      pauseAgent: async (name) => { pausedName = name; },
+    });
+    const bridge = createMockBridge();
+    await adapter.start(bridge);
+
+    (adapter as any).handleCommand({
+      message_id: 1,
+      chat: { id: 123, type: "private" },
+      date: Math.floor(Date.now() / 1000),
+      text: "/pause codex",
+      from: { id: 1, is_bot: false, first_name: "Jane" },
+    });
+
+    await new Promise((r) => setTimeout(r, 50));
+    expect(pausedName).toBe("codex");
+    const sendCalls = calls.filter((c) => c.url.includes("sendMessage"));
+    const body = JSON.parse(sendCalls[sendCalls.length - 1]!.body!);
+    expect(body.text).toContain("Paused @codex");
+  });
+
+  test("/resume without agent calls resumeAll", async () => {
+    const calls = mockFetch();
+    let resumed = false;
+    adapter = new TelegramAdapter({
+      botToken: "test-token",
+      chatId: 123,
+      resumeAll: async () => { resumed = true; },
+    });
+    const bridge = createMockBridge();
+    await adapter.start(bridge);
+
+    (adapter as any).handleCommand({
+      message_id: 1,
+      chat: { id: 123, type: "private" },
+      date: Math.floor(Date.now() / 1000),
+      text: "/resume",
+      from: { id: 1, is_bot: false, first_name: "Jane" },
+    });
+
+    await new Promise((r) => setTimeout(r, 50));
+    expect(resumed).toBe(true);
+    const sendCalls = calls.filter((c) => c.url.includes("sendMessage"));
+    const body = JSON.parse(sendCalls[sendCalls.length - 1]!.body!);
+    expect(body.text).toContain("All agents resumed");
+  });
+
+  test("/resume <agent> calls resumeAgent with name", async () => {
+    const calls = mockFetch();
+    let resumedName = "";
+    adapter = new TelegramAdapter({
+      botToken: "test-token",
+      chatId: 123,
+      resumeAgent: async (name) => { resumedName = name; },
+    });
+    const bridge = createMockBridge();
+    await adapter.start(bridge);
+
+    (adapter as any).handleCommand({
+      message_id: 1,
+      chat: { id: 123, type: "private" },
+      date: Math.floor(Date.now() / 1000),
+      text: "/resume cursor",
+      from: { id: 1, is_bot: false, first_name: "Jane" },
+    });
+
+    await new Promise((r) => setTimeout(r, 50));
+    expect(resumedName).toBe("cursor");
+    const sendCalls = calls.filter((c) => c.url.includes("sendMessage"));
+    const body = JSON.parse(sendCalls[sendCalls.length - 1]!.body!);
+    expect(body.text).toContain("Resumed @cursor");
+  });
+
+  test("/pause replies 'not available' when callback missing", async () => {
+    const calls = mockFetch();
+    adapter = new TelegramAdapter({ botToken: "test-token", chatId: 123 });
+    const bridge = createMockBridge();
+    await adapter.start(bridge);
+
+    (adapter as any).handleCommand({
+      message_id: 1,
+      chat: { id: 123, type: "private" },
+      date: Math.floor(Date.now() / 1000),
+      text: "/pause",
+      from: { id: 1, is_bot: false, first_name: "Jane" },
+    });
+
+    await new Promise((r) => setTimeout(r, 50));
+    const sendCalls = calls.filter((c) => c.url.includes("sendMessage"));
+    const body = JSON.parse(sendCalls[sendCalls.length - 1]!.body!);
+    expect(body.text).toContain("not available");
+  });
+
+  test("/pause <agent> reports error on failure", async () => {
+    const calls = mockFetch();
+    adapter = new TelegramAdapter({
+      botToken: "test-token",
+      chatId: 123,
+      pauseAgent: async () => { throw new Error("Agent not found"); },
+    });
+    const bridge = createMockBridge();
+    await adapter.start(bridge);
+
+    (adapter as any).handleCommand({
+      message_id: 1,
+      chat: { id: 123, type: "private" },
+      date: Math.floor(Date.now() / 1000),
+      text: "/pause nonexistent",
+      from: { id: 1, is_bot: false, first_name: "Jane" },
+    });
+
+    await new Promise((r) => setTimeout(r, 50));
+    const sendCalls = calls.filter((c) => c.url.includes("sendMessage"));
+    const body = JSON.parse(sendCalls[sendCalls.length - 1]!.body!);
+    expect(body.text).toContain("Failed to pause");
+    expect(body.text).toContain("Agent not found");
+  });
 });
 
 // ── YAML connection config parsing ───────────────────────────────────────

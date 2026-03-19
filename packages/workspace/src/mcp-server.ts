@@ -582,10 +582,10 @@ function buildZodParams(
     let field: z.ZodTypeAny;
     switch (param.type) {
       case "number":
-        field = z.number();
+        field = z.coerce.number();
         break;
       case "boolean":
-        field = z.boolean();
+        field = z.coerce.boolean();
         break;
       default:
         field = z.string();
