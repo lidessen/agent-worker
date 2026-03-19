@@ -118,26 +118,24 @@ export class Daemon {
 
     const { join } = await import("node:path");
 
-    // Set daemon info before creating workspaces (CLI agents need it for MCP)
-    this.workspaces.setDaemonInfo(`http://${this.config.host}:${actualPort}`, this.config.token);
-
-    // Create global workspace and start agent loops
+    // Create global workspace (but don't start agent loops yet — MCP hub URL needed first)
     const globalWs = await this.workspaces.ensureDefault();
-    await globalWs.startLoops();
-    this.registerGlobalAgents(globalWs);
 
-    // Start workspace MCP hub, then update daemon info with hub URL
-    // so subsequent workspace creates (via API) route CLI agents to the hub.
+    // Start workspace MCP hub so CLI agents get a valid URL
     this.mcpHub = new WorkspaceMcpHub(globalWs.workspace);
     await this.mcpHub.start({
       port: this.config.mcpPort,
       storageDir: join(this.config.dataDir, "workspace-data", "global"),
     });
+
+    // Now set daemon info WITH the MCP hub URL, then start agent loops
     this.workspaces.setDaemonInfo(
       `http://${this.config.host}:${actualPort}`,
       this.config.token,
       this.mcpHub.url ?? undefined,
     );
+    await globalWs.startLoops();
+    this.registerGlobalAgents(globalWs);
 
     const info: DaemonInfo = {
       pid: process.pid,

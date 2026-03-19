@@ -368,31 +368,27 @@ export class WorkspaceRegistry {
       ? join(opts.storageDir, "agents", agent.name, "runs")
       : undefined;
 
-    // For CLI agents, set up MCP config for workspace tools
-    let mcpConfigPath: string | undefined;
+    // MCP config for CLI agents — generated lazily so _mcpHubUrl is available
     const isCliRuntime =
       agent.runtime === "claude-code" || agent.runtime === "codex" || agent.runtime === "cursor";
-    if (isCliRuntime && this._daemonUrl && this._daemonToken) {
-      const { createWorkspaceMcpConfig } = await import("@agent-worker/workspace");
-
-      // codex/cursor: point to WorkspaceMcpHub; claude-code: use stdio proxy
-      // NOTE: _mcpHubUrl currently points to the global workspace hub only.
-      // Non-global workspaces with CLI agents will need per-workspace hubs.
-      const httpUrl =
-        agent.runtime !== "claude-code" && this._mcpHubUrl
-          ? `${this._mcpHubUrl}/mcp/${agent.name}`
-          : undefined;
-
-      const mcpConfig = await createWorkspaceMcpConfig(agent.name, agent.runtime!, {
-        httpUrl,
-        daemonUrl: this._daemonUrl,
-        daemonToken: this._daemonToken,
-        workspaceKey,
-      });
-      mcpConfigPath = mcpConfig.configPath;
-    }
+    let mcpConfigPath: string | undefined;
 
     return async (prompt, instruction, runId) => {
+      // Generate MCP config on first run (deferred so hub URL is set)
+      if (isCliRuntime && !mcpConfigPath && this._daemonUrl && this._daemonToken) {
+        const { createWorkspaceMcpConfig } = await import("@agent-worker/workspace");
+        const httpUrl =
+          agent.runtime !== "claude-code" && this._mcpHubUrl
+            ? `${this._mcpHubUrl}/mcp/${agent.name}`
+            : undefined;
+        const mcpConfig = await createWorkspaceMcpConfig(agent.name, agent.runtime!, {
+          httpUrl,
+          daemonUrl: this._daemonUrl,
+          daemonToken: this._daemonToken,
+          workspaceKey,
+        });
+        mcpConfigPath = mcpConfig.configPath;
+      }
       if (!agent.runtime || agent.runtime === "mock") {
         const channel = instruction.channel || (resolved.def.default_channel ?? "general");
         await workspace.contextProvider.send({
