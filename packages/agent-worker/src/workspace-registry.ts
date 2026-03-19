@@ -239,6 +239,13 @@ export class WorkspaceRegistry {
             model: agent.model?.full,
             instruction: instruction.content.slice(0, 200),
           });
+          this.emitEvent("workspace.agent_prompt", {
+            workspace: key,
+            agent: agent.name,
+            runId,
+            prompt,
+            level: "debug",
+          });
           try {
             await runner(prompt, instruction, runId);
             this.emitEvent("workspace.agent_run_end", {
@@ -446,9 +453,23 @@ export class WorkspaceRegistry {
           }
           // Agent log: full detail per event
           log?.write(serializeLoopEvent(event));
+
+          // Timeline: log text output and tool calls for debug visibility
+          if (event.type === "text" && event.text.trim()) {
+            await workspace.eventLog.log(agent.name, "output", event.text);
+          } else if (event.type === "tool_call_start") {
+            await workspace.eventLog.log(agent.name, "tool_call", event.name, {
+              toolCall: { name: event.name, args: event.args },
+            });
+          }
         }
-        await run.result;
-        log?.write({ type: "run_end", status: "ok" });
+        const result = await run.result;
+        log?.write({
+          type: "run_end",
+          status: "ok",
+          durationMs: result.durationMs,
+          usage: result.usage,
+        });
       } catch (err) {
         log?.write({ type: "run_end", status: "error", error: String(err) });
         throw err;
