@@ -6,8 +6,16 @@ export async function status(args: string[]): Promise<void> {
     console.log("Usage: aw status");
     return;
   }
+
+  let client: AwClient;
   try {
-    const client = await AwClient.discover();
+    client = await AwClient.discover();
+  } catch {
+    console.log("Daemon:      stopped");
+    return;
+  }
+
+  try {
     const [health, agents, workspaces] = await Promise.all([
       client.health(),
       client.listAgents(),
