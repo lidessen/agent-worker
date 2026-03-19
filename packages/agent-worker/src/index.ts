@@ -2,7 +2,7 @@
 export { Daemon, startDaemon } from "./daemon.ts";
 
 // ── Client ───────────────────────────────────────────────────────────────
-export { AwClient } from "./client.ts";
+export { AwClient, ensureDaemon } from "./client.ts";
 export type {
   HealthInfo,
   CursorResult,

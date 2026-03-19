@@ -1,4 +1,4 @@
-import { AwClient } from "../../client.ts";
+import { ensureDaemon } from "../../client.ts";
 import { parseTarget } from "../target.ts";
 import { wantsHelp } from "../output.ts";
 
@@ -40,7 +40,7 @@ export async function send(args: string[]): Promise<void> {
   }
 
   try {
-    const client = await AwClient.discover();
+    const client = await ensureDaemon();
 
     if (target.workspace) {
       // Workspace send

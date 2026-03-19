@@ -1,4 +1,4 @@
-import { AwClient } from "../../client.ts";
+import { ensureDaemon } from "../../client.ts";
 import type { RuntimeConfig, RuntimeType } from "../../types.ts";
 import { wantsHelp } from "../output.ts";
 
@@ -40,7 +40,7 @@ export async function add(args: string[]): Promise<void> {
   }
 
   try {
-    const client = await AwClient.discover();
+    const client = await ensureDaemon();
     const info = await client.createAgent(name, runtime);
     console.log(`Added agent "${info.name}" (${runtime.type})`);
   } catch (err) {

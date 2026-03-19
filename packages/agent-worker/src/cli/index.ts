@@ -3,7 +3,8 @@
  * aw — agent-worker CLI entry point.
  *
  * All commands route through AwClient (HTTP) except `daemon start` which starts the daemon directly.
- * If no daemon is running, commands that need it will auto-start one in the background.
+ * Action commands (send, add, create, run, etc.) use ensureDaemon() to auto-start if needed.
+ * Read-only commands (status, ls, info, etc.) use AwClient.discover() and fail fast if the daemon isn't running.
  */
 
 const args = process.argv.slice(2);
@@ -15,6 +16,7 @@ function printUsage() {
 
 Daemon:
   daemon start [-p PORT]    Start daemon (foreground)
+  daemon start -d           Start daemon (background)
   daemon stop               Stop daemon
   status                    Daemon, agents, and workspaces overview
 
