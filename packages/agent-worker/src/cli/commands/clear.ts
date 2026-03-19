@@ -1,4 +1,4 @@
-import { AwClient } from "../../client.ts";
+import { ensureDaemon } from "../../client.ts";
 import { parseTarget } from "../target.ts";
 import { wantsHelp } from "../output.ts";
 
@@ -16,7 +16,7 @@ export async function clear(args: string[]): Promise<void> {
     process.exit(1);
   }
 
-  const client = await AwClient.discover();
+  const client = await ensureDaemon();
   const channel = target.channel ?? "general";
 
   await client.clearChannel(target.workspace, channel);

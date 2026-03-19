@@ -76,12 +76,12 @@ export class AwClient {
     this.token = opts.token;
   }
 
-  /** Connect using daemon discovery file. Auto-starts daemon if not running. */
+  /** Connect using daemon discovery file. Throws if daemon is not running. */
   static async discover(dataDir?: string): Promise<AwClient> {
     const dir = dataDir ?? defaultDataDir();
-    let info = await readDaemonInfo(dir);
+    const info = await readDaemonInfo(dir);
     if (!info) {
-      info = await autoStartDaemon(dir);
+      throw new Error("Daemon is not running (use 'aw daemon start' or any command that auto-starts it)");
     }
     return new AwClient({
       baseUrl: `http://${info.host}:${info.port}`,
@@ -397,10 +397,28 @@ export class AwClient {
 // ── Auto-start daemon ────────────────────────────────────────────────────
 
 /**
+ * Ensure the daemon is running, starting it if necessary.
+ * Returns an AwClient connected to the (possibly just-started) daemon.
+ *
+ * CLI commands that need a daemon should call this instead of AwClient.discover().
+ * Read-only / inspection commands should use AwClient.discover() directly
+ * so they fail fast when the daemon isn't running.
+ */
+export async function ensureDaemon(dataDir?: string): Promise<AwClient> {
+  const dir = dataDir ?? defaultDataDir();
+  const existing = await readDaemonInfo(dir);
+  if (existing) {
+    return AwClient.fromInfo(existing);
+  }
+  const info = await spawnDaemon(dir);
+  return AwClient.fromInfo(info);
+}
+
+/**
  * Spawn a daemon process in the background and wait for it to be ready.
  * Returns the DaemonInfo once the daemon has written its discovery file.
  */
-async function autoStartDaemon(dataDir: string): Promise<DaemonInfo> {
+async function spawnDaemon(dataDir: string): Promise<DaemonInfo> {
   const cliEntry = join(dirname(fileURLToPath(import.meta.url)), "cli", "index.ts");
 
   // Strip CLAUDECODE so nested Claude Code sessions can inherit

@@ -1,7 +1,7 @@
 /** @jsxImportSource semajsx/terminal */
 import { signal } from "semajsx";
 import { render, onCleanup, Static, TextInput } from "semajsx/terminal";
-import { AwClient } from "../../client.ts";
+import { AwClient, ensureDaemon } from "../../client.ts";
 import { parseTarget } from "../target.ts";
 import { wantsHelp } from "../output.ts";
 
@@ -320,7 +320,7 @@ export async function repl(args: string[]): Promise<void> {
 
   const from = getFlag(args, "--from");
   const json = args.includes("--json");
-  const client = await AwClient.discover();
+  const client = await ensureDaemon();
 
   const label = target.agent ?? `@${target.workspace}`;
   try {

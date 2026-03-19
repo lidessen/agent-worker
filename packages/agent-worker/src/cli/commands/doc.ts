@@ -1,4 +1,4 @@
-import { AwClient } from "../../client.ts";
+import { ensureDaemon } from "../../client.ts";
 import { wantsHelp } from "../output.ts";
 
 export async function doc(args: string[]): Promise<void> {
@@ -16,7 +16,7 @@ export async function doc(args: string[]): Promise<void> {
   const workspace = extractWorkspace(args) ?? "global";
 
   try {
-    const client = await AwClient.discover();
+    const client = await ensureDaemon();
 
     switch (sub) {
       case "ls": {

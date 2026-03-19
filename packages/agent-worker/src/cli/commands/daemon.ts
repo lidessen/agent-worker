@@ -1,5 +1,5 @@
 import { startDaemon } from "../../daemon.ts";
-import { AwClient } from "../../client.ts";
+import { AwClient, ensureDaemon } from "../../client.ts";
 import { readDaemonInfo, removeDaemonInfo } from "../../discovery.ts";
 
 export async function daemon(args: string[]): Promise<void> {
@@ -18,6 +18,7 @@ export async function daemon(args: string[]): Promise<void> {
 
 Commands:
   start [-p PORT]    Start daemon (foreground)
+  start -d           Start daemon (background)
   stop               Stop daemon
 `);
       if (sub && sub !== "--help" && sub !== "-h") {
@@ -28,6 +29,15 @@ Commands:
 }
 
 async function daemonStart(args: string[]): Promise<void> {
+  // Background mode: spawn detached and exit
+  if (args.includes("-d") || args.includes("--daemon")) {
+    await stopExistingDaemon();
+    const client = await ensureDaemon();
+    const health = await client.health();
+    console.log(`Daemon running in background (PID ${health.pid})`);
+    return;
+  }
+
   const portIdx = args.indexOf("-p");
   const port = portIdx >= 0 ? parseInt(args[portIdx + 1]!, 10) : 0;
 
