@@ -98,6 +98,7 @@ export class TelegramAdapter implements ChannelAdapter {
   private offset = 0;
   private running = false;
   private pollController: AbortController | null = null;
+  private typingInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor(config: TelegramAdapterConfig) {
     this.token = config.botToken;
@@ -115,6 +116,9 @@ export class TelegramAdapter implements ChannelAdapter {
   async start(bridge: ChannelBridgeInterface): Promise<void> {
     this.bridge = bridge;
     this.running = true;
+
+    // Register/update bot commands on every start (ensures new commands are available)
+    this.api("setMyCommands", { commands: BOT_COMMANDS }).catch(() => {});
 
     // Subscribe to outbound channel messages → send to Telegram
     this.bridgeSubscriber = (msg: Message) => {
@@ -134,6 +138,10 @@ export class TelegramAdapter implements ChannelAdapter {
 
   async shutdown(): Promise<void> {
     this.running = false;
+    if (this.typingInterval) {
+      clearInterval(this.typingInterval);
+      this.typingInterval = null;
+    }
     this.pollController?.abort();
     if (this.bridge && this.bridgeSubscriber) {
       this.bridge.unsubscribe(this.bridgeSubscriber);
@@ -192,6 +200,39 @@ export class TelegramAdapter implements ChannelAdapter {
     });
   }
 
+  /** Start sending typing indicator every 4s. Stops automatically when all agents idle. */
+  private startTyping(): void {
+    if (this.typingInterval || !this.chatId) return;
+    // Send immediately, then repeat
+    this.api("sendChatAction", { chat_id: this.chatId, action: "typing" }).catch(() => {});
+    this.typingInterval = setInterval(() => {
+      this.tickTyping().catch(() => {});
+    }, 4000);
+  }
+
+  private stopTyping(): void {
+    if (this.typingInterval) {
+      clearInterval(this.typingInterval);
+      this.typingInterval = null;
+    }
+  }
+
+  /** Check if any agent is still active; if not, stop the typing loop. */
+  private async tickTyping(): Promise<void> {
+    if (!this.chatId) return;
+    if (!this.getAgents) {
+      this.stopTyping();
+      return;
+    }
+    const agents = await this.getAgents();
+    const anyActive = agents.some((a) => a.status === "running");
+    if (!anyActive || !this.typingInterval) {
+      this.stopTyping();
+      return;
+    }
+    await this.api("sendChatAction", { chat_id: this.chatId, action: "typing" });
+  }
+
   // ── Polling loop ───────────────────────────────────────────────────────
 
   private async poll(): Promise<void> {
@@ -240,6 +281,8 @@ export class TelegramAdapter implements ChannelAdapter {
     const { channel, content } = parseChannelPrefix(msg.text, this.channel);
 
     const from = telegramUserLabel(msg.from);
+    // Agent will start working on this message — show typing
+    this.startTyping();
     this.bridge.send(channel, `telegram:${from}`, content).catch((err) => {
       console.error("[telegram] failed to inject message:", err);
     });
@@ -279,6 +322,7 @@ export class TelegramAdapter implements ChannelAdapter {
         // Unknown command — forward to workspace as regular message
         const from = telegramUserLabel(msg.from);
         const { channel, content } = parseChannelPrefix(msg.text!, this.channel);
+        this.startTyping();
         this.bridge.send(channel, `telegram:${from}`, content).catch((err) => {
           console.error("[telegram] failed to inject message:", err);
         });
