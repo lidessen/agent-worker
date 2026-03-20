@@ -3,7 +3,7 @@
  *
  * A single HTTP server per workspace with two endpoint types:
  * - /mcp/:agentName — collaboration tools scoped to the agent's identity
- * - /mcp/_debug     — read-only debug/admin tools (not for regular agents)
+ * - /mcp/$supervisor — supervisor tools (debug + all-channel inbox)
  *
  * Each client connection gets its own McpServer+transport pair, keyed by
  * session ID. This allows multiple clients to connect to the same endpoint.
@@ -53,7 +53,7 @@ export interface WorkspaceMcpHubOptions {
  * MCP server that exposes a workspace's collaboration tools and debug tools.
  *
  * - Agents connect to `http://host:port/mcp/:agentName` — collaboration tools
- * - Debug clients connect to `http://host:port/mcp/_debug` — read-only inspection
+ * - Debug clients connect to `http://host:port/mcp/$supervisor` — read-only inspection
  *
  * If the agent is not yet registered in the workspace, it is auto-registered
  * on first connection with default channel membership.
@@ -86,7 +86,7 @@ export class WorkspaceMcpHub {
 
   /** Build the MCP URL for the debug endpoint. */
   get debugUrl(): string | null {
-    return this._port ? `http://127.0.0.1:${this._port}/mcp/_debug` : null;
+    return this._port ? `http://127.0.0.1:${this._port}/mcp/$supervisor` : null;
   }
 
   async start(opts?: WorkspaceMcpHubOptions): Promise<void> {
@@ -109,7 +109,7 @@ export class WorkspaceMcpHub {
           res.end(JSON.stringify({ status: "ok", workspace: this.workspace.name }));
           return;
         }
-        res.writeHead(404).end("Not found. Use /mcp/:agentName or /mcp/_debug");
+        res.writeHead(404).end("Not found. Use /mcp/:agentName or /mcp/$supervisor");
         return;
       }
 
@@ -139,12 +139,12 @@ export class WorkspaceMcpHub {
     this._port = addr.port;
   }
 
-  /** List all connected agent names (excludes _debug). */
+  /** List all connected agent names (excludes $supervisor). */
   connectedAgents(): string[] {
     const names = new Set<string>();
     for (const [, session] of this.sessions) {
       const n = (session as any)._endpointName as string | undefined;
-      if (n && n !== "_debug") names.add(n);
+      if (n && n !== "$supervisor") names.add(n);
     }
     return Array.from(names);
   }
@@ -207,7 +207,7 @@ export class WorkspaceMcpHub {
 
   private async createSession(endpointName: string): Promise<McpSession> {
     const server =
-      endpointName === "_debug"
+      endpointName === "$supervisor"
         ? await this.createDebugServer()
         : await this.createAgentServer(endpointName);
 
@@ -281,8 +281,13 @@ export class WorkspaceMcpHub {
   // ── Debug server factory ─────────────────────────────────────────────
 
   private async createDebugServer(): Promise<McpServer> {
-    // Debug is a superset: all agent tools + debug-only tools
-    const server = await this.createAgentServer("_debug");
+    // Debug agent joins ALL channels so it receives every message
+    if (!this.workspace.hasAgent("$supervisor")) {
+      const allChannels = this.workspace.contextProvider.channels.listChannels();
+      await this.workspace.registerAgent("$supervisor", allChannels);
+    }
+
+    const server = await this.createAgentServer("$supervisor");
     this.registerDebugTools(server);
     return server;
   }
@@ -522,7 +527,11 @@ export class WorkspaceMcpHub {
       { agent: z.string().describe("Agent name to pause") },
       async ({ agent }) => {
         if (!this._pauseCallbacks.pauseAgent) {
-          return { content: [{ type: "text", text: "Pause not available — no orchestrator callbacks configured." }] };
+          return {
+            content: [
+              { type: "text", text: "Pause not available — no orchestrator callbacks configured." },
+            ],
+          };
         }
         await this._pauseCallbacks.pauseAgent(agent);
         return { content: [{ type: "text", text: `Paused agent "${agent}".` }] };
@@ -536,7 +545,14 @@ export class WorkspaceMcpHub {
       { agent: z.string().describe("Agent name to resume") },
       async ({ agent }) => {
         if (!this._pauseCallbacks.resumeAgent) {
-          return { content: [{ type: "text", text: "Resume not available — no orchestrator callbacks configured." }] };
+          return {
+            content: [
+              {
+                type: "text",
+                text: "Resume not available — no orchestrator callbacks configured.",
+              },
+            ],
+          };
         }
         await this._pauseCallbacks.resumeAgent(agent);
         return { content: [{ type: "text", text: `Resumed agent "${agent}".` }] };
@@ -544,30 +560,30 @@ export class WorkspaceMcpHub {
     );
 
     // ── pause_all: pause all agent loops ────────────────────────────────
-    server.tool(
-      "pause_all",
-      "Pause all agent orchestrator loops in the workspace.",
-      async () => {
-        if (!this._pauseCallbacks.pauseAll) {
-          return { content: [{ type: "text", text: "Pause not available — no orchestrator callbacks configured." }] };
-        }
-        await this._pauseCallbacks.pauseAll();
-        return { content: [{ type: "text", text: "All agents paused." }] };
-      },
-    );
+    server.tool("pause_all", "Pause all agent orchestrator loops in the workspace.", async () => {
+      if (!this._pauseCallbacks.pauseAll) {
+        return {
+          content: [
+            { type: "text", text: "Pause not available — no orchestrator callbacks configured." },
+          ],
+        };
+      }
+      await this._pauseCallbacks.pauseAll();
+      return { content: [{ type: "text", text: "All agents paused." }] };
+    });
 
     // ── resume_all: resume all agent loops ──────────────────────────────
-    server.tool(
-      "resume_all",
-      "Resume all agent orchestrator loops in the workspace.",
-      async () => {
-        if (!this._pauseCallbacks.resumeAll) {
-          return { content: [{ type: "text", text: "Resume not available — no orchestrator callbacks configured." }] };
-        }
-        await this._pauseCallbacks.resumeAll();
-        return { content: [{ type: "text", text: "All agents resumed." }] };
-      },
-    );
+    server.tool("resume_all", "Resume all agent orchestrator loops in the workspace.", async () => {
+      if (!this._pauseCallbacks.resumeAll) {
+        return {
+          content: [
+            { type: "text", text: "Resume not available — no orchestrator callbacks configured." },
+          ],
+        };
+      }
+      await this._pauseCallbacks.resumeAll();
+      return { content: [{ type: "text", text: "All agents resumed." }] };
+    });
   }
 }
 

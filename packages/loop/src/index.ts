@@ -47,6 +47,9 @@ export {
   type ProviderMeta,
 } from "./providers/registry.ts";
 
+// ── ZenMux provider ──────────────────────────────────────────────────────
+export { zenmux } from "./providers/zenmux.ts";
+
 // ── Tool relevance ─────────────────────────────────────────────────────────
 export { ToolRelevanceEngine } from "./tool-relevance.ts";
 export type { ToolRelevanceConfig, StepContext, ToolTier } from "./tool-relevance.ts";

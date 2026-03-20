@@ -240,7 +240,7 @@ describe("WorkspaceMcpHub + WorkspaceClient", () => {
   });
 
   test("debugUrl returns correct URL", () => {
-    expect(server.debugUrl).toBe(`http://127.0.0.1:${server.port}/mcp/_debug`);
+    expect(server.debugUrl).toBe(`http://127.0.0.1:${server.port}/mcp/$supervisor`);
   });
 });
 
@@ -260,7 +260,7 @@ describe("WorkspaceMcpHub debug tools", () => {
     });
     server = new WorkspaceMcpHub(workspace);
     await server.start();
-    debug = new WorkspaceClient({ agentName: "_debug", workspaceUrl: server.url! });
+    debug = new WorkspaceClient({ agentName: "$supervisor", workspaceUrl: server.url! });
     await debug.connect();
   });
 
