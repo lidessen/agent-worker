@@ -54,6 +54,11 @@ const PROVIDERS: Record<string, ProviderInfo> = {
     label: "Vercel AI Gateway",
     hint: "vercel.com/ai-gateway",
   },
+  zenmux: {
+    envVar: "ZENMUX_API_KEY",
+    label: "ZenMux",
+    hint: "zenmux.ai",
+  },
 };
 
 function maskKey(key: string): string {
@@ -82,6 +87,7 @@ Commands:
   kimi-code    Save Kimi Code API key
   minimax      Save MiniMax API key
   ai-gateway   Save Vercel AI Gateway API key
+  zenmux       Save ZenMux API key
   status       Show which providers are authenticated
   rm <name>    Remove a saved API key
 

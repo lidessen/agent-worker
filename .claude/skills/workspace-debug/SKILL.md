@@ -15,7 +15,7 @@ The daemon must be running for the MCP tools to work:
 aw daemon start
 ```
 
-The MCP endpoint is at `http://127.0.0.1:42424/mcp/_debug` and is configured in `.mcp.json`.
+The MCP endpoint is at `http://127.0.0.1:42424/mcp/$supervisor` and is configured in `.mcp.json`.
 
 If tools return connection errors, the daemon likely isn't running. Start it first.
 
@@ -37,7 +37,7 @@ These tools provide read-only visibility into the workspace state:
 
 ### Agent Collaboration Tools
 
-These are the same tools every agent has — you're acting as the `_debug` agent identity:
+These are the same tools every agent has — you're acting as the `$supervisor` agent identity:
 
 **Channels** — the shared communication layer:
 
@@ -129,7 +129,7 @@ channel_send(channel: "general", content: "See team doc 'review-plan' for the pl
 
 ## Tips
 
-- The debug endpoint acts as the `_debug` agent — messages you send show as `@_debug`
+- The supervisor endpoint acts as the `$supervisor` agent — messages you send show as `@$supervisor`
 - Use `events` with filters to narrow down: `events(agent: "alice", kind: "system", limit: 5)`
 - Event kinds: `message`, `tool_call`, `system`, `output`, `debug`
 - Agent statuses: `idle`, `running`, `paused`, `stopped`

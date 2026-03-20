@@ -2,7 +2,7 @@
   "mcpServers": {
     "workspace-debug": {
       "type": "http",
-      "url": "http://127.0.0.1:42424/mcp/_debug"
+      "url": "http://127.0.0.1:42424/mcp/$supervisor"
     }
   }
 }

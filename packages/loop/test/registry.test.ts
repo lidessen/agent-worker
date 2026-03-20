@@ -7,7 +7,6 @@ import {
   getProviderPriority,
   resolveProvider,
   registerProvider,
-  type ProviderMeta,
 } from "../src/providers/registry.ts";
 
 // ── extractProvider ───────────────────────────────────────────────────────
@@ -88,7 +87,7 @@ describe("registry: hasProviderKey", () => {
     expect(hasProviderKey("nonexistent")).toBe(false);
   });
 
-  test("returns false for zenmux (reserved, no key set)", () => {
+  test("returns false for zenmux when no key set", () => {
     expect(hasProviderKey("zenmux")).toBe(false);
   });
 });
@@ -110,8 +109,8 @@ describe("registry: getDefaultModel", () => {
     expect(getDefaultModel("nonexistent")).toBeUndefined();
   });
 
-  test("returns default model for reserved zenmux", () => {
-    expect(getDefaultModel("zenmux")).toBe("zenmux:default");
+  test("returns default model for zenmux", () => {
+    expect(getDefaultModel("zenmux")).toBe("zenmux:openai/gpt-5.4");
   });
 });
 
@@ -124,7 +123,7 @@ describe("registry: getProviderPriority", () => {
     expect(priority[priority.length - 1]).toBe("ai-gateway");
   });
 
-  test("excludes zenmux (priority 0)", () => {
+  test("excludes zenmux (priority 0, utility gateway)", () => {
     const priority = getProviderPriority();
     expect(priority).not.toContain("zenmux");
   });
@@ -151,10 +150,8 @@ describe("registry: resolveProvider", () => {
     );
   });
 
-  test("throws for zenmux (no adapter)", async () => {
-    expect(resolveProvider("zenmux", "some-model")).rejects.toThrow(
-      'Provider "zenmux" is registered but has no adapter implementation.',
-    );
+  test("resolves zenmux provider", async () => {
+    await expect(resolveProvider("zenmux", "openai/gpt-5.4")).resolves.toBeDefined();
   });
 
   test("google: uses GOOGLE_API_KEY fallback when GENERATIVE key missing", async () => {
@@ -193,10 +190,10 @@ describe("registry: getProviderMeta", () => {
     expect(getProviderMeta("nonexistent")).toBeUndefined();
   });
 
-  test("zenmux has no adapter", () => {
+  test("zenmux has adapter but priority 0 (utility gateway)", () => {
     const meta = getProviderMeta("zenmux");
     expect(meta).toBeDefined();
-    expect(meta!.adapter).toBeUndefined();
+    expect(meta!.adapter).toBeDefined();
     expect(meta!.priority).toBe(0);
   });
 });
@@ -205,7 +202,7 @@ describe("registry: getProviderMeta", () => {
 
 describe("registry: registerProvider", () => {
   test("can register a custom provider", () => {
-    const customAdapter = async () => ({} as any);
+    const customAdapter = async () => ({}) as any;
     registerProvider("custom-test", {
       envKeys: ["CUSTOM_TEST_KEY"],
       defaultModel: "custom-test:default",

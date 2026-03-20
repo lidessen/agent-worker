@@ -8,7 +8,7 @@
  *
  * Design constraints:
  * - Only handles provider metadata + adapter resolution (no use-case presets)
- * - zenmux is reserved metadata only — not selectable in fallback/auto-detect
+ * - zenmux is an OpenAI-compatible AI gateway (lower priority than direct providers)
  * - Listing/fallback UI helpers stay in models.ts (not this module's concern)
  */
 
@@ -107,6 +107,11 @@ const aiGatewayAdapter: ProviderAdapter = async (modelId) => {
   return gateway(modelId);
 };
 
+const zenmuxProviderAdapter: ProviderAdapter = async (modelId, env) => {
+  const { zenmuxAdapter } = await import("./zenmux.ts");
+  return zenmuxAdapter(modelId, env);
+};
+
 // ── Registry ──────────────────────────────────────────────────────────────
 
 const registry = new Map<string, ProviderMeta>();
@@ -165,19 +170,18 @@ register("ai-gateway", {
   adapter: aiGatewayAdapter,
 });
 
-// Reserved: zenmux — metadata only, no adapter, excluded from auto-detect
 register("zenmux", {
   envKeys: ["ZENMUX_API_KEY"],
-  defaultModel: "zenmux:default",
-  priority: 0, // never auto-selected
-  // adapter intentionally omitted
+  defaultModel: "zenmux:openai/gpt-5.4",
+  priority: 0, // utility gateway — not auto-selected for agent runtimes
+  adapter: zenmuxProviderAdapter,
 });
 
 // ── Public API ────────────────────────────────────────────────────────────
 
 /**
  * Resolve a provider adapter and create a LanguageModel instance.
- * Throws if provider is unknown or has no adapter (e.g. zenmux).
+ * Throws if provider is unknown or has no adapter.
  */
 export async function resolveProvider(
   provider: string,
@@ -189,9 +193,7 @@ export async function resolveProvider(
     throw new Error(`Unknown provider: ${provider}`);
   }
   if (!meta.adapter) {
-    throw new Error(
-      `Provider "${provider}" is registered but has no adapter implementation.`,
-    );
+    throw new Error(`Provider "${provider}" is registered but has no adapter implementation.`);
   }
   return meta.adapter(modelId, env);
 }
@@ -232,7 +234,7 @@ export function getProviderMeta(provider: string): ProviderMeta | undefined {
 
 /**
  * Get all registered provider names, ordered by priority (highest first).
- * Excludes providers with priority 0 (reserved, like zenmux).
+ * Excludes providers with priority 0 (utility gateways like zenmux).
  */
 export function getProviderPriority(): string[] {
   return Array.from(registry.entries())
