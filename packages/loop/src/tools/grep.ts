@@ -4,6 +4,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { execa } from "execa";
+import { resolve, normalize } from "node:path";
 
 export function createGrepTool(opts: { cwd?: string } = {}) {
   return tool({
@@ -36,7 +37,17 @@ export function createGrepTool(opts: { cwd?: string } = {}) {
       rgArgs.push("--max-count", String(maxResults));
 
       rgArgs.push("--", args.pattern);
-      if (args.path) rgArgs.push(args.path);
+
+      // Path traversal protection: jail search path to cwd
+      const cwd = opts.cwd ?? process.cwd();
+      if (args.path) {
+        const resolved = resolve(cwd, args.path);
+        const normalized = normalize(resolved);
+        if (!normalized.startsWith(normalize(cwd))) {
+          return `Error: path "${args.path}" is outside the allowed directory.`;
+        }
+        rgArgs.push(normalized);
+      }
 
       try {
         const result = await execa("rg", rgArgs, {
