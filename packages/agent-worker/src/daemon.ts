@@ -603,8 +603,8 @@ export class Daemon {
             push(entry);
           }
           cursor = result.cursor;
-        } catch {
-          /* agent may be removed */
+        } catch (err) {
+          console.warn(`[daemon] response poll error for agent "${name}":`, err);
         }
       }, 500);
       return () => clearInterval(interval);
@@ -648,8 +648,8 @@ export class Daemon {
               if ((entry as any).agent === name) push(entry);
             }
             cursor = result.cursor;
-          } catch {
-            /* log may be rotated */
+          } catch (err) {
+            console.warn(`[daemon] event poll error for agent "${name}":`, err);
           }
         }, 500);
         return () => clearInterval(interval);
@@ -666,8 +666,8 @@ export class Daemon {
             push(entry);
           }
           cursor = result.cursor;
-        } catch {
-          /* agent may be removed */
+        } catch (err) {
+          console.warn(`[daemon] event poll error for agent "${name}":`, err);
         }
       }, 500);
       return () => clearInterval(interval);
@@ -810,8 +810,8 @@ export class Daemon {
         if (handle.mode === "task") {
           try {
             await this.workspaces.remove(key);
-          } catch {
-            /* already removed */
+          } catch (err) {
+            console.warn(`[daemon] failed to auto-remove task workspace "${key}":`, err);
           }
         }
         return Response.json({ status, result });
@@ -1119,7 +1119,7 @@ export class Daemon {
           try {
             controller.enqueue(`data: ${JSON.stringify(data)}\n\n`);
           } catch {
-            /* stream may be closed */
+            // Expected when client disconnects — not an error
           }
         };
         cleanup = setup(push);

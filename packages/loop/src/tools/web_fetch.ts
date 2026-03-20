@@ -37,6 +37,10 @@ export function createWebFetchTool() {
       const preferLlmsTxt = args.prefer_llms_txt !== false;
       const variant = args.llms_txt_variant ?? "full";
 
+      // SSRF protection: block private/internal URLs
+      const urlError = validatePublicUrl(args.url);
+      if (urlError) return urlError;
+
       try {
         // Step 1: Try llms.txt if preferred
         if (preferLlmsTxt) {
@@ -161,4 +165,56 @@ async function htmlToMarkdown(html: string, url: string): Promise<string> {
 function truncate(text: string, maxLength: number): string {
   if (text.length <= maxLength) return text;
   return text.slice(0, maxLength) + `\n\n... [truncated at ${maxLength} chars]`;
+}
+
+/**
+ * Validate that a URL points to a public internet address (SSRF protection).
+ * Returns an error string if blocked, null if OK.
+ */
+function validatePublicUrl(urlStr: string): string | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(urlStr);
+  } catch {
+    return `Error: Invalid URL: ${urlStr}`;
+  }
+
+  // Only allow http/https
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    return `Error: Only http/https URLs are allowed, got ${parsed.protocol}`;
+  }
+
+  const hostname = parsed.hostname.toLowerCase();
+
+  // Block localhost
+  if (
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname === "[::1]" ||
+    hostname === "::1" ||
+    hostname === "0.0.0.0"
+  ) {
+    return "Error: Fetching localhost/loopback addresses is not allowed.";
+  }
+
+  // Block cloud metadata endpoints
+  if (hostname === "169.254.169.254" || hostname === "metadata.google.internal") {
+    return "Error: Fetching cloud metadata endpoints is not allowed.";
+  }
+
+  // Block private IP ranges (10.x, 172.16-31.x, 192.168.x)
+  const ipv4Match = hostname.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
+  if (ipv4Match) {
+    const [, a, b] = ipv4Match.map(Number);
+    if (
+      a === 10 ||
+      (a === 172 && b! >= 16 && b! <= 31) ||
+      (a === 192 && b === 168) ||
+      a === 0
+    ) {
+      return "Error: Fetching private network addresses is not allowed.";
+    }
+  }
+
+  return null;
 }
