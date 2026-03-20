@@ -2,7 +2,8 @@
   "name": "@agent-worker/monorepo",
   "private": true,
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "vendor/semajsx/packages/*"
   ],
   "scripts": {
     "aw": "bun packages/agent-worker/src/cli/index.ts",
@@ -20,7 +21,7 @@
     "execa": "^9.6.1",
     "hono": "^4.12.7"
   },
-  "devDependencies": {
+"devDependencies": {
     "@types/bun": "latest",
     "@typescript/native-preview": "^7.0.0-dev.20260310.1",
     "oxfmt": "^0.37.0",
