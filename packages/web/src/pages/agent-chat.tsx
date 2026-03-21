@@ -1,6 +1,7 @@
 /** @jsxImportSource semajsx/dom */
 
 import { computed } from "semajsx/signal";
+import { onCleanup } from "semajsx/dom";
 import { route, navigate } from "../router.ts";
 import { client } from "../stores/connection.ts";
 import {
@@ -14,6 +15,8 @@ import {
   loadHistory,
   startStream,
   stopStream,
+  sendError,
+  streamError,
 } from "../stores/conversation.ts";
 import { inject } from "semajsx/style";
 import { tokens } from "../theme/tokens.ts";
@@ -33,6 +36,43 @@ const stateColors: Record<string, string> = {
   completed: tokens.colors.agentCompleted,
   stopped: tokens.colors.agentIdle,
 };
+
+function SendErrorBar() {
+  const visible = computed(sendError, (e) => e !== null);
+  const text = computed(sendError, (e) => e ?? "");
+
+  const el = computed(visible, (show) => {
+    if (!show) return null;
+    // Auto-dismiss after 5 seconds
+    const timer = setTimeout(() => {
+      sendError.value = null;
+    }, 5000);
+    // Clean up if dismissed manually before timeout
+    void timer;
+    return (
+      <div class={styles.sendErrorBar}>
+        <span>{text}</span>
+        <button
+          class={styles.sendErrorDismiss}
+          onclick={() => {
+            sendError.value = null;
+          }}
+        >
+          ×
+        </button>
+      </div>
+    );
+  });
+
+  return el;
+}
+
+function StreamErrorBanner() {
+  return computed(streamError, (err) => {
+    if (!err) return null;
+    return <div class={styles.streamErrorBar}>{err}</div>;
+  });
+}
 
 export function AgentChatPage() {
   const name = computed(route, (r) =>
@@ -99,28 +139,17 @@ export function AgentChatPage() {
     }
   });
 
-  function cleanup() {
+  onCleanup(() => {
     stopStream();
     stopPolling();
     unsubRoute?.();
     unsubRoute = null;
     unsubClient();
     currentAgent = "";
-  }
-
-  // Cleanup when component is removed from DOM
-  function setupCleanup(el: HTMLElement) {
-    const observer = new MutationObserver(() => {
-      if (!el.isConnected) {
-        cleanup();
-        observer.disconnect();
-      }
-    });
-    observer.observe(document.body, { subtree: true, childList: true });
-  }
+  });
 
   return (
-    <div class={styles.page} data-page="agent-chat" ref={(el: HTMLDivElement) => setupCleanup(el)}>
+    <div class={styles.page} data-page="agent-chat">
       <div class={styles.header}>
         <button class={styles.backBtn} onclick={() => navigate("/")}>
           Back
@@ -144,7 +173,9 @@ export function AgentChatPage() {
 
       <div class={styles.body}>
         <div class={styles.mainCol}>
-          <EventList events={events} />
+          <StreamErrorBanner />
+          <EventList events={events} agentName={name} />
+          <SendErrorBar />
           <ChatInput agentName={name} />
         </div>
         <div

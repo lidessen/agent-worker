@@ -25,7 +25,8 @@ export const page = rule`${c.page} {
   display: flex;
   flex-direction: column;
   gap: ${tokens.space.xxl};
-  max-width: 560px;
+  max-width: 640px;
+  margin: 0 auto;
 }`;
 
 export const section = rule`${c.section} {

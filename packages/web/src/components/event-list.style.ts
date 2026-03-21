@@ -1,7 +1,7 @@
 import { classes, rule } from "semajsx/style";
 import { tokens } from "../theme/tokens.ts";
 
-const c = classes(["container", "empty"] as const);
+const c = classes(["container", "empty", "emptyContent", "emptyIcon", "emptyText"] as const);
 
 export const container = rule`${c.container} {
   flex: 1;
@@ -24,4 +24,24 @@ export const empty = rule`${c.empty} {
   justify-content: center;
   color: ${tokens.colors.textDim};
   font-size: ${tokens.fontSizes.sm};
+}`;
+
+export const emptyContent = rule`${c.emptyContent} {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: ${tokens.space.md};
+  text-align: center;
+  max-width: 280px;
+}`;
+
+export const emptyIcon = rule`${c.emptyIcon} {
+  font-size: 2rem;
+  line-height: 1;
+}`;
+
+export const emptyText = rule`${c.emptyText} {
+  color: ${tokens.colors.textMuted};
+  font-size: ${tokens.fontSizes.sm};
+  line-height: 1.5;
 }`;

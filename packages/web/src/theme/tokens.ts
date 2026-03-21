@@ -28,7 +28,8 @@ const tokenDefinition = {
     danger: "#ff453a",
 
     agentIdle: "#737373",
-    agentRunning: "#0a84ff",
+    agentRunning: "#30d158",
+    agentProcessing: "#0a84ff",
     agentError: "#ff453a",
     agentCompleted: "#30d158",
   },

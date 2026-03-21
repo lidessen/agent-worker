@@ -9,6 +9,7 @@ const c = classes([
   "count",
   "grid",
   "empty",
+  "loading",
   "newBtn",
 ] as const);
 
@@ -61,6 +62,14 @@ export const empty = rule`${c.empty} {
   font-size: ${tokens.fontSizes.sm};
   color: ${tokens.colors.textMuted};
   padding: ${tokens.space.xl} 0;
+}`;
+
+export const loading = rule`${c.loading} {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
 }`;
 
 export const newBtn = rule`${c.newBtn} {

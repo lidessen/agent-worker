@@ -4,10 +4,13 @@ import { tokens } from "../theme/tokens.ts";
 const c = classes([
   "card",
   "name",
+  "statusRow",
   "meta",
   "badge",
   "badgeDot",
   "metaItem",
+  "timeText",
+  "runtimeBadge",
 ] as const);
 
 export const card = rule`${c.card} {
@@ -32,9 +35,17 @@ ${c.card}:hover {
 }`;
 
 export const name = rule`${c.name} {
-  font-size: ${tokens.fontSizes.md};
-  font-weight: ${tokens.fontWeights.semibold};
+  font-size: ${tokens.fontSizes.lg};
+  font-weight: ${tokens.fontWeights.bold};
   color: ${tokens.colors.text};
+  line-height: 1.2;
+}`;
+
+export const statusRow = rule`${c.statusRow} {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: ${tokens.space.sm};
 }`;
 
 export const badge = rule`${c.badge} {
@@ -52,13 +63,27 @@ export const badgeDot = rule`${c.badgeDot} {
   flex-shrink: 0;
 }`;
 
+export const timeText = rule`${c.timeText} {
+  font-size: ${tokens.fontSizes.xs};
+  color: ${tokens.colors.textDim};
+}`;
+
 export const meta = rule`${c.meta} {
   display: flex;
-  gap: ${tokens.space.md};
+  gap: ${tokens.space.sm};
   flex-wrap: wrap;
+  align-items: center;
 }`;
 
 export const metaItem = rule`${c.metaItem} {
   font-size: ${tokens.fontSizes.xs};
   color: ${tokens.colors.textDim};
+}`;
+
+export const runtimeBadge = rule`${c.runtimeBadge} {
+  font-size: ${tokens.fontSizes.xs};
+  color: ${tokens.colors.textMuted};
+  background: rgba(255, 255, 255, 0.06);
+  padding: 2px ${tokens.space.sm};
+  border-radius: ${tokens.radii.sm};
 }`;

@@ -1,6 +1,7 @@
 /** @jsxImportSource semajsx/dom */
 
 import { computed } from "semajsx/signal";
+import { onCleanup } from "semajsx/dom";
 import { route, navigate } from "../router.ts";
 import {
   channelMessages,
@@ -55,30 +56,20 @@ export function ChannelPage() {
     initChannel(wsKey.value, ch.value);
   });
 
-  function cleanup() {
+  onCleanup(() => {
     stopChannelStream();
     unsubRoute?.();
     unsubRoute = null;
     currentWs = "";
     currentCh = "";
-  }
-
-  function setupCleanup(el: HTMLElement) {
-    const observer = new MutationObserver(() => {
-      if (!el.isConnected) {
-        cleanup();
-        observer.disconnect();
-      }
-    });
-    observer.observe(document.body, { subtree: true, childList: true });
-  }
+  });
 
   function handleSend(text: string) {
     sendChannelMessage(wsKey.value, ch.value, text);
   }
 
   return (
-    <div class={styles.page} ref={(el: HTMLDivElement) => setupCleanup(el)}>
+    <div class={styles.page}>
       <div class={styles.header}>
         <button
           class={styles.backBtn}

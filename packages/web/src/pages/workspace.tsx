@@ -1,6 +1,7 @@
 /** @jsxImportSource semajsx/dom */
 
 import { signal, computed } from "semajsx/signal";
+import { onCleanup } from "semajsx/dom";
 import { route, navigate } from "../router.ts";
 import { client } from "../stores/connection.ts";
 import { tokens } from "../theme/tokens.ts";
@@ -66,22 +67,12 @@ export function WorkspacePage() {
     }
   });
 
-  function cleanup() {
+  onCleanup(() => {
     unsubRoute?.();
     unsubRoute = null;
     unsubClient();
     currentKey = "";
-  }
-
-  function setupCleanup(el: HTMLElement) {
-    const observer = new MutationObserver(() => {
-      if (!el.isConnected) {
-        cleanup();
-        observer.disconnect();
-      }
-    });
-    observer.observe(document.body, { subtree: true, childList: true });
-  }
+  });
 
   const dotColor = computed(workspace, (ws) =>
     statusColors[ws?.status ?? ""] ?? tokens.colors.agentIdle,
@@ -177,7 +168,7 @@ export function WorkspacePage() {
   const docCount = computed(docs, (d) => d.length);
 
   return (
-    <div class={styles.page} data-page="workspace" ref={(el: HTMLDivElement) => setupCleanup(el)}>
+    <div class={styles.page} data-page="workspace">
       <div class={styles.header}>
         <button class={styles.backBtn} onclick={() => navigate("/")}>
           Back

@@ -2,6 +2,7 @@
 
 import { computed } from "semajsx/signal";
 import type { ReadableSignal } from "semajsx/signal";
+import { onCleanup } from "semajsx/dom";
 import type { DaemonEvent } from "../api/types.ts";
 import { TextBlock } from "./blocks/text-block.tsx";
 import { ToolCallBlock } from "./blocks/tool-call-block.tsx";
@@ -84,7 +85,7 @@ function renderEvent(event: DaemonEvent) {
   return null;
 }
 
-export function EventList(props: { events: ReadableSignal<DaemonEvent[]> }) {
+export function EventList(props: { events: ReadableSignal<DaemonEvent[]>; agentName?: ReadableSignal<string> }) {
   let scrollRef: HTMLDivElement | null = null;
   let userScrolledUp = false;
 
@@ -101,25 +102,25 @@ export function EventList(props: { events: ReadableSignal<DaemonEvent[]> }) {
   }
 
   // Subscribe to events signal for auto-scroll
-  let unsub: (() => void) | null = null;
-
-  function setupSubscription() {
-    unsub = props.events.subscribe(() => {
-      // Defer scroll to after DOM update
-      queueMicrotask(scrollToBottom);
-    });
-  }
-
-  function teardown() {
-    unsub?.();
-    unsub = null;
-  }
-
-  setupSubscription();
+  const unsub = props.events.subscribe(() => {
+    // Defer scroll to after DOM update
+    queueMicrotask(scrollToBottom);
+  });
+  onCleanup(unsub);
 
   const body = computed(props.events, (list) => {
     if (list.length === 0) {
-      return <div class={styles.empty}>No messages yet</div>;
+      const agentLabel = props.agentName ? props.agentName.value : "this agent";
+      return (
+        <div class={styles.empty}>
+          <div class={styles.emptyContent}>
+            <div class={styles.emptyIcon}>💬</div>
+            <div class={styles.emptyText}>
+              Send a message to start interacting with {agentLabel}
+            </div>
+          </div>
+        </div>
+      );
     }
     return list.map((event) => renderEvent(event));
   });
@@ -131,14 +132,6 @@ export function EventList(props: { events: ReadableSignal<DaemonEvent[]> }) {
         scrollRef = el;
         if (!el) return;
         el.addEventListener("scroll", handleScroll, { passive: true });
-        // Watch document.body to detect when this element is disconnected
-        const observer = new MutationObserver(() => {
-          if (!el.isConnected) {
-            teardown();
-            observer.disconnect();
-          }
-        });
-        observer.observe(document.body, { subtree: true, childList: true });
       }}
     >
       {body}

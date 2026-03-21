@@ -16,6 +16,9 @@ const c = classes([
   "mainCol",
   "inspectorCol",
   "inspectorColHidden",
+  "sendErrorBar",
+  "sendErrorDismiss",
+  "streamErrorBar",
 ] as const);
 
 export const page = rule`${c.page} {
@@ -144,4 +147,39 @@ export const inspectorCol = rule`${c.inspectorCol} {
 
 export const inspectorColHidden = rule`${c.inspectorColHidden} {
   display: none;
+}`;
+
+export const sendErrorBar = rule`${c.sendErrorBar} {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: ${tokens.space.sm} ${tokens.space.lg};
+  background: ${tokens.colors.danger};
+  color: #fff;
+  font-size: ${tokens.fontSizes.sm};
+  flex-shrink: 0;
+}`;
+
+export const sendErrorDismiss = rule`${c.sendErrorDismiss} {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: ${tokens.fontSizes.md};
+  cursor: pointer;
+  padding: 0 ${tokens.space.xs};
+  opacity: 0.8;
+  transition: opacity ${tokens.transitions.fast};
+}
+${c.sendErrorDismiss}:hover {
+  opacity: 1;
+}`;
+
+export const streamErrorBar = rule`${c.streamErrorBar} {
+  display: flex;
+  align-items: center;
+  padding: ${tokens.space.xs} ${tokens.space.lg};
+  background: rgba(255, 214, 10, 0.15);
+  color: ${tokens.colors.warning};
+  font-size: ${tokens.fontSizes.xs};
+  flex-shrink: 0;
 }`;

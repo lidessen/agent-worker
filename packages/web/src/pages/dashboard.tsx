@@ -1,8 +1,8 @@
 /** @jsxImportSource semajsx/dom */
 
 import { computed } from "semajsx/signal";
-import { agents, fetchAgents } from "../stores/agents.ts";
-import { workspaces, fetchWorkspaces } from "../stores/workspaces.ts";
+import { agents, agentsLoading, fetchAgents } from "../stores/agents.ts";
+import { workspaces, workspacesLoading, fetchWorkspaces } from "../stores/workspaces.ts";
 import { AgentCard } from "../components/agent-card.tsx";
 import { WorkspaceCard } from "../components/workspace-card.tsx";
 import {
@@ -23,8 +23,10 @@ export function DashboardPage() {
   const agentCount = computed(agents, (a) => a.length);
   const workspaceCount = computed(workspaces, (w) => w.length);
 
-  const agentsSection = computed(agents, (list) =>
-    list.length > 0 ? (
+  const agentsSection = computed([agents, agentsLoading], (list, loading) =>
+    loading ? (
+      <div class={[styles.empty, styles.loading]}>Loading agents...</div>
+    ) : list.length > 0 ? (
       <div class={styles.grid}>
         {list.map((agent) => (
           <AgentCard agent={agent} />
@@ -35,8 +37,10 @@ export function DashboardPage() {
     ),
   );
 
-  const workspacesSection = computed(workspaces, (list) =>
-    list.length > 0 ? (
+  const workspacesSection = computed([workspaces, workspacesLoading], (list, loading) =>
+    loading ? (
+      <div class={[styles.empty, styles.loading]}>Loading workspaces...</div>
+    ) : list.length > 0 ? (
       <div class={styles.grid}>
         {list.map((ws) => (
           <WorkspaceCard workspace={ws} />

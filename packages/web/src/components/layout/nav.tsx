@@ -3,23 +3,37 @@
 import { computed } from "semajsx/signal";
 import { connectionState } from "../../stores/connection.ts";
 import { route } from "../../router.ts";
+import { tokens } from "../../theme/tokens.ts";
 import * as styles from "./nav.style.ts";
 
 const dotColor = computed(connectionState, (state) => {
   switch (state) {
     case "connected":
-      return "#30d158";
+      return tokens.colors.success;
     case "connecting":
-      return "#ffd60a";
+      return tokens.colors.warning;
     case "disconnected":
     case "error":
-      return "#ff453a";
+      return tokens.colors.danger;
   }
 });
 
 const currentPage = computed(route, (r) => r.page);
 
 const dotStyle = computed(dotColor, (c) => `background: ${c}`);
+
+const dotTitle = computed(connectionState, (state) => {
+  switch (state) {
+    case "connected":
+      return "Connected to daemon";
+    case "connecting":
+      return "Connecting...";
+    case "disconnected":
+      return "Disconnected";
+    case "error":
+      return "Connection error";
+  }
+});
 
 function NavLink(props: { href: string; page: string; children: string }) {
   const isActive = computed(currentPage, (p) => p === props.page);
@@ -44,7 +58,9 @@ export function Nav() {
           Settings
         </NavLink>
       </div>
-      <div class={styles.dot} style={dotStyle} title={connectionState} />
+      <span title={dotTitle}>
+        <div class={styles.dot} style={dotStyle} />
+      </span>
     </nav>
   );
 }
