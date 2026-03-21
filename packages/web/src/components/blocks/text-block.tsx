@@ -58,10 +58,14 @@ export function TextBlock(props: { event: DaemonEvent }) {
     /^> /m.test(text);
 
   if (hasMarkdown) {
-    const el = document.createElement("div");
-    el.className = styles.block;
-    el.innerHTML = renderMarkdown(text);
-    return el;
+    return (
+      <div
+        class={styles.block}
+        ref={(el: HTMLDivElement) => {
+          el.innerHTML = renderMarkdown(text);
+        }}
+      />
+    );
   }
 
   return <div class={styles.block}>{text}</div>;
