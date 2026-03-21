@@ -14,6 +14,8 @@ export interface DaemonConfig {
   token?: string;
   /** MCP hub port. Default: 42424. Set to 0 for auto-assign (useful in tests). */
   mcpPort?: number;
+  /** Directory containing the built web UI (SPA). Default: packages/web/dist relative to project root. */
+  webDistDir?: string;
 }
 
 // ── Daemon discovery ──────────────────────────────────────────────────────

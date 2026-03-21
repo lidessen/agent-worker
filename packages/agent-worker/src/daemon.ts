@@ -35,6 +35,9 @@
  *   GET    /events                              — daemon event log (cursor-based)
  *   GET    /events/stream                       — SSE: all daemon events
  */
+import { stat, readFile } from "node:fs/promises";
+import { join, resolve, normalize, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { DaemonConfig, DaemonInfo, RuntimeConfig } from "./types.ts";
 import { EventBus } from "@agent-worker/shared";
 import type { BusEvent } from "@agent-worker/shared";
@@ -65,12 +68,18 @@ export class Daemon {
 
   constructor(config: DaemonConfig = {}) {
     const dataDir = config.dataDir ?? defaultDataDir();
+    // Default webDistDir: from daemon.ts (packages/agent-worker/src/) → up 3 to packages/ → web/dist
+    const defaultWebDist = resolve(
+      fileURLToPath(import.meta.url),
+      "..", "..", "..", "web", "dist",
+    );
     this.config = {
-      port: config.port ?? 0,
+      port: config.port ?? 7420,
       host: config.host ?? "127.0.0.1",
       dataDir,
       token: config.token ?? generateToken(),
       mcpPort: config.mcpPort ?? 42424,
+      webDistDir: config.webDistDir ?? defaultWebDist,
     };
 
     this._bus = new EventBus();
@@ -116,8 +125,6 @@ export class Daemon {
     });
     this._port = actualPort;
     this.startedAt = Date.now();
-
-    const { join } = await import("node:path");
 
     // Create global workspace (but don't start agent loops yet — MCP hub URL needed first)
     const globalWs = await this.workspaces.ensureDefault();
@@ -256,12 +263,22 @@ export class Daemon {
     const path = url.pathname;
     const method = req.method;
 
-    // Auth check (skip for health)
-    if (path !== "/health") {
-      const authHeader = req.headers.get("authorization");
-      const token = authHeader?.replace("Bearer ", "");
-      if (token !== this.config.token) {
-        return Response.json({ error: "Unauthorized" }, { status: 401 });
+    // Auth check — skip for local connections (127.0.0.1 / localhost)
+    const isApiPath =
+      path.startsWith("/agents") ||
+      path.startsWith("/workspaces") ||
+      path.startsWith("/events") ||
+      path === "/health" ||
+      path === "/shutdown";
+    if (isApiPath && path !== "/health") {
+      const reqHost = url.hostname;
+      const isLocal = reqHost === "127.0.0.1" || reqHost === "localhost" || reqHost === "::1";
+      if (!isLocal) {
+        const authHeader = req.headers.get("authorization");
+        const token = authHeader?.replace("Bearer ", "");
+        if (token !== this.config.token) {
+          return Response.json({ error: "Unauthorized" }, { status: 401 });
+        }
       }
     }
 
@@ -299,7 +316,7 @@ export class Daemon {
         if (sub === "/responses/stream" && method === "GET")
           return this.handleAgentResponsesStream(name, url);
         if (sub === "/events" && method === "GET") return await this.handleAgentEvents(name, url);
-        if (sub === "/events/stream" && method === "GET") return this.handleAgentEventsStream(name);
+        if (sub === "/events/stream" && method === "GET") return this.handleAgentEventsStream(name, url);
         if (sub === "/state" && method === "GET") return this.handleAgentState(name);
       }
 
@@ -337,7 +354,7 @@ export class Daemon {
           return await this.handleWorkspaceEvents(key, url);
         }
         if (sub === "/events/stream" && method === "GET") {
-          return this.handleWorkspaceEventsStream(key);
+          return this.handleWorkspaceEventsStream(key, url);
         }
 
         // Inbox route: /workspaces/:key/inbox/:agent
@@ -379,10 +396,11 @@ export class Daemon {
         return await this.handleEvents(url);
       }
       if (path === "/events/stream" && method === "GET") {
-        return this.handleEventsStream();
+        return this.handleEventsStream(url);
       }
 
-      return Response.json({ error: "Not found" }, { status: 404 });
+      // No API route matched — serve static files (SPA)
+      return await this.serveStaticOrFallback(path);
     } catch (err) {
       console.error("[daemon] request error:", err);
       return Response.json({ error: String(err) }, { status: 500 });
@@ -563,7 +581,7 @@ export class Daemon {
     return Response.json(result);
   }
 
-  private handleAgentResponsesStream(name: string, _url: URL): Response {
+  private handleAgentResponsesStream(name: string, url: URL): Response {
     const handle = this.agents.get(name);
     if (!handle) {
       return Response.json({ error: `Agent "${name}" not found` }, { status: 404 });
@@ -574,18 +592,69 @@ export class Daemon {
     if (handle instanceof GlobalAgentStub) {
       const globalWs = this.workspaces.get("global");
       if (globalWs) {
-        return this.createSSEStream((push) => {
+        const initialCursor = parseInt(url.searchParams.get("cursor") ?? "0", 10);
+        return this.createSSEStream(async (push) => {
+          // Track seen message IDs for dedup against live listener
+          const seenIds = new Set<string>();
+
+          // 1. Subscribe to live messages first, buffer until backlog is sent
+          const buffer: any[] = [];
+          let flushing = false;
           const listener = (msg: any) => {
-            // Only forward messages from this agent (not user messages)
-            if (msg.from === name) {
-              push({
-                ts: Date.now(),
-                type: "text",
-                text: msg.content,
-              });
+            if (msg.from !== name) return;
+            const entry = {
+              ts: Date.now(),
+              type: "text",
+              text: msg.content,
+              channel: msg.channel,
+            };
+            if (flushing) {
+              const msgId = msg.id ?? `${msg.timestamp}-${msg.content}`;
+              if (!seenIds.has(msgId)) {
+                seenIds.add(msgId);
+                push(entry);
+              }
+            } else {
+              buffer.push({ entry, msg });
             }
           };
           globalWs.workspace.contextProvider.channels.on("message", listener);
+
+          // 2. Read backlog from workspace channels (same as REST handler)
+          const channels = globalWs.workspace.contextProvider.channels.listChannels();
+          const allMessages: any[] = [];
+          for (const ch of channels) {
+            const msgs = await globalWs.workspace.contextProvider.channels.read(ch);
+            allMessages.push(...msgs.filter((m: any) => m.from === name));
+          }
+          allMessages.sort(
+            (a: any, b: any) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+          );
+          const backlog = allMessages.slice(initialCursor);
+          for (const m of backlog) {
+            const msgId = m.id ?? `${m.timestamp}-${m.content}`;
+            seenIds.add(msgId);
+            push({
+              ts: new Date(m.timestamp).getTime(),
+              type: "text",
+              text: m.content,
+              channel: m.channel,
+            });
+          }
+
+          // 3. Flush buffer, dedup against backlog
+          for (const { entry, msg } of buffer) {
+            const msgId = msg.id ?? `${msg.timestamp}-${msg.content}`;
+            if (!seenIds.has(msgId)) {
+              seenIds.add(msgId);
+              push(entry);
+            }
+          }
+
+          // 4. Switch to direct push mode
+          flushing = true;
+          buffer.length = 0;
+
           return () => {
             globalWs.workspace.contextProvider.channels.off("message", listener);
           };
@@ -594,8 +663,9 @@ export class Daemon {
     }
 
     const managed = handle as ManagedAgent;
+    const initialCursor = parseInt(url.searchParams.get("cursor") ?? "0", 10);
     return this.createSSEStream((push) => {
-      let cursor = 0;
+      let cursor = initialCursor;
       const interval = setInterval(async () => {
         try {
           const result = await managed.readResponses(cursor);
@@ -631,16 +701,18 @@ export class Daemon {
     return Response.json(result);
   }
 
-  private handleAgentEventsStream(name: string): Response {
+  private handleAgentEventsStream(name: string, url: URL): Response {
     const handle = this.agents.get(name);
     if (!handle) {
       return Response.json({ error: `Agent "${name}" not found` }, { status: 404 });
     }
 
+    const initialCursor = parseInt(url.searchParams.get("cursor") ?? "0", 10);
+
     // Global agents: stream from daemon event log filtered by agent name.
     if (handle instanceof GlobalAgentStub) {
       return this.createSSEStream((push) => {
-        let cursor = 0;
+        let cursor = initialCursor;
         const interval = setInterval(async () => {
           try {
             const result = await this.eventLog.read(cursor);
@@ -658,7 +730,7 @@ export class Daemon {
 
     const managed = handle as ManagedAgent;
     return this.createSSEStream((push) => {
-      let cursor = 0;
+      let cursor = initialCursor;
       const interval = setInterval(async () => {
         try {
           const result = await managed.readEvents(cursor);
@@ -978,26 +1050,52 @@ export class Daemon {
     return Response.json({ cleared: ch });
   }
 
-  private handleWorkspaceChannelStream(key: string, ch: string, _url: URL): Response {
+  private handleWorkspaceChannelStream(key: string, ch: string, url: URL): Response {
     const resolved = this.resolveWorkspace(key);
     if (resolved instanceof Response) return resolved;
     const handle = resolved;
 
-    return this.createSSEStream((push) => {
+    const cursor = parseInt(url.searchParams.get("cursor") ?? "0", 10);
+    const agent = url.searchParams.get("agent") ?? undefined;
+
+    const channels = handle.workspace.contextProvider.channels;
+
+    const formatMsg = (msg: { id: string; from: string; content: string; timestamp: string; to?: string }) => ({
+      ts: Date.now(),
+      type: "message",
+      channel: ch,
+      id: msg.id,
+      from: msg.from,
+      content: msg.content,
+      timestamp: msg.timestamp,
+    });
+
+    const matchesAgent = (msg: { from: string; to?: string }) =>
+      !agent || msg.from === agent || msg.to === agent;
+
+    return this.createSSEStream(async (push) => {
+      const seenIds = new Set<string>();
+
+      // Backlog replay from cursor offset
+      const history = await channels.read(ch);
+      const sliced = history.slice(cursor);
+      for (const msg of sliced) {
+        if (!matchesAgent(msg)) continue;
+        seenIds.add(msg.id);
+        push(formatMsg(msg));
+      }
+
+      // Live listener with channel + agent + dedup filters
       const listener = (msg: any) => {
-        push({
-          ts: Date.now(),
-          type: "message",
-          channel: ch,
-          id: msg.id,
-          from: msg.from,
-          content: msg.content,
-          timestamp: msg.timestamp,
-        });
+        if (msg.channel !== ch) return;
+        if (!matchesAgent(msg)) return;
+        if (seenIds.has(msg.id)) return;
+        seenIds.add(msg.id);
+        push(formatMsg(msg));
       };
-      handle.workspace.contextProvider.channels.on("message", listener);
+      channels.on("message", listener);
       return () => {
-        handle.workspace.contextProvider.channels.off("message", listener);
+        channels.off("message", listener);
       };
     });
   }
@@ -1017,18 +1115,53 @@ export class Daemon {
     return Response.json({ entries: filtered, cursor: result.cursor });
   }
 
-  private handleWorkspaceEventsStream(key: string): Response {
+  private handleWorkspaceEventsStream(key: string, url: URL): Response {
     const resolved = this.resolveWorkspace(key);
     if (resolved instanceof Response) return resolved;
     const handle = resolved;
 
+    const cursorParam = url.searchParams.get("cursor");
+    const cursor = cursorParam ? parseInt(cursorParam, 10) : undefined;
     const wsKey = handle.key;
-    return this.createSSEStream((push) => {
+
+    return this.createSSEStream(async (push) => {
+      // 1. Subscribe to live bus first, buffer events to avoid gap
+      const buffer: BusEvent[] = [];
+      let flushing = false;
       const unsub = this._bus.on((event: BusEvent) => {
-        if (event.workspace === wsKey) {
+        if (event.workspace !== wsKey) return;
+        if (flushing) {
           push({ ...event, ts: Date.now() });
+        } else {
+          buffer.push(event);
         }
       });
+
+      // 2. Read and push backlog
+      if (cursor !== undefined) {
+        const { entries } = await this.eventLog.read(cursor);
+        const pushedSet = new Set<string>();
+        for (const entry of entries) {
+          if (entry.workspace === wsKey) {
+            push(entry);
+            pushedSet.add(JSON.stringify(entry));
+          }
+        }
+
+        // 3. Flush buffer, dedup against backlog
+        for (const evt of buffer) {
+          const key = JSON.stringify(evt);
+          if (!pushedSet.has(key)) push({ ...evt, ts: Date.now() });
+        }
+      } else {
+        // No cursor — flush any buffered events directly
+        for (const evt of buffer) push({ ...evt, ts: Date.now() });
+      }
+
+      // 4. Switch to direct push mode
+      flushing = true;
+      buffer.length = 0;
+
       return unsub;
     });
   }
@@ -1096,12 +1229,111 @@ export class Daemon {
     return Response.json(result);
   }
 
-  private handleEventsStream(): Response {
-    return this.createSSEStream((push) => {
+  private handleEventsStream(url: URL): Response {
+    const cursorParam = url.searchParams.get("cursor");
+    const cursor = cursorParam ? parseInt(cursorParam, 10) : undefined;
+
+    return this.createSSEStream(async (push) => {
+      // 1. Subscribe to live bus first, buffer events to avoid gap
+      const buffer: BusEvent[] = [];
+      let flushing = false;
       const unsub = this._bus.on((event: BusEvent) => {
-        push({ ...event, ts: Date.now() });
+        if (flushing) {
+          push({ ...event, ts: Date.now() });
+        } else {
+          buffer.push(event);
+        }
       });
+
+      // 2. Read and push backlog
+      if (cursor !== undefined) {
+        const { entries } = await this.eventLog.read(cursor);
+        const pushedSet = new Set<string>();
+        for (const entry of entries) {
+          push(entry);
+          pushedSet.add(JSON.stringify(entry));
+        }
+
+        // 3. Flush buffer, dedup against backlog
+        for (const evt of buffer) {
+          const key = JSON.stringify(evt);
+          if (!pushedSet.has(key)) push({ ...evt, ts: Date.now() });
+        }
+      } else {
+        // No cursor — flush any buffered events directly
+        for (const evt of buffer) push({ ...evt, ts: Date.now() });
+      }
+
+      // 4. Switch to direct push mode
+      flushing = true;
+      buffer.length = 0;
+
       return unsub;
+    });
+  }
+
+  // ── Static file serving (SPA) ───────────────────────────────────────────
+
+  private static readonly MIME_MAP: Record<string, string> = {
+    ".html": "text/html; charset=utf-8",
+    ".js": "application/javascript; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".json": "application/json; charset=utf-8",
+    ".svg": "image/svg+xml",
+    ".png": "image/png",
+    ".ico": "image/x-icon",
+    ".woff2": "font/woff2",
+  };
+
+  private async serveStaticOrFallback(path: string): Promise<Response> {
+    const distDir = this.config.webDistDir;
+
+    // Sanitize: reject path traversal
+    const normalized = normalize(path);
+    if (normalized.includes("..")) {
+      return Response.json({ error: "Invalid path" }, { status: 400 });
+    }
+
+    // Strip leading slash and resolve against dist dir
+    const relPath = normalized.replace(/^\/+/, "") || "index.html";
+    const filePath = join(distDir, relPath);
+
+    // Ensure resolved path is within dist dir (use separator boundary to prevent prefix bypass)
+    const boundary = distDir.endsWith(sep) ? distDir : distDir + sep;
+    if (!filePath.startsWith(boundary)) {
+      return Response.json({ error: "Invalid path" }, { status: 400 });
+    }
+
+    // Try serving the requested file
+    const served = await this.tryServeFile(filePath);
+    if (served) return served;
+
+    // SPA fallback: serve index.html
+    const indexPath = join(distDir, "index.html");
+    const indexServed = await this.tryServeFile(indexPath);
+    if (indexServed) return indexServed;
+
+    // Web UI not built
+    return Response.json(
+      { error: "Web UI not found. Run the web build first." },
+      { status: 404 },
+    );
+  }
+
+  private async tryServeFile(filePath: string): Promise<Response | null> {
+    try {
+      const s = await stat(filePath);
+      if (!s.isFile()) return null;
+    } catch {
+      return null;
+    }
+
+    const ext = filePath.slice(filePath.lastIndexOf("."));
+    const contentType = Daemon.MIME_MAP[ext] ?? "application/octet-stream";
+    const body = await readFile(filePath);
+
+    return new Response(body, {
+      headers: { "Content-Type": contentType },
     });
   }
 
@@ -1111,10 +1343,12 @@ export class Daemon {
    * Create an SSE response. The setup function receives a push callback
    * and returns a cleanup function.
    */
-  private createSSEStream(setup: (push: (data: unknown) => void) => (() => void) | void): Response {
+  private createSSEStream(
+    setup: (push: (data: unknown) => void) => (() => void) | void | Promise<(() => void) | void>,
+  ): Response {
     let cleanup: (() => void) | void;
     const stream = new ReadableStream({
-      start(controller) {
+      async start(controller) {
         const push = (data: unknown) => {
           try {
             controller.enqueue(`data: ${JSON.stringify(data)}\n\n`);
@@ -1122,7 +1356,7 @@ export class Daemon {
             // Expected when client disconnects — not an error
           }
         };
-        cleanup = setup(push);
+        cleanup = await setup(push);
       },
       cancel() {
         cleanup?.();

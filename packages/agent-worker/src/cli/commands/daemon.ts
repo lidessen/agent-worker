@@ -34,12 +34,17 @@ async function daemonStart(args: string[]): Promise<void> {
     await stopExistingDaemon();
     const client = await ensureDaemon();
     const health = await client.health();
-    console.log(`Daemon running in background (PID ${health.pid})`);
+    const info = await readDaemonInfo();
+    console.log(`Daemon running in background`);
+    console.log(`  PID:     ${health.pid}`);
+    console.log(`  URL:     http://${info?.host ?? "127.0.0.1"}:${info?.port ?? "?"}`);
+    console.log(`  Token:   ${info?.token ?? "?"}`);
+    console.log(`  Web UI:  http://${info?.host ?? "127.0.0.1"}:${info?.port ?? "?"}/`);
     return;
   }
 
   const portIdx = args.indexOf("-p");
-  const port = portIdx >= 0 ? parseInt(args[portIdx + 1]!, 10) : 0;
+  const port = portIdx >= 0 ? parseInt(args[portIdx + 1]!, 10) : undefined;
 
   // Stop any existing daemon before starting
   await stopExistingDaemon();
@@ -55,10 +60,13 @@ async function daemonStart(args: string[]): Promise<void> {
 
   console.log("Starting agent-worker daemon...");
   const { daemon, info } = await startDaemon({ port });
-  console.log(`Daemon running on http://${info.host}:${info.port}`);
-  console.log(`PID: ${info.pid}`);
-  console.log(`Token: ${info.token}`);
-  console.log("Running in foreground (use Ctrl+C to stop)");
+  console.log();
+  console.log(`  PID:     ${info.pid}`);
+  console.log(`  URL:     http://${info.host}:${info.port}`);
+  console.log(`  Token:   ${info.token}`);
+  console.log(`  Web UI:  http://${info.host}:${info.port}/`);
+  console.log();
+  console.log("Running in foreground (Ctrl+C to stop)");
 
   let shuttingDown = false;
   const gracefulShutdown = async () => {
