@@ -14,11 +14,11 @@ import * as styles from "./settings.style.ts";
 
 /** Known runtimes — informational display. Actual selection happens in agent creation. */
 const KNOWN_RUNTIMES = [
-  { name: "ai-sdk", status: "available", color: tokens.colors.success },
-  { name: "claude-code", status: "available", color: tokens.colors.success },
-  { name: "codex", status: "available", color: tokens.colors.success },
-  { name: "cursor", status: "available", color: tokens.colors.success },
-  { name: "mock", status: "available", color: tokens.colors.textDim },
+  { name: "ai-sdk", status: "available", available: true },
+  { name: "claude-code", status: "available", available: true },
+  { name: "codex", status: "available", available: true },
+  { name: "cursor", status: "available", available: true },
+  { name: "mock", status: "local", available: false },
 ] as const;
 
 const testResult = signal<{ ok: boolean; message: string } | null>(null);
@@ -177,31 +177,42 @@ export function SettingsPage() {
       {when(isConnected, () => (
         <div class={styles.section}>
           <span class={styles.sectionTitle}>Current Connection</span>
-          <div class={styles.info}>
-            <div class={styles.infoRow}>
-              <span class={styles.infoLabel}>Host</span>
-              <span class={styles.infoValue}>{hostDisplay}</span>
+          <div class={styles.sectionContent}>
+            <div class={styles.info}>
+              <div class={styles.infoRow}>
+                <span class={styles.infoLabel}>Host</span>
+                <span class={styles.infoValue}>{hostDisplay}</span>
+              </div>
+              <div class={styles.infoRow}>
+                <span class={styles.infoLabel}>Status</span>
+                <span class={[styles.statusPill, styles.statusPillSuccess]}>
+                  {connectionState}
+                </span>
+              </div>
+              {healthRows}
             </div>
-            <div class={styles.infoRow}>
-              <span class={styles.infoLabel}>Status</span>
-              <span class={styles.infoValue}>{connectionState}</span>
-            </div>
-            {healthRows}
           </div>
         </div>
       ))}
 
       <div class={styles.section}>
         <span class={styles.sectionTitle}>Runtimes</span>
-        <div class={styles.info}>
-          {KNOWN_RUNTIMES.map((rt) => (
-            <div class={styles.infoRow}>
-              <span class={styles.infoLabel}>{rt.name}</span>
-              <span class={styles.infoValue} style={`color: ${rt.color}`}>
-                {rt.status}
-              </span>
-            </div>
-          ))}
+        <div class={styles.sectionContent}>
+          <div class={styles.info}>
+            {KNOWN_RUNTIMES.map((rt) => (
+              <div class={styles.infoRow}>
+                <span class={styles.infoLabel}>{rt.name}</span>
+                <span
+                  class={[
+                    styles.statusPill,
+                    rt.available ? styles.statusPillSuccess : styles.statusPillMuted,
+                  ]}
+                >
+                  {rt.status}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>

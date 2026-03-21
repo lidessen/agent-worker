@@ -1,5 +1,8 @@
 /** @jsxImportSource semajsx/dom */
 
+import type { JSXNode } from "semajsx/core";
+import { Icon, Drama } from "@semajsx/icons";
+import { ClaudeIcon, CursorIcon, OpenAIIcon, VercelIcon } from "./brand-icons.tsx";
 import type { AgentInfo } from "../api/types.ts";
 import { navigate } from "../router.ts";
 import { tokens } from "../theme/tokens.ts";
@@ -19,16 +22,23 @@ function stateColor(state: string): string {
   return stateColors[state] ?? tokens.colors.agentIdle;
 }
 
-const runtimeLabels: Record<string, string> = {
-  "claude-code": "\u{1F916} claude-code",
-  codex: "\u26A1 codex",
-  cursor: "\u{1F5B1}\uFE0F cursor",
-  "ai-sdk": "\u{1F9E0} ai-sdk",
-  mock: "\u{1F3AD} mock",
-};
+const iconStyle = "vertical-align: -2px; margin-right: 4px;";
 
-function runtimeLabel(runtime: string): string {
-  return runtimeLabels[runtime] ?? runtime;
+function runtimeIcon(runtime: string): JSXNode {
+  switch (runtime) {
+    case "claude-code":
+      return <ClaudeIcon size={12} style={iconStyle} />;
+    case "codex":
+      return <OpenAIIcon size={12} style={iconStyle} />;
+    case "cursor":
+      return <CursorIcon size={12} style={iconStyle} />;
+    case "ai-sdk":
+      return <VercelIcon size={12} style={iconStyle} />;
+    case "mock":
+      return <Icon icon={Drama} size={12} style={iconStyle} />;
+    default:
+      return null;
+  }
 }
 
 function timeAgo(ts: number): string {
@@ -66,7 +76,10 @@ export function AgentCard(props: { agent: AgentInfo }) {
         ) : null}
       </div>
       <div class={styles.meta}>
-        <span class={styles.runtimeBadge}>{runtimeLabel(agent.runtime)}</span>
+        <span class={styles.runtimeBadge}>
+          {runtimeIcon(agent.runtime)}
+          {agent.runtime}
+        </span>
         {agent.model ? <span class={styles.metaItem}>{agent.model}</span> : null}
       </div>
     </div>

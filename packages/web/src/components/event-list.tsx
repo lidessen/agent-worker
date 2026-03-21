@@ -1,5 +1,6 @@
 /** @jsxImportSource semajsx/dom */
 
+import { Icon, MessageCircle } from "@semajsx/icons";
 import { computed } from "semajsx/signal";
 import type { ReadableSignal } from "semajsx/signal";
 import { onCleanup } from "semajsx/dom";
@@ -85,6 +86,27 @@ function renderEvent(event: DaemonEvent) {
   return null;
 }
 
+function eventLabel(event: DaemonEvent): string {
+  if (isUserMessage(event)) return "User";
+  if (isErrorEvent(event)) return "Error";
+  if (isThinkingEvent(event)) return "Thinking";
+  if (isToolCallEvent(event)) return "Tool";
+  if (isRunEvent(event)) return "Run";
+  if (isTextEvent(event)) return "Response";
+  return "Event";
+}
+
+function formatEventTime(ts: number): string {
+  try {
+    return new Date(ts).toLocaleTimeString(undefined, {
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  } catch {
+    return "";
+  }
+}
+
 export function EventList(props: { events: ReadableSignal<DaemonEvent[]>; agentName?: ReadableSignal<string> }) {
   let scrollRef: HTMLDivElement | null = null;
   let userScrolledUp = false;
@@ -114,7 +136,7 @@ export function EventList(props: { events: ReadableSignal<DaemonEvent[]>; agentN
       return (
         <div class={styles.empty}>
           <div class={styles.emptyContent}>
-            <div class={styles.emptyIcon}>💬</div>
+            <div class={styles.emptyIcon}><Icon icon={MessageCircle} size={32} /></div>
             <div class={styles.emptyText}>
               Send a message to start interacting with {agentLabel}
             </div>
@@ -122,7 +144,20 @@ export function EventList(props: { events: ReadableSignal<DaemonEvent[]>; agentN
         </div>
       );
     }
-    return list.map((event) => renderEvent(event));
+    return list.map((event) => {
+      const body = renderEvent(event);
+      if (!body) return null;
+      return (
+        <div class={styles.item}>
+          <div class={styles.itemMeta}>
+            <span class={styles.itemDot} />
+            <span class={styles.itemLabel}>{eventLabel(event)}</span>
+            <span class={styles.itemTime}>{formatEventTime(event.ts)}</span>
+          </div>
+          <div class={styles.itemBody}>{body}</div>
+        </div>
+      );
+    });
   });
 
   return (

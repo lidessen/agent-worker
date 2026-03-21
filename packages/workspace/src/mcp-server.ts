@@ -84,9 +84,14 @@ export class WorkspaceMcpHub {
     return this._port ? `http://127.0.0.1:${this._port}/mcp/${agentName}` : null;
   }
 
-  /** Build the MCP URL for the debug endpoint. */
+  /** Build the MCP URL for an external MCP user. The $prefix triggers debug mode. */
+  externalUrl(name: string): string | null {
+    return this._port ? `http://127.0.0.1:${this._port}/mcp/$${name}` : null;
+  }
+
+  /** @deprecated Use externalUrl(). Kept for backward compat. */
   get debugUrl(): string | null {
-    return this._port ? `http://127.0.0.1:${this._port}/mcp/$supervisor` : null;
+    return this.externalUrl("supervisor");
   }
 
   async start(opts?: WorkspaceMcpHubOptions): Promise<void> {
@@ -139,12 +144,12 @@ export class WorkspaceMcpHub {
     this._port = addr.port;
   }
 
-  /** List all connected agent names (excludes $supervisor). */
+  /** List all connected agent names (excludes external mcp: users). */
   connectedAgents(): string[] {
     const names = new Set<string>();
     for (const [, session] of this.sessions) {
       const n = (session as any)._endpointName as string | undefined;
-      if (n && n !== "$supervisor") names.add(n);
+      if (n && !n.startsWith("mcp:")) names.add(n);
     }
     return Array.from(names);
   }
@@ -206,10 +211,13 @@ export class WorkspaceMcpHub {
   }
 
   private async createSession(endpointName: string): Promise<McpSession> {
-    const server =
-      endpointName === "$supervisor"
-        ? await this.createDebugServer()
-        : await this.createAgentServer(endpointName);
+    // $xxx → external MCP user, registered as "mcp:xxx"
+    const isExternal = endpointName.startsWith("$");
+    const agentName = isExternal ? `mcp:${endpointName.slice(1)}` : endpointName;
+
+    const server = isExternal
+      ? await this.createDebugServer(agentName)
+      : await this.createAgentServer(agentName);
 
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: () => randomUUID(),
@@ -225,8 +233,8 @@ export class WorkspaceMcpHub {
     await server.connect(transport);
 
     const session: McpSession = { server, transport };
-    // Tag with endpoint name for connectedAgents()
-    (session as any)._endpointName = endpointName;
+    // Tag with agent name for connectedAgents()
+    (session as any)._endpointName = agentName;
 
     // The session ID is assigned after the first handleRequest (initialize),
     // so we defer registration via a microtask that checks after init.
@@ -280,14 +288,14 @@ export class WorkspaceMcpHub {
 
   // ── Debug server factory ─────────────────────────────────────────────
 
-  private async createDebugServer(): Promise<McpServer> {
-    // Debug agent joins ALL channels so it receives every message
-    if (!this.workspace.hasAgent("$supervisor")) {
+  private async createDebugServer(name: string): Promise<McpServer> {
+    // External MCP user joins ALL channels so it receives every message
+    if (!this.workspace.hasAgent(name)) {
       const allChannels = this.workspace.contextProvider.channels.listChannels();
-      await this.workspace.registerAgent("$supervisor", allChannels);
+      await this.workspace.registerAgent(name, allChannels);
     }
 
-    const server = await this.createAgentServer("$supervisor");
+    const server = await this.createAgentServer(name);
     this.registerDebugTools(server);
     return server;
   }

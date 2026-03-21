@@ -7,7 +7,10 @@ export const block = rule`${c.block} {
   display: flex;
   align-items: center;
   gap: ${tokens.space.sm};
-  padding: ${tokens.space.xs} 0;
+  padding: ${tokens.space.sm} ${tokens.space.md};
+  border-radius: ${tokens.radii.pill};
+  background: ${tokens.colors.surfaceSecondary};
+  border: 1px solid ${tokens.colors.border};
 }`;
 
 export const divider = rule`${c.divider} {

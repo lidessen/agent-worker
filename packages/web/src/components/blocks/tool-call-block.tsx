@@ -1,5 +1,6 @@
 /** @jsxImportSource semajsx/dom */
 
+import { Icon, Wrench, ChevronDown, ChevronRight } from "@semajsx/icons";
 import { signal, computed } from "semajsx/signal";
 import type { DaemonEvent } from "../../api/types.ts";
 import { tokens } from "../../theme/tokens.ts";
@@ -23,12 +24,6 @@ export function ToolCallBlock(props: { event: DaemonEvent }) {
   const hasResult = result !== undefined || error !== undefined;
   const isPending = !hasResult;
 
-  const borderColor = error
-    ? tokens.colors.danger
-    : hasResult
-      ? tokens.colors.success
-      : tokens.colors.border;
-
   const dotColor = error
     ? tokens.colors.danger
     : hasResult
@@ -47,9 +42,11 @@ export function ToolCallBlock(props: { event: DaemonEvent }) {
     resultExpanded.value = !resultExpanded.value;
   }
 
-  const toggleIcon = computed(expanded, (ex) => (ex ? "\u25BC" : "\u25B6"));
+  const toggleIcon = computed(expanded, (ex) =>
+    <Icon icon={ex ? ChevronDown : ChevronRight} size={12} />,
+  );
   const resultToggleLabel = computed(resultExpanded, (re) =>
-    re ? "\u25BC result" : "\u25B6 result",
+    <span><Icon icon={re ? ChevronDown : ChevronRight} size={12} style="vertical-align: -2px; margin-right: 2px;" /> result</span>,
   );
 
   const argsBlock = computed(expanded, (ex) => {
@@ -73,9 +70,9 @@ export function ToolCallBlock(props: { event: DaemonEvent }) {
   });
 
   return (
-    <div class={styles.block} style={`border-left-color: ${borderColor}`}>
+    <div class={styles.block}>
       <div class={styles.header} onclick={toggleExpand}>
-        <span class={styles.toolIcon}>{"\uD83D\uDD27"}</span>
+        <span class={styles.toolIcon}><Icon icon={Wrench} size={14} /></span>
         <span class={styles.statusDot} style={dotStyle} />
         <span class={styles.toolName}>{toolName}</span>
         {durationMs !== undefined ? (

@@ -61,13 +61,21 @@ export class WorkspaceOrchestrator {
     return this.running;
   }
 
-  /** Start the polling loop. */
+  /** Start the polling loop. Respects persisted pause state across restarts. */
   async start(): Promise<void> {
     if (this.running) return;
     this.running = true;
 
-    await this.config.provider.status.set(this.config.name, "running");
-    await this.config.eventLog.log(this.config.name, "system", "Agent loop started");
+    // Check if this agent was paused before restart
+    const allStatus = await this.config.provider.status.getAll();
+    const prevStatus = allStatus.find((s) => s.name === this.config.name)?.status;
+    if (prevStatus === "paused") {
+      this.paused = true;
+      await this.config.eventLog.log(this.config.name, "system", "Agent loop started (paused — was paused before restart)");
+    } else {
+      await this.config.provider.status.set(this.config.name, "running");
+      await this.config.eventLog.log(this.config.name, "system", "Agent loop started");
+    }
 
     this.loop();
   }
@@ -75,12 +83,14 @@ export class WorkspaceOrchestrator {
   /** Pause the orchestrator — tick() becomes a no-op but polling continues. */
   async pause(): Promise<void> {
     this.paused = true;
+    await this.config.provider.status.set(this.config.name, "paused");
     await this.config.eventLog.log(this.config.name, "system", "Agent loop paused");
   }
 
   /** Resume the orchestrator after a pause. */
   async resume(): Promise<void> {
     this.paused = false;
+    await this.config.provider.status.set(this.config.name, "running");
     await this.config.eventLog.log(this.config.name, "system", "Agent loop resumed");
     this.wake();
   }
@@ -192,7 +202,11 @@ export class WorkspaceOrchestrator {
 
     // 2. Dequeue and process next instruction
     const instruction = this.config.queue.dequeue(this.config.name);
-    if (!instruction) return;
+    if (!instruction) {
+      // No work to do — ensure status reflects idle (not stuck on "running")
+      await this.config.provider.status.set(this.config.name, "idle");
+      return;
+    }
 
     await this.config.provider.status.set(
       this.config.name,

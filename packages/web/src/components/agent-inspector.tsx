@@ -1,5 +1,6 @@
 /** @jsxImportSource semajsx/dom */
 
+import { Icon, ChevronDown } from "@semajsx/icons";
 import { computed } from "semajsx/signal";
 import type { Signal, ReadableSignal } from "semajsx/signal";
 import type { AgentState, InboxItem, TodoItem } from "../api/types.ts";
@@ -55,7 +56,7 @@ function CollapsibleSection(props: {
           class={[styles.chevron, open && styles.chevronOpen]}
           ref={(el: HTMLElement) => { chevronEl = el; }}
         >
-          ▼
+          <Icon icon={ChevronDown} size={14} />
         </span>
       </div>
       <div

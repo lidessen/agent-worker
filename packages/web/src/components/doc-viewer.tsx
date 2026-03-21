@@ -98,14 +98,17 @@ export function DocViewer(props: { wsKey: string; docName: string }) {
 
   return (
     <div class={styles.viewer}>
-      <div class={styles.toolbar}>
-        <button class={editBtnClass} onclick={toggleEdit}>
-          {editBtnLabel}
-        </button>
-        {saveButton}
-        <button class={styles.toolbarBtn} onclick={loadContent}>
-          Refresh
-        </button>
+      <div class={styles.header}>
+        <span class={styles.title}>{props.docName}</span>
+        <div class={styles.toolbar}>
+          <button class={editBtnClass} onclick={toggleEdit}>
+            {editBtnLabel}
+          </button>
+          {saveButton}
+          <button class={styles.toolbarBtn} onclick={loadContent}>
+            Refresh
+          </button>
+        </div>
       </div>
       {errorBanner}
       {mainContent}

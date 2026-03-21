@@ -5,11 +5,65 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Agent Worker</title>
   <style>
-    body { margin: 0; background: #0a0a0a; color: #e5e5e5; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, "Segoe UI", Roboto, sans-serif; }
+    :root {
+      color-scheme: dark;
+    }
+
+    html, body, #app {
+      height: 100%;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at top left, rgba(255, 140, 92, 0.08), transparent 22%),
+        radial-gradient(circle at bottom right, rgba(255, 255, 255, 0.04), transparent 28%),
+        #090909;
+      color: #f3f1ee;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, "Segoe UI", Roboto, sans-serif;
+    }
+
+    ::selection {
+      background: rgba(255, 255, 255, 0.16);
+      color: #ffffff;
+    }
+
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+    }
+
+    *::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+    }
+
+    *::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    *::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.14);
+      border-radius: 999px;
+      border: 2px solid transparent;
+      background-clip: padding-box;
+    }
+
+    select,
+    input,
+    textarea,
+    button {
+      -webkit-appearance: none;
+      appearance: none;
+    }
   </style>
 </head>
 <body>
   <div id="app"></div>
-  <script type="module" src="/main.js?v=13"></script>
+  <script type="module" src="/main.js?v=31"></script>
 </body>
 </html>

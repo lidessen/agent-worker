@@ -1,11 +1,17 @@
 /** @jsxImportSource semajsx/dom */
 
+import { Icon, ArrowUp } from "@semajsx/icons";
+import { computed, signal } from "semajsx/signal";
 import type { ReadableSignal } from "semajsx/signal";
 import { isStreaming, sendMessage } from "../stores/conversation.ts";
 import * as styles from "./chat-input.style.ts";
 
 export function ChatInput(props: { agentName: ReadableSignal<string> }) {
   let textareaRef: HTMLTextAreaElement | null = null;
+  const draft = signal("");
+  const canSend = computed([draft, isStreaming], (text, streaming) =>
+    text.trim().length > 0 && !streaming,
+  );
 
   function autoResize() {
     if (!textareaRef) return;
@@ -15,12 +21,12 @@ export function ChatInput(props: { agentName: ReadableSignal<string> }) {
 
   function handleSend() {
     if (!textareaRef) return;
-    const text = textareaRef.value.trim();
-    if (!text) return;
-    if (isStreaming.value) return;
+    const text = draft.value.trim();
+    if (!text || isStreaming.value) return;
 
     sendMessage(props.agentName.value, text);
     textareaRef.value = "";
+    draft.value = "";
     autoResize();
   }
 
@@ -34,24 +40,33 @@ export function ChatInput(props: { agentName: ReadableSignal<string> }) {
 
   return (
     <div class={styles.bar}>
-      <textarea
-        class={styles.textarea}
-        placeholder="Type a message... (Ctrl+Enter to send)"
-        rows={1}
-        disabled={isStreaming}
-        oninput={autoResize}
-        onkeydown={handleKeydown}
-        ref={(el: HTMLTextAreaElement) => {
-          textareaRef = el;
-        }}
-      />
-      <button
-        class={styles.sendBtn}
-        onclick={handleSend}
-        disabled={isStreaming}
-      >
-        Send
-      </button>
+      <div class={styles.composer}>
+        <textarea
+          class={styles.textarea}
+          placeholder="Ask Codex anything, @ to add files, / for commands, $ for skills"
+          rows={1}
+          disabled={isStreaming}
+          oninput={(e: Event) => {
+            draft.value = (e.target as HTMLTextAreaElement).value;
+            autoResize();
+          }}
+          onkeydown={handleKeydown}
+          ref={(el: HTMLTextAreaElement) => {
+            textareaRef = el;
+          }}
+        />
+        <div class={styles.footer}>
+          <span class={styles.shortcut}>Ctrl+Enter to send</span>
+          <button
+            class={styles.sendBtn}
+            onclick={handleSend}
+            disabled={computed(canSend, (ready) => !ready)}
+            type="button"
+          >
+            <Icon icon={ArrowUp} size={22} />
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

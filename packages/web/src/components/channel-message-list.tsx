@@ -1,5 +1,6 @@
 /** @jsxImportSource semajsx/dom */
 
+import { Icon, MessageCircle } from "@semajsx/icons";
 import { computed } from "semajsx/signal";
 import type { ReadableSignal } from "semajsx/signal";
 import { onCleanup } from "semajsx/dom";
@@ -32,7 +33,16 @@ export function ChannelMessageList(props: {
 
   const body = computed(props.messages, (list) => {
     if (list.length === 0) {
-      return <div class={styles.empty}>No messages yet</div>;
+      return (
+        <div class={styles.empty}>
+          <div class={styles.emptyContent}>
+            <div class={styles.emptyIcon}><Icon icon={MessageCircle} size={32} /></div>
+            <div class={styles.emptyText}>
+              Start the thread with the first channel message.
+            </div>
+          </div>
+        </div>
+      );
     }
     return list.map((msg) => <ChannelMessageItem message={msg} />);
   });

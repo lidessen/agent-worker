@@ -1,5 +1,6 @@
 /** @jsxImportSource semajsx/dom */
 
+import { Icon, ArrowUp, ArrowDown } from "@semajsx/icons";
 import type { DaemonEvent } from "../../api/types.ts";
 import * as styles from "./run-block.style.ts";
 
@@ -23,13 +24,7 @@ export function RunBlock(props: { event: DaemonEvent }) {
   const inputTokens = event.inputTokens as number | undefined;
   const outputTokens = event.outputTokens as number | undefined;
 
-  // Format token display
-  let tokenDisplay: string | null = null;
-  if (inputTokens !== undefined && outputTokens !== undefined) {
-    tokenDisplay = `\u2191${inputTokens} \u2193${outputTokens}`;
-  } else if (tokenCount !== undefined) {
-    tokenDisplay = `${tokenCount} tokens`;
-  }
+  const hasTokenBreakdown = inputTokens !== undefined && outputTokens !== undefined;
 
   return (
     <div class={styles.block}>
@@ -40,8 +35,13 @@ export function RunBlock(props: { event: DaemonEvent }) {
       {!isStart && durationMs !== undefined ? (
         <span class={styles.detail}>{formatDuration(durationMs)}</span>
       ) : null}
-      {!isStart && tokenDisplay ? (
-        <span class={styles.detail}>{tokenDisplay}</span>
+      {!isStart && hasTokenBreakdown ? (
+        <span class={styles.detail}>
+          <Icon icon={ArrowUp} size={12} style="vertical-align: -2px;" />{inputTokens}{" "}
+          <Icon icon={ArrowDown} size={12} style="vertical-align: -2px;" />{outputTokens}
+        </span>
+      ) : !isStart && tokenCount !== undefined ? (
+        <span class={styles.detail}>{tokenCount} tokens</span>
       ) : null}
     </div>
   );

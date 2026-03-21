@@ -1,5 +1,6 @@
 /** @jsxImportSource semajsx/dom */
 
+import { Icon, ChevronDown, ChevronRight } from "@semajsx/icons";
 import { signal, computed } from "semajsx/signal";
 import type { DaemonEvent } from "../../api/types.ts";
 import * as styles from "./thinking-block.style.ts";
@@ -12,7 +13,9 @@ export function ThinkingBlock(props: { event: DaemonEvent }) {
     expanded.value = !expanded.value;
   }
 
-  const toggleIcon = computed(expanded, (ex) => (ex ? "\u25BC" : "\u25B6"));
+  const toggleIcon = computed(expanded, (ex) =>
+    <Icon icon={ex ? ChevronDown : ChevronRight} size={12} />,
+  );
   const body = computed(expanded, (ex) =>
     ex ? <div class={styles.content}>{text}</div> : null,
   );

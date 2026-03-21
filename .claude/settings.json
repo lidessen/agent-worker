@@ -8,7 +8,7 @@
       "Bash(oxlint:*)",
       "Bash(oxfmt:*)",
       "Bash(tsgo:*)",
-      "mcp__workspace-debug__*"
+      "mcp__agent-workspace__*"
     ]
   },
   "hooks": {

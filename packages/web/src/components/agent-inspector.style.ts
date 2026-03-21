@@ -22,15 +22,18 @@ const c = classes([
 
 export const panel = rule`${c.panel} {
   border-bottom: 1px solid ${tokens.colors.border};
-  background: ${tokens.colors.surface};
+  background: ${tokens.colors.surfaceSecondary};
+  border: 1px solid ${tokens.colors.border};
+  border-radius: ${tokens.radii.xl};
   overflow-y: auto;
   max-height: 40vh;
   flex-shrink: 0;
+  box-shadow: ${tokens.shadows.inset};
 }
 @media (min-width: 961px) {
   ${c.panel} {
     max-height: none;
-    border-bottom: none;
+    border-bottom: 1px solid ${tokens.colors.border};
     border-left: 1px solid ${tokens.colors.border};
     overflow-y: auto;
   }
@@ -109,8 +112,8 @@ export const item = rule`${c.item} {
   flex-direction: column;
   gap: 2px;
   padding: ${tokens.space.xs} ${tokens.space.sm};
-  background: ${tokens.colors.background};
-  border-radius: ${tokens.radii.sm};
+  background: ${tokens.colors.input};
+  border-radius: ${tokens.radii.lg};
   border: 1px solid ${tokens.colors.border};
 }`;
 

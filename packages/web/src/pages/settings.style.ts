@@ -5,6 +5,7 @@ const c = classes([
   "page",
   "section",
   "sectionTitle",
+  "sectionContent",
   "form",
   "field",
   "label",
@@ -19,26 +20,42 @@ const c = classes([
   "infoRow",
   "infoLabel",
   "infoValue",
+  "statusPill",
+  "statusPillSuccess",
+  "statusPillMuted",
 ] as const);
 
 export const page = rule`${c.page} {
   display: flex;
   flex-direction: column;
   gap: ${tokens.space.xxl};
-  max-width: 640px;
-  margin: 0 auto;
+  max-width: 820px;
+  padding: ${tokens.space.xl} ${tokens.space.xxl} ${tokens.space.xxl};
 }`;
 
 export const section = rule`${c.section} {
   display: flex;
   flex-direction: column;
-  gap: ${tokens.space.lg};
+  gap: ${tokens.space.md};
+  padding: ${tokens.space.xl};
+  border-radius: ${tokens.radii.xl};
+  background: ${tokens.colors.panel};
+  border: 1px solid ${tokens.colors.border};
+  box-shadow: ${tokens.shadows.inset};
 }`;
 
 export const sectionTitle = rule`${c.sectionTitle} {
-  font-size: ${tokens.fontSizes.lg};
-  font-weight: ${tokens.fontWeights.semibold};
+  font-size: ${tokens.fontSizes.xl};
+  font-weight: ${tokens.fontWeights.bold};
+  letter-spacing: -0.03em;
   color: ${tokens.colors.text};
+}`;
+
+export const sectionContent = rule`${c.sectionContent} {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-top: ${tokens.space.xs};
 }`;
 
 export const form = rule`${c.form} {
@@ -61,18 +78,20 @@ export const label = rule`${c.label} {
 
 export const input = rule`${c.input} {
   border: 1px solid ${tokens.colors.border};
-  border-radius: ${tokens.radii.md};
-  background: ${tokens.colors.surface};
+  border-radius: ${tokens.radii.xl};
+  background: ${tokens.colors.input};
   color: ${tokens.colors.text};
   font-family: ${tokens.fonts.base};
   font-size: ${tokens.fontSizes.md};
-  padding: ${tokens.space.sm} ${tokens.space.md};
+  padding: ${tokens.space.md} ${tokens.space.lg};
   line-height: 1.5;
-  transition: border-color ${tokens.transitions.fast};
+  box-shadow: ${tokens.shadows.inset};
+  transition: border-color ${tokens.transitions.fast}, box-shadow ${tokens.transitions.fast};
 }
 ${c.input}:focus {
   outline: none;
-  border-color: ${tokens.colors.primary};
+  border-color: ${tokens.colors.borderStrong};
+  box-shadow: ${tokens.shadows.focusRing};
 }
 ${c.input}::placeholder {
   color: ${tokens.colors.textDim};
@@ -90,64 +109,66 @@ export const actions = rule`${c.actions} {
 
 export const btn = rule`${c.btn} {
   border: 1px solid ${tokens.colors.border};
-  border-radius: ${tokens.radii.md};
-  background: ${tokens.colors.surface};
+  border-radius: ${tokens.radii.xl};
+  background: ${tokens.colors.panel};
   color: ${tokens.colors.text};
   font-size: ${tokens.fontSizes.sm};
   font-weight: ${tokens.fontWeights.medium};
   padding: ${tokens.space.sm} ${tokens.space.lg};
   cursor: pointer;
-  transition: background ${tokens.transitions.fast}, border-color ${tokens.transitions.fast};
+  transition: background ${tokens.transitions.fast}, border-color ${tokens.transitions.fast}, transform ${tokens.transitions.fast};
 }
 ${c.btn}:hover {
-  background: ${tokens.colors.surfaceHover};
+  background: ${tokens.colors.panelHover};
   border-color: ${tokens.colors.borderHover};
+  transform: translateY(-1px);
 }
 ${c.btn}:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+  transform: none;
 }`;
 
 export const btnPrimary = rule`${c.btnPrimary} {
-  background: ${tokens.colors.primary};
-  color: #fff;
-  border-color: ${tokens.colors.primary};
+  background: linear-gradient(180deg, rgba(248, 244, 240, 0.92) 0%, rgba(224, 220, 216, 0.9) 100%);
+  color: #111111;
+  border-color: rgba(255, 255, 255, 0.28);
 }
 ${c.btnPrimary}:hover {
-  background: ${tokens.colors.primaryHover};
-  border-color: ${tokens.colors.primaryHover};
+  filter: brightness(1.04);
 }`;
 
 export const message = rule`${c.message} {
   font-size: ${tokens.fontSizes.sm};
   padding: ${tokens.space.sm} ${tokens.space.md};
-  border-radius: ${tokens.radii.sm};
+  border-radius: ${tokens.radii.lg};
+  border: 1px solid transparent;
 }`;
 
 export const messageSuccess = rule`${c.messageSuccess} {
   color: ${tokens.colors.success};
-  background: rgba(48, 209, 88, 0.1);
+  background: ${tokens.colors.successSurface};
+  border-color: rgba(48, 209, 88, 0.24);
 }`;
 
 export const messageError = rule`${c.messageError} {
   color: ${tokens.colors.danger};
-  background: rgba(255, 69, 58, 0.1);
+  background: ${tokens.colors.dangerSurface};
+  border-color: rgba(255, 69, 58, 0.24);
 }`;
 
 export const info = rule`${c.info} {
   display: flex;
   flex-direction: column;
-  gap: ${tokens.space.sm};
-  padding: ${tokens.space.lg};
-  background: ${tokens.colors.surface};
-  border: 1px solid ${tokens.colors.border};
-  border-radius: ${tokens.radii.md};
+  gap: ${tokens.space.xs};
 }`;
 
 export const infoRow = rule`${c.infoRow} {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: ${tokens.space.lg};
+  padding: ${tokens.space.sm} 0;
 }
 @media (max-width: 640px) {
   ${c.infoRow} {
@@ -166,4 +187,26 @@ export const infoValue = rule`${c.infoValue} {
   font-size: ${tokens.fontSizes.sm};
   font-family: ${tokens.fonts.mono};
   color: ${tokens.colors.text};
+}`;
+
+export const statusPill = rule`${c.statusPill} {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px ${tokens.space.sm};
+  border-radius: ${tokens.radii.pill};
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: ${tokens.fontSizes.xs};
+  font-family: ${tokens.fonts.base};
+  font-weight: ${tokens.fontWeights.medium};
+}`;
+
+export const statusPillSuccess = rule`${c.statusPillSuccess} {
+  color: #8be28d;
+  background: rgba(48, 209, 88, 0.12);
+  border-color: rgba(48, 209, 88, 0.2);
+}`;
+
+export const statusPillMuted = rule`${c.statusPillMuted} {
+  color: ${tokens.colors.textMuted};
+  background: rgba(255, 255, 255, 0.04);
 }`;

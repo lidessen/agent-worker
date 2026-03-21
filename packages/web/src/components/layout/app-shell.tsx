@@ -1,17 +1,16 @@
 /** @jsxImportSource semajsx/dom */
 
 import type { JSXNode } from "semajsx";
-import { Nav } from "./nav.tsx";
+import { Sidebar } from "./sidebar.tsx";
 import * as styles from "./app-shell.style.ts";
 
 export function AppShell(props: { children?: JSXNode }) {
   return (
     <div class={styles.shell}>
-      <header class={styles.topBar}>
-        <span class={styles.title}>Agent Worker</span>
-        <Nav />
-      </header>
-      <main class={styles.content}>{props.children}</main>
+      <Sidebar />
+      <main class={styles.content}>
+        <div class={styles.contentInner}>{props.children}</div>
+      </main>
     </div>
   );
 }

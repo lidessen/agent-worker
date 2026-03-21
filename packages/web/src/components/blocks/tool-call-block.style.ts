@@ -17,11 +17,12 @@ const c = classes([
 ] as const);
 
 export const block = rule`${c.block} {
-  border-left: 3px solid ${tokens.colors.border};
-  padding: ${tokens.space.sm} ${tokens.space.md};
-  background: ${tokens.colors.surface};
-  border-radius: 0 ${tokens.radii.sm} ${tokens.radii.sm} 0;
+  padding: ${tokens.space.md} ${tokens.space.lg};
+  background: ${tokens.colors.panel};
+  border: 1px solid ${tokens.colors.border};
+  border-radius: ${tokens.radii.xl};
   margin: ${tokens.space.xs} 0;
+  box-shadow: ${tokens.shadows.inset};
 }`;
 
 export const header = rule`${c.header} {
@@ -69,8 +70,8 @@ export const args = rule`${c.args} {
   word-break: break-all;
   margin-top: ${tokens.space.sm};
   padding: ${tokens.space.sm};
-  background: ${tokens.colors.background};
-  border-radius: ${tokens.radii.sm};
+  background: ${tokens.colors.input};
+  border-radius: ${tokens.radii.lg};
   max-height: 300px;
   overflow-y: auto;
 }`;
@@ -119,7 +120,7 @@ export const duration = rule`${c.duration} {
   font-size: ${tokens.fontSizes.xs};
   color: ${tokens.colors.textDim};
   font-family: ${tokens.fonts.mono};
-  background: ${tokens.colors.background};
-  padding: 1px ${tokens.space.xs};
-  border-radius: ${tokens.radii.sm};
+  background: ${tokens.colors.surfaceSecondary};
+  padding: 2px ${tokens.space.xs};
+  border-radius: ${tokens.radii.pill};
 }`;

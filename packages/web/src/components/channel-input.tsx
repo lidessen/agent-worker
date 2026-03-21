@@ -1,10 +1,16 @@
 /** @jsxImportSource semajsx/dom */
 
+import { Icon, ArrowUp } from "@semajsx/icons";
+import { computed, signal } from "semajsx/signal";
 import { isChannelStreaming } from "../stores/channel.ts";
 import * as styles from "./chat-input.style.ts";
 
 export function ChannelInput(props: { onSend: (text: string) => void }) {
   let textareaRef: HTMLTextAreaElement | null = null;
+  const draft = signal("");
+  const canSend = computed([draft, isChannelStreaming], (text, streaming) =>
+    text.trim().length > 0 && !streaming,
+  );
 
   function autoResize() {
     if (!textareaRef) return;
@@ -14,11 +20,12 @@ export function ChannelInput(props: { onSend: (text: string) => void }) {
 
   function handleSend() {
     if (!textareaRef) return;
-    const text = textareaRef.value.trim();
+    const text = draft.value.trim();
     if (!text) return;
 
     props.onSend(text);
     textareaRef.value = "";
+    draft.value = "";
     autoResize();
   }
 
@@ -31,24 +38,33 @@ export function ChannelInput(props: { onSend: (text: string) => void }) {
 
   return (
     <div class={styles.bar}>
-      <textarea
-        class={styles.textarea}
-        placeholder="Type a message... (Ctrl+Enter to send)"
-        rows={1}
-        disabled={isChannelStreaming}
-        oninput={autoResize}
-        onkeydown={handleKeydown}
-        ref={(el: HTMLTextAreaElement) => {
-          textareaRef = el;
-        }}
-      />
-      <button
-        class={styles.sendBtn}
-        onclick={handleSend}
-        disabled={isChannelStreaming}
-      >
-        Send
-      </button>
+      <div class={styles.composer}>
+        <textarea
+          class={styles.textarea}
+          placeholder="Message this channel"
+          rows={1}
+          disabled={isChannelStreaming}
+          oninput={(e: Event) => {
+            draft.value = (e.target as HTMLTextAreaElement).value;
+            autoResize();
+          }}
+          onkeydown={handleKeydown}
+          ref={(el: HTMLTextAreaElement) => {
+            textareaRef = el;
+          }}
+        />
+        <div class={styles.footer}>
+          <span class={styles.shortcut}>Ctrl+Enter to send</span>
+          <button
+            class={styles.sendBtn}
+            onclick={handleSend}
+            disabled={computed(canSend, (ready) => !ready)}
+            type="button"
+          >
+            <Icon icon={ArrowUp} size={22} />
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

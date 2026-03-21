@@ -13,7 +13,7 @@ export async function loadChannelHistory(wsKey: string, ch: string) {
   const c = client.value;
   if (!c) return;
   try {
-    const messages = await c.readChannel(wsKey, ch);
+    const messages = await c.readChannel(wsKey, ch, { limit: 20 });
     channelMessages.value = messages;
     channelCursor.value = messages.length;
   } catch (err) {
@@ -30,6 +30,24 @@ export async function startChannelStream(wsKey: string, ch: string) {
   abortController = new AbortController();
   isChannelStreaming.value = true;
 
+  // Batch incoming SSE messages to avoid per-message DOM rebuilds.
+  // Messages are collected in a buffer and flushed to the signal
+  // at most once per animation frame.
+  let pendingMessages: ChannelMessage[] = [];
+  let flushScheduled = false;
+
+  function flushPending() {
+    flushScheduled = false;
+    if (pendingMessages.length === 0) return;
+    const batch = pendingMessages;
+    pendingMessages = [];
+    channelMessages.update((prev) => {
+      const ids = new Set(prev.map((m) => m.id));
+      const newMsgs = batch.filter((m) => !ids.has(m.id));
+      return newMsgs.length > 0 ? [...prev, ...newMsgs] : prev;
+    });
+  }
+
   try {
     const stream = c.streamChannel(wsKey, ch, {
       cursor: channelCursor.value,
@@ -37,13 +55,15 @@ export async function startChannelStream(wsKey: string, ch: string) {
     });
 
     for await (const msg of stream) {
-      if (currentSessionId !== sid) break; // stale stream
-      channelMessages.update((prev) => {
-        // Deduplicate by id
-        if (prev.some((m) => m.id === msg.id)) return prev;
-        return [...prev, msg];
-      });
+      if (currentSessionId !== sid) break;
+      pendingMessages.push(msg);
+      if (!flushScheduled) {
+        flushScheduled = true;
+        requestAnimationFrame(flushPending);
+      }
     }
+    // Flush any remaining messages after stream ends
+    flushPending();
   } catch (err) {
     if (!(err instanceof DOMException && err.name === "AbortError")) {
       console.error(`Channel stream error for ${wsKey}/${ch}:`, err);

@@ -4,11 +4,12 @@ import { tokens } from "../../theme/tokens.ts";
 const c = classes(["block", "message"] as const);
 
 export const block = rule`${c.block} {
-  border-left: 3px solid ${tokens.colors.danger};
-  padding: ${tokens.space.sm} ${tokens.space.md};
-  background: ${tokens.colors.surface};
-  border-radius: 0 ${tokens.radii.sm} ${tokens.radii.sm} 0;
+  padding: ${tokens.space.md} ${tokens.space.lg};
+  background: ${tokens.colors.dangerSurface};
+  border: 1px solid rgba(255, 69, 58, 0.24);
+  border-radius: ${tokens.radii.xl};
   margin: ${tokens.space.xs} 0;
+  box-shadow: ${tokens.shadows.inset};
 }`;
 
 export const message = rule`${c.message} {

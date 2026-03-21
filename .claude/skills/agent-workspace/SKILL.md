@@ -1,11 +1,11 @@
 ---
-name: workspace-debug
-description: "Monitor, inspect, and interact with the agent workspace using the workspace-debug MCP tools. Use this skill when the user wants to check agent status, read workspace channels, send messages to agents, view event logs, inspect the instruction queue, or test how agents behave in the workspace. Trigger on phrases like 'check agents', 'workspace status', 'send message to agents', 'what are agents doing', 'test agent behavior', 'debug workspace', 'monitor agents', 'read channel', 'check queue'."
+name: agent-workspace
+description: "Monitor, inspect, and interact with the agent workspace using the agent-workspace MCP tools. Use this skill when the user wants to check agent status, read workspace channels, send messages to agents, view event logs, inspect the instruction queue, or test how agents behave in the workspace. Trigger on phrases like 'check agents', 'workspace status', 'send message to agents', 'what are agents doing', 'test agent behavior', 'debug workspace', 'monitor agents', 'read channel', 'check queue'."
 ---
 
-# Workspace Debug
+# Agent Workspace
 
-The `workspace-debug` MCP endpoint is a **super-agent** — it has all 18 regular agent collaboration tools plus 5 debug-only inspection tools (23 total). This means you can both observe and participate in the workspace.
+The `agent-workspace` MCP endpoint is a **super-agent** — it has all 18 regular agent collaboration tools plus 5 debug-only inspection tools (23 total). This means you can both observe and participate in the workspace.
 
 ## Prerequisites
 

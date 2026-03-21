@@ -4,12 +4,12 @@ import { tokens } from "../../theme/tokens.ts";
 const c = classes(["block", "header", "label", "toggle", "content"] as const);
 
 export const block = rule`${c.block} {
-  border-left: 3px solid ${tokens.colors.warning};
-  padding: ${tokens.space.sm} ${tokens.space.md};
-  background: ${tokens.colors.surface};
-  border-radius: 0 ${tokens.radii.sm} ${tokens.radii.sm} 0;
+  padding: ${tokens.space.md} ${tokens.space.lg};
+  background: ${tokens.colors.warningSurface};
+  border: 1px solid rgba(255, 214, 10, 0.18);
+  border-radius: ${tokens.radii.xl};
   margin: ${tokens.space.xs} 0;
-  opacity: 0.7;
+  box-shadow: ${tokens.shadows.inset};
 }`;
 
 export const header = rule`${c.header} {
@@ -39,8 +39,8 @@ export const content = rule`${c.content} {
   line-height: 1.5;
   margin-top: ${tokens.space.sm};
   padding: ${tokens.space.sm};
-  background: ${tokens.colors.background};
-  border-radius: ${tokens.radii.sm};
+  background: ${tokens.colors.input};
+  border-radius: ${tokens.radii.lg};
   max-height: 400px;
   overflow-y: auto;
 }`;

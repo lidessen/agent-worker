@@ -14,9 +14,9 @@ export const block = rule`${c.block} {
 export const code = rule`${c.code} {
   font-family: ${tokens.fonts.mono};
   font-size: 0.85em;
-  background: ${tokens.colors.surface};
-  padding: 1px ${tokens.space.xs};
-  border-radius: 3px;
+  background: ${tokens.colors.surfaceSecondary};
+  padding: 2px ${tokens.space.xs};
+  border-radius: ${tokens.radii.pill};
   border: 1px solid ${tokens.colors.border};
 }`;
 
@@ -24,9 +24,9 @@ export const codeBlock = rule`${c.codeBlock} {
   display: block;
   font-family: ${tokens.fonts.mono};
   font-size: ${tokens.fontSizes.sm};
-  background: ${tokens.colors.surface};
+  background: ${tokens.colors.input};
   padding: ${tokens.space.md};
-  border-radius: ${tokens.radii.sm};
+  border-radius: ${tokens.radii.xl};
   border: 1px solid ${tokens.colors.border};
   margin: ${tokens.space.sm} 0;
   overflow-x: auto;
