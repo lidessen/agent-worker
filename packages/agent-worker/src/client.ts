@@ -22,6 +22,11 @@ export interface HealthInfo {
   uptime: number;
   agents: number;
   workspaces: number;
+  runtimes?: Array<{
+    name: string;
+    status: string;
+    available: boolean;
+  }>;
 }
 
 export interface CursorResult<T> {

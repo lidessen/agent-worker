@@ -3,6 +3,13 @@ export interface HealthInfo {
   agents: number;
   workspaces: number;
   uptime: number;
+  runtimes?: RuntimeHealth[];
+}
+
+export interface RuntimeHealth {
+  name: string;
+  status: string;
+  available: boolean;
 }
 
 export interface AgentInfo {

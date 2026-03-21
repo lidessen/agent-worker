@@ -20,6 +20,8 @@ const c = classes([
   "infoRow",
   "infoLabel",
   "infoValue",
+  "runtimeLabel",
+  "runtimeIcon",
   "statusPill",
   "statusPillSuccess",
   "statusPillMuted",
@@ -187,6 +189,23 @@ export const infoValue = rule`${c.infoValue} {
   font-size: ${tokens.fontSizes.sm};
   font-family: ${tokens.fonts.mono};
   color: ${tokens.colors.text};
+}`;
+
+export const runtimeLabel = rule`${c.runtimeLabel} {
+  display: inline-flex;
+  align-items: center;
+  gap: ${tokens.space.sm};
+  font-size: ${tokens.fontSizes.sm};
+  color: ${tokens.colors.text};
+}`;
+
+export const runtimeIcon = rule`${c.runtimeIcon} {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  color: ${tokens.colors.textMuted};
+  flex: 0 0 auto;
 }`;
 
 export const statusPill = rule`${c.statusPill} {

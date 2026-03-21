@@ -3,15 +3,22 @@
 import { Icon, ArrowUp } from "@semajsx/icons";
 import { computed, signal } from "semajsx/signal";
 import type { ReadableSignal } from "semajsx/signal";
+import { onCleanup } from "semajsx/dom";
 import { isStreaming, sendMessage } from "../stores/conversation.ts";
 import * as styles from "./chat-input.style.ts";
 
 export function ChatInput(props: { agentName: ReadableSignal<string> }) {
   let textareaRef: HTMLTextAreaElement | null = null;
+  let sendBtnRef: HTMLButtonElement | null = null;
   const draft = signal("");
   const canSend = computed([draft, isStreaming], (text, streaming) =>
     text.trim().length > 0 && !streaming,
   );
+
+  function syncControls() {
+    if (textareaRef) textareaRef.disabled = isStreaming.value;
+    if (sendBtnRef) sendBtnRef.disabled = !canSend.value;
+  }
 
   function autoResize() {
     if (!textareaRef) return;
@@ -38,6 +45,13 @@ export function ChatInput(props: { agentName: ReadableSignal<string> }) {
     }
   }
 
+  const unsubDraft = draft.subscribe(syncControls);
+  const unsubStreaming = isStreaming.subscribe(syncControls);
+  onCleanup(() => {
+    unsubDraft();
+    unsubStreaming();
+  });
+
   return (
     <div class={styles.bar}>
       <div class={styles.composer}>
@@ -45,7 +59,6 @@ export function ChatInput(props: { agentName: ReadableSignal<string> }) {
           class={styles.textarea}
           placeholder="Ask Codex anything, @ to add files, / for commands, $ for skills"
           rows={1}
-          disabled={isStreaming}
           oninput={(e: Event) => {
             draft.value = (e.target as HTMLTextAreaElement).value;
             autoResize();
@@ -53,6 +66,7 @@ export function ChatInput(props: { agentName: ReadableSignal<string> }) {
           onkeydown={handleKeydown}
           ref={(el: HTMLTextAreaElement) => {
             textareaRef = el;
+            syncControls();
           }}
         />
         <div class={styles.footer}>
@@ -60,8 +74,11 @@ export function ChatInput(props: { agentName: ReadableSignal<string> }) {
           <button
             class={styles.sendBtn}
             onclick={handleSend}
-            disabled={computed(canSend, (ready) => !ready)}
             type="button"
+            ref={(el: HTMLButtonElement) => {
+              sendBtnRef = el;
+              syncControls();
+            }}
           >
             <Icon icon={ArrowUp} size={22} />
           </button>

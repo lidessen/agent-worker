@@ -10,12 +10,24 @@ const c = classes([
   "badgeDot",
   "modeTag",
   "content",
+  "hero",
+  "heroCopy",
+  "heroEyebrow",
+  "heroTitle",
+  "heroText",
+  "statGrid",
+  "statCard",
+  "statLabel",
+  "statValue",
+  "statValueSmall",
   "section",
   "sectionHeader",
   "sectionTitle",
   "count",
   "agentList",
   "agentItem",
+  "agentLabel",
+  "agentRuntimeIcon",
   "agentDot",
   "channelList",
   "channelItem",
@@ -104,6 +116,96 @@ export const content = rule`${c.content} {
   }
 }`;
 
+export const hero = rule`${c.hero} {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(320px, 0.9fr);
+  gap: ${tokens.space.lg};
+  align-items: stretch;
+}
+@media (max-width: 900px) {
+  ${c.hero} {
+    grid-template-columns: 1fr;
+  }
+}`;
+
+export const heroCopy = rule`${c.heroCopy} {
+  display: flex;
+  flex-direction: column;
+  gap: ${tokens.space.sm};
+  padding: ${tokens.space.xl};
+  border-radius: ${tokens.radii.xl};
+  background: ${tokens.colors.panel};
+  border: 1px solid ${tokens.colors.border};
+  box-shadow: ${tokens.shadows.inset};
+}`;
+
+export const heroEyebrow = rule`${c.heroEyebrow} {
+  font-size: ${tokens.fontSizes.xs};
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: ${tokens.colors.textDim};
+}`;
+
+export const heroTitle = rule`${c.heroTitle} {
+  font-size: ${tokens.fontSizes.xxl};
+  line-height: 1.02;
+  font-weight: ${tokens.fontWeights.bold};
+  letter-spacing: -0.04em;
+  color: ${tokens.colors.text};
+}`;
+
+export const heroText = rule`${c.heroText} {
+  font-size: ${tokens.fontSizes.sm};
+  line-height: 1.65;
+  color: ${tokens.colors.textMuted};
+  max-width: 48ch;
+}`;
+
+export const statGrid = rule`${c.statGrid} {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: ${tokens.space.md};
+}
+@media (max-width: 640px) {
+  ${c.statGrid} {
+    grid-template-columns: 1fr;
+  }
+}`;
+
+export const statCard = rule`${c.statCard} {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: ${tokens.space.sm};
+  min-height: 120px;
+  padding: ${tokens.space.lg};
+  border-radius: ${tokens.radii.xl};
+  background: ${tokens.colors.panel};
+  border: 1px solid ${tokens.colors.border};
+  box-shadow: ${tokens.shadows.inset};
+}`;
+
+export const statLabel = rule`${c.statLabel} {
+  font-size: ${tokens.fontSizes.xs};
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: ${tokens.colors.textDim};
+}`;
+
+export const statValue = rule`${c.statValue} {
+  font-size: ${tokens.fontSizes.xxl};
+  line-height: 1;
+  font-weight: ${tokens.fontWeights.semibold};
+  color: ${tokens.colors.text};
+}`;
+
+export const statValueSmall = rule`${c.statValueSmall} {
+  font-size: ${tokens.fontSizes.sm};
+  line-height: 1.5;
+  font-family: ${tokens.fonts.mono};
+  color: ${tokens.colors.text};
+}`;
+
 export const section = rule`${c.section} {
   display: flex;
   flex-direction: column;
@@ -129,7 +231,12 @@ export const sectionTitle = rule`${c.sectionTitle} {
 
 export const count = rule`${c.count} {
   font-size: ${tokens.fontSizes.xs};
-  color: ${tokens.colors.textMuted};
+  color: ${tokens.colors.textDim};
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid ${tokens.colors.border};
+  border-radius: ${tokens.radii.pill};
+  padding: 2px ${tokens.space.sm};
+  line-height: 1.2;
 }`;
 
 export const agentList = rule`${c.agentList} {
@@ -141,27 +248,40 @@ export const agentList = rule`${c.agentList} {
 export const agentItem = rule`${c.agentItem} {
   display: flex;
   align-items: center;
-  gap: ${tokens.space.sm};
-  padding: ${tokens.space.sm} ${tokens.space.md};
-  background: ${tokens.colors.surfaceSecondary};
-  border: 1px solid ${tokens.colors.border};
-  border-radius: ${tokens.radii.xl};
+  gap: ${tokens.space.md};
+  padding: ${tokens.space.sm} 0;
   font-size: ${tokens.fontSizes.sm};
   color: ${tokens.colors.text};
   cursor: pointer;
-  transition: background ${tokens.transitions.fast}, border-color ${tokens.transitions.fast};
+  transition: color ${tokens.transitions.fast};
 }
 ${c.agentItem}:hover {
-  background: ${tokens.colors.surfaceHover};
-  border-color: ${tokens.colors.borderHover};
+  color: ${tokens.colors.textMuted};
+}`;
+
+export const agentLabel = rule`${c.agentLabel} {
+  display: inline-flex;
+  align-items: center;
+  gap: ${tokens.space.sm};
+  min-width: 0;
+}`;
+
+export const agentRuntimeIcon = rule`${c.agentRuntimeIcon} {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  color: ${tokens.colors.textMuted};
+  flex: 0 0 auto;
+  opacity: 0.9;
 }`;
 
 export const agentDot = rule`${c.agentDot} {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
   border-radius: ${tokens.radii.pill};
   flex-shrink: 0;
-  background: ${tokens.colors.agentIdle};
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
 }`;
 
 export const channelList = rule`${c.channelList} {
@@ -173,34 +293,35 @@ export const channelList = rule`${c.channelList} {
 export const channelItem = rule`${c.channelItem} {
   display: flex;
   align-items: center;
-  padding: ${tokens.space.sm} ${tokens.space.md};
-  background: ${tokens.colors.surfaceSecondary};
-  border: 1px solid ${tokens.colors.border};
-  border-radius: ${tokens.radii.xl};
+  padding: ${tokens.space.sm} 0;
   font-size: ${tokens.fontSizes.sm};
   color: ${tokens.colors.text};
   cursor: pointer;
-  transition: background ${tokens.transitions.fast}, border-color ${tokens.transitions.fast};
+  transition: color ${tokens.transitions.fast};
 }
 ${c.channelItem}:hover {
-  background: ${tokens.colors.surfaceHover};
-  border-color: ${tokens.colors.borderHover};
+  color: ${tokens.colors.textMuted};
 }`;
 
 export const configBlock = rule`${c.configBlock} {
   display: flex;
   flex-direction: column;
   gap: ${tokens.space.sm};
-  padding: ${tokens.space.md};
-  background: ${tokens.colors.surfaceSecondary};
-  border: 1px solid ${tokens.colors.border};
-  border-radius: ${tokens.radii.xl};
 }`;
 
 export const configRow = rule`${c.configRow} {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: ${tokens.space.lg};
+  padding: ${tokens.space.sm} 0;
+}
+@media (max-width: 640px) {
+  ${c.configRow} {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: ${tokens.space.xs};
+  }
 }`;
 
 export const configLabel = rule`${c.configLabel} {

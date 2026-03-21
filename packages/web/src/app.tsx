@@ -1,9 +1,18 @@
 /** @jsxImportSource semajsx/dom */
 
 import { render } from "semajsx/dom";
+import { computed } from "semajsx/signal";
 import { AppShell } from "./components/layout/app-shell.tsx";
-import { selectedItem, type SelectedItem } from "./stores/navigation.ts";
-import { OpenAIIcon } from "./components/brand-icons.tsx";
+import {
+  currentWorkspace,
+  selectedItem,
+  selectChannel,
+  selectDoc,
+  selectWorkspaceSettings,
+  type SelectedItem,
+} from "./stores/navigation.ts";
+import { wsAgents, wsChannels, wsDocs, wsInfo } from "./stores/workspace-data.ts";
+import { VercelIcon } from "./components/brand-icons.tsx";
 import { tokens } from "./theme/tokens.ts";
 
 // Import all views
@@ -32,63 +41,95 @@ function createView(item: SelectedItem) {
 }
 
 function EmptyState() {
-  const suggestions = [
-    "Review the latest workspace activity",
-    "Create a plan for this repo",
-    "Summarize the current agent state",
-  ];
+  const workspaceName = computed([wsInfo, currentWorkspace], (info, key) => info?.name ?? key);
+  const channelCount = computed(wsChannels, (list) => list.length);
+  const agentCount = computed(wsAgents, (list) => list.length);
+  const docCount = computed(wsDocs, (list) => list.length);
+  const firstChannel = computed(wsChannels, (list) => list[0] ?? null);
+  const firstDoc = computed(wsDocs, (list) => list[0]?.name ?? null);
 
   return (
     <div
       style={`display:flex; flex:1; flex-direction:column; justify-content:center; padding:${tokens.space.xxxl}; gap:${tokens.space.xxl};`}
     >
       <div
-        style={`display:flex; flex-direction:column; align-items:center; gap:${tokens.space.md}; text-align:center; max-width:420px;`}
+        style={`display:flex; flex-direction:column; align-items:center; gap:${tokens.space.md}; text-align:center; max-width:560px; margin:0 auto;`}
       >
         <div
-          style={`display:flex; align-items:center; justify-content:center; width:72px; height:72px; border-radius:${tokens.radii.xl}; background:${tokens.colors.surfaceSecondary}; border:1px solid ${tokens.colors.border}; box-shadow:${tokens.shadows.glow}; color:${tokens.colors.text};`}
+          style={`display:flex; align-items:center; justify-content:center; width:64px; height:64px; border-radius:${tokens.radii.xl}; background:${tokens.colors.surfaceSecondary}; border:1px solid ${tokens.colors.border}; box-shadow:${tokens.shadows.glow}; color:${tokens.colors.textMuted};`}
         >
-          <OpenAIIcon size={30} />
+          <VercelIcon size={24} />
         </div>
         <div
           style={`font-size:${tokens.fontSizes.xxl}; line-height:1.04; font-weight:${tokens.fontWeights.bold}; letter-spacing:-0.04em; color:${tokens.colors.text};`}
         >
-          {"Let's build"}
+          Workspace overview
         </div>
         <div
           style={`font-size:${tokens.fontSizes.xl}; line-height:1.1; color:${tokens.colors.textMuted}; font-weight:${tokens.fontWeights.semibold};`}
         >
-          agent-worker
+          {workspaceName}
         </div>
         <div
-          style={`font-size:${tokens.fontSizes.sm}; line-height:1.6; color:${tokens.colors.textDim}; max-width:320px;`}
+          style={`font-size:${tokens.fontSizes.sm}; line-height:1.6; color:${tokens.colors.textDim}; max-width:420px;`}
         >
-          Pick a channel or agent from the sidebar to start a new thread.
+          Select a channel, agent, or document from the sidebar to inspect the workspace,
+          review conversations, and coordinate agent activity.
         </div>
       </div>
 
       <div
-        style={`display:flex; flex-direction:column; gap:${tokens.space.md}; width:min(100%, 820px); margin:0 auto;`}
+        style={`display:flex; flex-direction:column; gap:${tokens.space.lg}; width:min(100%, 860px); margin:0 auto;`}
       >
         <div
-          style={`display:flex; align-items:center; justify-content:center; gap:${tokens.space.md}; flex-wrap:wrap;`}
+          style={`display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:${tokens.space.md};`}
         >
-          {suggestions.map((label) => (
+          {[
+            { label: "Agents", value: agentCount },
+            { label: "Channels", value: channelCount },
+            { label: "Docs", value: docCount },
+          ].map((item) => (
             <div
-              style={`padding:${tokens.space.lg}; min-width:200px; border-radius:${tokens.radii.xl}; background:${tokens.colors.panel}; border:1px solid ${tokens.colors.border}; color:${tokens.colors.textMuted}; box-shadow:${tokens.shadows.inset};`}
+              style={`padding:${tokens.space.lg}; border-radius:${tokens.radii.xl}; background:${tokens.colors.panel}; border:1px solid ${tokens.colors.border}; color:${tokens.colors.textMuted}; box-shadow:${tokens.shadows.inset}; display:flex; flex-direction:column; gap:${tokens.space.xs};`}
             >
-              {label}
+              <span style={`font-size:${tokens.fontSizes.xs}; text-transform:uppercase; letter-spacing:0.08em; color:${tokens.colors.textDim};`}>
+                {item.label}
+              </span>
+              <span style={`font-size:${tokens.fontSizes.xxl}; line-height:1; font-weight:${tokens.fontWeights.semibold}; color:${tokens.colors.text};`}>
+                {item.value}
+              </span>
             </div>
           ))}
         </div>
         <div
-          style={`padding:${tokens.space.sm}; border-radius:${tokens.radii.xxl}; background:${tokens.colors.panel}; border:1px solid ${tokens.colors.border}; box-shadow:${tokens.shadows.glow}, ${tokens.shadows.inset};`}
+          style={`display:flex; flex-wrap:wrap; justify-content:center; gap:${tokens.space.sm};`}
         >
           <div
-            style={`min-height:96px; border-radius:${tokens.radii.xl}; background:${tokens.colors.input}; border:1px solid ${tokens.colors.border}; padding:${tokens.space.lg}; color:${tokens.colors.textDim}; display:flex; align-items:flex-start;`}
+            style={`padding:${tokens.space.sm} ${tokens.space.lg}; border-radius:${tokens.radii.pill}; background:${tokens.colors.panel}; border:1px solid ${tokens.colors.border}; color:${tokens.colors.textMuted}; cursor:pointer;`}
+            onclick={() => selectWorkspaceSettings(currentWorkspace.value)}
           >
-            Ask anything, add files, or open a channel to start
+            Open workspace overview
           </div>
+          {computed(firstChannel, (channel) =>
+            channel ? (
+              <div
+                style={`padding:${tokens.space.sm} ${tokens.space.lg}; border-radius:${tokens.radii.pill}; background:${tokens.colors.panel}; border:1px solid ${tokens.colors.border}; color:${tokens.colors.textMuted}; cursor:pointer;`}
+                onclick={() => selectChannel(currentWorkspace.value, channel)}
+              >
+                Open #{channel}
+              </div>
+            ) : null,
+          )}
+          {computed(firstDoc, (docName) =>
+            docName ? (
+              <div
+                style={`padding:${tokens.space.sm} ${tokens.space.lg}; border-radius:${tokens.radii.pill}; background:${tokens.colors.panel}; border:1px solid ${tokens.colors.border}; color:${tokens.colors.textMuted}; cursor:pointer;`}
+                onclick={() => selectDoc(currentWorkspace.value, docName)}
+              >
+                Open doc: {docName}
+              </div>
+            ) : null,
+          )}
         </div>
       </div>
     </div>

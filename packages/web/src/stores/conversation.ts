@@ -18,7 +18,7 @@ export async function loadHistory(agentName: string) {
   const c = client.value;
   if (!c) return;
   try {
-    const result = await c.readResponses(agentName);
+    const result = await c.readAgentEvents(agentName);
     events.value = result.entries;
     cursor.value = result.cursor;
   } catch (err) {
@@ -44,7 +44,7 @@ async function runStream(agentName: string, sid: number) {
   if (!c) return;
 
   try {
-    const stream = c.streamResponses(agentName, {
+    const stream = c.streamAgentEvents(agentName, {
       cursor: cursor.value,
       signal: abortController!.signal,
     });

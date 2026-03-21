@@ -50,7 +50,12 @@ import { DaemonEventLog } from "./event-log.ts";
 import { createLoopFromConfig } from "./loop-factory.ts";
 import { writeDaemonInfo, removeDaemonInfo, generateToken, defaultDataDir } from "./discovery.ts";
 import { WorkspaceMcpHub } from "@agent-worker/workspace";
-import { resolveRuntime } from "./resolve-runtime.ts";
+import { detectAiSdkModel, resolveRuntime } from "./resolve-runtime.ts";
+import {
+  checkCliAvailability,
+  checkClaudeCodeAuth,
+  checkCodexAuth,
+} from "@agent-worker/loop";
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
 import type { ServerType } from "@hono/node-server";
@@ -285,7 +290,7 @@ export class Daemon {
     try {
       // Health
       if (path === "/health" && method === "GET") {
-        return this.handleHealth();
+        return await this.handleHealth();
       }
 
       // Shutdown
@@ -409,13 +414,59 @@ export class Daemon {
 
   // ── Health ──────────────────────────────────────────────────────────────
 
-  private handleHealth(): Response {
+  private async handleHealth(): Promise<Response> {
+    const claudeInstalled = await checkCliAvailability("claude");
+    const codexInstalled = await checkCliAvailability("codex");
+    const cursorInstalled = await checkCliAvailability("agent");
+    const claudeAuth = claudeInstalled.available
+      ? await checkClaudeCodeAuth()
+      : { authenticated: false };
+    const codexAuth = codexInstalled.available
+      ? await checkCodexAuth()
+      : { authenticated: false };
+    const aiSdkModel = detectAiSdkModel();
+
     return Response.json({
       status: "ok",
       pid: process.pid,
       uptime: Date.now() - this.startedAt,
       agents: this.agents.size,
       workspaces: this.workspaces.size,
+      runtimes: [
+        {
+          name: "ai-sdk",
+          status: aiSdkModel ? aiSdkModel : "not configured",
+          available: Boolean(aiSdkModel),
+        },
+        {
+          name: "claude-code",
+          status: !claudeInstalled.available
+            ? "not installed"
+            : claudeAuth.authenticated
+              ? "available"
+              : "not authenticated",
+          available: claudeInstalled.available && claudeAuth.authenticated,
+        },
+        {
+          name: "codex",
+          status: !codexInstalled.available
+            ? "not installed"
+            : codexAuth.authenticated
+              ? "available"
+              : "not authenticated",
+          available: codexInstalled.available && codexAuth.authenticated,
+        },
+        {
+          name: "cursor",
+          status: cursorInstalled.available ? "available" : "not installed",
+          available: cursorInstalled.available,
+        },
+        {
+          name: "mock",
+          status: "built-in",
+          available: true,
+        },
+      ],
     });
   }
 

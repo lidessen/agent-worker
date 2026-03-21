@@ -1,6 +1,8 @@
 /** @jsxImportSource semajsx/dom */
 
+import { Icon, Drama } from "@semajsx/icons";
 import { signal, computed } from "semajsx/signal";
+import { onCleanup } from "semajsx/dom";
 import { when } from "semajsx";
 import { WebClient } from "../api/client.ts";
 import {
@@ -8,18 +10,11 @@ import {
   client,
   connect,
 } from "../stores/connection.ts";
-import type { HealthInfo } from "../api/types.ts";
-import { tokens } from "../theme/tokens.ts";
+import type { HealthInfo, RuntimeHealth } from "../api/types.ts";
+import { ClaudeIcon, CursorIcon, OpenAIIcon, VercelIcon } from "../components/brand-icons.tsx";
 import * as styles from "./settings.style.ts";
 
-/** Known runtimes — informational display. Actual selection happens in agent creation. */
-const KNOWN_RUNTIMES = [
-  { name: "ai-sdk", status: "available", available: true },
-  { name: "claude-code", status: "available", available: true },
-  { name: "codex", status: "available", available: true },
-  { name: "cursor", status: "available", available: true },
-  { name: "mock", status: "local", available: false },
-] as const;
+const KNOWN_RUNTIMES = ["ai-sdk", "claude-code", "codex", "cursor", "mock"] as const;
 
 const testResult = signal<{ ok: boolean; message: string } | null>(null);
 const testing = signal(false);
@@ -40,6 +35,54 @@ const testResultBanner = computed(testResult, (r) => {
       {r.message}
     </div>
   );
+});
+
+function runtimeIcon(runtime: string) {
+  switch (runtime) {
+    case "claude-code":
+      return <ClaudeIcon size={14} style="vertical-align: -2px;" />;
+    case "codex":
+      return <OpenAIIcon size={14} style="vertical-align: -2px;" />;
+    case "cursor":
+      return <CursorIcon size={14} style="vertical-align: -2px;" />;
+    case "ai-sdk":
+      return <VercelIcon size={12} style="vertical-align: -1px;" />;
+    case "mock":
+      return <Icon icon={Drama} size={13} />;
+    default:
+      return null;
+  }
+}
+
+const runtimeRows = computed(healthInfo, (info) => {
+  const runtimeMap = new Map<string, RuntimeHealth>(
+    (info?.runtimes ?? []).map((runtime) => [runtime.name, runtime]),
+  );
+
+  return KNOWN_RUNTIMES.map((name) => {
+    const runtime = runtimeMap.get(name) ?? {
+      name,
+      status: "unknown",
+      available: false,
+    };
+
+    return (
+      <div class={styles.infoRow}>
+        <span class={styles.runtimeLabel}>
+          <span class={styles.runtimeIcon}>{runtimeIcon(name)}</span>
+          <span>{name}</span>
+        </span>
+        <span
+          class={[
+            styles.statusPill,
+            runtime.available ? styles.statusPillSuccess : styles.statusPillMuted,
+          ]}
+        >
+          {runtime.status}
+        </span>
+      </div>
+    );
+  });
 });
 
 const healthRows = computed(healthInfo, (info) => {
@@ -117,7 +160,24 @@ export function SettingsPage() {
     localStorage.setItem("aw:config", JSON.stringify({ baseUrl, token }));
     testResult.value = null;
     await connect(baseUrl, token);
+    if (client.value) {
+      try {
+        healthInfo.value = await client.value.health();
+      } catch {
+        // ignore refresh failure after save
+      }
+    }
   }
+
+  const unsubClient = client.subscribe((c) => {
+    if (!c) return;
+    c.health().then((info) => {
+      healthInfo.value = info;
+    }).catch(() => {
+      // ignore background refresh failure
+    });
+  });
+  onCleanup(unsubClient);
 
   // Fetch health info if already connected
   if (isConnected.value && client.value) {
@@ -199,19 +259,7 @@ export function SettingsPage() {
         <span class={styles.sectionTitle}>Runtimes</span>
         <div class={styles.sectionContent}>
           <div class={styles.info}>
-            {KNOWN_RUNTIMES.map((rt) => (
-              <div class={styles.infoRow}>
-                <span class={styles.infoLabel}>{rt.name}</span>
-                <span
-                  class={[
-                    styles.statusPill,
-                    rt.available ? styles.statusPillSuccess : styles.statusPillMuted,
-                  ]}
-                >
-                  {rt.status}
-                </span>
-              </div>
-            ))}
+            {runtimeRows}
           </div>
         </div>
       </div>
