@@ -58,7 +58,34 @@ import {
 } from "@agent-worker/loop";
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
+import type { HttpBindings } from "@hono/node-server";
 import type { ServerType } from "@hono/node-server";
+
+function advertisedHost(host: string): string {
+  return host === "0.0.0.0" || host === "::" ? "127.0.0.1" : host;
+}
+
+function normalizeRemoteAddress(remoteAddress?: string): string {
+  if (!remoteAddress) return "";
+  return remoteAddress.replace(/^::ffff:/, "");
+}
+
+function isLoopbackAddress(remoteAddress?: string): boolean {
+  const addr = normalizeRemoteAddress(remoteAddress);
+  return addr === "127.0.0.1" || addr === "::1" || addr === "localhost";
+}
+
+function isTailscaleAddress(remoteAddress?: string): boolean {
+  const addr = normalizeRemoteAddress(remoteAddress);
+  if (!addr) return false;
+  if (addr.startsWith("fd7a:115c:a1e0:")) return true;
+
+  const match = addr.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
+  if (!match) return false;
+  const a = Number(match[1]);
+  const b = Number(match[2]);
+  return a === 100 && b >= 64 && b <= 127;
+}
 
 export class Daemon {
   private server: ServerType | null = null;
@@ -80,7 +107,8 @@ export class Daemon {
     );
     this.config = {
       port: config.port ?? 7420,
-      host: config.host ?? "127.0.0.1",
+      host: config.host ?? "0.0.0.0",
+      trustTailscale: config.trustTailscale ?? false,
       dataDir,
       token: config.token ?? generateToken(),
       mcpPort: config.mcpPort ?? 42424,
@@ -111,9 +139,12 @@ export class Daemon {
     await this.eventLog.init();
 
     // Start HTTP server first so we know the port
-    const app = new Hono();
+    const app = new Hono<{ Bindings: HttpBindings }>();
     app.all("*", async (c) => {
-      const response = await this.handleRequest(c.req.raw);
+      const response = await this.handleRequest(
+        c.req.raw,
+        c.env.incoming.socket.remoteAddress,
+      );
       return response;
     });
     const actualPort = await new Promise<number>((resolve) => {
@@ -130,6 +161,7 @@ export class Daemon {
     });
     this._port = actualPort;
     this.startedAt = Date.now();
+    const publicHost = advertisedHost(this.config.host);
 
     // Create global workspace (but don't start agent loops yet — MCP hub URL needed first)
     const globalWs = await this.workspaces.ensureDefault();
@@ -163,7 +195,7 @@ export class Daemon {
 
     // Now set daemon info WITH the MCP hub URL, then start agent loops
     this.workspaces.setDaemonInfo(
-      `http://${this.config.host}:${actualPort}`,
+      `http://${publicHost}:${actualPort}`,
       this.config.token,
       this.mcpHub.url ?? undefined,
     );
@@ -172,10 +204,11 @@ export class Daemon {
 
     const info: DaemonInfo = {
       pid: process.pid,
-      host: this.config.host,
+      host: publicHost,
       port: actualPort,
       token: this.config.token,
       startedAt: this.startedAt,
+      listenHost: this.config.host,
       mcpPort: this.mcpHub.port ?? undefined,
     };
 
@@ -184,7 +217,8 @@ export class Daemon {
     this._bus.emit({
       type: "daemon.started",
       source: "daemon",
-      host: this.config.host,
+      host: publicHost,
+      listenHost: this.config.host,
       port: actualPort,
     });
 
@@ -263,7 +297,7 @@ export class Daemon {
 
   // ── Request routing ─────────────────────────────────────────────────────
 
-  private async handleRequest(req: Request): Promise<Response> {
+  private async handleRequest(req: Request, remoteAddress?: string): Promise<Response> {
     const url = new URL(req.url);
     const path = url.pathname;
     const method = req.method;
@@ -276,9 +310,9 @@ export class Daemon {
       path === "/health" ||
       path === "/shutdown";
     if (isApiPath && path !== "/health") {
-      const reqHost = url.hostname;
-      const isLocal = reqHost === "127.0.0.1" || reqHost === "localhost" || reqHost === "::1";
-      if (!isLocal) {
+      const trustedRemote = isLoopbackAddress(remoteAddress) ||
+        (this.config.trustTailscale && isTailscaleAddress(remoteAddress));
+      if (!trustedRemote) {
         const authHeader = req.headers.get("authorization");
         const token = authHeader?.replace("Bearer ", "");
         if (token !== this.config.token) {

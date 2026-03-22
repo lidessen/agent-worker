@@ -50,6 +50,12 @@ export const channelName = rule`${c.channelName} {
   font-weight: ${tokens.fontWeights.bold};
   letter-spacing: -0.03em;
   color: ${tokens.colors.text};
+}
+@media (max-width: 640px) {
+  ${c.channelName} {
+    font-size: ${tokens.fontSizes.lg};
+    gap: ${tokens.space.xs};
+  }
 }`;
 
 export const wsLabel = rule`${c.wsLabel} {
@@ -84,4 +90,9 @@ ${d.clearBtn}:hover {
   color: ${tokens.colors.danger};
   border-color: ${tokens.colors.danger};
   background: rgba(255, 69, 58, 0.08);
+}
+@media (max-width: 640px) {
+  ${d.clearBtn} {
+    padding: 4px ${tokens.space.xs};
+  }
 }`;

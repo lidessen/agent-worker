@@ -17,7 +17,7 @@ export const bar = rule`${c.bar} {
 }
 @media (max-width: 640px) {
   ${c.bar} {
-    padding: ${tokens.space.sm} ${tokens.space.md} ${tokens.space.md};
+    padding: ${tokens.space.xs} ${tokens.space.sm} ${tokens.space.sm};
     padding-bottom: max(${tokens.space.sm}, env(safe-area-inset-bottom));
   }
 }`;
@@ -31,6 +31,13 @@ export const composer = rule`${c.composer} {
   border-radius: 16px;
   background: ${tokens.colors.surfaceSecondary};
   box-shadow: ${tokens.shadows.inset};
+}
+@media (max-width: 640px) {
+  ${c.composer} {
+    gap: ${tokens.space.xs};
+    padding: 10px 12px 8px;
+    border-radius: 14px;
+  }
 }`;
 
 export const textarea = rule`${c.textarea} {
@@ -58,6 +65,13 @@ ${c.textarea}::placeholder {
 ${c.textarea}:disabled {
   opacity: 0.56;
   cursor: not-allowed;
+}
+@media (max-width: 640px) {
+  ${c.textarea} {
+    font-size: ${tokens.fontSizes.sm};
+    min-height: 32px;
+    max-height: 96px;
+  }
 }`;
 
 export const footer = rule`${c.footer} {
@@ -66,12 +80,22 @@ export const footer = rule`${c.footer} {
   justify-content: space-between;
   gap: ${tokens.space.md};
   min-height: 26px;
+}
+@media (max-width: 640px) {
+  ${c.footer} {
+    min-height: 22px;
+  }
 }`;
 
 export const shortcut = rule`${c.shortcut} {
   font-size: 0.72rem;
   color: ${tokens.colors.textDim};
   font-weight: ${tokens.fontWeights.medium};
+}
+@media (max-width: 640px) {
+  ${c.shortcut} {
+    font-size: 0.68rem;
+  }
 }`;
 
 export const sendBtn = rule`${c.sendBtn} {
@@ -97,6 +121,12 @@ ${c.sendBtn}:hover {
 ${c.sendBtn}:disabled {
   opacity: 0.38;
   cursor: not-allowed;
+}
+@media (max-width: 640px) {
+  ${c.sendBtn} {
+    width: 30px;
+    height: 30px;
+  }
 }`;
 
 inject([

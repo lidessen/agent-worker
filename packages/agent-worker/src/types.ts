@@ -6,8 +6,10 @@ import type { LoopToolsOptions } from "@agent-worker/loop";
 export interface DaemonConfig {
   /** TCP port. Default: 0 (auto-assign). */
   port?: number;
-  /** Hostname to bind. Default: "127.0.0.1". */
+  /** Hostname to bind. Default: "0.0.0.0". */
   host?: string;
+  /** Allow requests from Tailscale peers without auth token. Default: false. */
+  trustTailscale?: boolean;
   /** Data directory. Default: ~/.agent-worker */
   dataDir?: string;
   /** Auth token. Default: auto-generated. */
@@ -26,6 +28,7 @@ export interface DaemonInfo {
   port: number;
   token: string;
   startedAt: number;
+  listenHost?: string;
   /** Port of the workspace MCP hub (debug + agent tools via MCP protocol). */
   mcpPort?: number;
 }

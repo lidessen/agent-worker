@@ -26,7 +26,8 @@ export const container = rule`${c.container} {
 }
 @media (max-width: 640px) {
   ${c.container} {
-    padding: ${tokens.space.md};
+    padding: ${tokens.space.sm} ${tokens.space.md} ${tokens.space.md};
+    gap: ${tokens.space.sm};
   }
 }`;
 
@@ -87,6 +88,11 @@ ${c.item}:not(:first-child)::before {
   right: 0;
   height: 1px;
   background: linear-gradient(90deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03) 55%, transparent);
+}
+@media (max-width: 640px) {
+  ${c.item}:not(:first-child) {
+    padding-top: ${tokens.space.sm};
+  }
 }`;
 
 export const itemMeta = rule`${c.itemMeta} {
@@ -94,6 +100,11 @@ export const itemMeta = rule`${c.itemMeta} {
   align-items: center;
   gap: 6px;
   padding: 0;
+}
+@media (max-width: 640px) {
+  ${c.itemMeta} {
+    gap: 4px;
+  }
 }`;
 
 export const itemDot = rule`${c.itemDot} {
@@ -109,14 +120,30 @@ export const itemLabel = rule`${c.itemLabel} {
   color: ${tokens.colors.textDim};
   text-transform: uppercase;
   letter-spacing: 0.1em;
+}
+@media (max-width: 640px) {
+  ${c.itemLabel} {
+    font-size: 0.62rem;
+    letter-spacing: 0.08em;
+  }
 }`;
 
 export const itemTime = rule`${c.itemTime} {
   font-size: 0.72rem;
   color: ${tokens.colors.textDim};
+}
+@media (max-width: 640px) {
+  ${c.itemTime} {
+    font-size: 0.68rem;
+  }
 }`;
 
 export const itemBody = rule`${c.itemBody} {
   min-width: 0;
   padding-left: 8px;
+}
+@media (max-width: 640px) {
+  ${c.itemBody} {
+    padding-left: 4px;
+  }
 }`;

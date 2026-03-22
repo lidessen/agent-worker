@@ -1,7 +1,11 @@
 import { classes, rule } from "semajsx/style";
 import { tokens } from "../../theme/tokens.ts";
 
-const c = classes(["shell", "content", "contentInner"] as const);
+const c = classes([
+  "shell",
+  "content",
+  "contentInner",
+] as const);
 
 export const shell = rule`${c.shell} {
   display: flex;

@@ -111,7 +111,7 @@ function TabButton(props: { tab: SidebarTab; label: string }) {
 
 // ── List items ───────────────────────────────────────────────────────────
 
-function ChannelItem(props: { channel: string }) {
+function ChannelItem(props: { channel: string; onSelect?: () => void }) {
   const isActive = computed(selectedItem, (sel) =>
     sel?.kind === "channel" && sel.channel === props.channel,
   );
@@ -121,7 +121,10 @@ function ChannelItem(props: { channel: string }) {
   return (
     <div
       class={cls}
-      onclick={() => selectChannel(currentWorkspace.value, props.channel)}
+      onclick={() => {
+        selectChannel(currentWorkspace.value, props.channel);
+        props.onSelect?.();
+      }}
     >
       <div class={styles.itemPreview}>
         <span># {props.channel}</span>
@@ -133,7 +136,7 @@ function ChannelItem(props: { channel: string }) {
   );
 }
 
-function AgentItem(props: { agent: AgentInfo }) {
+function AgentItem(props: { agent: AgentInfo; onSelect?: () => void }) {
   const { agent } = props;
   const isActive = computed(selectedItem, (sel) =>
     sel?.kind === "agent" && sel.name === agent.name,
@@ -142,7 +145,13 @@ function AgentItem(props: { agent: AgentInfo }) {
     a ? [styles.listItem, styles.listItemActive] : styles.listItem,
   );
   return (
-    <div class={cls} onclick={() => selectAgent(agent.name)}>
+    <div
+      class={cls}
+      onclick={() => {
+        selectAgent(agent.name);
+        props.onSelect?.();
+      }}
+    >
       {runtimeIcon(agent.runtime)}
       <div class={styles.itemPreview}>
         <span>{agent.name}</span>
@@ -158,7 +167,7 @@ function AgentItem(props: { agent: AgentInfo }) {
   );
 }
 
-function DocItem(props: { name: string }) {
+function DocItem(props: { name: string; onSelect?: () => void }) {
   const isActive = computed(selectedItem, (sel) =>
     sel?.kind === "doc" && sel.docName === props.name,
   );
@@ -168,7 +177,10 @@ function DocItem(props: { name: string }) {
   return (
     <div
       class={cls}
-      onclick={() => selectDoc(currentWorkspace.value, props.name)}
+      onclick={() => {
+        selectDoc(currentWorkspace.value, props.name);
+        props.onSelect?.();
+      }}
     >
       <div class={styles.itemPreview}>
         <span>{props.name}</span>
@@ -182,18 +194,18 @@ function DocItem(props: { name: string }) {
 
 // ── Tab content ──────────────────────────────────────────────────────────
 
-function TabContent() {
+function TabContent(props: { onSelect?: () => void }) {
   // Use separate computeds per tab, each watching only its data signal
   const channelContent = computed(wsChannels, (channels) =>
     <div class={styles.listWrap}>
       <div class={styles.sectionLabel}>Threads</div>
-      {channels.map((ch) => <ChannelItem channel={ch} />)}
+      {channels.map((ch) => <ChannelItem channel={ch} onSelect={props.onSelect} />)}
     </div>,
   );
   const agentContent = computed(wsAgents, (agentArr) =>
     <div class={styles.listWrap}>
       <div class={styles.sectionLabel}>Agents</div>
-      {agentArr.map((a) => <AgentItem agent={a} />)}
+      {agentArr.map((a) => <AgentItem agent={a} onSelect={props.onSelect} />)}
     </div>,
   );
   const docContent = computed(wsDocs, (docs) =>
@@ -205,7 +217,7 @@ function TabContent() {
           onclick={() => (showCreateDoc.value = true)}
         >+</span>
       </div>
-      {docs.map((d) => <DocItem name={d.name} />)}
+      {docs.map((d) => <DocItem name={d.name} onSelect={props.onSelect} />)}
     </div>,
   );
 
@@ -265,9 +277,11 @@ export function Sidebar() {
   return (
     <aside class={styles.sidebar}>
       <div class={styles.header}>
-        <div>
-          <div class={styles.eyebrow}>Agent Worker</div>
-          <div class={styles.headerMeta}>Workspace navigation</div>
+        <div class={styles.headerRow}>
+          <div>
+            <div class={styles.eyebrow}>Agent Worker</div>
+            <div class={styles.headerMeta}>Workspace navigation</div>
+          </div>
         </div>
         <WorkspaceSwitcher />
       </div>
@@ -278,9 +292,7 @@ export function Sidebar() {
         ))}
       </div>
 
-      <div class={styles.listArea}>
-        <TabContent />
-      </div>
+      <div class={styles.listArea}><TabContent /></div>
 
       <div class={styles.bottomBar}>
         <div class={styles.bottomActions}>
@@ -290,10 +302,16 @@ export function Sidebar() {
           >
             Workspace
           </button>
-          <button class={styles.bottomLink} onclick={() => selectGlobalEvents()}>
+          <button
+            class={styles.bottomLink}
+            onclick={() => selectGlobalEvents()}
+          >
             Event Log
           </button>
-          <button class={styles.bottomLink} onclick={() => selectGlobalSettings()}>
+          <button
+            class={styles.bottomLink}
+            onclick={() => selectGlobalSettings()}
+          >
             Settings
           </button>
         </div>

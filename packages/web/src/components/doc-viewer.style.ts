@@ -41,12 +41,24 @@ export const title = rule`${c.title} {
   letter-spacing: -0.03em;
   color: ${tokens.colors.text};
   font-family: ${tokens.fonts.mono};
+}
+@media (max-width: 640px) {
+  ${c.title} {
+    font-size: ${tokens.fontSizes.lg};
+  }
 }`;
 
 export const toolbar = rule`${c.toolbar} {
   display: flex;
   gap: ${tokens.space.sm};
   flex-shrink: 0;
+}
+@media (max-width: 640px) {
+  ${c.toolbar} {
+    gap: ${tokens.space.xs};
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
 }`;
 
 export const toolbarBtn = rule`${c.toolbarBtn} {
@@ -62,6 +74,11 @@ export const toolbarBtn = rule`${c.toolbarBtn} {
 ${c.toolbarBtn}:hover {
   color: ${tokens.colors.text};
   border-color: ${tokens.colors.borderHover};
+}
+@media (max-width: 640px) {
+  ${c.toolbarBtn} {
+    padding: 5px ${tokens.space.sm};
+  }
 }`;
 
 export const toolbarBtnActive = rule`${c.toolbarBtnActive} {
@@ -85,6 +102,12 @@ export const contentPre = rule`${c.contentPre} {
   min-height: 0;
   overflow-y: auto;
   line-height: 1.6;
+}
+@media (max-width: 640px) {
+  ${c.contentPre} {
+    padding: ${tokens.space.md};
+    font-size: 0.7rem;
+  }
 }`;
 
 export const editArea = rule`${c.editArea} {
@@ -102,4 +125,10 @@ export const editArea = rule`${c.editArea} {
 }
 ${c.editArea}:focus {
   outline: none;
+}
+@media (max-width: 640px) {
+  ${c.editArea} {
+    padding: ${tokens.space.md};
+    font-size: 0.7rem;
+  }
 }`;

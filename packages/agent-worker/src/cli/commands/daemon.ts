@@ -17,7 +17,7 @@ export async function daemon(args: string[]): Promise<void> {
       console.log(`Usage: aw daemon <command>
 
 Commands:
-  start [-p PORT]    Start daemon (foreground)
+  start [-p PORT] [--host HOST] [--trust-tailscale]    Start daemon (foreground)
   start -d           Start daemon (background)
   stop               Stop daemon
 `);
@@ -45,6 +45,9 @@ async function daemonStart(args: string[]): Promise<void> {
 
   const portIdx = args.indexOf("-p");
   const port = portIdx >= 0 ? parseInt(args[portIdx + 1]!, 10) : undefined;
+  const hostIdx = args.indexOf("--host");
+  const host = hostIdx >= 0 ? args[hostIdx + 1] : undefined;
+  const trustTailscale = args.includes("--trust-tailscale");
 
   // Stop any existing daemon before starting
   await stopExistingDaemon();
@@ -59,10 +62,13 @@ async function daemonStart(args: string[]): Promise<void> {
   }
 
   console.log("Starting agent-worker daemon...");
-  const { daemon, info } = await startDaemon({ port });
+  const { daemon, info } = await startDaemon({ port, host, trustTailscale });
   console.log();
   console.log(`  PID:     ${info.pid}`);
   console.log(`  URL:     http://${info.host}:${info.port}`);
+  if (info.listenHost && info.listenHost !== info.host) {
+    console.log(`  Listen:  http://${info.listenHost}:${info.port}`);
+  }
   console.log(`  Token:   ${info.token}`);
   console.log(`  Web UI:  http://${info.host}:${info.port}/`);
   console.log();

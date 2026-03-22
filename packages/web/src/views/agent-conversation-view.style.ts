@@ -58,6 +58,11 @@ export const agentName = rule`${c.agentName} {
 }
 ${c.agentName}:hover {
   color: ${tokens.colors.primaryHover};
+}
+@media (max-width: 640px) {
+  ${c.agentName} {
+    font-size: ${tokens.fontSizes.lg};
+  }
 }`;
 
 export const badge = rule`${c.badge} {
@@ -109,6 +114,12 @@ export const sendErrorBar = rule`${c.sendErrorBar} {
   font-size: ${tokens.fontSizes.sm};
   flex-shrink: 0;
   box-shadow: ${tokens.shadows.inset};
+}
+@media (max-width: 640px) {
+  ${c.sendErrorBar} {
+    margin: 0 ${tokens.space.md} ${tokens.space.sm};
+    font-size: ${tokens.fontSizes.xs};
+  }
 }`;
 
 export const sendErrorDismiss = rule`${c.sendErrorDismiss} {
@@ -137,4 +148,10 @@ export const streamErrorBar = rule`${c.streamErrorBar} {
   font-size: ${tokens.fontSizes.sm};
   flex-shrink: 0;
   box-shadow: ${tokens.shadows.inset};
+}
+@media (max-width: 640px) {
+  ${c.streamErrorBar} {
+    margin: ${tokens.space.sm} ${tokens.space.md} 0;
+    font-size: ${tokens.fontSizes.xs};
+  }
 }`;

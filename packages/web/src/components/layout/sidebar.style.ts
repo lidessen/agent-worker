@@ -4,6 +4,7 @@ import { tokens } from "../../theme/tokens.ts";
 const c = classes([
   "sidebar",
   "header",
+  "headerRow",
   "eyebrow",
   "headerMeta",
   "tabBar",
@@ -39,8 +40,7 @@ export const sidebar = rule`${c.sidebar} {
 }
 @media (max-width: 900px) {
   ${c.sidebar} {
-    width: 280px;
-    border-radius: ${tokens.radii.xl};
+    display: none;
   }
 }`;
 
@@ -51,6 +51,13 @@ export const header = rule`${c.header} {
   display: flex;
   flex-direction: column;
   gap: ${tokens.space.sm};
+}`;
+
+export const headerRow = rule`${c.headerRow} {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: ${tokens.space.md};
 }`;
 
 export const eyebrow = rule`${c.eyebrow} {
