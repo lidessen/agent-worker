@@ -22,12 +22,11 @@ export const header = rule`${c.header} {
   gap: ${tokens.space.md};
   padding: ${tokens.space.lg} ${tokens.space.xl} ${tokens.space.md};
   border-bottom: 1px solid ${tokens.colors.border};
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, transparent 100%);
+  background: ${tokens.colors.backgroundElevated};
   flex-shrink: 0;
   position: sticky;
   top: 0;
   z-index: 1;
-  backdrop-filter: blur(18px);
 }
 @media (max-width: 640px) {
   ${c.header} {
@@ -59,7 +58,7 @@ export const wsLabel = rule`${c.wsLabel} {
   border: 1px solid ${tokens.colors.border};
   border-radius: ${tokens.radii.pill};
   padding: 4px ${tokens.space.sm};
-  background: ${tokens.colors.surfaceSecondary};
+  background: ${tokens.colors.badge};
 }`;
 
 const d = classes(["headerActions", "clearBtn"] as const);

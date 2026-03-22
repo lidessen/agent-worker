@@ -12,7 +12,7 @@ const c = classes([
 
 export const bar = rule`${c.bar} {
   padding: ${tokens.space.sm} ${tokens.space.xl} ${tokens.space.lg};
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.015) 0%, transparent 100%);
+  background: ${tokens.colors.backgroundElevated};
   flex-shrink: 0;
 }
 @media (max-width: 640px) {
@@ -26,12 +26,11 @@ export const composer = rule`${c.composer} {
   display: flex;
   flex-direction: column;
   gap: ${tokens.space.sm};
-  padding: 14px 16px 10px;
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 26px;
-  background: linear-gradient(180deg, rgba(42, 42, 42, 0.68) 0%, rgba(28, 28, 28, 0.82) 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.038), 0 10px 26px rgba(0, 0, 0, 0.24);
-  backdrop-filter: blur(24px) saturate(135%);
+  padding: 12px 14px 10px;
+  border: 1px solid ${tokens.colors.border};
+  border-radius: 16px;
+  background: ${tokens.colors.surfaceSecondary};
+  box-shadow: ${tokens.shadows.inset};
 }`;
 
 export const textarea = rule`${c.textarea} {
@@ -42,10 +41,10 @@ export const textarea = rule`${c.textarea} {
   background: transparent;
   color: ${tokens.colors.text};
   font-family: ${tokens.fonts.base};
-  font-size: 0.98rem;
+  font-size: 0.95rem;
   padding: 0;
   line-height: 1.4;
-  min-height: 46px;
+  min-height: 40px;
   max-height: 128px;
   overflow-y: auto;
 }
@@ -53,7 +52,7 @@ ${c.textarea}:focus {
   outline: none;
 }
 ${c.textarea}::placeholder {
-  color: rgba(243, 241, 238, 0.24);
+  color: ${tokens.colors.textDim};
   font-weight: ${tokens.fontWeights.medium};
 }
 ${c.textarea}:disabled {
@@ -71,7 +70,7 @@ export const footer = rule`${c.footer} {
 
 export const shortcut = rule`${c.shortcut} {
   font-size: 0.72rem;
-  color: rgba(243, 241, 238, 0.36);
+  color: ${tokens.colors.textDim};
   font-weight: ${tokens.fontWeights.medium};
 }`;
 
@@ -79,27 +78,25 @@ export const sendBtn = rule`${c.sendBtn} {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 38px;
-  height: 38px;
+  width: 34px;
+  height: 34px;
   padding: 0;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid ${tokens.colors.borderStrong};
   border-radius: ${tokens.radii.pill};
-  background: linear-gradient(180deg, rgba(176, 176, 176, 0.94) 0%, rgba(147, 147, 147, 0.9) 100%);
-  color: rgba(20, 20, 20, 0.94);
+  background: ${tokens.colors.surfaceActive};
+  color: ${tokens.colors.text};
   cursor: pointer;
   flex-shrink: 0;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 6px 14px rgba(0, 0, 0, 0.18);
+  box-shadow: ${tokens.shadows.inset};
   transition: transform ${tokens.transitions.fast}, opacity ${tokens.transitions.fast}, filter ${tokens.transitions.fast};
 }
 ${c.sendBtn}:hover {
-  filter: brightness(1.03);
-  transform: translateY(-1px);
+  background: ${tokens.colors.surfaceHover};
+  border-color: ${tokens.colors.borderHover};
 }
 ${c.sendBtn}:disabled {
   opacity: 0.38;
   cursor: not-allowed;
-  transform: none;
-  filter: none;
 }`;
 
 inject([

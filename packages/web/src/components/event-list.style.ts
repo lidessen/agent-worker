@@ -46,20 +46,19 @@ export const emptyContent = rule`${c.emptyContent} {
   text-align: center;
   max-width: 320px;
   padding: ${tokens.space.xl};
-  border-radius: ${tokens.radii.xl};
+  border-radius: ${tokens.radii.lg};
   background: ${tokens.colors.surfaceSecondary};
   border: 1px solid ${tokens.colors.border};
-  box-shadow: ${tokens.shadows.glow};
 }`;
 
 export const emptyIcon = rule`${c.emptyIcon} {
   width: 56px;
   height: 56px;
-  border-radius: ${tokens.radii.lg};
+  border-radius: ${tokens.radii.md};
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.05);
+  background: ${tokens.colors.surface};
   border: 1px solid ${tokens.colors.border};
   color: ${tokens.colors.text};
   line-height: 1;
@@ -87,7 +86,7 @@ ${c.item}:not(:first-child)::before {
   left: 8px;
   right: 0;
   height: 1px;
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02) 65%, transparent);
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03) 55%, transparent);
 }`;
 
 export const itemMeta = rule`${c.itemMeta} {
@@ -101,20 +100,20 @@ export const itemDot = rule`${c.itemDot} {
   width: 5px;
   height: 5px;
   border-radius: ${tokens.radii.pill};
-  background: rgba(255, 255, 255, 0.22);
+  background: ${tokens.colors.textDim};
   flex-shrink: 0;
 }`;
 
 export const itemLabel = rule`${c.itemLabel} {
   font-size: 0.68rem;
-  color: rgba(243, 241, 238, 0.44);
+  color: ${tokens.colors.textDim};
   text-transform: uppercase;
   letter-spacing: 0.1em;
 }`;
 
 export const itemTime = rule`${c.itemTime} {
   font-size: 0.72rem;
-  color: rgba(243, 241, 238, 0.42);
+  color: ${tokens.colors.textDim};
 }`;
 
 export const itemBody = rule`${c.itemBody} {

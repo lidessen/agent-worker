@@ -31,12 +31,10 @@ export const sidebar = rule`${c.sidebar} {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  background:
-    linear-gradient(180deg, rgba(34, 34, 34, 0.94) 0%, rgba(22, 22, 22, 0.92) 100%);
+  background: ${tokens.colors.backgroundElevated};
   border: 1px solid ${tokens.colors.border};
   border-radius: ${tokens.radii.xxl};
   box-shadow: ${tokens.shadows.panel};
-  backdrop-filter: blur(24px) saturate(140%);
   overflow: hidden;
 }
 @media (max-width: 900px) {
@@ -52,7 +50,7 @@ export const header = rule`${c.header} {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  gap: ${tokens.space.md};
+  gap: ${tokens.space.sm};
 }`;
 
 export const eyebrow = rule`${c.eyebrow} {
@@ -71,10 +69,10 @@ export const headerMeta = rule`${c.headerMeta} {
 
 export const workspaceSelect = rule`${c.workspaceSelect} {
   width: 100%;
-  background: ${tokens.colors.surfaceSecondary};
+  background: ${tokens.colors.surface};
   color: ${tokens.colors.text};
   border: 1px solid ${tokens.colors.border};
-  border-radius: ${tokens.radii.lg};
+  border-radius: ${tokens.radii.md};
   padding: ${tokens.space.sm} ${tokens.space.md};
   font-size: ${tokens.fontSizes.sm};
   font-family: ${tokens.fonts.base};
@@ -84,7 +82,7 @@ export const workspaceSelect = rule`${c.workspaceSelect} {
 }
 ${c.workspaceSelect}:hover,
 ${c.workspaceSelect}:focus {
-  background: ${tokens.colors.surfaceTertiary};
+  background: ${tokens.colors.surfaceHover};
   border-color: ${tokens.colors.borderHover};
 }`;
 
@@ -93,10 +91,10 @@ export const tabBar = rule`${c.tabBar} {
   flex-direction: row;
   margin: ${tokens.space.md};
   margin-top: ${tokens.space.sm};
-  padding: 4px;
-  background: ${tokens.colors.surfaceSecondary};
+  padding: 2px;
+  background: ${tokens.colors.surface};
   border: 1px solid ${tokens.colors.border};
-  border-radius: ${tokens.radii.pill};
+  border-radius: ${tokens.radii.md};
   gap: 4px;
   flex-shrink: 0;
 }`;
@@ -109,19 +107,19 @@ export const tab = rule`${c.tab} {
   font-size: ${tokens.fontSizes.xs};
   font-family: ${tokens.fonts.base};
   font-weight: ${tokens.fontWeights.medium};
-  border-radius: ${tokens.radii.pill};
-  padding: ${tokens.space.sm} ${tokens.space.md};
+  border-radius: ${tokens.radii.sm};
+  padding: 7px ${tokens.space.md};
   cursor: pointer;
   transition: color ${tokens.transitions.fast}, background ${tokens.transitions.fast};
 }
 ${c.tab}:hover {
   color: ${tokens.colors.text};
-  background: rgba(255, 255, 255, 0.04);
+  background: ${tokens.colors.surfaceHover};
 }`;
 
 export const tabActive = rule`${c.tabActive} {
   color: ${tokens.colors.text};
-  background: rgba(255, 255, 255, 0.08);
+  background: ${tokens.colors.surfaceActive};
 }`;
 
 export const listArea = rule`${c.listArea} {
@@ -133,7 +131,7 @@ export const listArea = rule`${c.listArea} {
 export const listWrap = rule`${c.listWrap} {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }`;
 
 export const sectionLabel = rule`${c.sectionLabel} {
@@ -149,24 +147,23 @@ export const listItem = rule`${c.listItem} {
   flex-direction: row;
   align-items: center;
   gap: ${tokens.space.sm};
-  padding: ${tokens.space.sm} ${tokens.space.md};
+  padding: 9px ${tokens.space.md};
   cursor: pointer;
   font-size: ${tokens.fontSizes.sm};
   color: ${tokens.colors.textMuted};
   border: 1px solid transparent;
-  border-radius: ${tokens.radii.lg};
+  border-radius: ${tokens.radii.md};
   transition: background ${tokens.transitions.fast}, border-color ${tokens.transitions.fast}, color ${tokens.transitions.fast};
 }
 ${c.listItem}:hover {
-  background: ${tokens.colors.surfaceSecondary};
-  border-color: rgba(255, 255, 255, 0.05);
+  background: ${tokens.colors.surface};
+  border-color: ${tokens.colors.border};
   color: ${tokens.colors.text};
 }`;
 
 export const listItemActive = rule`${c.listItemActive} {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0.04) 100%);
+  background: ${tokens.colors.surfaceActive};
   border-color: ${tokens.colors.borderStrong};
-  box-shadow: ${tokens.shadows.inset};
   color: ${tokens.colors.text};
 }`;
 
@@ -193,7 +190,7 @@ export const bottomBar = rule`${c.bottomBar} {
   flex-direction: column;
   gap: ${tokens.space.sm};
   flex-shrink: 0;
-  background: rgba(255, 255, 255, 0.015);
+  background: ${tokens.colors.surfaceSecondary};
 }`;
 
 export const bottomActions = rule`${c.bottomActions} {
@@ -212,14 +209,14 @@ export const bottomLink = rule`${c.bottomLink} {
   font-size: ${tokens.fontSizes.xs};
   background: transparent;
   border: 1px solid transparent;
-  border-radius: ${tokens.radii.lg};
+  border-radius: ${tokens.radii.md};
   padding: 10px ${tokens.space.md};
   font-family: ${tokens.fonts.base};
   transition: color ${tokens.transitions.fast}, border-color ${tokens.transitions.fast}, background ${tokens.transitions.fast};
 }
 ${c.bottomLink}:hover {
   color: ${tokens.colors.text};
-  background: rgba(255, 255, 255, 0.04);
+  background: ${tokens.colors.surfaceHover};
 }`;
 
 export const statusRow = rule`${c.statusRow} {
@@ -228,9 +225,9 @@ export const statusRow = rule`${c.statusRow} {
   gap: ${tokens.space.sm};
   margin-top: ${tokens.space.xs};
   padding: 12px ${tokens.space.md};
-  border-radius: ${tokens.radii.lg};
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: ${tokens.radii.md};
+  background: ${tokens.colors.surface};
+  border: 1px solid ${tokens.colors.border};
 }`;
 
 export const statusLabel = rule`${c.statusLabel} {

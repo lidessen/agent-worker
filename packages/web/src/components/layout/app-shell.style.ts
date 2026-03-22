@@ -11,10 +11,7 @@ export const shell = rule`${c.shell} {
   padding: ${tokens.space.md};
   box-sizing: border-box;
   gap: ${tokens.space.md};
-  background:
-    radial-gradient(circle at top left, rgba(255, 140, 92, 0.045), transparent 22%),
-    radial-gradient(circle at bottom right, rgba(255, 255, 255, 0.025), transparent 26%),
-    linear-gradient(180deg, #0b0b0c 0%, #090909 100%);
+  background: ${tokens.colors.background};
   color: ${tokens.colors.text};
   font-family: ${tokens.fonts.base};
   overflow: hidden;
@@ -40,11 +37,10 @@ export const contentInner = rule`${c.contentInner} {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  background: linear-gradient(180deg, rgba(18, 18, 18, 0.9) 0%, rgba(13, 13, 13, 0.84) 100%);
+  background: ${tokens.colors.backgroundElevated};
   border: 1px solid ${tokens.colors.border};
   border-radius: ${tokens.radii.xxl};
   box-shadow: ${tokens.shadows.panel};
-  backdrop-filter: blur(24px) saturate(140%);
 }
 @media (max-width: 900px) {
   ${c.contentInner} {

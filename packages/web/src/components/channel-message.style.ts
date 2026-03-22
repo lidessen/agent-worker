@@ -31,14 +31,13 @@ export const messageBlock = rule`${c.messageBlock} {
 
 export const message = rule`${c.message} {
   padding: ${tokens.space.md} ${tokens.space.lg};
-  border-radius: ${tokens.radii.xl};
-  background: ${tokens.colors.panel};
+  border-radius: ${tokens.radii.lg};
+  background: ${tokens.colors.surfaceSecondary};
   border: 1px solid ${tokens.colors.border};
-  box-shadow: ${tokens.shadows.inset};
 }`;
 
 export const messageUser = rule`${c.messageUser} {
-  background: ${tokens.colors.panelStrong};
+  background: ${tokens.colors.surface};
   border-color: ${tokens.colors.borderStrong};
 }`;
 
@@ -57,7 +56,7 @@ export const runtimeBadge = rule`${c.runtimeBadge} {
   border-radius: 0;
   background: transparent;
   border: none;
-  color: rgba(243, 241, 238, 0.62);
+  color: ${tokens.colors.textDim};
   line-height: 1;
 }`;
 
@@ -83,7 +82,7 @@ export const senderLabel = rule`${c.senderLabel} {
 
 export const timestamp = rule`${c.timestamp} {
   font-size: ${tokens.fontSizes.xs};
-  color: rgba(243, 241, 238, 0.5);
+  color: ${tokens.colors.textDim};
 }`;
 
 export const content = rule`${c.content} {

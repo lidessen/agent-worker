@@ -10,42 +10,42 @@ import type { TokenRefs } from "semajsx/style";
 
 const tokenDefinition = {
   colors: {
-    background: "#090909",
-    backgroundElevated: "#101010",
-    surface: "rgba(24, 24, 24, 0.78)",
-    surfaceHover: "rgba(30, 30, 30, 0.88)",
-    surfaceActive: "rgba(38, 38, 38, 0.92)",
-    surfaceSecondary: "rgba(255, 255, 255, 0.035)",
-    surfaceTertiary: "rgba(255, 255, 255, 0.055)",
-    border: "rgba(255, 255, 255, 0.08)",
-    borderStrong: "rgba(255, 255, 255, 0.14)",
-    borderHover: "rgba(255, 255, 255, 0.18)",
-    text: "#f3f1ee",
-    textMuted: "rgba(243, 241, 238, 0.74)",
-    textDim: "rgba(243, 241, 238, 0.5)",
+    background: "#f3f3f3",
+    backgroundElevated: "#ffffff",
+    surface: "#f8f8f8",
+    surfaceHover: "#f1f1f1",
+    surfaceActive: "#e8e8e8",
+    surfaceSecondary: "#ffffff",
+    surfaceTertiary: "#f6f6f6",
+    border: "#e1e1e1",
+    borderStrong: "#cfcfcf",
+    borderHover: "#c5c5c5",
+    text: "#1f1f1f",
+    textMuted: "#555555",
+    textDim: "#777777",
 
-    primary: "#f3f1ee",
-    primaryHover: "#ffffff",
-    accent: "#ff8a4c",
-    accentSoft: "rgba(255, 138, 76, 0.18)",
-    panel: "linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.025) 100%)",
-    panelHover: "linear-gradient(180deg, rgba(255, 255, 255, 0.075) 0%, rgba(255, 255, 255, 0.04) 100%)",
-    panelStrong: "linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.055) 100%)",
-    input: "linear-gradient(180deg, rgba(30, 30, 30, 0.92) 0%, rgba(22, 22, 22, 0.92) 100%)",
-    badge: "rgba(255, 255, 255, 0.06)",
-    dangerSurface: "rgba(255, 69, 58, 0.14)",
-    warningSurface: "rgba(255, 214, 10, 0.14)",
-    successSurface: "rgba(48, 209, 88, 0.14)",
+    primary: "#1f1f1f",
+    primaryHover: "#000000",
+    accent: "#3794ff",
+    accentSoft: "rgba(55, 148, 255, 0.14)",
+    panel: "#ffffff",
+    panelHover: "#f8f8f8",
+    panelStrong: "#f1f1f1",
+    input: "#ffffff",
+    badge: "#f3f3f3",
+    dangerSurface: "rgba(196, 43, 28, 0.1)",
+    warningSurface: "rgba(191, 102, 0, 0.1)",
+    successSurface: "rgba(56, 142, 60, 0.1)",
 
-    success: "#30d158",
-    warning: "#ffd60a",
-    danger: "#ff453a",
+    success: "#388e3c",
+    warning: "#bc6c00",
+    danger: "#c42b1c",
 
-    agentIdle: "#737373",
-    agentRunning: "#30d158",
+    agentIdle: "#8a8a8a",
+    agentRunning: "#388e3c",
     agentProcessing: "#0a84ff",
-    agentError: "#ff453a",
-    agentCompleted: "#30d158",
+    agentError: "#c42b1c",
+    agentCompleted: "#388e3c",
   },
 
   space: {
@@ -60,10 +60,10 @@ const tokenDefinition = {
 
   radii: {
     sm: "6px",
-    md: "10px",
-    lg: "14px",
-    xl: "20px",
-    xxl: "28px",
+    md: "8px",
+    lg: "10px",
+    xl: "14px",
+    xxl: "18px",
     pill: "980px",
   },
 
@@ -94,15 +94,69 @@ const tokenDefinition = {
   },
 
   shadows: {
-    panel: "0 22px 60px rgba(0, 0, 0, 0.45)",
-    inset: "inset 0 1px 0 rgba(255, 255, 255, 0.05)",
-    glow: "0 0 0 1px rgba(255, 255, 255, 0.03), 0 12px 30px rgba(0, 0, 0, 0.24)",
-    focusRing: "0 0 0 4px rgba(255, 255, 255, 0.04)",
+    panel: "0 8px 24px rgba(0, 0, 0, 0.08)",
+    inset: "inset 0 1px 0 rgba(255, 255, 255, 0.65)",
+    glow: "0 0 0 1px rgba(0, 0, 0, 0.02), 0 8px 24px rgba(0, 0, 0, 0.05)",
+    focusRing: "0 0 0 3px rgba(55, 148, 255, 0.18)",
   },
 } as const;
 
 export const tokens: TokenRefs<typeof tokenDefinition> = defineTokens(tokenDefinition);
 
-// Inject CSS custom properties into :root
-const theme = createTheme(tokens);
-inject(theme);
+const lightTheme = createTheme(tokens);
+const darkTheme = createTheme(tokens, {
+  colors: {
+    background: "#181818",
+    backgroundElevated: "#1f1f1f",
+    surface: "#252526",
+    surfaceHover: "#2a2d2e",
+    surfaceActive: "#313135",
+    surfaceSecondary: "#1f1f1f",
+    surfaceTertiary: "#2a2a2a",
+    border: "#2b2b2b",
+    borderStrong: "#3a3d41",
+    borderHover: "#45494e",
+    text: "#cccccc",
+    textMuted: "#a9adb3",
+    textDim: "#7d8187",
+    primary: "#cccccc",
+    primaryHover: "#ffffff",
+    panel: "#202020",
+    panelHover: "#252526",
+    panelStrong: "#2a2d2e",
+    input: "#1f1f1f",
+    badge: "#2a2d2e",
+    dangerSurface: "rgba(244, 71, 71, 0.12)",
+    warningSurface: "rgba(255, 204, 2, 0.12)",
+    successSurface: "rgba(108, 203, 95, 0.12)",
+    success: "#30d158",
+    warning: "#ffd60a",
+    danger: "#ff453a",
+    agentIdle: "#737373",
+    agentRunning: "#30d158",
+    agentError: "#ff453a",
+    agentCompleted: "#30d158",
+  },
+  shadows: {
+    panel: "0 10px 30px rgba(0, 0, 0, 0.2)",
+    inset: "inset 0 1px 0 rgba(255, 255, 255, 0.02)",
+    glow: "0 0 0 1px rgba(255, 255, 255, 0.02), 0 8px 24px rgba(0, 0, 0, 0.16)",
+  },
+});
+
+inject(lightTheme);
+inject(darkTheme);
+
+const darkThemeClass = String(darkTheme);
+
+function applySystemTheme() {
+  const root = document.documentElement;
+  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  root.classList.toggle(darkThemeClass, prefersDark);
+  root.style.colorScheme = prefersDark ? "dark" : "light";
+}
+
+if (typeof window !== "undefined") {
+  applySystemTheme();
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applySystemTheme);
+}
