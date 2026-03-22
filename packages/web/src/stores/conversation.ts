@@ -19,7 +19,7 @@ export async function loadHistory(agentName: string) {
   const c = client.value;
   if (!c) return;
   try {
-    const result = await c.readAgentEvents(agentName);
+    const result = await c.readResponses(agentName);
     events.value = result.entries;
     cursor.value = result.cursor;
   } catch (err) {
@@ -45,7 +45,7 @@ async function runStream(agentName: string, sid: number) {
   if (!c) return;
 
   try {
-    const stream = c.streamAgentEvents(agentName, {
+    const stream = c.streamResponses(agentName, {
       cursor: cursor.value,
       signal: abortController!.signal,
     });
@@ -53,9 +53,7 @@ async function runStream(agentName: string, sid: number) {
     for await (const event of stream) {
       if (currentSessionId !== sid) break; // stale stream
       events.update((prev) => [...prev, event]);
-      if (typeof event.ts === "number") {
-        cursor.value = event.ts;
-      }
+      cursor.value++;
     }
     // Stream ended normally — clear any previous stream error
     streamError.value = null;
