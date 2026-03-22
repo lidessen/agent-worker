@@ -6,7 +6,7 @@ const c = classes(["block", "message"] as const);
 export const block = rule`${c.block} {
   padding: ${tokens.space.md} ${tokens.space.lg};
   background: ${tokens.colors.dangerSurface};
-  border: 1px solid rgba(255, 69, 58, 0.24);
+  border: 1px solid ${tokens.colors.dangerBorder};
   border-radius: ${tokens.radii.xl};
   margin: ${tokens.space.xs} 0;
   box-shadow: ${tokens.shadows.inset};

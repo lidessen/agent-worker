@@ -87,7 +87,7 @@ ${c.item}:not(:first-child)::before {
   left: 8px;
   right: 0;
   height: 1px;
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03) 55%, transparent);
+  background: linear-gradient(90deg, ${tokens.colors.borderStrong}, ${tokens.colors.borderSubtle} 55%, transparent);
 }
 @media (max-width: 640px) {
   ${c.item}:not(:first-child) {

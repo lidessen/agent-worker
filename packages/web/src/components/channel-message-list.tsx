@@ -50,9 +50,11 @@ export function ChannelMessageList(props: {
   return (
     <div
       class={styles.container}
-      ref={(el: HTMLDivElement) => {
+      ref={(el: HTMLDivElement | null) => {
         scrollRef = el;
+        if (!el) return;
         el.addEventListener("scroll", handleScroll, { passive: true });
+        onCleanup(() => el.removeEventListener("scroll", handleScroll));
       }}
     >
       {body}

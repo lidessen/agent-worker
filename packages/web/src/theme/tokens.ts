@@ -33,6 +33,20 @@ const tokenDefinition = {
     panelStrong: "#f1f1f1",
     input: "#ffffff",
     badge: "#f3f3f3",
+    surfaceOverlay: "rgba(31, 31, 31, 0.04)",
+    headerSheen: "linear-gradient(180deg, rgba(31, 31, 31, 0.03) 0%, transparent 100%)",
+    overlayScrim: "rgba(15, 23, 42, 0.24)",
+    selectionBg: "rgba(55, 148, 255, 0.3)",
+    selectionText: "#ffffff",
+    scrollbarThumb: "rgba(121, 121, 121, 0.42)",
+    buttonPrimary: "linear-gradient(180deg, #2b2b2b 0%, #1b1b1b 100%)",
+    buttonPrimaryHover: "linear-gradient(180deg, #323232 0%, #222222 100%)",
+    buttonPrimaryText: "#ffffff",
+    buttonPrimaryBorder: "rgba(255, 255, 255, 0.08)",
+    successTextStrong: "#1f6f35",
+    successBorder: "rgba(56, 142, 60, 0.24)",
+    warningBorder: "rgba(191, 102, 0, 0.24)",
+    dangerBorder: "rgba(196, 43, 28, 0.24)",
     dangerSurface: "rgba(196, 43, 28, 0.1)",
     warningSurface: "rgba(191, 102, 0, 0.1)",
     successSurface: "rgba(56, 142, 60, 0.1)",
@@ -126,6 +140,20 @@ const darkTheme = createTheme(tokens, {
     panelStrong: "#2a2d2e",
     input: "#1f1f1f",
     badge: "#2a2d2e",
+    surfaceOverlay: "rgba(255, 255, 255, 0.04)",
+    headerSheen: "linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, transparent 100%)",
+    overlayScrim: "rgba(0, 0, 0, 0.6)",
+    selectionBg: "rgba(55, 148, 255, 0.3)",
+    selectionText: "#ffffff",
+    scrollbarThumb: "rgba(121, 121, 121, 0.42)",
+    buttonPrimary: "linear-gradient(180deg, #f6f6f6 0%, #e7e7e7 100%)",
+    buttonPrimaryHover: "linear-gradient(180deg, #ffffff 0%, #ededed 100%)",
+    buttonPrimaryText: "#111111",
+    buttonPrimaryBorder: "rgba(255, 255, 255, 0.28)",
+    successTextStrong: "#8be28d",
+    successBorder: "rgba(48, 209, 88, 0.24)",
+    warningBorder: "rgba(255, 214, 10, 0.16)",
+    dangerBorder: "rgba(255, 69, 58, 0.24)",
     dangerSurface: "rgba(244, 71, 71, 0.12)",
     warningSurface: "rgba(255, 204, 2, 0.12)",
     successSurface: "rgba(108, 203, 95, 0.12)",
@@ -157,6 +185,12 @@ function applySystemTheme() {
 }
 
 if (typeof window !== "undefined") {
+  const mql = window.matchMedia("(prefers-color-scheme: dark)");
   applySystemTheme();
-  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applySystemTheme);
+  mql.addEventListener("change", applySystemTheme);
+
+  // Cleanup on HMR to prevent listener accumulation
+  if (import.meta.hot) {
+    import.meta.hot.dispose(() => mql.removeEventListener("change", applySystemTheme));
+  }
 }

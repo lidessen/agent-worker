@@ -1,5 +1,6 @@
 /** @jsxImportSource semajsx/dom */
 
+import { onCleanup } from "semajsx/dom";
 import * as styles from "./yaml-editor.style.ts";
 
 export interface YamlEditorProps {

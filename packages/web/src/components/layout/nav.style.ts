@@ -1,7 +1,7 @@
 import { classes, rule } from "semajsx/style";
 import { tokens } from "../../theme/tokens.ts";
 
-const c = classes(["nav", "links", "link", "linkActive", "dot"] as const);
+const c = classes(["nav", "links", "link", "linkActive", "dot", "dotConnected", "dotConnecting", "dotError"] as const);
 
 export const nav = rule`${c.nav} {
   display: flex;
@@ -49,3 +49,7 @@ export const dot = rule`${c.dot} {
   flex-shrink: 0;
   transition: background ${tokens.transitions.fast};
 }`;
+
+export const dotConnected = rule`${c.dotConnected} { background: ${tokens.colors.success}; }`;
+export const dotConnecting = rule`${c.dotConnecting} { background: ${tokens.colors.warning}; }`;
+export const dotError = rule`${c.dotError} { background: ${tokens.colors.danger}; }`;

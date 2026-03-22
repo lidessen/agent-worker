@@ -4,17 +4,9 @@ import { signal, computed } from "semajsx/signal";
 import { onCleanup } from "semajsx/dom";
 import { route, navigate } from "../router.ts";
 import { client } from "../stores/connection.ts";
-import { tokens } from "../theme/tokens.ts";
 import { DocViewer } from "../components/doc-viewer.tsx";
 import type { WorkspaceInfo, DocInfo } from "../api/types.ts";
 import * as styles from "./workspace.style.ts";
-
-const statusColors: Record<string, string> = {
-  running: tokens.colors.agentRunning,
-  stopped: tokens.colors.agentIdle,
-  error: tokens.colors.agentError,
-  completed: tokens.colors.agentCompleted,
-};
 
 export function WorkspacePage() {
   const wsKey = computed(route, (r) =>
@@ -74,33 +66,34 @@ export function WorkspacePage() {
     currentKey = "";
   });
 
-  const dotColor = computed(workspace, (ws) =>
-    statusColors[ws?.status ?? ""] ?? tokens.colors.agentIdle,
-  );
-
   function toggleDoc(name: string) {
     expandedDoc.value = expandedDoc.value === name ? null : name;
   }
 
   const wsNameDisplay = computed([workspace, wsKey], (ws, key) => ws?.name ?? key);
-  const badgeDotStyle = computed(dotColor, (c) => `background: ${c}`);
   const statusLabel = computed(workspace, (ws) => ws?.status ?? "loading");
+  const badgeDotClass = computed(statusLabel, (status) => [
+    styles.badgeDot,
+    status === "running"
+      ? styles.badgeDotRunning
+      : status === "error"
+        ? styles.badgeDotError
+        : status === "completed"
+          ? styles.badgeDotCompleted
+          : styles.badgeDotStopped,
+  ]);
   const modeTag = computed(workspace, (ws) =>
     ws?.mode ? <span class={styles.modeTag}>{ws.mode}</span> : null,
   );
 
   const errorBanner = computed(error, (e) =>
-    e ? <div style={`color: ${tokens.colors.danger}`}>{e}</div> : null,
+    e ? <div class={styles.errorBanner}>{e}</div> : null,
   );
 
   const agentsSection = computed(workspace, (ws) => {
     const agentNames = ws?.agents ?? [];
     if (agentNames.length === 0) {
-      return (
-        <div style={`font-size: ${tokens.fontSizes.sm}; color: ${tokens.colors.textMuted}`}>
-          No agents
-        </div>
-      );
+      return <div class={styles.emptyStateText}>No agents</div>;
     }
     return (
       <div class={styles.agentList}>
@@ -116,11 +109,7 @@ export function WorkspacePage() {
 
   const channelsSection = computed([channels, wsKey], (ch, wk) => {
     if (ch.length === 0) {
-      return (
-        <div style={`font-size: ${tokens.fontSizes.sm}; color: ${tokens.colors.textMuted}`}>
-          No channels
-        </div>
-      );
+      return <div class={styles.emptyStateText}>No channels</div>;
     }
     return (
       <div class={styles.channelList}>
@@ -138,11 +127,7 @@ export function WorkspacePage() {
 
   const docsSection = computed([docs, expandedDoc, wsKey], (d, exp, wk) => {
     if (d.length === 0) {
-      return (
-        <div style={`font-size: ${tokens.fontSizes.sm}; color: ${tokens.colors.textMuted}`}>
-          No documents
-        </div>
-      );
+      return <div class={styles.emptyStateText}>No documents</div>;
     }
     return (
       <div class={styles.docList}>
@@ -176,7 +161,7 @@ export function WorkspacePage() {
         <div class={styles.headerInfo}>
           <span class={styles.wsName}>{wsNameDisplay}</span>
           <div class={styles.badge}>
-            <span class={styles.badgeDot} style={badgeDotStyle} />
+            <span class={badgeDotClass} />
             {statusLabel}
           </div>
           {modeTag}

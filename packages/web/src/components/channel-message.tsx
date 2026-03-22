@@ -7,26 +7,6 @@ import { wsAgents } from "../stores/workspace-data.ts";
 import { ClaudeIcon, CursorIcon, OpenAIIcon, VercelIcon, parsePlatformName } from "./brand-icons.tsx";
 import * as styles from "./channel-message.style.ts";
 
-// Deterministic color per sender name
-const senderColors = [
-  "#f3f1ee",
-  "#d8d1ca",
-  "#c0b6aa",
-  "#ffb07d",
-  "#d6b18a",
-  "#bfb9b0",
-  "#e6d4bc",
-  "#c8a88a",
-];
-
-function colorForSender(name: string): string {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = (hash * 31 + name.charCodeAt(i)) | 0;
-  }
-  return senderColors[Math.abs(hash) % senderColors.length]!;
-}
-
 function runtimeIcon(runtime: string): VNode | null {
   const iconProps = { size: 12 };
   switch (runtime) {
@@ -58,8 +38,8 @@ export function ChannelMessageItem(props: { message: ChannelMessage }) {
   const parsed = parsePlatformName(message.from);
 
   // Platform suffix: "@telegram" in brand color
-  const platformSuffix = parsed.platform && parsed.color
-    ? <span style={`color: ${parsed.color}; opacity: 0.7;`}>@{parsed.platform}</span>
+  const platformSuffix = parsed.platform
+    ? <span class={styles.platformSuffix}>@{parsed.platform}</span>
     : null;
 
   // Reactive: re-derives agent runtime badge when wsAgents updates
@@ -76,10 +56,7 @@ export function ChannelMessageItem(props: { message: ChannelMessage }) {
       <div class={styles.messageBlock}>
         <div class={styles.senderRow}>
           <span class={styles.sender}>
-            <span
-              class={styles.senderLabel}
-              style={`color: ${colorForSender(parsed.name)}`}
-            >
+            <span class={styles.senderLabel}>
               {parsed.name}
             </span>
             {platformSuffix}

@@ -6,7 +6,7 @@ const c = classes(["block", "header", "label", "toggle", "content"] as const);
 export const block = rule`${c.block} {
   padding: ${tokens.space.md} ${tokens.space.lg};
   background: ${tokens.colors.warningSurface};
-  border: 1px solid rgba(255, 214, 10, 0.18);
+  border: 1px solid ${tokens.colors.warningBorder};
   border-radius: ${tokens.radii.xl};
   margin: ${tokens.space.xs} 0;
   box-shadow: ${tokens.shadows.inset};

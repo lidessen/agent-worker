@@ -30,7 +30,7 @@ export const header = rule`${c.header} {
   gap: ${tokens.space.md};
   padding: ${tokens.space.lg} ${tokens.space.xl} ${tokens.space.md};
   border-bottom: 1px solid ${tokens.colors.border};
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, transparent 100%);
+  background: ${tokens.colors.headerSheen};
   flex-shrink: 0;
 }`;
 
@@ -82,7 +82,7 @@ export const eventItem = rule`${c.eventItem} {
   transition: background ${tokens.transitions.fast};
 }
 ${c.eventItem}:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: ${tokens.colors.surfaceHover};
 }`;
 
 export const eventTime = rule`${c.eventTime} {

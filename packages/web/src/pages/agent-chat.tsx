@@ -19,7 +19,6 @@ import {
   streamError,
 } from "../stores/conversation.ts";
 import { inject } from "semajsx/style";
-import { tokens } from "../theme/tokens.ts";
 import { EventList } from "../components/event-list.tsx";
 import { ChatInput } from "../components/chat-input.tsx";
 import { AgentInspector } from "../components/agent-inspector.tsx";
@@ -27,15 +26,6 @@ import * as styles from "./agent-chat.style.ts";
 
 // Eagerly inject CSS for styles used in classList manipulation (not via JSX class prop)
 inject([styles.inspectorCol, styles.inspectorColHidden, styles.inspectorToggleActive]);
-
-const stateColors: Record<string, string> = {
-  idle: tokens.colors.agentIdle,
-  running: tokens.colors.agentRunning,
-  processing: tokens.colors.agentRunning,
-  error: tokens.colors.agentError,
-  completed: tokens.colors.agentCompleted,
-  stopped: tokens.colors.agentIdle,
-};
 
 function SendErrorBar() {
   const visible = computed(sendError, (e) => e !== null);
@@ -80,8 +70,16 @@ export function AgentChatPage() {
   );
 
   const stateText = computed(agentState, (s) => s?.state ?? "unknown");
-  const dotColor = computed(stateText, (s) => stateColors[s] ?? tokens.colors.agentIdle);
-  const badgeDotStyle = computed(dotColor, (c) => `background: ${c}`);
+  const badgeDotClass = computed(stateText, (state) => [
+    styles.badgeDot,
+    state === "running" || state === "processing"
+      ? styles.badgeDotRunning
+      : state === "error"
+        ? styles.badgeDotError
+        : state === "completed"
+          ? styles.badgeDotCompleted
+          : styles.badgeDotIdle,
+  ]);
 
   // Inspector toggle state
   let inspectorVisible = false;
@@ -157,7 +155,7 @@ export function AgentChatPage() {
         <div class={styles.headerInfo}>
           <span class={styles.agentName}>{name}</span>
           <div class={styles.badge}>
-            <span class={styles.badgeDot} style={badgeDotStyle} />
+            <span class={badgeDotClass} />
             {stateText}
           </div>
         </div>

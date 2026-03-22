@@ -74,9 +74,9 @@ export const loading = rule`${c.loading} {
 
 export const newBtn = rule`${c.newBtn} {
   margin-left: auto;
-  background: ${tokens.colors.primary};
-  color: #fff;
-  border: none;
+  background: ${tokens.colors.buttonPrimary};
+  color: ${tokens.colors.buttonPrimaryText};
+  border: 1px solid ${tokens.colors.buttonPrimaryBorder};
   border-radius: ${tokens.radii.md};
   padding: ${tokens.space.xs} ${tokens.space.md};
   font-size: ${tokens.fontSizes.xs};
@@ -85,5 +85,5 @@ export const newBtn = rule`${c.newBtn} {
   transition: background ${tokens.transitions.fast};
 }
 ${c.newBtn}:hover {
-  background: ${tokens.colors.primaryHover};
+  background: ${tokens.colors.buttonPrimaryHover};
 }`;

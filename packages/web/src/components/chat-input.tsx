@@ -3,6 +3,7 @@
 import { Icon, ArrowUp } from "@semajsx/icons";
 import { computed, signal } from "semajsx/signal";
 import type { ReadableSignal } from "semajsx/signal";
+import { onCleanup } from "semajsx/dom";
 import { sendMessage } from "../stores/conversation.ts";
 import * as styles from "./chat-input.style.ts";
 
@@ -41,7 +42,8 @@ export function ChatInput(props: { agentName: ReadableSignal<string> }) {
     }
   }
 
-  canSend.subscribe(syncSendBtn);
+  const unsub = canSend.subscribe(syncSendBtn);
+  onCleanup(unsub);
 
   return (
     <div class={styles.bar}>

@@ -72,7 +72,7 @@ export function DocViewer(props: { wsKey: string; docName: string }) {
 
   const errorBanner = computed(error, (e) =>
     e ? (
-      <div style="padding: 0.5rem 0.75rem; color: #ff453a; font-size: 0.75rem">
+      <div class={styles.errorBanner}>
         {e}
       </div>
     ) : null,

@@ -3,7 +3,6 @@
 import { Icon, Wrench, ChevronDown, ChevronRight } from "@semajsx/icons";
 import { signal, computed } from "semajsx/signal";
 import type { DaemonEvent } from "../../api/types.ts";
-import { tokens } from "../../theme/tokens.ts";
 import * as styles from "./tool-call-block.style.ts";
 
 function formatDuration(ms: number): string {
@@ -24,15 +23,11 @@ export function ToolCallBlock(props: { event: DaemonEvent }) {
   const hasResult = result !== undefined || error !== undefined;
   const isPending = !hasResult;
 
-  const dotColor = error
-    ? tokens.colors.danger
+  const dotClass = error
+    ? [styles.statusDot, styles.statusDotError]
     : hasResult
-      ? tokens.colors.success
-      : tokens.colors.primary;
-
-  const dotStyle = isPending
-    ? `background: ${dotColor}; animation: pulse 1.5s ease-in-out infinite;`
-    : `background: ${dotColor};`;
+      ? [styles.statusDot, styles.statusDotSuccess]
+      : [styles.statusDot, styles.statusDotPending];
 
   function toggleExpand() {
     expanded.value = !expanded.value;
@@ -46,7 +41,12 @@ export function ToolCallBlock(props: { event: DaemonEvent }) {
     <Icon icon={ex ? ChevronDown : ChevronRight} size={12} />,
   );
   const resultToggleLabel = computed(resultExpanded, (re) =>
-    <span><Icon icon={re ? ChevronDown : ChevronRight} size={12} style="vertical-align: -2px; margin-right: 2px;" /> result</span>,
+    <span class={styles.resultToggleLabel}>
+      <span class={styles.resultToggleIcon}>
+        <Icon icon={re ? ChevronDown : ChevronRight} size={12} />
+      </span>
+      result
+    </span>,
   );
 
   const argsBlock = computed(expanded, (ex) => {
@@ -73,7 +73,7 @@ export function ToolCallBlock(props: { event: DaemonEvent }) {
     <div class={styles.block}>
       <div class={styles.header} onclick={toggleExpand}>
         <span class={styles.toolIcon}><Icon icon={Wrench} size={14} /></span>
-        <span class={styles.statusDot} style={dotStyle} />
+        <span class={dotClass} />
         <span class={styles.toolName}>{toolName}</span>
         {durationMs !== undefined ? (
           <span class={styles.duration}>{formatDuration(durationMs)}</span>
@@ -84,7 +84,7 @@ export function ToolCallBlock(props: { event: DaemonEvent }) {
       {argsBlock}
 
       {error ? (
-        <pre class={styles.result} style={`color: ${tokens.colors.danger}`}>
+        <pre class={[styles.result, styles.resultError]}>
           {error}
         </pre>
       ) : hasResult ? (
@@ -96,10 +96,7 @@ export function ToolCallBlock(props: { event: DaemonEvent }) {
         </div>
       ) : (
         <div class={styles.pending}>
-          <span
-            class={styles.statusDot}
-            style={`background: ${tokens.colors.primary}; animation: pulse 1.5s ease-in-out infinite;`}
-          />
+          <span class={[styles.statusDot, styles.statusDotProcessing]} />
           running...
         </div>
       )}

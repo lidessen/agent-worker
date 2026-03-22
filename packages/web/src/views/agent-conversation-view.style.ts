@@ -8,6 +8,10 @@ const c = classes([
   "agentName",
   "badge",
   "badgeDot",
+  "badgeDotIdle",
+  "badgeDotRunning",
+  "badgeDotError",
+  "badgeDotCompleted",
   "wsLabel",
   "body",
   "sendErrorBar",
@@ -84,6 +88,11 @@ export const badgeDot = rule`${c.badgeDot} {
   flex-shrink: 0;
 }`;
 
+export const badgeDotIdle = rule`${c.badgeDotIdle} { background: ${tokens.colors.agentIdle}; }`;
+export const badgeDotRunning = rule`${c.badgeDotRunning} { background: ${tokens.colors.agentRunning}; }`;
+export const badgeDotError = rule`${c.badgeDotError} { background: ${tokens.colors.agentError}; }`;
+export const badgeDotCompleted = rule`${c.badgeDotCompleted} { background: ${tokens.colors.agentCompleted}; }`;
+
 export const wsLabel = rule`${c.wsLabel} {
   font-size: ${tokens.fontSizes.xs};
   color: ${tokens.colors.textMuted};
@@ -109,8 +118,8 @@ export const sendErrorBar = rule`${c.sendErrorBar} {
   padding: ${tokens.space.sm} ${tokens.space.md};
   border-radius: ${tokens.radii.lg};
   background: ${tokens.colors.dangerSurface};
-  border: 1px solid rgba(255, 69, 58, 0.26);
-  color: #ffd9d7;
+  border: 1px solid ${tokens.colors.dangerBorder};
+  color: ${tokens.colors.danger};
   font-size: ${tokens.fontSizes.sm};
   flex-shrink: 0;
   box-shadow: ${tokens.shadows.inset};
@@ -125,7 +134,7 @@ export const sendErrorBar = rule`${c.sendErrorBar} {
 export const sendErrorDismiss = rule`${c.sendErrorDismiss} {
   background: none;
   border: none;
-  color: #fff;
+  color: inherit;
   font-size: ${tokens.fontSizes.md};
   cursor: pointer;
   padding: 0 ${tokens.space.xs};
@@ -143,7 +152,7 @@ export const streamErrorBar = rule`${c.streamErrorBar} {
   padding: ${tokens.space.sm} ${tokens.space.md};
   border-radius: ${tokens.radii.lg};
   background: ${tokens.colors.warningSurface};
-  border: 1px solid rgba(255, 214, 10, 0.16);
+  border: 1px solid ${tokens.colors.warningBorder};
   color: ${tokens.colors.warning};
   font-size: ${tokens.fontSizes.sm};
   flex-shrink: 0;

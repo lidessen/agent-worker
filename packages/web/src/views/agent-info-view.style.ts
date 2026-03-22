@@ -11,6 +11,10 @@ const c = classes([
   "sectionTitle",
   "statusRow",
   "statusDot",
+  "statusDotIdle",
+  "statusDotRunning",
+  "statusDotError",
+  "statusDotCompleted",
   "statusText",
   "infoGrid",
   "infoLabel",
@@ -34,7 +38,7 @@ export const header = rule`${c.header} {
   gap: ${tokens.space.md};
   padding: ${tokens.space.lg} ${tokens.space.xl} ${tokens.space.md};
   border-bottom: 1px solid ${tokens.colors.border};
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, transparent 100%);
+  background: ${tokens.colors.headerSheen};
   flex-shrink: 0;
 }
 @media (max-width: 640px) {
@@ -116,6 +120,11 @@ export const statusDot = rule`${c.statusDot} {
   flex-shrink: 0;
 }`;
 
+export const statusDotIdle = rule`${c.statusDotIdle} { background: ${tokens.colors.agentIdle}; }`;
+export const statusDotRunning = rule`${c.statusDotRunning} { background: ${tokens.colors.agentRunning}; }`;
+export const statusDotError = rule`${c.statusDotError} { background: ${tokens.colors.agentError}; }`;
+export const statusDotCompleted = rule`${c.statusDotCompleted} { background: ${tokens.colors.agentCompleted}; }`;
+
 export const statusText = rule`${c.statusText} {
   font-size: ${tokens.fontSizes.sm};
   color: ${tokens.colors.text};
@@ -183,5 +192,5 @@ export const actionBtnDanger = rule`${c.actionBtnDanger} {
   border-color: ${tokens.colors.danger};
 }
 ${c.actionBtnDanger}:hover {
-  background: rgba(255, 69, 58, 0.1);
+  background: ${tokens.colors.dangerSurface};
 }`;

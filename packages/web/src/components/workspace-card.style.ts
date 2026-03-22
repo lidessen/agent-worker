@@ -9,6 +9,10 @@ const c = classes([
   "meta",
   "badge",
   "badgeDot",
+  "badgeDotRunning",
+  "badgeDotStopped",
+  "badgeDotError",
+  "badgeDotCompleted",
   "metaItem",
   "timeText",
   "modeBadgeService",
@@ -72,6 +76,11 @@ export const badgeDot = rule`${c.badgeDot} {
   flex-shrink: 0;
 }`;
 
+export const badgeDotRunning = rule`${c.badgeDotRunning} { background: ${tokens.colors.agentRunning}; }`;
+export const badgeDotStopped = rule`${c.badgeDotStopped} { background: ${tokens.colors.agentIdle}; }`;
+export const badgeDotError = rule`${c.badgeDotError} { background: ${tokens.colors.agentError}; }`;
+export const badgeDotCompleted = rule`${c.badgeDotCompleted} { background: ${tokens.colors.agentCompleted}; }`;
+
 export const timeText = rule`${c.timeText} {
   font-size: ${tokens.fontSizes.xs};
   color: ${tokens.colors.textDim};
@@ -100,11 +109,13 @@ const modeBadgeBase = `
 export const modeBadgeService = rule`${c.modeBadgeService} {
   ${modeBadgeBase}
   color: ${tokens.colors.success};
-  background: rgba(48, 209, 88, 0.12);
+  background: ${tokens.colors.successSurface};
+  border: 1px solid ${tokens.colors.successBorder};
 }`;
 
 export const modeBadgeTask = rule`${c.modeBadgeTask} {
   ${modeBadgeBase}
   color: ${tokens.colors.primary};
-  background: rgba(10, 132, 255, 0.12);
+  background: ${tokens.colors.buttonPrimary};
+  border: 1px solid ${tokens.colors.buttonPrimaryBorder};
 }`;

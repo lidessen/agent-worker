@@ -5,37 +5,20 @@ import { Icon, Drama } from "@semajsx/icons";
 import { ClaudeIcon, CursorIcon, OpenAIIcon, VercelIcon } from "./brand-icons.tsx";
 import type { AgentInfo } from "../api/types.ts";
 import { navigate } from "../router.ts";
-import { tokens } from "../theme/tokens.ts";
 import * as styles from "./agent-card.style.ts";
-
-const stateColors: Record<string, string> = {
-  idle: tokens.colors.agentIdle,
-  running: tokens.colors.agentRunning,
-  processing: tokens.colors.agentProcessing,
-  error: tokens.colors.agentError,
-  failed: tokens.colors.agentError,
-  completed: tokens.colors.agentCompleted,
-  stopped: tokens.colors.agentIdle,
-};
-
-function stateColor(state: string): string {
-  return stateColors[state] ?? tokens.colors.agentIdle;
-}
-
-const iconStyle = "vertical-align: -2px; margin-right: 4px;";
 
 function runtimeIcon(runtime: string): JSXNode {
   switch (runtime) {
     case "claude-code":
-      return <ClaudeIcon size={12} style={iconStyle} />;
+      return <ClaudeIcon size={12} />;
     case "codex":
-      return <OpenAIIcon size={12} style={iconStyle} />;
+      return <OpenAIIcon size={12} />;
     case "cursor":
-      return <CursorIcon size={12} style={iconStyle} />;
+      return <CursorIcon size={12} />;
     case "ai-sdk":
-      return <VercelIcon size={12} style={iconStyle} />;
+      return <VercelIcon size={12} />;
     case "mock":
-      return <Icon icon={Drama} size={12} style={iconStyle} />;
+      return <Icon icon={Drama} size={12} />;
     default:
       return null;
   }
@@ -55,6 +38,18 @@ function timeAgo(ts: number): string {
 
 export function AgentCard(props: { agent: AgentInfo }) {
   const { agent } = props;
+  const badgeDotClass = [
+    styles.badgeDot,
+    agent.state === "running"
+      ? styles.badgeDotRunning
+      : agent.state === "processing"
+        ? styles.badgeDotProcessing
+        : agent.state === "error" || agent.state === "failed"
+          ? styles.badgeDotError
+          : agent.state === "completed"
+            ? styles.badgeDotCompleted
+            : styles.badgeDotIdle,
+  ];
 
   function handleClick() {
     navigate("/agents/" + agent.name);
@@ -65,10 +60,7 @@ export function AgentCard(props: { agent: AgentInfo }) {
       <span class={styles.name}>{agent.name}</span>
       <div class={styles.statusRow}>
         <div class={styles.badge}>
-          <span
-            class={styles.badgeDot}
-            style={`background: ${stateColor(agent.state)}`}
-          />
+          <span class={badgeDotClass} />
           {agent.state}
         </div>
         {agent.createdAt ? (
@@ -77,7 +69,7 @@ export function AgentCard(props: { agent: AgentInfo }) {
       </div>
       <div class={styles.meta}>
         <span class={styles.runtimeBadge}>
-          {runtimeIcon(agent.runtime)}
+          <span class={styles.runtimeIcon}>{runtimeIcon(agent.runtime)}</span>
           {agent.runtime}
         </span>
         {agent.model ? <span class={styles.metaItem}>{agent.model}</span> : null}

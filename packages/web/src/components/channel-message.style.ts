@@ -10,6 +10,7 @@ const c = classes([
   "senderRow",
   "sender",
   "senderLabel",
+  "platformSuffix",
   "runtimeBadge",
   "timestamp",
   "content",
@@ -100,6 +101,11 @@ export const senderLabel = rule`${c.senderLabel} {
   border-radius: 0;
   background: transparent;
   border: none;
+}`;
+
+export const platformSuffix = rule`${c.platformSuffix} {
+  color: ${tokens.colors.textDim};
+  opacity: 0.9;
 }`;
 
 

@@ -132,12 +132,12 @@ ${c.btn}:disabled {
 }`;
 
 export const btnPrimary = rule`${c.btnPrimary} {
-  background: linear-gradient(180deg, rgba(248, 244, 240, 0.92) 0%, rgba(224, 220, 216, 0.9) 100%);
-  color: #111111;
-  border-color: rgba(255, 255, 255, 0.28);
+  background: ${tokens.colors.buttonPrimary};
+  color: ${tokens.colors.buttonPrimaryText};
+  border-color: ${tokens.colors.buttonPrimaryBorder};
 }
 ${c.btnPrimary}:hover {
-  filter: brightness(1.04);
+  background: ${tokens.colors.buttonPrimaryHover};
 }`;
 
 export const message = rule`${c.message} {
@@ -148,15 +148,15 @@ export const message = rule`${c.message} {
 }`;
 
 export const messageSuccess = rule`${c.messageSuccess} {
-  color: ${tokens.colors.success};
+  color: ${tokens.colors.successTextStrong};
   background: ${tokens.colors.successSurface};
-  border-color: rgba(48, 209, 88, 0.24);
+  border-color: ${tokens.colors.successBorder};
 }`;
 
 export const messageError = rule`${c.messageError} {
   color: ${tokens.colors.danger};
   background: ${tokens.colors.dangerSurface};
-  border-color: rgba(255, 69, 58, 0.24);
+  border-color: ${tokens.colors.dangerBorder};
 }`;
 
 export const info = rule`${c.info} {
@@ -213,19 +213,19 @@ export const statusPill = rule`${c.statusPill} {
   align-items: center;
   padding: 3px ${tokens.space.sm};
   border-radius: ${tokens.radii.pill};
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid ${tokens.colors.border};
   font-size: ${tokens.fontSizes.xs};
   font-family: ${tokens.fonts.base};
   font-weight: ${tokens.fontWeights.medium};
 }`;
 
 export const statusPillSuccess = rule`${c.statusPillSuccess} {
-  color: #8be28d;
-  background: rgba(48, 209, 88, 0.12);
-  border-color: rgba(48, 209, 88, 0.2);
+  color: ${tokens.colors.successTextStrong};
+  background: ${tokens.colors.successSurface};
+  border-color: ${tokens.colors.successBorder};
 }`;
 
 export const statusPillMuted = rule`${c.statusPillMuted} {
   color: ${tokens.colors.textMuted};
-  background: rgba(255, 255, 255, 0.04);
+  background: ${tokens.colors.surfaceOverlay};
 }`;

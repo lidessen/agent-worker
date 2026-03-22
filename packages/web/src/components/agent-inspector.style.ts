@@ -10,6 +10,11 @@ const c = classes([
   "sectionBodyHidden",
   "stateBadge",
   "stateDot",
+  "stateIdle",
+  "stateRunning",
+  "stateProcessing",
+  "stateError",
+  "stateCompleted",
   "itemList",
   "item",
   "itemId",
@@ -18,6 +23,7 @@ const c = classes([
   "emptyState",
   "chevron",
   "chevronOpen",
+  "countSuffix",
 ] as const);
 
 export const panel = rule`${c.panel} {
@@ -78,6 +84,11 @@ export const chevronOpen = rule`${c.chevronOpen} {
   transform: rotate(0deg);
 }`;
 
+export const countSuffix = rule`${c.countSuffix} {
+  color: ${tokens.colors.textDim};
+  font-weight: ${tokens.fontWeights.normal};
+}`;
+
 export const sectionBody = rule`${c.sectionBody} {
   padding: 0 ${tokens.space.md} ${tokens.space.sm};
 }`;
@@ -99,6 +110,26 @@ export const stateDot = rule`${c.stateDot} {
   height: 8px;
   border-radius: ${tokens.radii.pill};
   flex-shrink: 0;
+}`;
+
+export const stateIdle = rule`${c.stateIdle} {
+  background: ${tokens.colors.agentIdle};
+}`;
+
+export const stateRunning = rule`${c.stateRunning} {
+  background: ${tokens.colors.agentRunning};
+}`;
+
+export const stateProcessing = rule`${c.stateProcessing} {
+  background: ${tokens.colors.agentRunning};
+}`;
+
+export const stateError = rule`${c.stateError} {
+  background: ${tokens.colors.agentError};
+}`;
+
+export const stateCompleted = rule`${c.stateCompleted} {
+  background: ${tokens.colors.agentCompleted};
 }`;
 
 export const itemList = rule`${c.itemList} {

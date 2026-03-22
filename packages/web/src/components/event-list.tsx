@@ -167,6 +167,7 @@ export function EventList(props: { events: ReadableSignal<DaemonEvent[]>; agentN
         scrollRef = el;
         if (!el) return;
         el.addEventListener("scroll", handleScroll, { passive: true });
+        onCleanup(() => el.removeEventListener("scroll", handleScroll));
       }}
     >
       {body}

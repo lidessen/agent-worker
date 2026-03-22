@@ -1,7 +1,7 @@
 import { classes, rule } from "semajsx/style";
 import { tokens } from "../../theme/tokens.ts";
 
-const c = classes(["block", "divider", "label", "detail"] as const);
+const c = classes(["block", "divider", "label", "detail", "detailInline", "detailIcon"] as const);
 
 export const block = rule`${c.block} {
   display: flex;
@@ -30,4 +30,17 @@ export const detail = rule`${c.detail} {
   color: ${tokens.colors.textMuted};
   font-family: ${tokens.fonts.mono};
   white-space: nowrap;
+}`;
+
+export const detailInline = rule`${c.detailInline} {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}`;
+
+export const detailIcon = rule`${c.detailIcon} {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
 }`;

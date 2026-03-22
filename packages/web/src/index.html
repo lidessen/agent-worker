@@ -21,17 +21,17 @@
       margin: 0;
       background: var(--colors-background);
       color: var(--colors-text);
-      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, "Segoe UI", Roboto, sans-serif;
+      font-family: var(--fonts-base);
     }
 
     ::selection {
-      background: rgba(55, 148, 255, 0.3);
-      color: #ffffff;
+      background: var(--colors-selectionBg);
+      color: var(--colors-selectionText);
     }
 
     * {
       scrollbar-width: thin;
-      scrollbar-color: rgba(121, 121, 121, 0.45) transparent;
+      scrollbar-color: var(--colors-scrollbarThumb) transparent;
     }
 
     *::-webkit-scrollbar {
@@ -44,7 +44,7 @@
     }
 
     *::-webkit-scrollbar-thumb {
-      background: rgba(121, 121, 121, 0.42);
+      background: var(--colors-scrollbarThumb);
       border-radius: 999px;
       border: 2px solid transparent;
       background-clip: padding-box;

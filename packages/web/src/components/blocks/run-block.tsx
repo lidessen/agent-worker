@@ -36,9 +36,9 @@ export function RunBlock(props: { event: DaemonEvent }) {
         <span class={styles.detail}>{formatDuration(durationMs)}</span>
       ) : null}
       {!isStart && hasTokenBreakdown ? (
-        <span class={styles.detail}>
-          <Icon icon={ArrowUp} size={12} style="vertical-align: -2px;" />{inputTokens}{" "}
-          <Icon icon={ArrowDown} size={12} style="vertical-align: -2px;" />{outputTokens}
+        <span class={[styles.detail, styles.detailInline]}>
+          <span class={styles.detailIcon}><Icon icon={ArrowUp} size={12} /></span>{inputTokens}
+          <span class={styles.detailIcon}><Icon icon={ArrowDown} size={12} /></span>{outputTokens}
         </span>
       ) : !isStart && tokenCount !== undefined ? (
         <span class={styles.detail}>{tokenCount} tokens</span>

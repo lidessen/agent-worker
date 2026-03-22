@@ -7,13 +7,20 @@ const c = classes([
   "toolIcon",
   "toolName",
   "statusDot",
+  "statusDotPending",
+  "statusDotSuccess",
+  "statusDotError",
+  "statusDotProcessing",
   "toggle",
   "args",
   "result",
   "resultSection",
   "resultToggle",
+  "resultToggleLabel",
+  "resultToggleIcon",
   "pending",
   "duration",
+  "resultError",
 ] as const);
 
 export const block = rule`${c.block} {
@@ -56,6 +63,24 @@ export const statusDot = rule`${c.statusDot} {
   50% { opacity: 0.3; }
 }`;
 
+export const statusDotPending = rule`${c.statusDotPending} {
+  background: ${tokens.colors.primary};
+  animation: pulse 1.5s ease-in-out infinite;
+}`;
+
+export const statusDotSuccess = rule`${c.statusDotSuccess} {
+  background: ${tokens.colors.success};
+}`;
+
+export const statusDotError = rule`${c.statusDotError} {
+  background: ${tokens.colors.danger};
+}`;
+
+export const statusDotProcessing = rule`${c.statusDotProcessing} {
+  background: ${tokens.colors.primary};
+  animation: pulse 1.5s ease-in-out infinite;
+}`;
+
 export const toggle = rule`${c.toggle} {
   font-size: ${tokens.fontSizes.xs};
   color: ${tokens.colors.textDim};
@@ -93,6 +118,19 @@ ${c.resultToggle}:hover {
   color: ${tokens.colors.text};
 }`;
 
+export const resultToggleLabel = rule`${c.resultToggleLabel} {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}`;
+
+export const resultToggleIcon = rule`${c.resultToggleIcon} {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+}`;
+
 export const result = rule`${c.result} {
   font-family: ${tokens.fonts.mono};
   font-size: ${tokens.fontSizes.xs};
@@ -105,6 +143,10 @@ export const result = rule`${c.result} {
   border-radius: ${tokens.radii.sm};
   max-height: 300px;
   overflow-y: auto;
+}`;
+
+export const resultError = rule`${c.resultError} {
+  color: ${tokens.colors.danger};
 }`;
 
 export const pending = rule`${c.pending} {

@@ -16,14 +16,29 @@ const c = classes([
   "listItem",
   "listItemActive",
   "itemDot",
+  "itemDotIdle",
+  "itemDotRunning",
+  "itemDotProcessing",
+  "itemDotError",
+  "itemDotCompleted",
   "itemPreview",
+  "itemMeta",
+  "itemIcon",
   "bottomBar",
   "bottomActions",
   "bottomLink",
   "statusRow",
   "statusLabel",
   "connectionDot",
+  "connectionDotConnected",
+  "connectionDotConnecting",
+  "connectionDotError",
   "workspaceSelect",
+  "sectionLabelRow",
+  "sectionAction",
+  "displayContents",
+  "tabPane",
+  "tabPaneHidden",
 ] as const);
 
 export const sidebar = rule`${c.sidebar} {
@@ -181,6 +196,12 @@ export const itemDot = rule`${c.itemDot} {
   flex-shrink: 0;
 }`;
 
+export const itemDotIdle = rule`${c.itemDotIdle} { background: ${tokens.colors.agentIdle}; }`;
+export const itemDotRunning = rule`${c.itemDotRunning} { background: ${tokens.colors.agentRunning}; }`;
+export const itemDotProcessing = rule`${c.itemDotProcessing} { background: ${tokens.colors.agentProcessing}; }`;
+export const itemDotError = rule`${c.itemDotError} { background: ${tokens.colors.agentError}; }`;
+export const itemDotCompleted = rule`${c.itemDotCompleted} { background: ${tokens.colors.agentCompleted}; }`;
+
 export const itemPreview = rule`${c.itemPreview} {
   flex: 1;
   min-width: 0;
@@ -188,6 +209,21 @@ export const itemPreview = rule`${c.itemPreview} {
   flex-direction: column;
   gap: 2px;
   overflow: hidden;
+}`;
+
+export const itemMeta = rule`${c.itemMeta} {
+  font-size: ${tokens.fontSizes.xs};
+  color: ${tokens.colors.textDim};
+}`;
+
+export const itemIcon = rule`${c.itemIcon} {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  color: ${tokens.colors.textDim};
+  flex: 0 0 auto;
 }`;
 
 export const bottomBar = rule`${c.bottomBar} {
@@ -250,4 +286,33 @@ export const connectionDot = rule`${c.connectionDot} {
   flex-shrink: 0;
   transition: background ${tokens.transitions.fast};
   box-shadow: 0 0 10px currentColor;
+}`;
+
+export const connectionDotConnected = rule`${c.connectionDotConnected} { background: ${tokens.colors.success}; }`;
+export const connectionDotConnecting = rule`${c.connectionDotConnecting} { background: ${tokens.colors.warning}; }`;
+export const connectionDotError = rule`${c.connectionDotError} { background: ${tokens.colors.danger}; }`;
+
+export const sectionLabelRow = rule`${c.sectionLabelRow} {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}`;
+
+export const sectionAction = rule`${c.sectionAction} {
+  cursor: pointer;
+  font-size: ${tokens.fontSizes.md};
+  color: ${tokens.colors.textMuted};
+  padding: 0 4px;
+}`;
+
+export const displayContents = rule`${c.displayContents} {
+  display: contents;
+}`;
+
+export const tabPane = rule`${c.tabPane} {
+  display: block;
+}`;
+
+export const tabPaneHidden = rule`${c.tabPaneHidden} {
+  display: none;
 }`;

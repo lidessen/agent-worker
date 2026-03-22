@@ -40,13 +40,13 @@ const testResultBanner = computed(testResult, (r) => {
 function runtimeIcon(runtime: string) {
   switch (runtime) {
     case "claude-code":
-      return <ClaudeIcon size={14} style="vertical-align: -2px;" />;
+      return <ClaudeIcon size={14} />;
     case "codex":
-      return <OpenAIIcon size={14} style="vertical-align: -2px;" />;
+      return <OpenAIIcon size={14} />;
     case "cursor":
-      return <CursorIcon size={14} style="vertical-align: -2px;" />;
+      return <CursorIcon size={14} />;
     case "ai-sdk":
-      return <VercelIcon size={12} style="vertical-align: -1px;" />;
+      return <VercelIcon size={12} />;
     case "mock":
       return <Icon icon={Drama} size={13} />;
     default:

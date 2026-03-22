@@ -5,19 +5,18 @@ import { computed } from "semajsx/signal";
 import type { Signal, ReadableSignal } from "semajsx/signal";
 import type { AgentState, InboxItem, TodoItem } from "../api/types.ts";
 import { inject } from "semajsx/style";
-import { tokens } from "../theme/tokens.ts";
 import * as styles from "./agent-inspector.style.ts";
 
 // Eagerly inject CSS for styles used in classList manipulation
 inject([styles.chevronOpen, styles.sectionBodyHidden]);
 
-const stateColors: Record<string, string> = {
-  idle: tokens.colors.agentIdle,
-  running: tokens.colors.agentRunning,
-  processing: tokens.colors.agentRunning,
-  error: tokens.colors.agentError,
-  completed: tokens.colors.agentCompleted,
-  stopped: tokens.colors.agentIdle,
+const stateClasses: Record<string, string> = {
+  idle: styles.stateIdle,
+  running: styles.stateRunning,
+  processing: styles.stateProcessing,
+  error: styles.stateError,
+  completed: styles.stateCompleted,
+  stopped: styles.stateIdle,
 };
 
 function CollapsibleSection(props: {
@@ -47,7 +46,7 @@ function CollapsibleSection(props: {
         <span>
           {props.title}
           {props.countSuffix ? (
-            <span style={`color: ${tokens.colors.textDim}; font-weight: ${tokens.fontWeights.normal}`}>
+            <span class={styles.countSuffix}>
               {props.countSuffix}
             </span>
           ) : null}
@@ -105,14 +104,13 @@ export function AgentInspector(props: { agentState: Signal<AgentState | null> })
   const state = props.agentState;
 
   const stateText = computed(state, (s) => s?.state ?? "unknown");
-  const dotColor = computed(stateText, (s) => stateColors[s] ?? tokens.colors.agentIdle);
   const inbox = computed(state, (s) => s?.inbox ?? []);
   const todos = computed(state, (s) => s?.todos ?? []);
   const inboxCount = computed(inbox, (items) => items.length);
   const todoCount = computed(todos, (items) => items.length);
   const inboxSuffix = computed(inboxCount, (n) => (n > 0 ? ` (${n})` : ""));
   const todoSuffix = computed(todoCount, (n) => (n > 0 ? ` (${n})` : ""));
-  const stateBadgeStyle = computed(dotColor, (c) => `background: ${c}`);
+  const stateDotClass = computed(stateText, (s) => [styles.stateDot, stateClasses[s] ?? styles.stateIdle]);
   const taskSuffix = computed(state, (s) =>
     s?.currentTask ? ` — ${s.currentTask}` : "",
   );
@@ -135,7 +133,7 @@ export function AgentInspector(props: { agentState: Signal<AgentState | null> })
     <div class={styles.panel}>
       <CollapsibleSection title="State" defaultOpen={true}>
         <div class={styles.stateBadge}>
-          <span class={styles.stateDot} style={stateBadgeStyle} />
+          <span class={stateDotClass} />
           {stateText}
           {taskSuffix}
         </div>

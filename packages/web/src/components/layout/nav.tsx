@@ -3,24 +3,18 @@
 import { computed } from "semajsx/signal";
 import { connectionState } from "../../stores/connection.ts";
 import { route } from "../../router.ts";
-import { tokens } from "../../theme/tokens.ts";
 import * as styles from "./nav.style.ts";
-
-const dotColor = computed(connectionState, (state) => {
-  switch (state) {
-    case "connected":
-      return tokens.colors.success;
-    case "connecting":
-      return tokens.colors.warning;
-    case "disconnected":
-    case "error":
-      return tokens.colors.danger;
-  }
-});
 
 const currentPage = computed(route, (r) => r.page);
 
-const dotStyle = computed(dotColor, (c) => `background: ${c}`);
+const dotClass = computed(connectionState, (state) => [
+  styles.dot,
+  state === "connected"
+    ? styles.dotConnected
+    : state === "connecting"
+      ? styles.dotConnecting
+      : styles.dotError,
+]);
 
 const dotTitle = computed(connectionState, (state) => {
   switch (state) {
@@ -59,7 +53,7 @@ export function Nav() {
         </NavLink>
       </div>
       <span title={dotTitle}>
-        <div class={styles.dot} style={dotStyle} />
+        <div class={dotClass} />
       </span>
     </nav>
   );

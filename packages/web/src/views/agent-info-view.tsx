@@ -12,19 +12,9 @@ import {
 } from "../stores/agents.ts";
 import { selectAgent, selectGlobalSettings } from "../stores/navigation.ts";
 import { client } from "../stores/connection.ts";
-import { tokens } from "../theme/tokens.ts";
 import { AgentInspector } from "../components/agent-inspector.tsx";
 import { ConfirmDialog } from "../components/confirm-dialog.tsx";
 import * as styles from "./agent-info-view.style.ts";
-
-const stateColors: Record<string, string> = {
-  idle: tokens.colors.agentIdle,
-  running: tokens.colors.agentRunning,
-  processing: tokens.colors.agentRunning,
-  error: tokens.colors.agentError,
-  completed: tokens.colors.agentCompleted,
-  stopped: tokens.colors.agentIdle,
-};
 
 export function AgentInfoView(props: { name: string }) {
   const showDeleteAgent = signal(false);
@@ -45,8 +35,16 @@ export function AgentInfoView(props: { name: string }) {
   });
 
   const stateText = computed(agentState, (s) => s?.state ?? "unknown");
-  const dotColor = computed(stateText, (s) => stateColors[s] ?? tokens.colors.agentIdle);
-  const dotStyle = computed(dotColor, (c) => `background: ${c}`);
+  const dotClass = computed(stateText, (state) => [
+    styles.statusDot,
+    state === "running" || state === "processing"
+      ? styles.statusDotRunning
+      : state === "error"
+        ? styles.statusDotError
+        : state === "completed"
+          ? styles.statusDotCompleted
+          : styles.statusDotIdle,
+  ]);
 
   const workspace = computed(agentState, (s) => s?.workspace ?? null);
   const currentTask = computed(agentState, (s) => s?.currentTask ?? null);
@@ -88,7 +86,7 @@ export function AgentInfoView(props: { name: string }) {
         <div class={styles.section}>
           <span class={styles.sectionTitle}>Status</span>
           <div class={styles.statusRow}>
-            <span class={styles.statusDot} style={dotStyle} />
+            <span class={dotClass} />
             <span class={styles.statusText}>{stateText}</span>
           </div>
         </div>

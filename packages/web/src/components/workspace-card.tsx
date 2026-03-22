@@ -2,19 +2,7 @@
 
 import type { WorkspaceInfo } from "../api/types.ts";
 import { navigate } from "../router.ts";
-import { tokens } from "../theme/tokens.ts";
 import * as styles from "./workspace-card.style.ts";
-
-const statusColors: Record<string, string> = {
-  running: tokens.colors.agentRunning,
-  stopped: tokens.colors.agentIdle,
-  error: tokens.colors.agentError,
-  completed: tokens.colors.agentCompleted,
-};
-
-function statusColor(status: string): string {
-  return statusColors[status] ?? tokens.colors.agentIdle;
-}
 
 const modeLabels: Record<string, string> = {
   service: "service",
@@ -42,6 +30,16 @@ export function WorkspaceCard(props: { workspace: WorkspaceInfo }) {
 
   const agentCount = workspace.agents.length;
   const agentLabel = `${agentCount} agent${agentCount !== 1 ? "s" : ""}`;
+  const badgeDotClass = [
+    styles.badgeDot,
+    workspace.status === "running"
+      ? styles.badgeDotRunning
+      : workspace.status === "error"
+        ? styles.badgeDotError
+        : workspace.status === "completed"
+          ? styles.badgeDotCompleted
+          : styles.badgeDotStopped,
+  ];
 
   return (
     <div class={styles.card} role="button" tabindex="0" onclick={handleClick}>
@@ -61,10 +59,7 @@ export function WorkspaceCard(props: { workspace: WorkspaceInfo }) {
       </div>
       <div class={styles.statusRow}>
         <div class={styles.badge}>
-          <span
-            class={styles.badgeDot}
-            style={`background: ${statusColor(workspace.status)}`}
-          />
+          <span class={badgeDotClass} />
           {workspace.status}
         </div>
         {workspace.createdAt ? (

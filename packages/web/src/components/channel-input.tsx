@@ -2,6 +2,7 @@
 
 import { Icon, ArrowUp } from "@semajsx/icons";
 import { computed, signal } from "semajsx/signal";
+import { onCleanup } from "semajsx/dom";
 import * as styles from "./chat-input.style.ts";
 
 export function ChannelInput(props: { onSend: (text: string) => void }) {
@@ -38,7 +39,8 @@ export function ChannelInput(props: { onSend: (text: string) => void }) {
     }
   }
 
-  canSend.subscribe(syncSendBtn);
+  const unsub = canSend.subscribe(syncSendBtn);
+  onCleanup(unsub);
 
   return (
     <div class={styles.bar}>

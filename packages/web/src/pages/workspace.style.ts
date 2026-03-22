@@ -9,6 +9,10 @@ const c = classes([
   "wsName",
   "badge",
   "badgeDot",
+  "badgeDotRunning",
+  "badgeDotStopped",
+  "badgeDotError",
+  "badgeDotCompleted",
   "content",
   "section",
   "sectionHeader",
@@ -24,6 +28,8 @@ const c = classes([
   "docItemName",
   "docItemActions",
   "modeTag",
+  "errorBanner",
+  "emptyStateText",
 ] as const);
 
 export const page = rule`${c.page} {
@@ -95,12 +101,27 @@ export const badgeDot = rule`${c.badgeDot} {
   flex-shrink: 0;
 }`;
 
+export const badgeDotRunning = rule`${c.badgeDotRunning} { background: ${tokens.colors.agentRunning}; }`;
+export const badgeDotStopped = rule`${c.badgeDotStopped} { background: ${tokens.colors.agentIdle}; }`;
+export const badgeDotError = rule`${c.badgeDotError} { background: ${tokens.colors.agentError}; }`;
+export const badgeDotCompleted = rule`${c.badgeDotCompleted} { background: ${tokens.colors.agentCompleted}; }`;
+
 export const modeTag = rule`${c.modeTag} {
   font-size: ${tokens.fontSizes.xs};
   color: ${tokens.colors.textDim};
   background: ${tokens.colors.surfaceHover};
   padding: 2px ${tokens.space.sm};
   border-radius: ${tokens.radii.sm};
+}`;
+
+export const errorBanner = rule`${c.errorBanner} {
+  font-size: ${tokens.fontSizes.sm};
+  color: ${tokens.colors.danger};
+}`;
+
+export const emptyStateText = rule`${c.emptyStateText} {
+  font-size: ${tokens.fontSizes.sm};
+  color: ${tokens.colors.textMuted};
 }`;
 
 export const content = rule`${c.content} {

@@ -25,7 +25,7 @@ import {
   parsePlatformName,
 } from "./components/brand-icons.tsx";
 import { Icon, Drama } from "@semajsx/icons";
-import { tokens } from "./theme/tokens.ts";
+import * as styles from "./app.style.ts";
 
 // Import all views
 import { ChannelView } from "./views/channel-view.tsx";
@@ -51,13 +51,13 @@ if (mobileQuery) {
 function runtimeIcon(runtime: string) {
   switch (runtime) {
     case "claude-code":
-      return <ClaudeIcon size={13} style="vertical-align:-2px;" />;
+      return <ClaudeIcon size={13} />;
     case "codex":
-      return <OpenAIIcon size={13} style="vertical-align:-2px;" />;
+      return <OpenAIIcon size={13} />;
     case "cursor":
-      return <CursorIcon size={13} style="vertical-align:-2px;" />;
+      return <CursorIcon size={13} />;
     case "ai-sdk":
-      return <VercelIcon size={11} style="vertical-align:-1px;" />;
+      return <VercelIcon size={11} />;
     case "mock":
       return <Icon icon={Drama} size={12} />;
     default:
@@ -93,29 +93,34 @@ function MobileHome() {
   const agentCount = computed(wsAgents, (list) => list.length);
   const docCount = computed(wsDocs, (list) => list.length);
   const activeTab = computed(sidebarTab, (tab) => tab);
+  const resourceButtonClass = (selected: boolean) =>
+    selected
+      ? [styles.mobileResourceButton, styles.resourceRow, styles.resourceRowSelected]
+      : [styles.mobileResourceButton, styles.resourceRow];
 
   const resourceList = computed([sidebarTab, wsChannels, wsAgents, wsDocs], (tab, channels, agents, docs) => {
     if (tab === "channels") {
       if (channels.length === 0) {
-        return <div style={`padding:${tokens.space.lg}; color:${tokens.colors.textDim};`}>No channels</div>;
+        return <div class={styles.mobileResourceEmpty}>No channels</div>;
       }
       return channels.map((channel) => {
         const parsed = parsePlatformName(channel);
+        const isSelected = selectedItem.value?.kind === "channel"
+          && selectedItem.value.channel === channel
+          && selectedItem.value.wsKey === currentWorkspace.value;
         return (
           <button
-            style={`display:flex; align-items:center; gap:${tokens.space.sm}; width:100%; padding:${tokens.space.md} ${tokens.space.md}; border:none; background:transparent; color:${tokens.colors.text}; font:inherit; border-radius:${tokens.radii.lg};`}
+            class={resourceButtonClass(isSelected)}
             onclick={() => selectChannel(currentWorkspace.value, channel)}
           >
-            <span
-              style={`display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px; border-radius:${tokens.radii.md}; background:${tokens.colors.surface}; color:${tokens.colors.textMuted}; flex-shrink:0;`}
-            >
+            <span class={styles.mobileResourceIcon}>
               {parsed.icon ? parsed.icon({ size: 13 }) : "#"}
             </span>
-            <span style={`display:flex; flex-direction:column; align-items:flex-start; gap:2px; min-width:0; flex:1;`}>
-              <span style={`font-size:${tokens.fontSizes.sm}; font-weight:${tokens.fontWeights.semibold}; color:${tokens.colors.text};`}>
+            <span class={styles.mobileResourceBody}>
+              <span class={styles.mobileResourceTitle}>
                 {parsed.name}
               </span>
-              <span style={`font-size:${tokens.fontSizes.xs}; color:${tokens.colors.textDim};`}>
+              <span class={styles.mobileResourceMeta}>
                 Channel
               </span>
             </span>
@@ -126,70 +131,73 @@ function MobileHome() {
 
     if (tab === "agents") {
       if (agents.length === 0) {
-        return <div style={`padding:${tokens.space.lg}; color:${tokens.colors.textDim};`}>No agents</div>;
+        return <div class={styles.mobileResourceEmpty}>No agents</div>;
       }
-      return agents.map((agent) => (
-        <button
-          style={`display:flex; align-items:center; gap:${tokens.space.sm}; width:100%; padding:${tokens.space.md} ${tokens.space.md}; border:none; background:transparent; color:${tokens.colors.text}; font:inherit; border-radius:${tokens.radii.lg};`}
-          onclick={() => selectAgent(agent.name)}
-        >
-          <span
-            style={`display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px; border-radius:${tokens.radii.md}; background:${tokens.colors.surface}; color:${tokens.colors.textMuted}; flex-shrink:0;`}
+      return agents.map((agent) => {
+        const isSelected = selectedItem.value?.kind === "agent"
+          && selectedItem.value.name === agent.name;
+        return (
+          <button
+            class={resourceButtonClass(isSelected)}
+            onclick={() => selectAgent(agent.name)}
           >
-            {runtimeIcon(agent.runtime)}
-          </span>
-          <span style={`display:flex; flex-direction:column; align-items:flex-start; gap:2px; min-width:0; flex:1;`}>
-            <span style={`font-size:${tokens.fontSizes.sm}; font-weight:${tokens.fontWeights.semibold}; color:${tokens.colors.text};`}>
-              {agent.name}
+            <span class={styles.mobileResourceIcon}>
+              {runtimeIcon(agent.runtime)}
             </span>
-            <span style={`font-size:${tokens.fontSizes.xs}; color:${tokens.colors.textDim};`}>
-              {agent.runtime}
+            <span class={styles.mobileResourceBody}>
+              <span class={styles.mobileResourceTitle}>
+                {agent.name}
+              </span>
+              <span class={styles.mobileResourceMeta}>
+                {agent.runtime}
+              </span>
             </span>
-          </span>
-        </button>
-      ));
+          </button>
+        );
+      });
     }
 
     if (docs.length === 0) {
-      return <div style={`padding:${tokens.space.lg}; color:${tokens.colors.textDim};`}>No docs</div>;
+      return <div class={styles.mobileResourceEmpty}>No docs</div>;
     }
-    return docs.map((doc) => (
-      <button
-        style={`display:flex; align-items:center; gap:${tokens.space.sm}; width:100%; padding:${tokens.space.md} ${tokens.space.md}; border:none; background:transparent; color:${tokens.colors.text}; font:inherit; border-radius:${tokens.radii.lg};`}
-        onclick={() => selectDoc(currentWorkspace.value, doc.name)}
-      >
-        <span
-          style={`display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px; border-radius:${tokens.radii.md}; background:${tokens.colors.surface}; color:${tokens.colors.textMuted}; flex-shrink:0; font-weight:${tokens.fontWeights.semibold};`}
+    return docs.map((doc) => {
+      const isSelected = selectedItem.value?.kind === "doc"
+        && selectedItem.value.docName === doc.name
+        && selectedItem.value.wsKey === currentWorkspace.value;
+      return (
+        <button
+          class={resourceButtonClass(isSelected)}
+          onclick={() => selectDoc(currentWorkspace.value, doc.name)}
         >
-          •
-        </span>
-        <span style={`display:flex; flex-direction:column; align-items:flex-start; gap:2px; min-width:0; flex:1;`}>
-          <span style={`font-size:${tokens.fontSizes.sm}; font-weight:${tokens.fontWeights.semibold}; color:${tokens.colors.text};`}>
-            {doc.name}
+          <span class={styles.mobileResourceIcon}>
+            •
           </span>
-          <span style={`font-size:${tokens.fontSizes.xs}; color:${tokens.colors.textDim};`}>
-            Document
+          <span class={styles.mobileResourceBody}>
+            <span class={styles.mobileResourceTitle}>
+              {doc.name}
+            </span>
+            <span class={styles.mobileResourceMeta}>
+              Document
+            </span>
           </span>
-        </span>
-      </button>
-    ));
+        </button>
+      );
+    });
   });
 
   return (
-    <div
-      style={`display:flex; flex:1; flex-direction:column; min-height:0; overflow:auto; padding:${tokens.space.md}; gap:${tokens.space.md}; background:${tokens.colors.backgroundElevated};`}
-    >
-      <div style={`display:flex; flex-direction:column; gap:${tokens.space.xs}; padding:${tokens.space.sm} ${tokens.space.xs};`}>
-        <div style={`font-size:${tokens.fontSizes.xl}; font-weight:${tokens.fontWeights.bold}; color:${tokens.colors.text}; letter-spacing:-0.03em;`}>
+    <div class={styles.mobileHome}>
+      <div class={styles.mobileIntro}>
+        <div class={styles.mobileTitle}>
           {workspaceName}
         </div>
-        <div style={`font-size:${tokens.fontSizes.xs}; color:${tokens.colors.textDim}; line-height:1.5;`}>
+        <div class={styles.mobileSubtitle}>
           Browse channels, agents, and docs from one mobile home screen.
         </div>
       </div>
 
       <select
-        style={`width:100%; background:${tokens.colors.surface}; color:${tokens.colors.text}; border:1px solid ${tokens.colors.border}; border-radius:${tokens.radii.md}; padding:${tokens.space.sm} ${tokens.space.md}; font:${tokens.fontSizes.sm} ${tokens.fonts.base};`}
+        class={styles.mobileSelect}
         value={selectedWorkspace}
         onchange={(e: Event) => {
           currentWorkspace.value = (e.target as HTMLSelectElement).value;
@@ -199,34 +207,32 @@ function MobileHome() {
         {workspaceOptions}
       </select>
 
-      <div style={`display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:${tokens.space.xs};`}>
+      <div class={styles.mobileStats}>
         {[
           { label: "Agents", value: agentCount },
           { label: "Channels", value: channelCount },
           { label: "Docs", value: docCount },
         ].map((item) => (
-          <div
-            style={`padding:${tokens.space.sm}; border-radius:${tokens.radii.lg}; background:${tokens.colors.surface}; border:1px solid ${tokens.colors.border}; display:flex; flex-direction:column; gap:2px;`}
-          >
-            <span style={`font-size:0.65rem; color:${tokens.colors.textDim}; text-transform:uppercase; letter-spacing:0.08em;`}>
+          <div class={styles.mobileStatCard}>
+            <span class={styles.mobileStatLabel}>
               {item.label}
             </span>
-            <span style={`font-size:${tokens.fontSizes.lg}; font-weight:${tokens.fontWeights.semibold}; color:${tokens.colors.text};`}>
+            <span class={styles.mobileStatValue}>
               {item.value}
             </span>
           </div>
         ))}
       </div>
 
-      <div style={`display:flex; gap:2px; padding:2px; background:${tokens.colors.surface}; border:1px solid ${tokens.colors.border}; border-radius:${tokens.radii.md};`}>
+      <div class={styles.mobileTabBar}>
         {[
           { key: "channels", label: "Channels" },
           { key: "agents", label: "Agents" },
           { key: "docs", label: "Docs" },
         ].map((tab) => (
           <button
-            style={computed(activeTab, (current) =>
-              `flex:1; border:none; border-radius:${tokens.radii.sm}; padding:9px ${tokens.space.xs}; background:${current === tab.key ? tokens.colors.surfaceActive : "transparent"}; color:${current === tab.key ? tokens.colors.text : tokens.colors.textMuted}; font:${tokens.fontSizes.xs} ${tokens.fonts.base}; font-weight:${tokens.fontWeights.medium};`)}
+            class={computed(activeTab, (current) =>
+              current === tab.key ? [styles.mobileTab, styles.mobileTabActive] : styles.mobileTab)}
             onclick={() => {
               sidebarTab.value = tab.key as typeof sidebarTab.value;
             }}
@@ -236,27 +242,25 @@ function MobileHome() {
         ))}
       </div>
 
-      <div
-        style={`display:flex; flex-direction:column; gap:${tokens.space.xs}; padding:${tokens.space.xs}; border:1px solid ${tokens.colors.border}; border-radius:${tokens.radii.xl}; background:${tokens.colors.panel}; box-shadow:${tokens.shadows.inset};`}
-      >
+      <div class={styles.mobileResourceList}>
         {resourceList}
       </div>
 
-      <div style={`display:flex; flex-direction:column; gap:${tokens.space.xs}; margin-top:auto; padding-top:${tokens.space.sm};`}>
+      <div class={styles.mobileFooterActions}>
         <button
-          style={`width:100%; text-align:left; padding:${tokens.space.sm} ${tokens.space.md}; border:1px solid ${tokens.colors.border}; border-radius:${tokens.radii.md}; background:${tokens.colors.surface}; color:${tokens.colors.text}; font:${tokens.fontSizes.sm} ${tokens.fonts.base};`}
+          class={styles.mobileFooterButton}
           onclick={() => selectWorkspaceSettings(currentWorkspace.value)}
         >
           Workspace
         </button>
         <button
-          style={`width:100%; text-align:left; padding:${tokens.space.sm} ${tokens.space.md}; border:1px solid ${tokens.colors.border}; border-radius:${tokens.radii.md}; background:${tokens.colors.surface}; color:${tokens.colors.text}; font:${tokens.fontSizes.sm} ${tokens.fonts.base};`}
+          class={styles.mobileFooterButton}
           onclick={() => selectGlobalEvents()}
         >
           Event Log
         </button>
         <button
-          style={`width:100%; text-align:left; padding:${tokens.space.sm} ${tokens.space.md}; border:1px solid ${tokens.colors.border}; border-radius:${tokens.radii.md}; background:${tokens.colors.surface}; color:${tokens.colors.text}; font:${tokens.fontSizes.sm} ${tokens.fonts.base};`}
+          class={styles.mobileFooterButton}
           onclick={() => selectGlobalSettings()}
         >
           Settings
@@ -275,63 +279,43 @@ function EmptyState() {
   const firstDoc = computed(wsDocs, (list) => list[0]?.name ?? null);
 
   return (
-    <div
-      style={`display:flex; flex:1; flex-direction:column; justify-content:center; padding:${tokens.space.xxxl}; gap:${tokens.space.xxl};`}
-    >
-      <div
-        style={`display:flex; flex-direction:column; align-items:center; gap:${tokens.space.md}; text-align:center; max-width:560px; margin:0 auto;`}
-      >
-        <div
-          style={`display:flex; align-items:center; justify-content:center; width:64px; height:64px; border-radius:${tokens.radii.xl}; background:${tokens.colors.surfaceSecondary}; border:1px solid ${tokens.colors.border}; box-shadow:${tokens.shadows.glow}; color:${tokens.colors.textMuted};`}
-        >
+    <div class={styles.emptyState}>
+      <div class={styles.emptyHero}>
+        <div class={styles.emptyLogo}>
           <VercelIcon size={24} />
         </div>
-        <div
-          style={`font-size:${tokens.fontSizes.xxl}; line-height:1.04; font-weight:${tokens.fontWeights.bold}; letter-spacing:-0.04em; color:${tokens.colors.text};`}
-        >
+        <div class={styles.emptyTitle}>
           Workspace overview
         </div>
-        <div
-          style={`font-size:${tokens.fontSizes.xl}; line-height:1.1; color:${tokens.colors.textMuted}; font-weight:${tokens.fontWeights.semibold};`}
-        >
+        <div class={styles.emptyWorkspace}>
           {workspaceName}
         </div>
-        <div
-          style={`font-size:${tokens.fontSizes.sm}; line-height:1.6; color:${tokens.colors.textDim}; max-width:420px;`}
-        >
+        <div class={styles.emptyDescription}>
           Select a channel, agent, or document from the sidebar to inspect the workspace,
           review conversations, and coordinate agent activity.
         </div>
       </div>
 
-      <div
-        style={`display:flex; flex-direction:column; gap:${tokens.space.lg}; width:min(100%, 860px); margin:0 auto;`}
-      >
-        <div
-          style={`display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:${tokens.space.md};`}
-        >
+      <div class={styles.emptyPanel}>
+        <div class={styles.emptyStats}>
           {[
             { label: "Agents", value: agentCount },
             { label: "Channels", value: channelCount },
             { label: "Docs", value: docCount },
           ].map((item) => (
-            <div
-              style={`padding:${tokens.space.lg}; border-radius:${tokens.radii.xl}; background:${tokens.colors.panel}; border:1px solid ${tokens.colors.border}; color:${tokens.colors.textMuted}; box-shadow:${tokens.shadows.inset}; display:flex; flex-direction:column; gap:${tokens.space.xs};`}
-            >
-              <span style={`font-size:${tokens.fontSizes.xs}; text-transform:uppercase; letter-spacing:0.08em; color:${tokens.colors.textDim};`}>
+            <div class={styles.emptyStatCard}>
+              <span class={styles.emptyStatLabel}>
                 {item.label}
               </span>
-              <span style={`font-size:${tokens.fontSizes.xxl}; line-height:1; font-weight:${tokens.fontWeights.semibold}; color:${tokens.colors.text};`}>
+              <span class={styles.emptyStatValue}>
                 {item.value}
               </span>
             </div>
           ))}
         </div>
-        <div
-          style={`display:flex; flex-wrap:wrap; justify-content:center; gap:${tokens.space.sm};`}
-        >
+        <div class={styles.emptyActions}>
           <div
-            style={`padding:${tokens.space.sm} ${tokens.space.lg}; border-radius:${tokens.radii.pill}; background:${tokens.colors.panel}; border:1px solid ${tokens.colors.border}; color:${tokens.colors.textMuted}; cursor:pointer;`}
+            class={styles.emptyAction}
             onclick={() => selectWorkspaceSettings(currentWorkspace.value)}
           >
             Open workspace overview
@@ -339,7 +323,7 @@ function EmptyState() {
           {computed(firstChannel, (channel) =>
             channel ? (
               <div
-                style={`padding:${tokens.space.sm} ${tokens.space.lg}; border-radius:${tokens.radii.pill}; background:${tokens.colors.panel}; border:1px solid ${tokens.colors.border}; color:${tokens.colors.textMuted}; cursor:pointer;`}
+                class={styles.emptyAction}
                 onclick={() => selectChannel(currentWorkspace.value, channel)}
               >
                 Open #{channel}
@@ -349,7 +333,7 @@ function EmptyState() {
           {computed(firstDoc, (docName) =>
             docName ? (
               <div
-                style={`padding:${tokens.space.sm} ${tokens.space.lg}; border-radius:${tokens.radii.pill}; background:${tokens.colors.panel}; border:1px solid ${tokens.colors.border}; color:${tokens.colors.textMuted}; cursor:pointer;`}
+                class={styles.emptyAction}
                 onclick={() => selectDoc(currentWorkspace.value, docName)}
               >
                 Open doc: {docName}
@@ -467,18 +451,16 @@ export function App() {
   const mobileBackBar = computed([isMobileViewport, selectedItem], (mobile, item) => {
     if (!mobile || !item) return null;
     return (
-      <div
-        style={`display:flex; align-items:center; gap:${tokens.space.sm}; padding:${tokens.space.sm} ${tokens.space.md}; border-bottom:1px solid ${tokens.colors.border}; background:${tokens.colors.backgroundElevated};`}
-      >
+      <div class={styles.mobileBackBar}>
         <button
-          style={`border:none; background:transparent; color:${tokens.colors.accent}; font:${tokens.fontSizes.sm} ${tokens.fonts.base}; font-weight:${tokens.fontWeights.medium}; padding:0;`}
+          class={styles.mobileBackButton}
           onclick={() => {
             selectedItem.value = null;
           }}
         >
           Back
         </button>
-        <span style={`font-size:${tokens.fontSizes.xs}; color:${tokens.colors.text}; font-weight:${tokens.fontWeights.semibold};`}>
+        <span class={styles.mobileBackTitle}>
           {selectedLabel(item)}
         </span>
       </div>
@@ -489,7 +471,7 @@ export function App() {
     <AppShell>
       {mobileBackBar}
       <div
-        style="display: flex; flex-direction: column; flex: 1; overflow: hidden;"
+        class={styles.contentMount}
         ref={(el: HTMLDivElement) => {
           window.__contentArea!.mountEl = el;
           renderContent();

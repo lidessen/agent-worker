@@ -18,19 +18,9 @@ import {
   streamError,
 } from "../stores/conversation.ts";
 import { showAgentInfo } from "../stores/navigation.ts";
-import { tokens } from "../theme/tokens.ts";
 import { EventList } from "../components/event-list.tsx";
 import { ChatInput } from "../components/chat-input.tsx";
 import * as styles from "./agent-conversation-view.style.ts";
-
-const stateColors: Record<string, string> = {
-  idle: tokens.colors.agentIdle,
-  running: tokens.colors.agentRunning,
-  processing: tokens.colors.agentRunning,
-  error: tokens.colors.agentError,
-  completed: tokens.colors.agentCompleted,
-  stopped: tokens.colors.agentIdle,
-};
 
 function SendErrorBar() {
   const visible = computed(sendError, (e) => e !== null);
@@ -73,8 +63,16 @@ export function AgentConversationView(props: { name: string }) {
   const name = signal(props.name);
 
   const stateText = computed(agentState, (s) => s?.state ?? "unknown");
-  const dotColor = computed(stateText, (s) => stateColors[s] ?? tokens.colors.agentIdle);
-  const badgeDotStyle = computed(dotColor, (c) => `background: ${c}`);
+  const badgeDotClass = computed(stateText, (state) => [
+    styles.badgeDot,
+    state === "running" || state === "processing"
+      ? styles.badgeDotRunning
+      : state === "error"
+        ? styles.badgeDotError
+        : state === "completed"
+          ? styles.badgeDotCompleted
+          : styles.badgeDotIdle,
+  ]);
   const wsLabel = computed(agentState, (s) => s?.workspace ?? "");
 
   let generation = 0;
@@ -123,7 +121,7 @@ export function AgentConversationView(props: { name: string }) {
             {props.name}
           </span>
           <div class={styles.badge}>
-            <span class={styles.badgeDot} style={badgeDotStyle} />
+            <span class={badgeDotClass} />
             {stateText}
           </div>
           {computed(wsLabel, (ws) =>

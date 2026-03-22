@@ -9,27 +9,19 @@ import { deleteWorkspace } from "../stores/workspaces.ts";
 import { selectAgent, selectChannel, selectGlobalSettings } from "../stores/navigation.ts";
 import { ClaudeIcon, CursorIcon, OpenAIIcon, VercelIcon } from "../components/brand-icons.tsx";
 import { ConfirmDialog } from "../components/confirm-dialog.tsx";
-import { tokens } from "../theme/tokens.ts";
 import type { WorkspaceInfo, WorkspaceStatus, DaemonEvent } from "../api/types.ts";
 import * as styles from "./workspace-settings-view.style.ts";
-
-const statusColors: Record<string, string> = {
-  running: tokens.colors.agentRunning,
-  stopped: tokens.colors.agentIdle,
-  error: tokens.colors.agentError,
-  completed: tokens.colors.agentCompleted,
-};
 
 function runtimeIcon(runtime: string) {
   switch (runtime) {
     case "claude-code":
-      return <ClaudeIcon size={13} style="vertical-align: -2px;" />;
+      return <ClaudeIcon size={13} />;
     case "codex":
-      return <OpenAIIcon size={13} style="vertical-align: -2px;" />;
+      return <OpenAIIcon size={13} />;
     case "cursor":
-      return <CursorIcon size={13} style="vertical-align: -2px;" />;
+      return <CursorIcon size={13} />;
     case "ai-sdk":
-      return <VercelIcon size={11} style="vertical-align: -1px;" />;
+      return <VercelIcon size={11} />;
     case "mock":
       return <Icon icon={Drama} size={12} />;
     default:
@@ -80,29 +72,32 @@ export function WorkspaceSettingsView(props: { wsKey: string }) {
     unsubClient();
   });
 
-  const dotColor = computed(workspace, (ws) =>
-    statusColors[ws?.status ?? ""] ?? tokens.colors.agentIdle,
-  );
-
   const wsNameDisplay = computed(workspace, (ws) => ws?.name ?? props.wsKey);
-  const badgeDotStyle = computed(dotColor, (c) => `background: ${c}`);
   const statusLabel = computed(workspace, (ws) => ws?.status ?? "loading");
+  const badgeDotClass = computed(statusLabel, (status) => [
+    styles.badgeDot,
+    status === "running"
+      ? styles.badgeDotRunning
+      : status === "error"
+        ? styles.badgeDotError
+        : status === "completed"
+          ? styles.badgeDotCompleted
+          : styles.badgeDotIdle,
+  ]);
   const modeLabel = computed(workspace, (ws) => ws?.mode ?? "");
   const modeTag = computed(workspace, (ws) =>
     ws?.mode ? <span class={styles.modeTag}>{ws.mode}</span> : null,
   );
 
   const errorBanner = computed(error, (e) =>
-    e ? <div style={`color: ${tokens.colors.danger}`}>{e}</div> : null,
+    e ? <div class={styles.errorBanner}>{e}</div> : null,
   );
 
   const agentsSection = computed([workspace, agents], (ws, allAgents) => {
     const agentNames = ws?.agents ?? [];
     if (agentNames.length === 0) {
       return (
-        <div style={`font-size: ${tokens.fontSizes.sm}; color: ${tokens.colors.textMuted}`}>
-          No agents
-        </div>
+        <div class={styles.emptyStateText}>No agents</div>
       );
     }
 
@@ -113,7 +108,16 @@ export function WorkspaceSettingsView(props: { wsKey: string }) {
         {agentNames.map((name) => (
           (() => {
             const agent = agentMap.get(name);
-            const dotStyle = `background: ${statusColors[agent?.state ?? ""] ?? tokens.colors.agentIdle}`;
+            const dotClass = [
+              styles.agentDot,
+              agent?.state === "running" || agent?.state === "processing"
+                ? styles.agentDotRunning
+                : agent?.state === "error" || agent?.state === "failed"
+                  ? styles.agentDotError
+                  : agent?.state === "completed"
+                    ? styles.agentDotCompleted
+                    : styles.agentDotIdle,
+            ];
             return (
               <div
                 class={styles.agentItem}
@@ -125,7 +129,7 @@ export function WorkspaceSettingsView(props: { wsKey: string }) {
                   </span>
                   <span>{name}</span>
                 </div>
-                <span class={styles.agentDot} style={dotStyle} />
+                <span class={dotClass} />
               </div>
             );
           })()
@@ -136,11 +140,7 @@ export function WorkspaceSettingsView(props: { wsKey: string }) {
 
   const channelsSection = computed(channels, (ch) => {
     if (ch.length === 0) {
-      return (
-        <div style={`font-size: ${tokens.fontSizes.sm}; color: ${tokens.colors.textMuted}`}>
-          No channels
-        </div>
-      );
+      return <div class={styles.emptyStateText}>No channels</div>;
     }
     return (
       <div class={styles.channelList}>
@@ -168,7 +168,7 @@ export function WorkspaceSettingsView(props: { wsKey: string }) {
         <div class={styles.headerInfo}>
           <span class={styles.wsName}>{wsNameDisplay}</span>
           <div class={styles.badge}>
-            <span class={styles.badgeDot} style={badgeDotStyle} />
+            <span class={badgeDotClass} />
             {statusLabel}
           </div>
           {modeTag}
@@ -271,10 +271,7 @@ export function WorkspaceSettingsView(props: { wsKey: string }) {
               <div class={styles.loopList}>
                 {loops.map((loop) => (
                   <div class={styles.loopItem}>
-                    <span
-                      class={styles.loopDot}
-                      style={`background: ${loop.running ? tokens.colors.agentRunning : tokens.colors.agentIdle}`}
-                    />
+                    <span class={[styles.loopDot, loop.running ? styles.loopDotRunning : styles.loopDotIdle]} />
                     <span class={styles.loopName}>{loop.name}</span>
                   </div>
                 ))}

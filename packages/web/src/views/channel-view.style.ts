@@ -89,7 +89,7 @@ export const clearBtn = rule`${d.clearBtn} {
 ${d.clearBtn}:hover {
   color: ${tokens.colors.danger};
   border-color: ${tokens.colors.danger};
-  background: rgba(255, 69, 58, 0.08);
+  background: ${tokens.colors.dangerSurface};
 }
 @media (max-width: 640px) {
   ${d.clearBtn} {

@@ -8,6 +8,10 @@ const c = classes([
   "wsName",
   "badge",
   "badgeDot",
+  "badgeDotIdle",
+  "badgeDotRunning",
+  "badgeDotError",
+  "badgeDotCompleted",
   "modeTag",
   "content",
   "hero",
@@ -29,12 +33,20 @@ const c = classes([
   "agentLabel",
   "agentRuntimeIcon",
   "agentDot",
+  "agentDotIdle",
+  "agentDotRunning",
+  "agentDotError",
+  "agentDotCompleted",
   "channelList",
   "channelItem",
   "configBlock",
   "configRow",
   "configLabel",
   "configValue",
+  "errorBanner",
+  "emptyStateText",
+  "loopDotIdle",
+  "loopDotRunning",
 ] as const);
 
 export const container = rule`${c.container} {
@@ -50,7 +62,7 @@ export const header = rule`${c.header} {
   gap: ${tokens.space.md};
   padding: ${tokens.space.lg} ${tokens.space.xl} ${tokens.space.md};
   border-bottom: 1px solid ${tokens.colors.border};
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, transparent 100%);
+  background: ${tokens.colors.headerSheen};
   flex-shrink: 0;
 }
 @media (max-width: 640px) {
@@ -92,6 +104,11 @@ export const badgeDot = rule`${c.badgeDot} {
   border-radius: ${tokens.radii.pill};
   flex-shrink: 0;
 }`;
+
+export const badgeDotIdle = rule`${c.badgeDotIdle} { background: ${tokens.colors.agentIdle}; }`;
+export const badgeDotRunning = rule`${c.badgeDotRunning} { background: ${tokens.colors.agentRunning}; }`;
+export const badgeDotError = rule`${c.badgeDotError} { background: ${tokens.colors.agentError}; }`;
+export const badgeDotCompleted = rule`${c.badgeDotCompleted} { background: ${tokens.colors.agentCompleted}; }`;
 
 export const modeTag = rule`${c.modeTag} {
   font-size: ${tokens.fontSizes.xs};
@@ -232,7 +249,7 @@ export const sectionTitle = rule`${c.sectionTitle} {
 export const count = rule`${c.count} {
   font-size: ${tokens.fontSizes.xs};
   color: ${tokens.colors.textDim};
-  background: rgba(255, 255, 255, 0.04);
+  background: ${tokens.colors.surfaceOverlay};
   border: 1px solid ${tokens.colors.border};
   border-radius: ${tokens.radii.pill};
   padding: 2px ${tokens.space.sm};
@@ -270,7 +287,8 @@ export const agentRuntimeIcon = rule`${c.agentRuntimeIcon} {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
+  width: 14px;
+  height: 14px;
   color: ${tokens.colors.textMuted};
   flex: 0 0 auto;
   opacity: 0.9;
@@ -281,8 +299,13 @@ export const agentDot = rule`${c.agentDot} {
   height: 8px;
   border-radius: ${tokens.radii.pill};
   flex-shrink: 0;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
+  box-shadow: 0 0 0 1px ${tokens.colors.border};
 }`;
+
+export const agentDotIdle = rule`${c.agentDotIdle} { background: ${tokens.colors.agentIdle}; }`;
+export const agentDotRunning = rule`${c.agentDotRunning} { background: ${tokens.colors.agentRunning}; }`;
+export const agentDotError = rule`${c.agentDotError} { background: ${tokens.colors.agentError}; }`;
+export const agentDotCompleted = rule`${c.agentDotCompleted} { background: ${tokens.colors.agentCompleted}; }`;
 
 export const channelList = rule`${c.channelList} {
   display: flex;
@@ -335,6 +358,19 @@ export const configValue = rule`${c.configValue} {
   color: ${tokens.colors.text};
 }`;
 
+export const errorBanner = rule`${c.errorBanner} {
+  font-size: ${tokens.fontSizes.sm};
+  color: ${tokens.colors.danger};
+}`;
+
+export const emptyStateText = rule`${c.emptyStateText} {
+  font-size: ${tokens.fontSizes.sm};
+  color: ${tokens.colors.textMuted};
+}`;
+
+export const loopDotIdle = rule`${c.loopDotIdle} { background: ${tokens.colors.agentIdle}; }`;
+export const loopDotRunning = rule`${c.loopDotRunning} { background: ${tokens.colors.agentRunning}; }`;
+
 /* ── Danger Zone ────────────────────────────────────────────────────── */
 
 const d = classes(["dangerSection", "dangerBtn", "loopList", "loopItem", "loopDot", "loopName", "eventList", "eventItem", "eventTime", "eventType", "eventDetail"] as const);
@@ -362,7 +398,7 @@ export const dangerBtn = rule`${d.dangerBtn} {
   align-self: flex-start;
 }
 ${d.dangerBtn}:hover {
-  background: rgba(255, 69, 58, 0.1);
+  background: ${tokens.colors.dangerSurface};
 }`;
 
 /* ── Loops section ──────────────────────────────────────────────────── */
@@ -387,7 +423,7 @@ export const loopDot = rule`${d.loopDot} {
   height: 8px;
   border-radius: ${tokens.radii.pill};
   flex-shrink: 0;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
+  box-shadow: 0 0 0 1px ${tokens.colors.border};
 }`;
 
 export const loopName = rule`${d.loopName} {
@@ -412,7 +448,7 @@ export const eventItem = rule`${d.eventItem} {
   padding: ${tokens.space.xs} 0;
   font-size: ${tokens.fontSizes.xs};
   color: ${tokens.colors.textMuted};
-  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid ${tokens.colors.borderSubtle};
 }`;
 
 export const eventTime = rule`${d.eventTime} {

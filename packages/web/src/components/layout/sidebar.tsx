@@ -2,9 +2,9 @@
 
 import type { JSXNode } from "semajsx/core";
 import { computed } from "semajsx/signal";
+import { onCleanup } from "semajsx/dom";
 import { Icon, Drama } from "@semajsx/icons";
 import { ClaudeIcon, CursorIcon, OpenAIIcon, VercelIcon } from "../brand-icons.tsx";
-import { tokens } from "../../theme/tokens.ts";
 import { connectionState } from "../../stores/connection.ts";
 import { workspaces } from "../../stores/workspaces.ts";
 import { wsChannels, wsAgents, wsDocs } from "../../stores/workspace-data.ts";
@@ -24,38 +24,20 @@ import type { SidebarTab } from "../../stores/navigation.ts";
 import type { AgentInfo } from "../../api/types.ts";
 import * as styles from "./sidebar.style.ts";
 
-// ── State colors (same as agent-card) ────────────────────────────────────
-
-const stateColors: Record<string, string> = {
-  idle: tokens.colors.agentIdle,
-  running: tokens.colors.agentRunning,
-  processing: tokens.colors.agentProcessing,
-  error: tokens.colors.agentError,
-  failed: tokens.colors.agentError,
-  completed: tokens.colors.agentCompleted,
-  stopped: tokens.colors.agentIdle,
-};
-
-function stateColor(state: string): string {
-  return stateColors[state] ?? tokens.colors.agentIdle;
-}
-
 // ── Runtime icon (same as agent-card) ────────────────────────────────────
-
-const iconStyle = "vertical-align: -2px; margin-right: 4px;";
 
 function runtimeIcon(runtime: string): JSXNode {
   switch (runtime) {
     case "claude-code":
-      return <ClaudeIcon size={12} style={iconStyle} />;
+      return <ClaudeIcon size={12} />;
     case "codex":
-      return <OpenAIIcon size={12} style={iconStyle} />;
+      return <OpenAIIcon size={12} />;
     case "cursor":
-      return <CursorIcon size={12} style={iconStyle} />;
+      return <CursorIcon size={12} />;
     case "ai-sdk":
-      return <VercelIcon size={12} style={iconStyle} />;
+      return <VercelIcon size={12} />;
     case "mock":
-      return <Icon icon={Drama} size={12} style={iconStyle} />;
+      return <Icon icon={Drama} size={12} />;
     default:
       return null;
   }
@@ -63,19 +45,14 @@ function runtimeIcon(runtime: string): JSXNode {
 
 // ── Connection dot ───────────────────────────────────────────────────────
 
-const connDotColor = computed(connectionState, (state) => {
-  switch (state) {
-    case "connected":
-      return tokens.colors.success;
-    case "connecting":
-      return tokens.colors.warning;
-    case "disconnected":
-    case "error":
-      return tokens.colors.danger;
-  }
-});
-
-const connDotStyle = computed(connDotColor, (c) => `background: ${c}`);
+const connDotClass = computed(connectionState, (state) => [
+  styles.connectionDot,
+  state === "connected"
+    ? styles.connectionDotConnected
+    : state === "connecting"
+      ? styles.connectionDotConnecting
+      : styles.connectionDotError,
+]);
 
 const connLabel = computed(connectionState, (state) => {
   switch (state) {
@@ -128,7 +105,7 @@ function ChannelItem(props: { channel: string; onSelect?: () => void }) {
     >
       <div class={styles.itemPreview}>
         <span># {props.channel}</span>
-        <span style={`font-size:${tokens.fontSizes.xs}; color:${tokens.colors.textDim};`}>
+        <span class={styles.itemMeta}>
           Channel thread
         </span>
       </div>
@@ -144,6 +121,18 @@ function AgentItem(props: { agent: AgentInfo; onSelect?: () => void }) {
   const cls = computed(isActive, (a) =>
     a ? [styles.listItem, styles.listItemActive] : styles.listItem,
   );
+  const itemDotClass = [
+    styles.itemDot,
+    agent.state === "running"
+      ? styles.itemDotRunning
+      : agent.state === "processing"
+        ? styles.itemDotProcessing
+        : agent.state === "error" || agent.state === "failed"
+          ? styles.itemDotError
+          : agent.state === "completed"
+            ? styles.itemDotCompleted
+            : styles.itemDotIdle,
+  ];
   return (
     <div
       class={cls}
@@ -152,17 +141,14 @@ function AgentItem(props: { agent: AgentInfo; onSelect?: () => void }) {
         props.onSelect?.();
       }}
     >
-      {runtimeIcon(agent.runtime)}
+      <span class={styles.itemIcon}>{runtimeIcon(agent.runtime)}</span>
       <div class={styles.itemPreview}>
         <span>{agent.name}</span>
-        <span style={`font-size:${tokens.fontSizes.xs}; color:${tokens.colors.textDim};`}>
+        <span class={styles.itemMeta}>
           {agent.runtime}
         </span>
       </div>
-      <span
-        class={styles.itemDot}
-        style={`background: ${stateColor(agent.state)}`}
-      />
+      <span class={itemDotClass} />
     </div>
   );
 }
@@ -184,7 +170,7 @@ function DocItem(props: { name: string; onSelect?: () => void }) {
     >
       <div class={styles.itemPreview}>
         <span>{props.name}</span>
-        <span style={`font-size:${tokens.fontSizes.xs}; color:${tokens.colors.textDim};`}>
+        <span class={styles.itemMeta}>
           Workspace document
         </span>
       </div>
@@ -210,10 +196,10 @@ function TabContent(props: { onSelect?: () => void }) {
   );
   const docContent = computed(wsDocs, (docs) =>
     <div class={styles.listWrap}>
-      <div class={styles.sectionLabel} style="display:flex; align-items:center; justify-content:space-between;">
+      <div class={[styles.sectionLabel, styles.sectionLabelRow]}>
         <span>Docs</span>
         <span
-          style={`cursor:pointer; font-size:${tokens.fontSizes.md}; color:${tokens.colors.textMuted}; padding:0 4px;`}
+          class={styles.sectionAction}
           onclick={() => (showCreateDoc.value = true)}
         >+</span>
       </div>
@@ -221,16 +207,18 @@ function TabContent(props: { onSelect?: () => void }) {
     </div>,
   );
 
-  // Show/hide based on active tab — use DOM display toggle instead of signal switching
-  const channelDisplay = computed(sidebarTab, (t) => t === "channels" ? "block" : "none");
-  const agentDisplay = computed(sidebarTab, (t) => t === "agents" ? "block" : "none");
-  const docDisplay = computed(sidebarTab, (t) => t === "docs" ? "block" : "none");
+  const channelPaneClass = computed(sidebarTab, (t) =>
+    t === "channels" ? styles.tabPane : [styles.tabPane, styles.tabPaneHidden]);
+  const agentPaneClass = computed(sidebarTab, (t) =>
+    t === "agents" ? styles.tabPane : [styles.tabPane, styles.tabPaneHidden]);
+  const docPaneClass = computed(sidebarTab, (t) =>
+    t === "docs" ? styles.tabPane : [styles.tabPane, styles.tabPaneHidden]);
 
   return (
-    <div style="display: contents">
-      <div style={computed(channelDisplay, (d) => `display:${d}`)}>{channelContent}</div>
-      <div style={computed(agentDisplay, (d) => `display:${d}`)}>{agentContent}</div>
-      <div style={computed(docDisplay, (d) => `display:${d}`)}>{docContent}</div>
+    <div class={styles.displayContents}>
+      <div class={channelPaneClass}>{channelContent}</div>
+      <div class={agentPaneClass}>{agentContent}</div>
+      <div class={docPaneClass}>{docContent}</div>
     </div>
   );
 }
@@ -239,7 +227,7 @@ function TabContent(props: { onSelect?: () => void }) {
 
 function WorkspaceSwitcher() {
   // Auto-select first workspace when list loads (if current is still "global" virtual key)
-  workspaces.subscribe((wsList) => {
+  const unsub = workspaces.subscribe((wsList) => {
     if (wsList.length > 0 && currentWorkspace.value === "global") {
       // Check if "global" actually exists as a real workspace
       const hasGlobal = wsList.some((ws) => ws.name === "global");
@@ -250,6 +238,7 @@ function WorkspaceSwitcher() {
       }
     }
   });
+  onCleanup(unsub);
 
   const options = computed(workspaces, (wsList) =>
     wsList.map((ws) => (
@@ -316,7 +305,7 @@ export function Sidebar() {
           </button>
         </div>
         <div class={styles.statusRow}>
-          <span class={styles.connectionDot} style={connDotStyle} />
+          <span class={connDotClass} />
           <span class={styles.statusLabel}>{connLabel}</span>
         </div>
       </div>

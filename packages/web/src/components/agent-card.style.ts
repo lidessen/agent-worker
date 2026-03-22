@@ -8,9 +8,15 @@ const c = classes([
   "meta",
   "badge",
   "badgeDot",
+  "badgeDotIdle",
+  "badgeDotRunning",
+  "badgeDotProcessing",
+  "badgeDotError",
+  "badgeDotCompleted",
   "metaItem",
   "timeText",
   "runtimeBadge",
+  "runtimeIcon",
 ] as const);
 
 export const card = rule`${c.card} {
@@ -18,7 +24,7 @@ export const card = rule`${c.card} {
   flex-direction: column;
   gap: ${tokens.space.sm};
   padding: ${tokens.space.lg};
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.045) 0%, rgba(255, 255, 255, 0.025) 100%);
+  background: ${tokens.colors.panel};
   border: 1px solid ${tokens.colors.border};
   border-radius: ${tokens.radii.xl};
   box-shadow: ${tokens.shadows.inset};
@@ -26,7 +32,7 @@ export const card = rule`${c.card} {
   transition: background ${tokens.transitions.fast}, border-color ${tokens.transitions.fast}, transform ${tokens.transitions.fast};
 }
 ${c.card}:hover {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0.04) 100%);
+  background: ${tokens.colors.surfaceSecondary};
   border-color: ${tokens.colors.borderHover};
   transform: translateY(-1px);
 }
@@ -66,6 +72,12 @@ export const badgeDot = rule`${c.badgeDot} {
   flex-shrink: 0;
 }`;
 
+export const badgeDotIdle = rule`${c.badgeDotIdle} { background: ${tokens.colors.agentIdle}; }`;
+export const badgeDotRunning = rule`${c.badgeDotRunning} { background: ${tokens.colors.agentRunning}; }`;
+export const badgeDotProcessing = rule`${c.badgeDotProcessing} { background: ${tokens.colors.agentProcessing}; }`;
+export const badgeDotError = rule`${c.badgeDotError} { background: ${tokens.colors.agentError}; }`;
+export const badgeDotCompleted = rule`${c.badgeDotCompleted} { background: ${tokens.colors.agentCompleted}; }`;
+
 export const timeText = rule`${c.timeText} {
   font-size: ${tokens.fontSizes.xs};
   color: ${tokens.colors.textDim};
@@ -84,10 +96,23 @@ export const metaItem = rule`${c.metaItem} {
 }`;
 
 export const runtimeBadge = rule`${c.runtimeBadge} {
+  display: inline-flex;
+  align-items: center;
+  gap: ${tokens.space.xs};
   font-size: ${tokens.fontSizes.xs};
   color: ${tokens.colors.textMuted};
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: ${tokens.colors.surfaceOverlay};
+  border: 1px solid ${tokens.colors.border};
   padding: 4px ${tokens.space.sm};
   border-radius: ${tokens.radii.pill};
+}`;
+
+export const runtimeIcon = rule`${c.runtimeIcon} {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+  color: ${tokens.colors.textDim};
+  flex-shrink: 0;
 }`;

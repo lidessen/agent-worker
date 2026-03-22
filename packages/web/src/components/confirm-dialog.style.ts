@@ -20,7 +20,7 @@ export const overlay = rule`${c.overlay} {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.6);
+  background: ${tokens.colors.overlayScrim};
   backdrop-filter: blur(4px);
 }`;
 
@@ -56,9 +56,9 @@ export const actions = rule`${c.actions} {
 }`;
 
 export const btnConfirm = rule`${c.btnConfirm} {
-  background: ${tokens.colors.primary};
-  color: #fff;
-  border: none;
+  background: ${tokens.colors.buttonPrimary};
+  color: ${tokens.colors.buttonPrimaryText};
+  border: 1px solid ${tokens.colors.buttonPrimaryBorder};
   border-radius: ${tokens.radii.md};
   padding: ${tokens.space.sm} ${tokens.space.lg};
   font-size: ${tokens.fontSizes.sm};
@@ -67,7 +67,7 @@ export const btnConfirm = rule`${c.btnConfirm} {
   transition: background ${tokens.transitions.fast}, opacity ${tokens.transitions.fast};
 }
 ${c.btnConfirm}:hover {
-  background: ${tokens.colors.primaryHover};
+  background: ${tokens.colors.buttonPrimaryHover};
 }
 ${c.btnConfirm}:disabled {
   opacity: 0.5;
@@ -78,7 +78,7 @@ export const btnConfirmDanger = rule`${c.btnConfirmDanger} {
   background: ${tokens.colors.danger};
 }
 ${c.btnConfirmDanger}:hover {
-  background: #e0392e;
+  filter: brightness(1.05);
 }`;
 
 export const btnCancel = rule`${c.btnCancel} {
@@ -101,6 +101,6 @@ export const error = rule`${c.error} {
   font-size: ${tokens.fontSizes.sm};
   color: ${tokens.colors.danger};
   padding: ${tokens.space.sm} ${tokens.space.md};
-  background: rgba(255, 69, 58, 0.1);
+  background: ${tokens.colors.dangerSurface};
   border-radius: ${tokens.radii.sm};
 }`;

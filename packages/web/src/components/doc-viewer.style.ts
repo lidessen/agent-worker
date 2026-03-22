@@ -8,6 +8,7 @@ const c = classes([
   "toolbar",
   "toolbarBtn",
   "toolbarBtnActive",
+  "errorBanner",
   "contentPre",
   "editArea",
 ] as const);
@@ -26,7 +27,7 @@ export const header = rule`${c.header} {
   gap: ${tokens.space.md};
   padding: ${tokens.space.lg} ${tokens.space.xl} ${tokens.space.md};
   border-bottom: 1px solid ${tokens.colors.border};
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, transparent 100%);
+  background: ${tokens.colors.headerSheen};
   flex-shrink: 0;
 }
 @media (max-width: 640px) {
@@ -82,12 +83,21 @@ ${c.toolbarBtn}:hover {
 }`;
 
 export const toolbarBtnActive = rule`${c.toolbarBtnActive} {
-  background: linear-gradient(180deg, rgba(248, 244, 240, 0.92) 0%, rgba(224, 220, 216, 0.9) 100%);
-  color: #111111;
-  border-color: rgba(255, 255, 255, 0.28);
+  background: ${tokens.colors.buttonPrimary};
+  color: ${tokens.colors.buttonPrimaryText};
+  border-color: ${tokens.colors.buttonPrimaryBorder};
 }
 ${c.toolbarBtnActive}:hover {
-  color: #111111;
+  color: ${tokens.colors.buttonPrimaryText};
+  background: ${tokens.colors.buttonPrimaryHover};
+}`;
+
+export const errorBanner = rule`${c.errorBanner} {
+  padding: ${tokens.space.sm} ${tokens.space.md};
+  color: ${tokens.colors.danger};
+  font-size: ${tokens.fontSizes.xs};
+  background: ${tokens.colors.dangerSurface};
+  border-bottom: 1px solid ${tokens.colors.dangerBorder};
 }`;
 
 export const contentPre = rule`${c.contentPre} {

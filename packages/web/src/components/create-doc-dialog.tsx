@@ -73,8 +73,7 @@ export function CreateDocDialog() {
         <div class={styles.field}>
           <label class={styles.label}>Content (optional)</label>
           <textarea
-            class={styles.input}
-            style="min-height: 100px; resize: vertical; font-family: monospace;"
+            class={[styles.input, styles.textarea]}
             placeholder="Initial document content..."
             oninput={(e: Event) => {
               content.value = (e.target as HTMLTextAreaElement).value;
