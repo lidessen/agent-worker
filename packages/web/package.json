@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "bun run build.ts",
-    "dev": "bun run build.ts --watch"
+    "build": "bun build ./src/index.html --outdir dist --minify",
+    "dev": "bun build ./src/index.html --outdir dist --watch"
   },
   "dependencies": {
     "@semajsx/icons": "workspace:*",

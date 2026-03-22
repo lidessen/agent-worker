@@ -6,7 +6,7 @@
   <title>Agent Worker</title>
   <style>
     :root {
-      color-scheme: dark;
+      color-scheme: light;
     }
 
     html, body, #app {
@@ -19,22 +19,19 @@
 
     body {
       margin: 0;
-      background:
-        radial-gradient(circle at top left, rgba(255, 140, 92, 0.08), transparent 22%),
-        radial-gradient(circle at bottom right, rgba(255, 255, 255, 0.04), transparent 28%),
-        #090909;
-      color: #f3f1ee;
+      background: var(--colors-background);
+      color: var(--colors-text);
       font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, "Segoe UI", Roboto, sans-serif;
     }
 
     ::selection {
-      background: rgba(255, 255, 255, 0.16);
+      background: rgba(55, 148, 255, 0.3);
       color: #ffffff;
     }
 
     * {
       scrollbar-width: thin;
-      scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+      scrollbar-color: rgba(121, 121, 121, 0.45) transparent;
     }
 
     *::-webkit-scrollbar {
@@ -47,7 +44,7 @@
     }
 
     *::-webkit-scrollbar-thumb {
-      background: rgba(255, 255, 255, 0.14);
+      background: rgba(121, 121, 121, 0.42);
       border-radius: 999px;
       border: 2px solid transparent;
       background-clip: padding-box;
@@ -64,6 +61,6 @@
 </head>
 <body>
   <div id="app"></div>
-  <script type="module" src="/main.js?v=31"></script>
+  <script type="module" src="./main.tsx"></script>
 </body>
 </html>
