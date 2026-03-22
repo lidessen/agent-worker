@@ -5,10 +5,12 @@ import { signal, computed } from "semajsx/signal";
 import { onCleanup } from "semajsx/dom";
 import { client } from "../stores/connection.ts";
 import { agents } from "../stores/agents.ts";
-import { selectAgent, selectChannel } from "../stores/navigation.ts";
+import { deleteWorkspace } from "../stores/workspaces.ts";
+import { selectAgent, selectChannel, selectGlobalSettings } from "../stores/navigation.ts";
 import { ClaudeIcon, CursorIcon, OpenAIIcon, VercelIcon } from "../components/brand-icons.tsx";
+import { ConfirmDialog } from "../components/confirm-dialog.tsx";
 import { tokens } from "../theme/tokens.ts";
-import type { WorkspaceInfo } from "../api/types.ts";
+import type { WorkspaceInfo, WorkspaceStatus, DaemonEvent } from "../api/types.ts";
 import * as styles from "./workspace-settings-view.style.ts";
 
 const statusColors: Record<string, string> = {
@@ -39,6 +41,9 @@ export function WorkspaceSettingsView(props: { wsKey: string }) {
   const workspace = signal<WorkspaceInfo | null>(null);
   const channels = signal<string[]>([]);
   const error = signal<string | null>(null);
+  const showDeleteWs = signal(false);
+  const wsStatus = signal<WorkspaceStatus | null>(null);
+  const wsEvents = signal<DaemonEvent[]>([]);
 
   async function loadWorkspace(force = false) {
     const c = client.value;
@@ -46,12 +51,16 @@ export function WorkspaceSettingsView(props: { wsKey: string }) {
     error.value = null;
 
     try {
-      const [ws, ch] = await Promise.all([
+      const [ws, ch, status, events] = await Promise.all([
         c.getWorkspace(props.wsKey),
         c.listChannels(props.wsKey),
+        c.getWorkspaceStatus(props.wsKey).catch(() => null),
+        c.readWorkspaceEvents(props.wsKey).catch(() => ({ entries: [] })),
       ]);
       workspace.value = ws;
       channels.value = ch;
+      wsStatus.value = status;
+      wsEvents.value = events.entries.slice(-30);
     } catch (err) {
       console.error(`Failed to load workspace ${props.wsKey}:`, err);
       error.value = err instanceof Error ? err.message : String(err);
@@ -234,13 +243,98 @@ export function WorkspaceSettingsView(props: { wsKey: string }) {
               </div>
               ) : null,
             )}
+            {computed(wsStatus, (st) =>
+              st?.tag ? (
+              <div class={styles.configRow}>
+                <span class={styles.configLabel}>Tag</span>
+                <span class={styles.configValue}>{st.tag}</span>
+              </div>
+              ) : null,
+            )}
             <div class={styles.configRow}>
               <span class={styles.configLabel}>Created</span>
               <span class={styles.configValue}>{createdLabel}</span>
             </div>
           </div>
         </div>
+
+        {/* Loops Section */}
+        {computed(wsStatus, (st) => {
+          const loops = st?.loops ?? [];
+          if (loops.length === 0) return null;
+          return (
+            <div class={styles.section}>
+              <div class={styles.sectionHeader}>
+                <span class={styles.sectionTitle}>Loops</span>
+                <span class={styles.count}>{String(loops.length)}</span>
+              </div>
+              <div class={styles.loopList}>
+                {loops.map((loop) => (
+                  <div class={styles.loopItem}>
+                    <span
+                      class={styles.loopDot}
+                      style={`background: ${loop.running ? tokens.colors.agentRunning : tokens.colors.agentIdle}`}
+                    />
+                    <span class={styles.loopName}>{loop.name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Recent Events Section */}
+        {computed(wsEvents, (events) => {
+          if (events.length === 0) return null;
+          return (
+            <div class={styles.section}>
+              <div class={styles.sectionHeader}>
+                <span class={styles.sectionTitle}>Recent Events</span>
+                <span class={styles.count}>{String(events.length)}</span>
+              </div>
+              <div class={styles.eventList}>
+                {events.map((evt) => (
+                  <div class={styles.eventItem}>
+                    <span class={styles.eventTime}>
+                      {new Date(evt.ts).toLocaleTimeString()}
+                    </span>
+                    <span class={styles.eventType}>{evt.type}</span>
+                    <span class={styles.eventDetail}>
+                      {evt.agent ? String(evt.agent) : ""}
+                      {evt.workspace ? ` @${String(evt.workspace)}` : ""}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Danger Zone */}
+        <div class={styles.dangerSection}>
+          <div class={styles.sectionHeader}>
+            <span class={styles.sectionTitle}>Danger Zone</span>
+          </div>
+          <button
+            class={styles.dangerBtn}
+            onclick={() => (showDeleteWs.value = true)}
+          >
+            Delete Workspace
+          </button>
+        </div>
       </div>
+
+      <ConfirmDialog
+        visible={showDeleteWs}
+        title="Delete Workspace"
+        message={`Are you sure you want to stop and remove workspace "${props.wsKey}"? All agents will be stopped.`}
+        confirmLabel="Delete"
+        danger={true}
+        onConfirm={async () => {
+          await deleteWorkspace(props.wsKey);
+          selectGlobalSettings();
+        }}
+      />
     </div>
   );
 }

@@ -5,6 +5,7 @@ import type { DaemonEvent } from "../api/types.ts";
 export const events = signal<DaemonEvent[]>([]);
 export const cursor = signal<number>(0);
 export const isStreaming = signal<boolean>(false);
+export const isSending = signal<boolean>(false);
 export const sendError = signal<string | null>(null);
 export const streamError = signal<string | null>(null);
 
@@ -93,6 +94,7 @@ export function stopStream() {
 export async function sendMessage(agentName: string, text: string) {
   // Clear previous send error
   sendError.value = null;
+  isSending.value = true;
 
   // Optimistic: push a local user event
   const localEvent: DaemonEvent = {
@@ -103,7 +105,7 @@ export async function sendMessage(agentName: string, text: string) {
   events.update((prev) => [...prev, localEvent]);
 
   const c = client.value;
-  if (!c) return;
+  if (!c) { isSending.value = false; return; }
   try {
     await c.sendToAgent(agentName, [{ content: text }]);
   } catch (err) {
@@ -114,5 +116,7 @@ export async function sendMessage(agentName: string, text: string) {
     );
     sendError.value =
       err instanceof Error ? err.message : "Failed to send message";
+  } finally {
+    isSending.value = false;
   }
 }

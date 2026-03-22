@@ -17,7 +17,9 @@ import {
   selectDoc,
   selectWorkspaceSettings,
   selectGlobalSettings,
+  selectGlobalEvents,
 } from "../../stores/navigation.ts";
+import { showCreateDoc } from "../create-doc-dialog.tsx";
 import type { SidebarTab } from "../../stores/navigation.ts";
 import type { AgentInfo } from "../../api/types.ts";
 import * as styles from "./sidebar.style.ts";
@@ -196,7 +198,13 @@ function TabContent() {
   );
   const docContent = computed(wsDocs, (docs) =>
     <div class={styles.listWrap}>
-      <div class={styles.sectionLabel}>Docs</div>
+      <div class={styles.sectionLabel} style="display:flex; align-items:center; justify-content:space-between;">
+        <span>Docs</span>
+        <span
+          style={`cursor:pointer; font-size:${tokens.fontSizes.md}; color:${tokens.colors.textMuted}; padding:0 4px;`}
+          onclick={() => (showCreateDoc.value = true)}
+        >+</span>
+      </div>
       {docs.map((d) => <DocItem name={d.name} />)}
     </div>,
   );
@@ -281,6 +289,9 @@ export function Sidebar() {
             onclick={() => selectWorkspaceSettings(currentWorkspace.value)}
           >
             Workspace
+          </button>
+          <button class={styles.bottomLink} onclick={() => selectGlobalEvents()}>
+            Event Log
           </button>
           <button class={styles.bottomLink} onclick={() => selectGlobalSettings()}>
             Settings

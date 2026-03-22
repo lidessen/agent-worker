@@ -3,20 +3,16 @@
 import { Icon, ArrowUp } from "@semajsx/icons";
 import { computed, signal } from "semajsx/signal";
 import type { ReadableSignal } from "semajsx/signal";
-import { onCleanup } from "semajsx/dom";
-import { isStreaming, sendMessage } from "../stores/conversation.ts";
+import { sendMessage } from "../stores/conversation.ts";
 import * as styles from "./chat-input.style.ts";
 
 export function ChatInput(props: { agentName: ReadableSignal<string> }) {
   let textareaRef: HTMLTextAreaElement | null = null;
   let sendBtnRef: HTMLButtonElement | null = null;
   const draft = signal("");
-  const canSend = computed([draft, isStreaming], (text, streaming) =>
-    text.trim().length > 0 && !streaming,
-  );
+  const canSend = computed(draft, (text) => text.trim().length > 0);
 
-  function syncControls() {
-    if (textareaRef) textareaRef.disabled = isStreaming.value;
+  function syncSendBtn() {
     if (sendBtnRef) sendBtnRef.disabled = !canSend.value;
   }
 
@@ -29,7 +25,7 @@ export function ChatInput(props: { agentName: ReadableSignal<string> }) {
   function handleSend() {
     if (!textareaRef) return;
     const text = draft.value.trim();
-    if (!text || isStreaming.value) return;
+    if (!text) return;
 
     sendMessage(props.agentName.value, text);
     textareaRef.value = "";
@@ -45,19 +41,14 @@ export function ChatInput(props: { agentName: ReadableSignal<string> }) {
     }
   }
 
-  const unsubDraft = draft.subscribe(syncControls);
-  const unsubStreaming = isStreaming.subscribe(syncControls);
-  onCleanup(() => {
-    unsubDraft();
-    unsubStreaming();
-  });
+  canSend.subscribe(syncSendBtn);
 
   return (
     <div class={styles.bar}>
       <div class={styles.composer}>
         <textarea
           class={styles.textarea}
-          placeholder="Ask Codex anything, @ to add files, / for commands, $ for skills"
+          placeholder="Send a message..."
           rows={1}
           oninput={(e: Event) => {
             draft.value = (e.target as HTMLTextAreaElement).value;
@@ -66,7 +57,6 @@ export function ChatInput(props: { agentName: ReadableSignal<string> }) {
           onkeydown={handleKeydown}
           ref={(el: HTMLTextAreaElement) => {
             textareaRef = el;
-            syncControls();
           }}
         />
         <div class={styles.footer}>
@@ -77,7 +67,7 @@ export function ChatInput(props: { agentName: ReadableSignal<string> }) {
             type="button"
             ref={(el: HTMLButtonElement) => {
               sendBtnRef = el;
-              syncControls();
+              syncSendBtn();
             }}
           >
             <Icon icon={ArrowUp} size={22} />

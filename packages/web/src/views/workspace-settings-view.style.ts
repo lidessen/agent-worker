@@ -334,3 +334,104 @@ export const configValue = rule`${c.configValue} {
   font-family: ${tokens.fonts.mono};
   color: ${tokens.colors.text};
 }`;
+
+/* ── Danger Zone ────────────────────────────────────────────────────── */
+
+const d = classes(["dangerSection", "dangerBtn", "loopList", "loopItem", "loopDot", "loopName", "eventList", "eventItem", "eventTime", "eventType", "eventDetail"] as const);
+
+export const dangerSection = rule`${d.dangerSection} {
+  display: flex;
+  flex-direction: column;
+  gap: ${tokens.space.md};
+  padding: ${tokens.space.xl};
+  border-radius: ${tokens.radii.xl};
+  background: ${tokens.colors.panel};
+  border: 1px solid ${tokens.colors.danger};
+  box-shadow: ${tokens.shadows.inset};
+}`;
+
+export const dangerBtn = rule`${d.dangerBtn} {
+  border: 1px solid ${tokens.colors.danger};
+  border-radius: ${tokens.radii.xl};
+  background: transparent;
+  color: ${tokens.colors.danger};
+  font-size: ${tokens.fontSizes.sm};
+  padding: ${tokens.space.sm} ${tokens.space.lg};
+  cursor: pointer;
+  transition: background ${tokens.transitions.fast};
+  align-self: flex-start;
+}
+${d.dangerBtn}:hover {
+  background: rgba(255, 69, 58, 0.1);
+}`;
+
+/* ── Loops section ──────────────────────────────────────────────────── */
+
+export const loopList = rule`${d.loopList} {
+  display: flex;
+  flex-direction: column;
+  gap: ${tokens.space.xs};
+}`;
+
+export const loopItem = rule`${d.loopItem} {
+  display: flex;
+  align-items: center;
+  gap: ${tokens.space.sm};
+  padding: ${tokens.space.sm} 0;
+  font-size: ${tokens.fontSizes.sm};
+  color: ${tokens.colors.text};
+}`;
+
+export const loopDot = rule`${d.loopDot} {
+  width: 8px;
+  height: 8px;
+  border-radius: ${tokens.radii.pill};
+  flex-shrink: 0;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
+}`;
+
+export const loopName = rule`${d.loopName} {
+  font-family: ${tokens.fonts.mono};
+  font-size: ${tokens.fontSizes.sm};
+}`;
+
+/* ── Events section ─────────────────────────────────────────────────── */
+
+export const eventList = rule`${d.eventList} {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 300px;
+  overflow-y: auto;
+}`;
+
+export const eventItem = rule`${d.eventItem} {
+  display: flex;
+  align-items: baseline;
+  gap: ${tokens.space.sm};
+  padding: ${tokens.space.xs} 0;
+  font-size: ${tokens.fontSizes.xs};
+  color: ${tokens.colors.textMuted};
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}`;
+
+export const eventTime = rule`${d.eventTime} {
+  font-family: ${tokens.fonts.mono};
+  color: ${tokens.colors.textDim};
+  flex-shrink: 0;
+  min-width: 70px;
+}`;
+
+export const eventType = rule`${d.eventType} {
+  font-weight: ${tokens.fontWeights.medium};
+  color: ${tokens.colors.text};
+  flex-shrink: 0;
+}`;
+
+export const eventDetail = rule`${d.eventDetail} {
+  color: ${tokens.colors.textMuted};
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}`;

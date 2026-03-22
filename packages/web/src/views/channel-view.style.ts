@@ -61,3 +61,28 @@ export const wsLabel = rule`${c.wsLabel} {
   padding: 4px ${tokens.space.sm};
   background: ${tokens.colors.surfaceSecondary};
 }`;
+
+const d = classes(["headerActions", "clearBtn"] as const);
+
+export const headerActions = rule`${d.headerActions} {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: ${tokens.space.sm};
+}`;
+
+export const clearBtn = rule`${d.clearBtn} {
+  background: transparent;
+  border: 1px solid ${tokens.colors.border};
+  border-radius: ${tokens.radii.md};
+  color: ${tokens.colors.textMuted};
+  font-size: ${tokens.fontSizes.xs};
+  padding: 4px ${tokens.space.sm};
+  cursor: pointer;
+  transition: color ${tokens.transitions.fast}, border-color ${tokens.transitions.fast}, background ${tokens.transitions.fast};
+}
+${d.clearBtn}:hover {
+  color: ${tokens.colors.danger};
+  border-color: ${tokens.colors.danger};
+  background: rgba(255, 69, 58, 0.08);
+}`;

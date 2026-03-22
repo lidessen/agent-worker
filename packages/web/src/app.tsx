@@ -22,6 +22,8 @@ import { AgentInfoView } from "./views/agent-info-view.tsx";
 import { DocViewerPanel } from "./views/doc-viewer-panel.tsx";
 import { WorkspaceSettingsView } from "./views/workspace-settings-view.tsx";
 import { GlobalSettingsView } from "./views/global-settings-view.tsx";
+import { GlobalEventsView } from "./views/global-events-view.tsx";
+import { CreateDocDialog } from "./components/create-doc-dialog.tsx";
 
 function createView(item: SelectedItem) {
   switch (item.kind) {
@@ -37,6 +39,8 @@ function createView(item: SelectedItem) {
       return <WorkspaceSettingsView wsKey={item.wsKey} />;
     case "global-settings":
       return <GlobalSettingsView />;
+    case "global-events":
+      return <GlobalEventsView />;
   }
 }
 
@@ -162,6 +166,7 @@ function itemKey(item: SelectedItem | null): string {
     case "doc": return `doc:${item.wsKey}:${item.docName}`;
     case "workspace-settings": return `ws-settings:${item.wsKey}`;
     case "global-settings": return "global-settings";
+    case "global-events": return "global-events";
   }
 }
 
@@ -221,6 +226,7 @@ export function App() {
           renderContent();
         }}
       />
+      <CreateDocDialog />
     </AppShell>
   );
 }

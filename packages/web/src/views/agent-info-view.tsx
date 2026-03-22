@@ -1,18 +1,20 @@
 /** @jsxImportSource semajsx/dom */
 
 import { Icon, ArrowLeft } from "@semajsx/icons";
-import { computed } from "semajsx/signal";
+import { signal, computed } from "semajsx/signal";
 import { onCleanup } from "semajsx/dom";
 import {
   fetchAgentState,
   agentState,
   startPolling,
   stopPolling,
+  deleteAgent,
 } from "../stores/agents.ts";
-import { selectAgent } from "../stores/navigation.ts";
+import { selectAgent, selectGlobalSettings } from "../stores/navigation.ts";
 import { client } from "../stores/connection.ts";
 import { tokens } from "../theme/tokens.ts";
 import { AgentInspector } from "../components/agent-inspector.tsx";
+import { ConfirmDialog } from "../components/confirm-dialog.tsx";
 import * as styles from "./agent-info-view.style.ts";
 
 const stateColors: Record<string, string> = {
@@ -25,6 +27,8 @@ const stateColors: Record<string, string> = {
 };
 
 export function AgentInfoView(props: { name: string }) {
+  const showDeleteAgent = signal(false);
+
   // Fetch agent state and start polling
   fetchAgentState(props.name);
   startPolling(props.name);
@@ -114,9 +118,27 @@ export function AgentInfoView(props: { name: string }) {
             <button class={styles.actionBtn}>
               Restart
             </button>
+            <button
+              class={[styles.actionBtn, styles.actionBtnDanger]}
+              onclick={() => (showDeleteAgent.value = true)}
+            >
+              Delete
+            </button>
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        visible={showDeleteAgent}
+        title="Delete Agent"
+        message={`Are you sure you want to delete agent "${props.name}"? This cannot be undone.`}
+        confirmLabel="Delete"
+        danger={true}
+        onConfirm={async () => {
+          await deleteAgent(props.name);
+          selectGlobalSettings();
+        }}
+      />
     </div>
   );
 }

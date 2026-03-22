@@ -15,6 +15,8 @@ import type {
   ChannelMessage,
   DocInfo,
   RuntimeConfig,
+  WorkspaceStatus,
+  WorkspaceInboxEntry,
 } from "./types.ts";
 
 export class WebClient {
@@ -95,6 +97,27 @@ export class WebClient {
     yield* this.sseStream<DaemonEvent>(
       `/agents/${encodeURIComponent(name)}/events/stream${q}`,
       opts?.signal,
+    );
+  }
+
+  // ── Delete API ────────────────────────────────────────────────────
+
+  async deleteAgent(name: string): Promise<void> {
+    await this.request(`/agents/${encodeURIComponent(name)}`, {
+      method: "DELETE",
+    });
+  }
+
+  async deleteWorkspace(key: string): Promise<void> {
+    await this.request(`/workspaces/${encodeURIComponent(key)}`, {
+      method: "DELETE",
+    });
+  }
+
+  async clearChannel(key: string, ch: string): Promise<void> {
+    await this.request(
+      `/workspaces/${encodeURIComponent(key)}/channels/${encodeURIComponent(ch)}`,
+      { method: "DELETE" },
     );
   }
 
@@ -201,6 +224,56 @@ export class WebClient {
       `/workspaces/${encodeURIComponent(key)}/docs/${encodeURIComponent(name)}`,
       { method: "PATCH", body: JSON.stringify({ content }) },
     );
+  }
+
+  // ── Workspace Status & Events ──────────────────────────────────────
+
+  async getWorkspaceStatus(key: string): Promise<WorkspaceStatus> {
+    return this.request(`/workspaces/${encodeURIComponent(key)}/status`);
+  }
+
+  async peekInbox(key: string, agent: string): Promise<WorkspaceInboxEntry[]> {
+    const res = await this.request<{ entries: WorkspaceInboxEntry[] }>(
+      `/workspaces/${encodeURIComponent(key)}/inbox/${encodeURIComponent(agent)}`,
+    );
+    return res.entries ?? [];
+  }
+
+  async readWorkspaceEvents(
+    key: string,
+    cursor?: number,
+  ): Promise<CursorResult<DaemonEvent>> {
+    const q = cursor !== undefined ? `?cursor=${cursor}` : "";
+    return this.request(`/workspaces/${encodeURIComponent(key)}/events${q}`);
+  }
+
+  async *streamWorkspaceEvents(
+    key: string,
+    opts?: { cursor?: number; signal?: AbortSignal },
+  ): AsyncGenerator<DaemonEvent> {
+    const params = new URLSearchParams();
+    if (opts?.cursor !== undefined) params.set("cursor", String(opts.cursor));
+    const q = params.toString() ? `?${params}` : "";
+    yield* this.sseStream<DaemonEvent>(
+      `/workspaces/${encodeURIComponent(key)}/events/stream${q}`,
+      opts?.signal,
+    );
+  }
+
+  // ── Daemon Events ──────────────────────────────────────────────────
+
+  async readDaemonEvents(cursor?: number): Promise<CursorResult<DaemonEvent>> {
+    const q = cursor !== undefined ? `?cursor=${cursor}` : "";
+    return this.request(`/events${q}`);
+  }
+
+  async *streamDaemonEvents(
+    opts?: { cursor?: number; signal?: AbortSignal },
+  ): AsyncGenerator<DaemonEvent> {
+    const params = new URLSearchParams();
+    if (opts?.cursor !== undefined) params.set("cursor", String(opts.cursor));
+    const q = params.toString() ? `?${params}` : "";
+    yield* this.sseStream<DaemonEvent>(`/events/stream${q}`, opts?.signal);
   }
 
   // ── HTTP helpers ────────────────────────────────────────────────────

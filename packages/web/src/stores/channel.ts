@@ -5,6 +5,7 @@ import type { ChannelMessage } from "../api/types.ts";
 export const channelMessages = signal<ChannelMessage[]>([]);
 export const channelCursor = signal<number>(0);
 export const isChannelStreaming = signal<boolean>(false);
+export const isChannelSending = signal<boolean>(false);
 
 let abortController: AbortController | null = null;
 let currentSessionId = 0;
@@ -80,6 +81,8 @@ export function stopChannelStream() {
 }
 
 export async function sendChannelMessage(wsKey: string, ch: string, text: string) {
+  isChannelSending.value = true;
+
   // Optimistic: push a local message
   const localMsg: ChannelMessage = {
     id: `local-${Date.now()}`,
@@ -91,10 +94,12 @@ export async function sendChannelMessage(wsKey: string, ch: string, text: string
   channelMessages.update((prev) => [...prev, localMsg]);
 
   const c = client.value;
-  if (!c) return;
+  if (!c) { isChannelSending.value = false; return; }
   try {
     await c.sendToWorkspace(wsKey, text, { channel: ch });
   } catch (err) {
     console.error(`Failed to send to ${wsKey}/${ch}:`, err);
+  } finally {
+    isChannelSending.value = false;
   }
 }

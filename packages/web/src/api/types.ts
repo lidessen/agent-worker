@@ -80,6 +80,26 @@ export interface DocInfo {
   name: string;
 }
 
+export interface WorkspaceStatus {
+  name: string;
+  tag?: string;
+  key: string;
+  mode: string;
+  status: string;
+  agents: string[];
+  agent_details: Array<{ name: string; runtime: string }>;
+  channels: string[];
+  loops: Array<{ name: string; running: boolean }>;
+}
+
+export interface WorkspaceInboxEntry {
+  messageId: string;
+  channel: string;
+  priority: string;
+  state: string;
+  enqueuedAt: number;
+}
+
 // ── Runtime configuration (for HTTP-created agents) ──────────────────────
 
 export type RuntimeType = "ai-sdk" | "claude-code" | "codex" | "cursor" | "mock";

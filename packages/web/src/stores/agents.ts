@@ -55,3 +55,10 @@ export function stopPolling() {
   }
   pollName = null;
 }
+
+export async function deleteAgent(name: string) {
+  const c = client.value;
+  if (!c) throw new Error("Not connected");
+  await c.deleteAgent(name);
+  await fetchAgents();
+}

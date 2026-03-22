@@ -18,6 +18,13 @@ export async function fetchWorkspaces() {
   }
 }
 
+export async function deleteWorkspace(key: string) {
+  const c = client.value;
+  if (!c) throw new Error("Not connected");
+  await c.deleteWorkspace(key);
+  await fetchWorkspaces();
+}
+
 // Auto-fetch when client connects
 client.subscribe((c) => {
   if (c) fetchWorkspaces();

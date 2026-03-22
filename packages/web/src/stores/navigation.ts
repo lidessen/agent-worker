@@ -6,7 +6,8 @@ export type SelectedItem =
   | { kind: "agent-info"; name: string }
   | { kind: "doc"; wsKey: string; docName: string }
   | { kind: "workspace-settings"; wsKey: string }
-  | { kind: "global-settings" };
+  | { kind: "global-settings" }
+  | { kind: "global-events" };
 
 export type SidebarTab = "channels" | "agents" | "docs";
 
@@ -36,4 +37,8 @@ export function selectWorkspaceSettings(wsKey: string) {
 
 export function selectGlobalSettings() {
   selectedItem.value = { kind: "global-settings" };
+}
+
+export function selectGlobalEvents() {
+  selectedItem.value = { kind: "global-events" };
 }

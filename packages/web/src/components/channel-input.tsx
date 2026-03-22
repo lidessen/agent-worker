@@ -2,20 +2,15 @@
 
 import { Icon, ArrowUp } from "@semajsx/icons";
 import { computed, signal } from "semajsx/signal";
-import { onCleanup } from "semajsx/dom";
-import { isChannelStreaming } from "../stores/channel.ts";
 import * as styles from "./chat-input.style.ts";
 
 export function ChannelInput(props: { onSend: (text: string) => void }) {
   let textareaRef: HTMLTextAreaElement | null = null;
   let sendBtnRef: HTMLButtonElement | null = null;
   const draft = signal("");
-  const canSend = computed([draft, isChannelStreaming], (text, streaming) =>
-    text.trim().length > 0 && !streaming,
-  );
+  const canSend = computed(draft, (text) => text.trim().length > 0);
 
-  function syncControls() {
-    if (textareaRef) textareaRef.disabled = isChannelStreaming.value;
+  function syncSendBtn() {
     if (sendBtnRef) sendBtnRef.disabled = !canSend.value;
   }
 
@@ -43,12 +38,7 @@ export function ChannelInput(props: { onSend: (text: string) => void }) {
     }
   }
 
-  const unsubDraft = draft.subscribe(syncControls);
-  const unsubStreaming = isChannelStreaming.subscribe(syncControls);
-  onCleanup(() => {
-    unsubDraft();
-    unsubStreaming();
-  });
+  canSend.subscribe(syncSendBtn);
 
   return (
     <div class={styles.bar}>
@@ -64,7 +54,6 @@ export function ChannelInput(props: { onSend: (text: string) => void }) {
           onkeydown={handleKeydown}
           ref={(el: HTMLTextAreaElement) => {
             textareaRef = el;
-            syncControls();
           }}
         />
         <div class={styles.footer}>
@@ -75,7 +64,7 @@ export function ChannelInput(props: { onSend: (text: string) => void }) {
             type="button"
             ref={(el: HTMLButtonElement) => {
               sendBtnRef = el;
-              syncControls();
+              syncSendBtn();
             }}
           >
             <Icon icon={ArrowUp} size={22} />
