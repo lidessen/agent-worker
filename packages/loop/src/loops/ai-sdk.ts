@@ -49,9 +49,10 @@ export class AiSdkLoop {
 
   /** Initialize bash tools and create the underlying ToolLoopAgent. Called automatically by run(). */
   async init(): Promise<void> {
-    const { model, instructions, tools: userTools = {}, bashToolOptions } = this.options;
+    const { model, instructions, tools: userTools = {}, bashToolOptions } =
+      this.options;
 
-    this.bashToolkit = await createBashTool(bashToolOptions);
+    this.bashToolkit = await createBashTool(bashToolOptions ?? {});
     const builtinTools: ToolSet = this.bashToolkit.tools as unknown as ToolSet;
 
     // Built-in loop tools (grep, web_fetch, web_search, web_browse)

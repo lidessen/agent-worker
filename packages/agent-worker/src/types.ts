@@ -114,6 +114,11 @@ export interface RuntimeConfig {
   /** Working directory for CLI-based runtimes. Default: daemon cwd. */
   cwd?: string;
 
+  /** Additional directories the agent is allowed to access beyond cwd.
+   *  Used for shared workspace sandbox, mounted repos, etc.
+   *  Currently advisory (passed to tool instructions); will be enforced in future. */
+  allowedPaths?: string[];
+
   /** Environment variable overrides (e.g. API keys). */
   env?: Record<string, string>;
 

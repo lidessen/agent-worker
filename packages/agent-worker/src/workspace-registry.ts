@@ -135,9 +135,15 @@ export class WorkspaceRegistry {
         }
       }
       const agentCwd = dirs.sandboxDir ?? dirs.workspaceSandboxDir;
+      // When agent has a personal sandbox, the shared workspace sandbox is an additional path
+      const allowedPaths: string[] = [];
+      if (dirs.sandboxDir && dirs.workspaceSandboxDir) {
+        allowedPaths.push(dirs.workspaceSandboxDir);
+      }
       const runner = await this.createRunner(agent, workspace, resolved, "global", tools, {
         cwd: agentCwd,
         storageDir: globalDir,
+        allowedPaths: allowedPaths.length > 0 ? allowedPaths : undefined,
       });
       const orch = createOrchestrator({
         name: agent.name,
@@ -147,6 +153,8 @@ export class WorkspaceRegistry {
         eventLog: workspace.eventLog,
         promptSections,
         pollInterval: 2000,
+        sandboxDir: dirs.sandboxDir,
+        workspaceSandboxDir: dirs.workspaceSandboxDir,
         onInstruction: async (prompt, instruction) => {
           const runId = crypto.randomUUID();
           this.emitEvent("workspace.agent_run_start", {
@@ -258,10 +266,15 @@ export class WorkspaceRegistry {
         }
       }
       const agentCwd = dirs.sandboxDir ?? dirs.workspaceSandboxDir;
+      const allowedPaths: string[] = [];
+      if (dirs.sandboxDir && dirs.workspaceSandboxDir) {
+        allowedPaths.push(dirs.workspaceSandboxDir);
+      }
       const actualStorageDir = storageDir ?? this.workspaceDir(key);
       const runner = await this.createRunner(agent, workspace, resolved, key, tools, {
         cwd: agentCwd,
         storageDir: actualStorageDir,
+        allowedPaths: allowedPaths.length > 0 ? allowedPaths : undefined,
       });
       const orch = createOrchestrator({
         name: agent.name,
@@ -271,6 +284,8 @@ export class WorkspaceRegistry {
         eventLog: workspace.eventLog,
         promptSections,
         pollInterval: 2000,
+        sandboxDir: dirs.sandboxDir,
+        workspaceSandboxDir: dirs.workspaceSandboxDir,
         onInstruction: async (prompt, instruction) => {
           const runId = crypto.randomUUID();
           this.emitEvent("workspace.agent_run_start", {
@@ -397,7 +412,7 @@ export class WorkspaceRegistry {
     resolved: import("@agent-worker/workspace").ResolvedWorkspace,
     workspaceKey: string,
     tools: import("@agent-worker/workspace").WorkspaceToolSet,
-    opts?: { cwd?: string; storageDir?: string },
+    opts?: { cwd?: string; storageDir?: string; allowedPaths?: string[] },
   ): Promise<
     (
       prompt: string,
@@ -442,7 +457,7 @@ export class WorkspaceRegistry {
       }
 
       // For AI SDK runtimes, create a loop and run
-      const loop = await this.createAgentLoop(agent, opts?.cwd);
+      const loop = await this.createAgentLoop(agent, opts?.cwd, opts?.allowedPaths);
       if (!loop) {
         throw new Error(`No loop available for runtime: ${agent.runtime}`);
       }
@@ -515,7 +530,11 @@ export class WorkspaceRegistry {
     };
   }
 
-  private async createAgentLoop(agent: ResolvedAgent, cwd?: string): Promise<AgentLoop | null> {
+  private async createAgentLoop(
+    agent: ResolvedAgent,
+    cwd?: string,
+    allowedPaths?: string[],
+  ): Promise<AgentLoop | null> {
     if (!agent.runtime || agent.runtime === "mock") return null;
     if (!agent.model && agent.runtime === "ai-sdk") return null;
 
@@ -528,6 +547,7 @@ export class WorkspaceRegistry {
       model: agent.model?.full,
       env: agent.env,
       cwd,
+      allowedPaths,
     });
   }
 }

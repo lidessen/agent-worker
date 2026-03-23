@@ -147,6 +147,8 @@ export interface CliLoopOptions {
   instructions?: string;
   /** Working directory for the CLI process */
   cwd?: string;
+  /** Additional directories the agent is allowed to access beyond cwd. */
+  allowedPaths?: string[];
   /** Extra CLI arguments */
   extraArgs?: string[];
   /** Extra environment variables for the CLI subprocess (merged on top of process.env). */

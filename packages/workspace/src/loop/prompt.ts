@@ -14,6 +14,10 @@ export interface PromptContext {
   currentMessageId?: string;
   /** Channel the current instruction came from. */
   currentChannel?: string;
+  /** Agent's personal sandbox directory. */
+  sandboxDir?: string;
+  /** Shared workspace sandbox directory (visible to all agents). */
+  workspaceSandboxDir?: string;
 }
 
 /** Agent's custom instructions (from YAML config). */

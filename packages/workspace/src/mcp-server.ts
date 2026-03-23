@@ -511,6 +511,7 @@ export class WorkspaceMcpHub {
           `Documents: ${docs.length}${docs.length > 0 ? ` (${docs.join(", ")})` : ""}`,
           `Queue size: ${ws.instructionQueue.size}`,
           `Storage: ${ws.storageDir ?? "in-memory"}`,
+          `Shared sandbox: ${ws.workspaceSandboxDir ?? "none"}`,
         ];
         return { content: [{ type: "text", text: lines.join("\n") }] };
       },

@@ -29,6 +29,10 @@ export interface OrchestratorConfig {
   promptSections?: PromptSection[];
   /** Handler called with assembled prompt; returns when done. */
   onInstruction: (prompt: string, instruction: Instruction) => Promise<void>;
+  /** Agent's personal sandbox directory. */
+  sandboxDir?: string;
+  /** Shared workspace sandbox directory (visible to all agents). */
+  workspaceSandboxDir?: string;
 }
 
 /**
@@ -245,6 +249,8 @@ export class WorkspaceOrchestrator {
       currentPriority: instruction?.priority,
       currentMessageId: instruction?.messageId || undefined,
       currentChannel: instruction?.channel || undefined,
+      sandboxDir: this.config.sandboxDir,
+      workspaceSandboxDir: this.config.workspaceSandboxDir,
     });
   }
 

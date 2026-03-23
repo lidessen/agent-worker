@@ -86,6 +86,7 @@ function buildArgs(
   if (opts.permissionMode === "acceptEdits" || opts.permissionMode === "bypassPermissions") {
     args.push("--dangerously-skip-permissions");
   }
+  if (opts.allowedPaths?.length) args.push("--add-dir", ...opts.allowedPaths);
   if (mcpConfigPath) args.push("--mcp-config", mcpConfigPath);
   if (opts.extraArgs?.length) args.push(...opts.extraArgs);
 

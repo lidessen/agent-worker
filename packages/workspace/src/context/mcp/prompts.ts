@@ -26,6 +26,10 @@ export const workspacePromptSection: PromptSection = async (ctx) => {
     "- Messages over 1200 chars: use `resource_create` first, then send a summary with the resource ID.",
     "- `channel_read` shows full conversation history beyond what's shown below.",
     "",
+    "### Directories",
+    `- Personal sandbox: \`${ctx.sandboxDir ?? "(not available)"}\``,
+    `- Shared workspace: \`${ctx.workspaceSandboxDir ?? "(not available)"}\``,
+    "",
     "### Channels",
     channels.length > 0 ? channels.map((ch) => `- #${ch}`).join("\n") : "- (none)",
   ];
