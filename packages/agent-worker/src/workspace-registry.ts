@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { join, dirname } from "node:path";
 import { mkdirSync, appendFileSync, symlinkSync, existsSync } from "node:fs";
 import {
   createWorkspace,
@@ -207,11 +207,13 @@ export class WorkspaceRegistry {
 
   /** Create a workspace from YAML source. */
   async create(input: CreateWorkspaceInput): Promise<ManagedWorkspace> {
+    // Skip setup during load — we'll run it after sandbox dirs exist
     const resolved = await loadWorkspaceDef(input.source, {
       tag: input.tag,
       vars: input.vars,
       name: input.name,
       resolveRuntime,
+      skipSetup: true,
     });
     // CLI sends YAML content (not file path), so configDir won't be set by
     // loadWorkspaceDef. Patch it from the input so relative data_dir resolves
@@ -225,8 +227,12 @@ export class WorkspaceRegistry {
       throw new Error(`Workspace "${key}" already exists`);
     }
 
-    // Use daemon-managed data dir unless YAML explicitly specifies one
-    const storageDir = resolved.def.data_dir ? undefined : this.workspaceDir(key);
+    // Use daemon-managed data dir unless YAML explicitly specifies one.
+    // When data_dir is set (e.g. pointing to a repo for knowledge persistence),
+    // sandboxes still go in the daemon-managed dir — not inside the repo.
+    const daemonDir = this.workspaceDir(key);
+    const storageDir = resolved.def.data_dir ? undefined : daemonDir;
+    const sandboxBaseDir = resolved.def.data_dir ? daemonDir : undefined;
     let workspaceRef: Workspace | null = null;
     let loopsRef: WorkspaceOrchestrator[] = [];
     const getAgents = async () => {
@@ -246,15 +252,36 @@ export class WorkspaceRegistry {
       pauseAgent: async (name) => { await findLoop(name).pause(); },
       resumeAgent: async (name) => { await findLoop(name).resume(); },
     });
-    const config = toWorkspaceConfig(resolved, { tag: input.tag, storageDir, connections });
+    const config = toWorkspaceConfig(resolved, { tag: input.tag, storageDir, connections, sandboxBaseDir });
     const workspace = await createWorkspace(config);
     workspaceRef = workspace;
 
-    // Ensure sandbox directories exist and create loops for each agent
+    // Run deferred setup steps in the shared workspace sandbox
     const loops: WorkspaceOrchestrator[] = loopsRef;
+    const sandboxDir = workspace.workspaceSandboxDir;
+    if (resolved.def.setup?.length && sandboxDir) {
+      mkdirSync(sandboxDir, { recursive: true });
+      const { runSetupSteps, interpolate } = await import("@agent-worker/workspace");
+      const baseVars: Record<string, string> = {
+        ...input.vars,
+        "workspace.name": resolved.def.name,
+        "sandbox": sandboxDir,
+      };
+      if (input.tag) baseVars["workspace.tag"] = input.tag;
+      const setupVars = await runSetupSteps(resolved.def.setup, baseVars, {
+        cwd: sandboxDir,
+      });
+      // Re-interpolate kickoff with setup vars
+      if (resolved.def.kickoff) {
+        resolved.kickoff = interpolate(resolved.def.kickoff, { ...baseVars, ...setupVars });
+      }
+    } else if (sandboxDir) {
+      mkdirSync(sandboxDir, { recursive: true });
+    }
+
+    // Create agent loops
     for (const agent of resolved.agents) {
       const { tools, promptSections, dirs } = createAgentTools(agent.name, workspace);
-      if (dirs.workspaceSandboxDir) mkdirSync(dirs.workspaceSandboxDir, { recursive: true });
       if (dirs.sandboxDir) mkdirSync(dirs.sandboxDir, { recursive: true });
       // Create symlinks for agent mounts
       if (agent.mounts && dirs.sandboxDir) {

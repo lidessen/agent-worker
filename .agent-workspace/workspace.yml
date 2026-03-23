@@ -28,10 +28,8 @@ default_channel: general
 setup:
   - shell: git clone --recurse-submodules https://github.com/lidessen/agent-worker.git .
   - shell: bun install
-  - shell: git log --oneline -20
+  - shell: git log --oneline -5
     as: recent_commits
-  - shell: git branch -r --list 'origin/feat/*' | head -10
-    as: active_branches
 
 agents:
   maintainer:
@@ -180,10 +178,5 @@ agents:
       - Records must have context: what, why, who decided
 
 kickoff: |
-  Recent commits:
-  ${{ recent_commits }}
-
-  Active branches:
-  ${{ active_branches }}
-
-  @maintainer Workspace ready. Repo cloned, dependencies installed.
+  Recent: ${{ recent_commits }}
+  @maintainer Workspace ready.

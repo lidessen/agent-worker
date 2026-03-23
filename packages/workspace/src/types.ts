@@ -138,8 +138,12 @@ export interface WorkspaceConfig {
   agents?: string[];
   connections?: ChannelAdapter[];
   storage?: StorageBackend;
-  /** Root directory for this workspace's file storage. */
+  /** Root directory for this workspace's file storage (docs, chronicle, channels). */
   storageDir?: string;
+  /** Root directory for agent sandboxes. Defaults to storageDir if not set.
+   *  Separate from storageDir when data_dir points to a repo (knowledge in repo,
+   *  sandboxes in daemon-managed dir). */
+  sandboxBaseDir?: string;
   queueConfig?: QueueConfig;
   /** SmartSend threshold in characters. Default: 1200 */
   maxMessageLength?: number;

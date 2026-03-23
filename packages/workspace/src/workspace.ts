@@ -27,6 +27,7 @@ export class Workspace implements WorkspaceRuntime {
   readonly tag: string | undefined;
   readonly defaultChannel: string;
   readonly storageDir: string | undefined;
+  private readonly _sandboxBaseDir: string | undefined;
   readonly contextProvider: ContextProvider;
   readonly eventLog: EventLog;
   readonly bridge: ChannelBridgeInterface;
@@ -49,6 +50,7 @@ export class Workspace implements WorkspaceRuntime {
     this.lead = config.lead;
     this.defaultChannel = config.defaultChannel ?? "general";
     this.storageDir = config.storageDir;
+    this._sandboxBaseDir = config.sandboxBaseDir;
 
     const storage = config.storage ?? new MemoryStorage();
     const channels = config.channels ?? [this.defaultChannel];
@@ -136,14 +138,16 @@ export class Workspace implements WorkspaceRuntime {
 
   /** Get the shared workspace sandbox directory (collaborative files). */
   get workspaceSandboxDir(): string | undefined {
-    if (!this.storageDir) return undefined;
-    return join(this.storageDir, "sandbox");
+    const base = this._sandboxBaseDir ?? this.storageDir;
+    if (!base) return undefined;
+    return join(base, "sandbox");
   }
 
   /** Get the agent's sandbox directory (working directory for bash/files). */
   agentSandboxDir(agentName: string): string | undefined {
-    if (!this.storageDir) return undefined;
-    return join(this.storageDir, "agents", agentName, "sandbox");
+    const base = this._sandboxBaseDir ?? this.storageDir;
+    if (!base) return undefined;
+    return join(base, "agents", agentName, "sandbox");
   }
 
   // ── Internal routing ──────────────────────────────────────────────────

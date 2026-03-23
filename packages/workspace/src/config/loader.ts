@@ -75,12 +75,16 @@ export function resolveModel(spec: ModelSpec): ResolvedModel {
 export async function runSetupSteps(
   steps: SetupStep[],
   baseVars: Record<string, string> = {},
+  opts?: { cwd?: string },
 ): Promise<Record<string, string>> {
   const vars = { ...baseVars };
 
   for (const step of steps) {
     const cmd = interpolate(step.shell, vars);
-    const result = await execa("sh", ["-c", cmd], { reject: false });
+    const result = await execa("sh", ["-c", cmd], {
+      reject: false,
+      cwd: opts?.cwd,
+    });
 
     if (result.exitCode !== 0) {
       throw new Error(
@@ -375,6 +379,8 @@ export async function resolveConnections(
 export interface ToWorkspaceConfigOptions extends LoadOptions {
   /** Override the data directory (takes precedence over def.data_dir and the default). */
   storageDir?: string;
+  /** Separate base directory for sandboxes (when storageDir points to a repo). */
+  sandboxBaseDir?: string;
   /** Pre-resolved connections to attach. */
   connections?: ChannelAdapter[];
 }
@@ -411,6 +417,7 @@ export function toWorkspaceConfig(
     lead: def.lead,
     connections: opts.connections,
     storage,
+    sandboxBaseDir: opts.sandboxBaseDir,
     storageDir: storageType === "file" ? storageDir : undefined,
   };
 }
