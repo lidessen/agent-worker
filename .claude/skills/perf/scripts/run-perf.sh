@@ -3,7 +3,7 @@
 # Usage: bash run-perf.sh [--no-build] [--no-restart] [--quick]
 set -euo pipefail
 
-ROOT="/Users/lidessen/workspaces/agent-worker"
+ROOT=$(git rev-parse --show-toplevel)
 WEB="$ROOT/packages/web"
 INDEX="$WEB/src/index.html"
 REPORT="/tmp/aw-perf.json"

@@ -694,7 +694,7 @@ export class Daemon {
               channel: msg.channel,
             };
             if (flushing) {
-              const msgId = msg.id ?? `${msg.timestamp}-${msg.content}`;
+              const msgId = msg.id ?? `${msg.timestamp}-${crypto.randomUUID()}`;
               if (!seenIds.has(msgId)) {
                 seenIds.add(msgId);
                 push(entry);
@@ -729,7 +729,7 @@ export class Daemon {
 
           // 3. Flush buffer, dedup against backlog
           for (const { entry, msg } of buffer) {
-            const msgId = msg.id ?? `${msg.timestamp}-${msg.content}`;
+            const msgId = msg.id ?? `${msg.timestamp}-${crypto.randomUUID()}`;
             if (!seenIds.has(msgId)) {
               seenIds.add(msgId);
               push(entry);
