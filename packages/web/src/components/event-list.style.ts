@@ -47,7 +47,7 @@ export const emptyContent = rule`${c.emptyContent} {
   text-align: center;
   max-width: 320px;
   padding: ${tokens.space.xl};
-  border-radius: ${tokens.radii.lg};
+  border-radius: ${tokens.radii.xl};
   background: ${tokens.colors.surfaceSecondary};
   border: 1px solid ${tokens.colors.border};
 }`;
@@ -78,7 +78,7 @@ export const item = rule`${c.item} {
   gap: ${tokens.space.xs};
 }
 ${c.item}:not(:first-child) {
-  padding-top: ${tokens.space.md};
+  padding-top: ${tokens.space.sm};
 }
 ${c.item}:not(:first-child)::before {
   content: "";
@@ -91,7 +91,7 @@ ${c.item}:not(:first-child)::before {
 }
 @media (max-width: 640px) {
   ${c.item}:not(:first-child) {
-    padding-top: ${tokens.space.sm};
+    padding-top: ${tokens.space.xs};
   }
 }`;
 
@@ -116,31 +116,31 @@ export const itemDot = rule`${c.itemDot} {
 }`;
 
 export const itemLabel = rule`${c.itemLabel} {
-  font-size: 0.68rem;
+  font-size: ${tokens.fontSizes.xxs};
   color: ${tokens.colors.textDim};
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
 }
 @media (max-width: 640px) {
   ${c.itemLabel} {
-    font-size: 0.62rem;
+    font-size: ${tokens.fontSizes.xxs};
     letter-spacing: 0.08em;
   }
 }`;
 
 export const itemTime = rule`${c.itemTime} {
-  font-size: 0.72rem;
+  font-size: ${tokens.fontSizes.xxs};
   color: ${tokens.colors.textDim};
 }
 @media (max-width: 640px) {
   ${c.itemTime} {
-    font-size: 0.68rem;
+    font-size: ${tokens.fontSizes.xxs};
   }
 }`;
 
 export const itemBody = rule`${c.itemBody} {
   min-width: 0;
-  padding-left: 8px;
+  padding-left: 6px;
 }
 @media (max-width: 640px) {
   ${c.itemBody} {

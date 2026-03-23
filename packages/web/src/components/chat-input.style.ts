@@ -26,17 +26,17 @@ export const composer = rule`${c.composer} {
   display: flex;
   flex-direction: column;
   gap: ${tokens.space.sm};
-  padding: 12px 14px 10px;
+  padding: 10px 12px 9px;
   border: 1px solid ${tokens.colors.border};
-  border-radius: 16px;
+  border-radius: ${tokens.radii.xl};
   background: ${tokens.colors.surfaceSecondary};
   box-shadow: ${tokens.shadows.inset};
 }
 @media (max-width: 640px) {
   ${c.composer} {
     gap: ${tokens.space.xs};
-    padding: 10px 12px 8px;
-    border-radius: 14px;
+    padding: 9px 11px 8px;
+    border-radius: ${tokens.radii.lg};
   }
 }`;
 
@@ -48,11 +48,11 @@ export const textarea = rule`${c.textarea} {
   background: transparent;
   color: ${tokens.colors.text};
   font-family: ${tokens.fonts.base};
-  font-size: 0.95rem;
+  font-size: ${tokens.fontSizes.md};
   padding: 0;
   line-height: 1.4;
-  min-height: 40px;
-  max-height: 128px;
+  min-height: 36px;
+  max-height: 120px;
   overflow-y: auto;
 }
 ${c.textarea}:focus {
@@ -88,13 +88,13 @@ export const footer = rule`${c.footer} {
 }`;
 
 export const shortcut = rule`${c.shortcut} {
-  font-size: 0.72rem;
+  font-size: ${tokens.fontSizes.xxs};
   color: ${tokens.colors.textDim};
   font-weight: ${tokens.fontWeights.medium};
 }
 @media (max-width: 640px) {
   ${c.shortcut} {
-    font-size: 0.68rem;
+    font-size: ${tokens.fontSizes.xxs};
   }
 }`;
 
@@ -102,8 +102,8 @@ export const sendBtn = rule`${c.sendBtn} {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
+  width: 32px;
+  height: 32px;
   padding: 0;
   border: 1px solid ${tokens.colors.borderStrong};
   border-radius: ${tokens.radii.pill};
@@ -124,8 +124,8 @@ ${c.sendBtn}:disabled {
 }
 @media (max-width: 640px) {
   ${c.sendBtn} {
-    width: 30px;
-    height: 30px;
+    width: 28px;
+    height: 28px;
   }
 }`;
 

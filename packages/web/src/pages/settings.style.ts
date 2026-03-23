@@ -30,16 +30,16 @@ const c = classes([
 export const page = rule`${c.page} {
   display: flex;
   flex-direction: column;
-  gap: ${tokens.space.xxl};
+  gap: ${tokens.space.xl};
   max-width: 820px;
-  padding: ${tokens.space.xl} ${tokens.space.xxl} ${tokens.space.xxl};
+  padding: ${tokens.space.lg} ${tokens.space.xl} ${tokens.space.xxl};
 }`;
 
 export const section = rule`${c.section} {
   display: flex;
   flex-direction: column;
-  gap: ${tokens.space.md};
-  padding: ${tokens.space.xl};
+  gap: ${tokens.space.sm};
+  padding: ${tokens.space.lg};
   border-radius: ${tokens.radii.xl};
   background: ${tokens.colors.panel};
   border: 1px solid ${tokens.colors.border};
@@ -47,9 +47,9 @@ export const section = rule`${c.section} {
 }`;
 
 export const sectionTitle = rule`${c.sectionTitle} {
-  font-size: ${tokens.fontSizes.xl};
-  font-weight: ${tokens.fontWeights.bold};
-  letter-spacing: -0.03em;
+  font-size: ${tokens.fontSizes.lg};
+  font-weight: ${tokens.fontWeights.semibold};
+  letter-spacing: -0.02em;
   color: ${tokens.colors.text};
 }`;
 
@@ -63,7 +63,7 @@ export const sectionContent = rule`${c.sectionContent} {
 export const form = rule`${c.form} {
   display: flex;
   flex-direction: column;
-  gap: ${tokens.space.lg};
+  gap: ${tokens.space.md};
 }`;
 
 export const field = rule`${c.field} {
@@ -80,7 +80,7 @@ export const label = rule`${c.label} {
 
 export const input = rule`${c.input} {
   border: 1px solid ${tokens.colors.border};
-  border-radius: ${tokens.radii.xl};
+  border-radius: ${tokens.radii.lg};
   background: ${tokens.colors.input};
   color: ${tokens.colors.text};
   font-family: ${tokens.fonts.base};
@@ -102,6 +102,7 @@ ${c.input}::placeholder {
 export const actions = rule`${c.actions} {
   display: flex;
   gap: ${tokens.space.sm};
+  margin-top: ${tokens.space.xs};
 }
 @media (max-width: 640px) {
   ${c.actions} {
@@ -111,7 +112,7 @@ export const actions = rule`${c.actions} {
 
 export const btn = rule`${c.btn} {
   border: 1px solid ${tokens.colors.border};
-  border-radius: ${tokens.radii.xl};
+  border-radius: ${tokens.radii.lg};
   background: ${tokens.colors.panel};
   color: ${tokens.colors.text};
   font-size: ${tokens.fontSizes.sm};
@@ -162,7 +163,7 @@ export const messageError = rule`${c.messageError} {
 export const info = rule`${c.info} {
   display: flex;
   flex-direction: column;
-  gap: ${tokens.space.xs};
+  gap: 2px;
 }`;
 
 export const infoRow = rule`${c.infoRow} {
@@ -170,7 +171,7 @@ export const infoRow = rule`${c.infoRow} {
   justify-content: space-between;
   align-items: center;
   gap: ${tokens.space.lg};
-  padding: ${tokens.space.sm} 0;
+  padding: 7px 0;
 }
 @media (max-width: 640px) {
   ${c.infoRow} {
@@ -203,7 +204,8 @@ export const runtimeIcon = rule`${c.runtimeIcon} {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
+  width: 14px;
+  height: 14px;
   color: ${tokens.colors.textMuted};
   flex: 0 0 auto;
 }`;

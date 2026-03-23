@@ -18,6 +18,7 @@ const tokenDefinition = {
     surfaceSecondary: "#ffffff",
     surfaceTertiary: "#f6f6f6",
     border: "#e1e1e1",
+    borderSubtle: "#ececec",
     borderStrong: "#cfcfcf",
     borderHover: "#c5c5c5",
     text: "#1f1f1f",
@@ -87,6 +88,7 @@ const tokenDefinition = {
   },
 
   fontSizes: {
+    xxs: "0.6875rem",
     xs: "0.75rem",
     sm: "0.8125rem",
     md: "0.875rem",
@@ -128,6 +130,7 @@ const darkTheme = createTheme(tokens, {
     surfaceSecondary: "#1f1f1f",
     surfaceTertiary: "#2a2a2a",
     border: "#2b2b2b",
+    borderSubtle: "#242628",
     borderStrong: "#3a3d41",
     borderHover: "#45494e",
     text: "#cccccc",

@@ -30,9 +30,9 @@ export const header = rule`${c.header} {
   display: flex;
   align-items: center;
   gap: ${tokens.space.md};
-  padding: ${tokens.space.lg} ${tokens.space.xl} ${tokens.space.md};
+  padding: ${tokens.space.md} ${tokens.space.xl};
   border-bottom: 1px solid ${tokens.colors.border};
-  background: ${tokens.colors.backgroundElevated};
+  background: ${tokens.colors.headerSheen};
   flex-shrink: 0;
   position: sticky;
   top: 0;
@@ -77,7 +77,7 @@ export const badge = rule`${c.badge} {
   color: ${tokens.colors.textMuted};
   border: 1px solid ${tokens.colors.border};
   border-radius: ${tokens.radii.pill};
-  padding: 4px ${tokens.space.sm};
+  padding: 3px ${tokens.space.sm};
   background: ${tokens.colors.badge};
 }`;
 
@@ -98,7 +98,7 @@ export const wsLabel = rule`${c.wsLabel} {
   color: ${tokens.colors.textMuted};
   border: 1px solid ${tokens.colors.border};
   border-radius: ${tokens.radii.pill};
-  padding: 4px ${tokens.space.sm};
+  padding: 3px ${tokens.space.sm};
   background: ${tokens.colors.badge};
 }`;
 
@@ -114,7 +114,7 @@ export const sendErrorBar = rule`${c.sendErrorBar} {
   align-items: center;
   justify-content: space-between;
   margin: 0 ${tokens.space.xl};
-  margin-bottom: ${tokens.space.md};
+  margin-bottom: ${tokens.space.sm};
   padding: ${tokens.space.sm} ${tokens.space.md};
   border-radius: ${tokens.radii.lg};
   background: ${tokens.colors.dangerSurface};
@@ -148,7 +148,7 @@ ${c.sendErrorDismiss}:hover {
 export const streamErrorBar = rule`${c.streamErrorBar} {
   display: flex;
   align-items: center;
-  margin: ${tokens.space.md} ${tokens.space.xl} 0;
+  margin: ${tokens.space.sm} ${tokens.space.xl} 0;
   padding: ${tokens.space.sm} ${tokens.space.md};
   border-radius: ${tokens.radii.lg};
   background: ${tokens.colors.warningSurface};

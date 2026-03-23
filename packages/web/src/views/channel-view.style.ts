@@ -20,9 +20,9 @@ export const header = rule`${c.header} {
   display: flex;
   align-items: center;
   gap: ${tokens.space.md};
-  padding: ${tokens.space.lg} ${tokens.space.xl} ${tokens.space.md};
+  padding: ${tokens.space.md} ${tokens.space.xl};
   border-bottom: 1px solid ${tokens.colors.border};
-  background: ${tokens.colors.backgroundElevated};
+  background: ${tokens.colors.headerSheen};
   flex-shrink: 0;
   position: sticky;
   top: 0;
@@ -63,7 +63,7 @@ export const wsLabel = rule`${c.wsLabel} {
   color: ${tokens.colors.textMuted};
   border: 1px solid ${tokens.colors.border};
   border-radius: ${tokens.radii.pill};
-  padding: 4px ${tokens.space.sm};
+  padding: 3px ${tokens.space.sm};
   background: ${tokens.colors.badge};
 }`;
 
@@ -79,10 +79,10 @@ export const headerActions = rule`${d.headerActions} {
 export const clearBtn = rule`${d.clearBtn} {
   background: transparent;
   border: 1px solid ${tokens.colors.border};
-  border-radius: ${tokens.radii.md};
+  border-radius: ${tokens.radii.pill};
   color: ${tokens.colors.textMuted};
   font-size: ${tokens.fontSizes.xs};
-  padding: 4px ${tokens.space.sm};
+  padding: 3px ${tokens.space.xs};
   cursor: pointer;
   transition: color ${tokens.transitions.fast}, border-color ${tokens.transitions.fast}, background ${tokens.transitions.fast};
 }
@@ -93,6 +93,6 @@ ${d.clearBtn}:hover {
 }
 @media (max-width: 640px) {
   ${d.clearBtn} {
-    padding: 4px ${tokens.space.xs};
+    padding: 2px ${tokens.space.xs};
   }
 }`;

@@ -25,7 +25,7 @@ export const header = rule`${c.header} {
   align-items: center;
   justify-content: space-between;
   gap: ${tokens.space.md};
-  padding: ${tokens.space.lg} ${tokens.space.xl} ${tokens.space.md};
+  padding: ${tokens.space.md} ${tokens.space.xl};
   border-bottom: 1px solid ${tokens.colors.border};
   background: ${tokens.colors.headerSheen};
   flex-shrink: 0;
@@ -53,6 +53,8 @@ export const toolbar = rule`${c.toolbar} {
   display: flex;
   gap: ${tokens.space.sm};
   flex-shrink: 0;
+  align-items: center;
+  margin-left: auto;
 }
 @media (max-width: 640px) {
   ${c.toolbar} {
@@ -67,18 +69,19 @@ export const toolbarBtn = rule`${c.toolbarBtn} {
   border: 1px solid ${tokens.colors.border};
   border-radius: ${tokens.radii.pill};
   color: ${tokens.colors.textMuted};
-  padding: 6px ${tokens.space.md};
+  padding: 4px ${tokens.space.sm};
   font-size: ${tokens.fontSizes.xs};
   cursor: pointer;
-  transition: color ${tokens.transitions.fast}, border-color ${tokens.transitions.fast};
+  transition: color ${tokens.transitions.fast}, border-color ${tokens.transitions.fast}, background ${tokens.transitions.fast};
 }
 ${c.toolbarBtn}:hover {
   color: ${tokens.colors.text};
   border-color: ${tokens.colors.borderHover};
+  background: ${tokens.colors.surfaceHover};
 }
 @media (max-width: 640px) {
   ${c.toolbarBtn} {
-    padding: 5px ${tokens.space.sm};
+    padding: 4px ${tokens.space.xs};
   }
 }`;
 
@@ -116,7 +119,7 @@ export const contentPre = rule`${c.contentPre} {
 @media (max-width: 640px) {
   ${c.contentPre} {
     padding: ${tokens.space.md};
-    font-size: 0.7rem;
+    font-size: ${tokens.fontSizes.xxs};
   }
 }`;
 
@@ -139,6 +142,6 @@ ${c.editArea}:focus {
 @media (max-width: 640px) {
   ${c.editArea} {
     padding: ${tokens.space.md};
-    font-size: 0.7rem;
+    font-size: ${tokens.fontSizes.xxs};
   }
 }`;
