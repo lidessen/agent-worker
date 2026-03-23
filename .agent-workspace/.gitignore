@@ -1,0 +1,9 @@
+# Runtime state (ephemeral, not version-controlled)
+channels/
+agents/
+status.json
+resources/
+
+# Keep project knowledge (version-controlled)
+# documents/ — team docs
+# chronicle/ — historian records
