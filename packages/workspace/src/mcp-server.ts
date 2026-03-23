@@ -215,9 +215,16 @@ export class WorkspaceMcpHub {
     const isExternal = endpointName.startsWith("$");
     const agentName = isExternal ? `mcp:${endpointName.slice(1)}` : endpointName;
 
+    // Three paths:
+    // 1. External ($-prefixed) → debug server (mcp: prefix, all channels, debug tools)
+    // 2. Lead agent → agent server + debug tools (real agent name, all channels)
+    // 3. Regular agent → agent server only
+    const isLead = !isExternal && this.workspace.isLead(agentName);
     const server = isExternal
       ? await this.createDebugServer(agentName)
-      : await this.createAgentServer(agentName);
+      : isLead
+        ? await this.createLeadServer(agentName)
+        : await this.createAgentServer(agentName);
 
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: () => randomUUID(),
@@ -283,6 +290,15 @@ export class WorkspaceMcpHub {
       }
     }
 
+    return server;
+  }
+
+  // ── Lead server factory ──────────────────────────────────────────────
+
+  private async createLeadServer(agentName: string): Promise<McpServer> {
+    // Lead is a real agent (auto-registered with all channels via workspace.registerAgent)
+    const server = await this.createAgentServer(agentName);
+    this.registerDebugTools(server);
     return server;
   }
 
@@ -488,6 +504,7 @@ export class WorkspaceMcpHub {
 
         const lines = [
           `Workspace: ${ws.name}${ws.tag ? ` (tag: ${ws.tag})` : ""}`,
+          `Lead: ${ws.lead ?? "none"}`,
           `Default channel: #${ws.defaultChannel}`,
           `Channels: ${channels.join(", ")}`,
           `Agents: ${agents.length} (${agents.map((a) => a.name).join(", ")})`,

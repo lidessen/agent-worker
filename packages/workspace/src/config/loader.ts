@@ -238,6 +238,14 @@ export async function loadWorkspaceDef(
     });
   }
 
+  // Validate lead references an existing agent
+  if (def.lead && !def.agents[def.lead]) {
+    throw new Error(
+      `Invalid workspace definition: 'lead' references unknown agent "${def.lead}". ` +
+        `Available agents: ${Object.keys(def.agents).join(", ")}`,
+    );
+  }
+
   // Build template vars
   const baseVars: Record<string, string> = {
     ...opts.vars,
@@ -400,6 +408,7 @@ export function toWorkspaceConfig(
     channels: def.channels,
     defaultChannel: def.default_channel,
     agents: resolved.agents.map((a) => a.name),
+    lead: def.lead,
     connections: opts.connections,
     storage,
     storageDir: storageType === "file" ? storageDir : undefined,

@@ -96,6 +96,8 @@ export interface WorkspaceDef {
   connections?: ConnectionDef[];
   /** Workspace-level environment variables (applied to all agents as defaults). */
   env?: Record<string, string>;
+  /** Optional team lead agent name. The lead gets debug tools + all-channel access. */
+  lead?: string;
 }
 
 /** Resolved model — normalized from any ModelSpec form. */

@@ -40,9 +40,13 @@ export class Workspace implements WorkspaceRuntime {
   /** Agent name → set of joined channels. */
   private agentChannels = new Map<string, Set<string>>();
 
+  /** Optional team lead agent name (gets debug tools + all-channel access). */
+  readonly lead: string | undefined;
+
   constructor(config: WorkspaceConfig) {
     this.name = config.name;
     this.tag = config.tag;
+    this.lead = config.lead;
     this.defaultChannel = config.defaultChannel ?? "general";
     this.storageDir = config.storageDir;
 
@@ -103,8 +107,17 @@ export class Workspace implements WorkspaceRuntime {
     await this.bridgeImpl.shutdown();
   }
 
+  /** Whether the given agent name is the team lead. */
+  isLead(name: string): boolean {
+    return this.lead !== undefined && this.lead === name;
+  }
+
   async registerAgent(name: string, channels?: string[]): Promise<void> {
-    const agentChs = new Set<string>(channels ?? [this.defaultChannel]);
+    // Lead agents auto-join ALL channels (like external/debug users)
+    const chs = this.isLead(name)
+      ? this.contextProvider.channels.listChannels()
+      : (channels ?? [this.defaultChannel]);
+    const agentChs = new Set<string>(chs);
     this.agentChannels.set(name, agentChs);
 
     await this.statusStore.set(name, "idle");

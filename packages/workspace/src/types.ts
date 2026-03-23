@@ -143,6 +143,8 @@ export interface WorkspaceConfig {
   queueConfig?: QueueConfig;
   /** SmartSend threshold in characters. Default: 1200 */
   maxMessageLength?: number;
+  /** Optional team lead agent name (gets debug tools + all-channel access). */
+  lead?: string;
 }
 
 // ── Channel Bridge & Adapter ───────────────────────────────────────────────
