@@ -60,6 +60,12 @@ agents:
       - vendor/semajsx/ is a git submodule (signal-based JSX framework, NOT React)
       - Runtime: bun. HTTP: hono. Subprocess: execa
       - Tests: bun test. Lint: oxlint. Format: oxfmt. Typecheck: tsgo
+      - Code is at: ${{ sandbox }}
+
+      ## Testing changes
+      After implementation, test by starting a heir daemon instance from the
+      sandbox code. See the "dev-environment" doc for exact commands.
+      The shared workspace path is in the prompt Directories section.
 
       ## Principles
       - Breaking changes OK — update all callers directly

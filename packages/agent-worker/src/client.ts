@@ -411,13 +411,16 @@ export class AwClient {
  * Read-only / inspection commands should use AwClient.discover() directly
  * so they fail fast when the daemon isn't running.
  */
-export async function ensureDaemon(dataDir?: string): Promise<AwClient> {
+export async function ensureDaemon(
+  dataDir?: string,
+  opts?: { extraArgs?: string[] },
+): Promise<AwClient> {
   const dir = dataDir ?? defaultDataDir();
   const existing = await readDaemonInfo(dir);
   if (existing) {
     return AwClient.fromInfo(existing);
   }
-  const info = await spawnDaemon(dir);
+  const info = await spawnDaemon(dir, opts?.extraArgs);
   return AwClient.fromInfo(info);
 }
 
@@ -425,7 +428,7 @@ export async function ensureDaemon(dataDir?: string): Promise<AwClient> {
  * Spawn a daemon process in the background and wait for it to be ready.
  * Returns the DaemonInfo once the daemon has written its discovery file.
  */
-async function spawnDaemon(dataDir: string): Promise<DaemonInfo> {
+async function spawnDaemon(dataDir: string, extraArgs?: string[]): Promise<DaemonInfo> {
   const cliEntry = join(dirname(fileURLToPath(import.meta.url)), "cli", "index.ts");
 
   // Strip CLAUDECODE so nested Claude Code sessions can inherit
@@ -438,7 +441,13 @@ async function spawnDaemon(dataDir: string): Promise<DaemonInfo> {
   // so API keys set in shell profiles are available to the daemon.
   const isBun = !!process.versions.bun;
   const runtime = isBun ? "bun" : process.execPath;
-  const runtimeArgs = [...(isBun ? ["run"] : process.execArgv), cliEntry, "daemon", "start"];
+  const dataDirArgs = dataDir !== defaultDataDir() ? ["--data-dir", dataDir] : [];
+  const runtimeArgs = [
+    ...(isBun ? ["run"] : process.execArgv),
+    cliEntry, "daemon", "start",
+    ...dataDirArgs,
+    ...(extraArgs ?? []),
+  ];
 
   const subprocess = execa(runtime, runtimeArgs, {
     env,

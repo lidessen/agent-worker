@@ -17,9 +17,9 @@ export async function daemon(args: string[]): Promise<void> {
       console.log(`Usage: aw daemon <command>
 
 Commands:
-  start [-p PORT] [--host HOST] [--trust-tailscale]    Start daemon (foreground)
-  start -d           Start daemon (background)
-  stop               Stop daemon
+  start [-p PORT] [--host HOST] [--data-dir DIR] [--mcp-port PORT]    Start daemon
+  start -d [options]                                                  Start in background
+  stop                                                                Stop daemon
 `);
       if (sub && sub !== "--help" && sub !== "-h") {
         console.error(`Unknown daemon command: ${sub}`);
@@ -31,10 +31,29 @@ Commands:
 async function daemonStart(args: string[]): Promise<void> {
   // Background mode: spawn detached and exit
   if (args.includes("-d") || args.includes("--daemon")) {
-    await stopExistingDaemon();
-    const client = await ensureDaemon();
+    // Parse args before spawning so we can pass them through
+    const portIdx = args.indexOf("-p");
+    const port = portIdx >= 0 ? args[portIdx + 1] : undefined;
+    const hostIdx = args.indexOf("--host");
+    const host = hostIdx >= 0 ? args[hostIdx + 1] : undefined;
+    const dataDirIdx = args.indexOf("--data-dir");
+    const dataDir = dataDirIdx >= 0 ? args[dataDirIdx + 1] : undefined;
+    const mcpPortIdx = args.indexOf("--mcp-port");
+    const mcpPort = mcpPortIdx >= 0 ? args[mcpPortIdx + 1] : undefined;
+
+    if (!dataDir) {
+      await stopExistingDaemon();
+    }
+    const client = await ensureDaemon(dataDir, {
+      extraArgs: [
+        ...(port ? ["-p", port] : []),
+        ...(host ? ["--host", host] : []),
+        ...(mcpPort ? ["--mcp-port", mcpPort] : []),
+        ...(args.includes("--trust-tailscale") ? ["--trust-tailscale"] : []),
+      ],
+    });
     const health = await client.health();
-    const info = await readDaemonInfo();
+    const info = await readDaemonInfo(dataDir);
     console.log(`Daemon running in background`);
     console.log(`  PID:     ${health.pid}`);
     console.log(`  URL:     http://${info?.host ?? "127.0.0.1"}:${info?.port ?? "?"}`);
@@ -47,10 +66,16 @@ async function daemonStart(args: string[]): Promise<void> {
   const port = portIdx >= 0 ? parseInt(args[portIdx + 1]!, 10) : undefined;
   const hostIdx = args.indexOf("--host");
   const host = hostIdx >= 0 ? args[hostIdx + 1] : undefined;
+  const dataDirIdx = args.indexOf("--data-dir");
+  const dataDir = dataDirIdx >= 0 ? args[dataDirIdx + 1] : undefined;
+  const mcpPortIdx = args.indexOf("--mcp-port");
+  const mcpPort = mcpPortIdx >= 0 ? parseInt(args[mcpPortIdx + 1]!, 10) : undefined;
   const trustTailscale = args.includes("--trust-tailscale");
 
-  // Stop any existing daemon before starting
-  await stopExistingDaemon();
+  // Stop any existing daemon before starting (only for default data-dir)
+  if (!dataDir) {
+    await stopExistingDaemon();
+  }
 
   // Load saved secrets into process.env so runtimes can resolve API keys
   const { loadSecrets } = await import("@agent-worker/workspace");
@@ -62,7 +87,7 @@ async function daemonStart(args: string[]): Promise<void> {
   }
 
   console.log("Starting agent-worker daemon...");
-  const { daemon, info } = await startDaemon({ port, host, trustTailscale });
+  const { daemon, info } = await startDaemon({ port, host, dataDir, mcpPort, trustTailscale });
   console.log();
   console.log(`  PID:     ${info.pid}`);
   console.log(`  URL:     http://${info.host}:${info.port}`);
