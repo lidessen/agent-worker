@@ -83,11 +83,12 @@ const server = new McpServer({ name: `workspace-${agent}`, version: "0.0.1" });
 
 const toolDefs: Record<string, { desc: string; params: Record<string, z.ZodTypeAny> }> = {
   channel_send: {
-    desc: "Send a message to a channel (max 1200 chars)",
+    desc: "Send a message to a channel (max 1200 chars). Guard checks for new messages since you last read — use force=true to bypass.",
     params: {
       channel: z.string().describe("Channel name"),
       content: z.string().describe("Message content"),
       to: z.string().optional().describe("DM recipient"),
+      force: z.boolean().optional().describe("Bypass the new-message guard"),
     },
   },
   channel_read: {

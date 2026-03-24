@@ -133,6 +133,50 @@ describe("ChannelStore", () => {
     expect(found!.content).toBe("design note");
   });
 
+  test("read with sinceId returns messages after given ID", async () => {
+    const msg1 = await store.append("general", {
+      from: "alice",
+      channel: "general",
+      content: "first",
+      mentions: [],
+    });
+    const msg2 = await store.append("general", {
+      from: "bob",
+      channel: "general",
+      content: "second",
+      mentions: [],
+    });
+    await store.append("general", {
+      from: "carol",
+      channel: "general",
+      content: "third",
+      mentions: [],
+    });
+
+    // sinceId = msg1 → should return msg2 and msg3
+    const afterFirst = await store.read("general", { sinceId: msg1.id });
+    expect(afterFirst).toHaveLength(2);
+    expect(afterFirst[0]!.content).toBe("second");
+    expect(afterFirst[1]!.content).toBe("third");
+
+    // sinceId = msg2 → should return only msg3
+    const afterSecond = await store.read("general", { sinceId: msg2.id });
+    expect(afterSecond).toHaveLength(1);
+    expect(afterSecond[0]!.content).toBe("third");
+  });
+
+  test("read with unknown sinceId returns all messages (safe fallback)", async () => {
+    await store.append("general", {
+      from: "alice",
+      channel: "general",
+      content: "hello",
+      mentions: [],
+    });
+
+    const messages = await store.read("general", { sinceId: "nonexistent" });
+    expect(messages).toHaveLength(1);
+  });
+
   test("channels are isolated", async () => {
     await store.append("general", {
       from: "alice",

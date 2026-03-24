@@ -218,7 +218,7 @@ export interface ContextProvider {
 
 export interface ChannelStoreInterface {
   append(channel: string, message: Omit<Message, "id" | "timestamp">): Promise<Message>;
-  read(channel: string, opts?: { since?: string; limit?: number }): Promise<Message[]>;
+  read(channel: string, opts?: { since?: string; sinceId?: string; limit?: number }): Promise<Message[]>;
   getMessage(channel: string, messageId: string): Promise<Message | null>;
   listChannels(): string[];
   createChannel(name: string): void;
