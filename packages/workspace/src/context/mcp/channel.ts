@@ -40,8 +40,16 @@ export function createChannelTools(
       const messages = await provider.channels.read(channel, { limit: limit ?? 20 });
       if (messages.length === 0) return `#${channel}: no messages`;
 
-      const lines = messages.map((m) => `[${m.id}] @${m.from}: ${m.content}`);
-      return `#${channel} (${messages.length} messages):\n${lines.join("\n")}`;
+      const blocks = messages.map((m) => {
+        const time = m.timestamp.split("T")[1]?.slice(0, 5) ?? "";
+        const header = `[${m.id}] ${time} @${m.from}`;
+        // Indent multiline content for visual separation
+        const body = m.content.includes("\n")
+          ? m.content.split("\n").map((l) => `  ${l}`).join("\n")
+          : `  ${m.content}`;
+        return `${header}\n${body}`;
+      });
+      return `#${channel} (${messages.length} messages):\n\n${blocks.join("\n\n")}`;
     },
 
     async channel_list() {

@@ -74,17 +74,19 @@ export const conversationSection: PromptSection = async (ctx) => {
     const recent = allMsgs.slice(-RECENT_MSG_LIMIT);
     const omitted = total - recent.length;
 
-    const lines = recent.map((m) => {
+    const blocks = recent.map((m) => {
       const isCurrent = ctx.currentMessageId === m.id;
       const marker = isCurrent ? "→ " : "  ";
-      return `${marker}${formatMessage(m)}`;
+      const formatted = formatMessage(m);
+      // Indent continuation lines of multi-line messages to match marker width
+      return formatted.split("\n").map((line, i) => (i === 0 ? `${marker}${line}` : `  ${line}`)).join("\n");
     });
 
     let header = `#${ch}:`;
     if (omitted > 0) {
-      header += ` (${omitted} earlier — use \`channel_read\` with higher \`limit\` to see more)`;
+      header += ` (${omitted} earlier -- use \`channel_read\` with higher \`limit\` to see more)`;
     }
-    sections.push(`${header}\n${lines.join("\n")}`);
+    sections.push(`${header}\n${blocks.join("\n")}`);
   }
 
   // If the instruction didn't come from a channel (e.g. direct/API), show it separately
@@ -125,10 +127,19 @@ export const WORKSPACE_PROMPT_SECTIONS: PromptSection[] = [
 
 function formatMessage(m: Message): string {
   const time = m.timestamp.split("T")[1]?.slice(0, 5) ?? "";
-  const content = m.content;
+  let content = m.content;
+  let truncated = false;
   if (content.length > MSG_PREVIEW_LIMIT) {
-    const preview = content.slice(0, MSG_PREVIEW_LIMIT);
-    return `[${time}] @${m.from}: ${preview}… <msg:${m.id}>`;
+    content = content.slice(0, MSG_PREVIEW_LIMIT);
+    truncated = true;
   }
-  return `[${time}] @${m.from}: ${content}`;
+  const suffix = truncated ? ` <msg:${m.id}>` : "";
+  // Header on its own line, content indented — prevents @mentions in content
+  // from being confused with the sender @name
+  const header = `[${time}] @${m.from}${suffix}`;
+  if (content.includes("\n") || content.length > 80) {
+    const body = content.split("\n").map((l) => `  ${l}`).join("\n");
+    return `${header}\n${body}`;
+  }
+  return `${header}: ${content}`;
 }
