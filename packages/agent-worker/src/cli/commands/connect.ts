@@ -140,8 +140,10 @@ Examples:
 }
 
 async function connectTelegram(args: string[]): Promise<void> {
+  const platform = "telegram";
   const nameIdx = args.indexOf("--name");
-  const name = nameIdx >= 0 ? args[nameIdx + 1] : "telegram";
+  const name = nameIdx >= 0 ? args[nameIdx + 1] : platform;
+  const isPrimary = name === platform;
   if (nameIdx >= 0 && !name) {
     fatal("--name requires a value");
   }
@@ -150,10 +152,10 @@ async function connectTelegram(args: string[]): Promise<void> {
   let botToken: string | undefined;
 
   try {
-    const existing = await loadConnection("telegram", name);
+    const existing = await loadConnection(platform, name);
     if (existing) {
       const tg = existing as TelegramConnection;
-      console.log(`\n  Existing Telegram connection${name !== "telegram" ? ` "${name}"` : ""} found:`);
+      console.log(`\n  Existing Telegram connection${!isPrimary ? ` "${name}"` : ""} found:`);
       console.log(`    Chat ID:  ${tg.chat_id}`);
       if (tg.username) console.log(`    Username: @${tg.username}`);
       console.log();
@@ -193,15 +195,15 @@ async function connectTelegram(args: string[]): Promise<void> {
       username: result.username,
       first_name: result.firstName,
     };
-    const savedPath = await saveConnection("telegram", conn, name);
+    const savedPath = await saveConnection(platform, conn, name);
 
     // Save secrets for ${{ secrets.X }} interpolation (only for primary connection)
-    if (name === "telegram") {
+    if (isPrimary) {
       await setSecret("TELEGRAM_BOT_TOKEN", botToken!);
       await setSecret("TELEGRAM_CHAT_ID", String(result.chatId));
     }
 
-    const nameLabel = name !== "telegram" ? ` "${name}"` : "";
+    const nameLabel = !isPrimary ? ` "${name}"` : "";
     console.log(`\n  Connected${nameLabel} successfully!\n`);
     console.log(`  Chat ID:    ${result.chatId}`);
     if (result.username) console.log(`  Username:   @${result.username}`);
