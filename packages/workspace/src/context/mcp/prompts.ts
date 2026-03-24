@@ -74,8 +74,10 @@ export const conversationSection: PromptSection = async (ctx) => {
     const recent = allMsgs.slice(-RECENT_MSG_LIMIT);
     const omitted = total - recent.length;
 
+    let foundCurrent = false;
     const blocks = recent.map((m) => {
       const isCurrent = ctx.currentMessageId === m.id;
+      if (isCurrent) foundCurrent = true;
       const marker = isCurrent ? "→ " : "  ";
       const formatted = formatMessage(m);
       // Indent continuation lines of multi-line messages to match marker width
@@ -86,11 +88,11 @@ export const conversationSection: PromptSection = async (ctx) => {
     if (omitted > 0) {
       header += ` (${omitted} earlier -- use \`channel_read\` with higher \`limit\` to see more)`;
     }
-    sections.push(`${header}\n${blocks.join("\n")}`);
+    sections.push({ text: `${header}\n${blocks.join("\n")}`, hasCurrent: foundCurrent });
   }
 
   // If the instruction didn't come from a channel (e.g. direct/API), show it separately
-  const instructionInTimeline = ctx.currentMessageId && sections.some((s) => s.includes(`→ `));
+  const instructionInTimeline = ctx.currentMessageId && sections.some((s) => s.hasCurrent);
 
   const parts: string[] = ["## Conversation"];
 
@@ -101,9 +103,7 @@ export const conversationSection: PromptSection = async (ctx) => {
 
   if (sections.length > 0) {
     parts.push("");
-    parts.push("Truncated messages show `<msg:ID>` — use `channel_read` to see full text.");
-    parts.push("");
-    parts.push(sections.join("\n\n"));
+    parts.push(sections.map((s) => s.text).join("\n\n"));
   }
 
   return parts.join("\n");
@@ -128,17 +128,12 @@ export const WORKSPACE_PROMPT_SECTIONS: PromptSection[] = [
 function formatMessage(m: Message): string {
   const time = m.timestamp.split("T")[1]?.slice(0, 5) ?? "";
   let content = m.content;
-  let truncated = false;
   if (content.length > MSG_PREVIEW_LIMIT) {
-    content = content.slice(0, MSG_PREVIEW_LIMIT);
-    truncated = true;
+    content = content.slice(0, MSG_PREVIEW_LIMIT) + "...";
   }
-  const suffix = truncated ? ` <msg:${m.id}>` : "";
-  // Header on its own line, content indented — prevents @mentions in content
-  // from being confused with the sender @name
-  const header = `[${time}] @${m.from}${suffix}`;
+  const header = `<msg:${m.id}> [${time}] @${m.from}`;
   if (content.includes("\n") || content.length > 80) {
-    const body = content.split("\n").map((l) => `  ${l}`).join("\n");
+    const body = content.split("\n").map((l) => l ? `  ${l}` : "").join("\n");
     return `${header}\n${body}`;
   }
   return `${header}: ${content}`;

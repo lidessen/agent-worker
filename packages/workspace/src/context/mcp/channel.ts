@@ -36,8 +36,8 @@ export function createChannelTools(
       // ── Channel send guard (optimistic concurrency) ──────────────
       // Like "read before write": check if the channel moved since we last read it.
       const cursor = cursors.get(channel);
-      if (cursor && !force) {
-        const newMessages = await provider.channels.read(channel, { sinceId: cursor });
+      if (cursor !== undefined && !force) {
+        const newMessages = await provider.channels.read(channel, { sinceId: cursor || undefined });
         // Filter out our own messages — we don't need to warn about those
         const othersMessages = newMessages.filter((m) => m.from !== agentName);
         if (othersMessages.length > 0) {
@@ -76,18 +76,22 @@ export function createChannelTools(
       const channel = args.channel.replace(/^#/, "");
       const { limit } = args;
       const messages = await provider.channels.read(channel, { limit: limit ?? 20 });
-      if (messages.length === 0) return `#${channel}: no messages`;
 
-      // Update cursor to the latest message in this channel
-      const lastMsg = messages[messages.length - 1]!;
-      cursors.set(channel, lastMsg.id);
+      // Always update cursor — even on empty channel, mark "I've read up to here".
+      // Empty string sentinel means "read the channel, it was empty".
+      // The send guard will use sinceId="" which won't match any ID,
+      // so readSinceId returns all messages — correct behavior.
+      const lastMsg = messages[messages.length - 1];
+      cursors.set(channel, lastMsg?.id ?? "");
+
+      if (messages.length === 0) return `#${channel}: no messages`;
 
       const blocks = messages.map((m) => {
         const time = m.timestamp.split("T")[1]?.slice(0, 5) ?? "";
         const header = `<msg:${m.id}> ${time} @${m.from}`;
         // Indent multiline content for visual separation
         const body = m.content.includes("\n")
-          ? m.content.split("\n").map((l) => `  ${l}`).join("\n")
+          ? m.content.split("\n").map((l) => l ? `  ${l}` : "").join("\n")
           : `  ${m.content}`;
         return `${header}\n${body}`;
       });
