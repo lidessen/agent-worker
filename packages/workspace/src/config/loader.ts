@@ -161,7 +161,8 @@ export async function loadWorkspaceDef(
 
   // Interpolate ${{ secrets.X }} references before parsing YAML.
   // Resolution order: secrets.json → process.env
-  if (!opts.skipSetup && content.includes("${{ secrets.")) {
+  // Always run (even with skipSetup) — secrets are needed for connection config.
+  if (content.includes("${{ secrets.")) {
     const { loadSecrets } = await import("./secrets.ts");
     const secrets = await loadSecrets();
     const secretVars: Record<string, string> = {};
@@ -378,22 +379,27 @@ export async function resolveConnections(
 
         // Load saved connection by name (falls back to platform name)
         const saved = await loadSavedConnection("telegram", def.name);
+        // Env vars only apply to the primary (unnamed) connection.
+        // Named connections must use explicit config or saved connection files.
+        const isPrimary = !def.name || def.name === "telegram";
+        const envToken = isPrimary ? process.env.TELEGRAM_BOT_TOKEN : undefined;
+        const envChatId = isPrimary ? process.env.TELEGRAM_CHAT_ID : undefined;
 
-        const botToken = cfg.bot_token ?? process.env.TELEGRAM_BOT_TOKEN ?? saved?.bot_token;
+        const botToken = cfg.bot_token ?? envToken ?? saved?.bot_token;
         if (!botToken) {
           const nameHint = def.name ? ` --name ${def.name}` : "";
           throw new Error(
             `Telegram connection${def.name ? ` "${def.name}"` : ""} requires bot_token in config, ` +
-              `TELEGRAM_BOT_TOKEN env var, or a saved connection (run 'aw connect telegram${nameHint}')`,
+              `${isPrimary ? "TELEGRAM_BOT_TOKEN env var, or " : ""}a saved connection (run 'aw connect telegram${nameHint}')`,
           );
         }
-        const parsedChatId = process.env.TELEGRAM_CHAT_ID
-          ? parseInt(process.env.TELEGRAM_CHAT_ID, 10)
-          : undefined;
+        const parsedChatId = envChatId ? parseInt(envChatId, 10) : undefined;
         if (parsedChatId !== undefined && isNaN(parsedChatId)) {
           throw new Error("TELEGRAM_CHAT_ID env var must be a numeric value");
         }
         const chatId = cfg.chat_id ?? parsedChatId ?? saved?.chat_id;
+        const source = cfg.bot_token ? "config" : envToken ? "env" : saved ? `saved(${def.name ?? "telegram"})` : "unknown";
+        console.error(`[connection] telegram${def.name ? `(${def.name})` : ""}: resolved from ${source}`);
         adapters.push(
           new TelegramAdapter({
             botToken,

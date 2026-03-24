@@ -117,6 +117,8 @@ export class TelegramAdapter implements ChannelAdapter {
     this.bridge = bridge;
     this.running = true;
 
+    console.error(`[telegram] adapter started (channel: ${this.channel}, chatId: ${this.chatId ?? "any"})`);
+
     // Register/update bot commands on every start (ensures new commands are available)
     this.api("setMyCommands", { commands: BOT_COMMANDS }).catch(() => {});
 
