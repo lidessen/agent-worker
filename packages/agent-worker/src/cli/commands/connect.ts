@@ -43,7 +43,7 @@ async function loadConnection(platform: string, name?: string): Promise<Connecti
   if (name === platform) {
     try {
       const raw = await readFile(join(CONNECTIONS_DIR, `${platform}.json`), "utf-8");
-      return { ...JSON.parse(raw), _name: "default" };
+      return { ...JSON.parse(raw), _name: platform };
     } catch { /* not found */ }
   }
 
@@ -81,7 +81,8 @@ async function listConnections(): Promise<Connection[]> {
         // Legacy flat file: telegram.json
         try {
           const raw = await readFile(join(CONNECTIONS_DIR, entry.name), "utf-8");
-          conns.push({ ...JSON.parse(raw), _name: "default" });
+          const legacyName = entry.name.replace(/\.json$/, "");
+          conns.push({ ...JSON.parse(raw), _name: legacyName });
         } catch { /* skip corrupt */ }
       } else if (entry.isDirectory()) {
         // Named dir: telegram/dev-bot.json
@@ -142,11 +143,11 @@ Examples:
 async function connectTelegram(args: string[]): Promise<void> {
   const platform = "telegram";
   const nameIdx = args.indexOf("--name");
-  const name = nameIdx >= 0 ? args[nameIdx + 1] : platform;
-  const isPrimary = name === platform;
-  if (nameIdx >= 0 && !name) {
+  if (nameIdx >= 0 && !args[nameIdx + 1]) {
     fatal("--name requires a value");
   }
+  const name = nameIdx >= 0 ? args[nameIdx + 1]! : platform;
+  const isPrimary = name === platform;
 
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   let botToken: string | undefined;

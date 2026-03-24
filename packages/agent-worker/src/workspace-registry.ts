@@ -259,24 +259,28 @@ export class WorkspaceRegistry {
     // Run deferred setup steps in the shared workspace sandbox
     const loops: WorkspaceOrchestrator[] = loopsRef;
     const sandboxDir = workspace.workspaceSandboxDir;
+    const templateVars: Record<string, string> = {
+      ...input.vars,
+      "workspace.name": resolved.def.name,
+    };
+    if (sandboxDir) templateVars["sandbox"] = sandboxDir;
+    if (input.tag) templateVars["workspace.tag"] = input.tag;
+
     if (resolved.def.setup?.length && sandboxDir) {
       mkdirSync(sandboxDir, { recursive: true });
-      const { runSetupSteps, interpolate } = await import("@agent-worker/workspace");
-      const baseVars: Record<string, string> = {
-        ...input.vars,
-        "workspace.name": resolved.def.name,
-        "sandbox": sandboxDir,
-      };
-      if (input.tag) baseVars["workspace.tag"] = input.tag;
-      const setupVars = await runSetupSteps(resolved.def.setup, baseVars, {
+      const { runSetupSteps } = await import("@agent-worker/workspace");
+      const setupVars = await runSetupSteps(resolved.def.setup, templateVars, {
         cwd: sandboxDir,
       });
-      // Re-interpolate kickoff with setup vars
-      if (resolved.def.kickoff) {
-        resolved.kickoff = interpolate(resolved.def.kickoff, { ...baseVars, ...setupVars });
-      }
+      Object.assign(templateVars, setupVars);
     } else if (sandboxDir) {
       mkdirSync(sandboxDir, { recursive: true });
+    }
+
+    // Re-interpolate kickoff with sandbox path + setup vars
+    if (resolved.def.kickoff) {
+      const { interpolate } = await import("@agent-worker/workspace");
+      resolved.kickoff = interpolate(resolved.def.kickoff, templateVars);
     }
 
     // Create agent loops
