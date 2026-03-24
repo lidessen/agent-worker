@@ -169,8 +169,9 @@ async function connectTelegram(args: string[]): Promise<void> {
       console.log();
     }
 
-    // Get bot token: argument or interactive prompt
-    botToken = process.env.TELEGRAM_BOT_TOKEN;
+    // Get bot token: env var (primary only) or interactive prompt.
+    // Named connections must always prompt — env var is for the primary bot.
+    botToken = isPrimary ? process.env.TELEGRAM_BOT_TOKEN : undefined;
     if (!botToken) {
       botToken = (await rl.question("  Bot token (from @BotFather): ")).trim();
       if (!botToken) {
