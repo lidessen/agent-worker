@@ -282,22 +282,63 @@ export async function loadWorkspaceDef(
 
 // ── Saved connection loading ──────────────────────────────────────────────
 
-interface TelegramConnection {
-  bot_token: string;
-  chat_id: number;
+interface SavedConnection {
+  bot_token?: string;
+  chat_id?: number;
+  [key: string]: unknown;
 }
 
-async function loadSavedTelegramConnection(): Promise<TelegramConnection | null> {
+/**
+ * Load a saved connection by platform and name.
+ * Checks two paths for backwards compatibility:
+ *   1. ~/.agent-worker/connections/{platform}/{name}.json  (new, named)
+ *   2. ~/.agent-worker/connections/{platform}.json          (legacy, name="default" only)
+ */
+async function loadSavedConnection(
+  platform: string,
+  name?: string,
+): Promise<SavedConnection | null> {
+  name ??= platform;
+  const { readFile } = await import("node:fs/promises");
+  const { join } = await import("node:path");
+  const { homedir } = await import("node:os");
+  const baseDir = join(homedir(), ".agent-worker", "connections");
+
+  // Try named path first: connections/telegram/dev-bot.json
   try {
-    const { readFile } = await import("node:fs/promises");
-    const { join } = await import("node:path");
-    const { homedir } = await import("node:os");
-    const path = join(homedir(), ".agent-worker", "connections", "telegram.json");
-    const raw = await readFile(path, "utf-8");
+    const raw = await readFile(join(baseDir, platform, `${name}.json`), "utf-8");
     return JSON.parse(raw);
-  } catch {
-    return null;
+  } catch { /* not found */ }
+
+  // Fall back to legacy flat path: connections/telegram.json
+  if (name === platform) {
+    try {
+      const raw = await readFile(join(baseDir, `${platform}.json`), "utf-8");
+      return JSON.parse(raw);
+    } catch { /* not found */ }
   }
+
+  return null;
+}
+
+/**
+ * Save a connection by platform and name.
+ * Writes to: ~/.agent-worker/connections/{platform}/{name}.json
+ */
+export async function saveConnection(
+  platform: string,
+  data: Record<string, unknown>,
+  name?: string,
+): Promise<string> {
+  name ??= platform;
+  const { writeFile, mkdir } = await import("node:fs/promises");
+  const { join } = await import("node:path");
+  const { homedir } = await import("node:os");
+  const dir = join(homedir(), ".agent-worker", "connections", platform);
+  await mkdir(dir, { recursive: true });
+  const filePath = join(dir, `${name}.json`);
+  await writeFile(filePath, JSON.stringify(data, null, 2), "utf-8");
+  return filePath;
 }
 
 // ── Connection resolution ─────────────────────────────────────────────────
@@ -309,7 +350,7 @@ async function loadSavedTelegramConnection(): Promise<TelegramConnection | null>
  * Config resolution order (each field independently):
  *   1. Explicit YAML config value
  *   2. Environment variable (TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID)
- *   3. Saved connection from `aw connect` (~/.agent-worker/connections/)
+ *   3. Saved connection from `aw connect` (~/.agent-worker/connections/{platform}/{name}.json)
  */
 export async function resolveConnections(
   defs?: ConnectionDef[],
@@ -335,14 +376,15 @@ export async function resolveConnections(
           poll_timeout?: number;
         };
 
-        // Load saved connection as fallback
-        const saved = await loadSavedTelegramConnection();
+        // Load saved connection by name (falls back to platform name)
+        const saved = await loadSavedConnection("telegram", def.name);
 
         const botToken = cfg.bot_token ?? process.env.TELEGRAM_BOT_TOKEN ?? saved?.bot_token;
         if (!botToken) {
+          const nameHint = def.name ? ` --name ${def.name}` : "";
           throw new Error(
-            "Telegram connection requires bot_token in config, TELEGRAM_BOT_TOKEN env var, " +
-              "or a saved connection (run 'aw connect telegram')",
+            `Telegram connection${def.name ? ` "${def.name}"` : ""} requires bot_token in config, ` +
+              `TELEGRAM_BOT_TOKEN env var, or a saved connection (run 'aw connect telegram${nameHint}')`,
           );
         }
         const parsedChatId = process.env.TELEGRAM_CHAT_ID

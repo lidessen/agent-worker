@@ -2,12 +2,15 @@
  * aw connect — Manage platform connections.
  *
  * Subcommands:
- *   telegram   — Complete auth flow: bot token → chat ID → save connection.
- *   status     — Show all configured connections.
- *   rm <name>  — Remove a saved connection.
+ *   telegram [--name <name>]   — Complete auth flow: bot token → chat ID → save.
+ *   status                     — Show all configured connections.
+ *   rm <platform> [<name>]     — Remove a saved connection.
+ *
+ * Named connections are stored under ~/.agent-worker/connections/{platform}/{name}.json
+ * and referenced in workspace YAML via the `name` field on ConnectionDef.
  */
 
-import { readFile, writeFile, mkdir, readdir, unlink } from "node:fs/promises";
+import { readFile, readdir, unlink, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { createInterface } from "node:readline/promises";
@@ -23,48 +26,80 @@ interface TelegramConnection {
   first_name?: string;
 }
 
-type Connection = TelegramConnection;
+type Connection = TelegramConnection & { _name?: string };
 
-async function loadConnection(platform: string): Promise<Connection | null> {
+/**
+ * Load a saved connection. Tries named path first, then legacy flat file.
+ */
+async function loadConnection(platform: string, name?: string): Promise<Connection | null> {
+  name ??= platform;
+  // Named: connections/telegram/dev-bot.json
   try {
-    const raw = await readFile(join(CONNECTIONS_DIR, `${platform}.json`), "utf-8");
-    return JSON.parse(raw);
-  } catch {
-    return null;
+    const raw = await readFile(join(CONNECTIONS_DIR, platform, `${name}.json`), "utf-8");
+    return { ...JSON.parse(raw), _name: name };
+  } catch { /* not found */ }
+
+  // Legacy fallback: connections/telegram.json
+  if (name === platform) {
+    try {
+      const raw = await readFile(join(CONNECTIONS_DIR, `${platform}.json`), "utf-8");
+      return { ...JSON.parse(raw), _name: "default" };
+    } catch { /* not found */ }
   }
+
+  return null;
 }
 
-async function saveConnection(platform: string, conn: Connection): Promise<void> {
-  await mkdir(CONNECTIONS_DIR, { recursive: true });
-  await writeFile(join(CONNECTIONS_DIR, `${platform}.json`), JSON.stringify(conn, null, 2) + "\n");
-}
-
-async function removeConnection(platform: string): Promise<boolean> {
+async function removeConnection(platform: string, name?: string): Promise<boolean> {
+  name ??= platform;
+  // Try named path first
   try {
-    await unlink(join(CONNECTIONS_DIR, `${platform}.json`));
+    await unlink(join(CONNECTIONS_DIR, platform, `${name}.json`));
     return true;
-  } catch {
-    return false;
+  } catch { /* not found */ }
+
+  // Legacy fallback
+  if (name === platform) {
+    try {
+      await unlink(join(CONNECTIONS_DIR, `${platform}.json`));
+      return true;
+    } catch { /* not found */ }
   }
+
+  return false;
 }
 
+/**
+ * List all connections across all platforms and names.
+ */
 async function listConnections(): Promise<Connection[]> {
+  const conns: Connection[] = [];
   try {
-    const files = await readdir(CONNECTIONS_DIR);
-    const conns: Connection[] = [];
-    for (const f of files) {
-      if (!f.endsWith(".json")) continue;
-      try {
-        const raw = await readFile(join(CONNECTIONS_DIR, f), "utf-8");
-        conns.push(JSON.parse(raw));
-      } catch {
-        // skip corrupt files
+    const entries = await readdir(CONNECTIONS_DIR, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isFile() && entry.name.endsWith(".json")) {
+        // Legacy flat file: telegram.json
+        try {
+          const raw = await readFile(join(CONNECTIONS_DIR, entry.name), "utf-8");
+          conns.push({ ...JSON.parse(raw), _name: "default" });
+        } catch { /* skip corrupt */ }
+      } else if (entry.isDirectory()) {
+        // Named dir: telegram/dev-bot.json
+        try {
+          const files = await readdir(join(CONNECTIONS_DIR, entry.name));
+          for (const f of files) {
+            if (!f.endsWith(".json")) continue;
+            try {
+              const raw = await readFile(join(CONNECTIONS_DIR, entry.name, f), "utf-8");
+              const name = f.replace(/\.json$/, "");
+              conns.push({ ...JSON.parse(raw), _name: name });
+            } catch { /* skip corrupt */ }
+          }
+        } catch { /* skip */ }
       }
     }
-    return conns;
-  } catch {
-    return [];
-  }
+  } catch { /* dir doesn't exist */ }
+  return conns;
 }
 
 // ── Subcommands ─────────────────────────────────────────────────────────────
@@ -75,23 +110,28 @@ export async function connect(args: string[]): Promise<void> {
   if (!wantsHelp(args)) {
     switch (sub) {
       case "telegram":
-        return connectTelegram();
+        return connectTelegram(args.slice(1));
       case "status":
         return connectStatus();
       case "rm":
-        return connectRm(args[1]);
+        return connectRm(args[1], args[2]);
     }
   }
 
   console.log(`Usage: aw connect <command>
 
 Commands:
-  telegram     Connect a Telegram bot (full setup flow)
-  status       Show all configured connections
-  rm <name>    Remove a saved connection
+  telegram [--name <name>]   Connect a Telegram bot (full setup flow)
+  status                     Show all configured connections
+  rm <platform> [<name>]     Remove a saved connection
 
-Connections are saved to ~/.agent-worker/connections/ and automatically
-used by workspace connections when config is not specified in YAML.
+Connections are saved to ~/.agent-worker/connections/{platform}/{name}.json
+and automatically used by workspace connections when config is not specified.
+
+Examples:
+  aw connect telegram                    # Save as "default"
+  aw connect telegram --name dev-bot     # Save as "dev-bot"
+  aw connect rm telegram dev-bot         # Remove "dev-bot"
 `);
   if (sub && !wantsHelp(args)) {
     console.error(`Unknown subcommand: ${sub}`);
@@ -99,15 +139,21 @@ used by workspace connections when config is not specified in YAML.
   }
 }
 
-async function connectTelegram(): Promise<void> {
+async function connectTelegram(args: string[]): Promise<void> {
+  const nameIdx = args.indexOf("--name");
+  const name = nameIdx >= 0 ? args[nameIdx + 1] : "telegram";
+  if (nameIdx >= 0 && !name) {
+    fatal("--name requires a value");
+  }
+
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   let botToken: string | undefined;
 
   try {
-    const existing = await loadConnection("telegram");
+    const existing = await loadConnection("telegram", name);
     if (existing) {
       const tg = existing as TelegramConnection;
-      console.log(`\n  Existing Telegram connection found:`);
+      console.log(`\n  Existing Telegram connection${name !== "telegram" ? ` "${name}"` : ""} found:`);
       console.log(`    Chat ID:  ${tg.chat_id}`);
       if (tg.username) console.log(`    Username: @${tg.username}`);
       console.log();
@@ -134,34 +180,42 @@ async function connectTelegram(): Promise<void> {
     rl.close();
   }
 
-  const { runTelegramAuth, setSecret } = await import("@agent-worker/workspace");
+  const { runTelegramAuth, saveConnection, setSecret } = await import("@agent-worker/workspace");
 
   try {
     const result = await runTelegramAuth(botToken!);
 
-    // Save connection file (for resolveConnections fallback)
-    const conn: TelegramConnection = {
+    // Save connection file using the new named storage
+    const conn = {
       platform: "telegram",
       bot_token: botToken!,
       chat_id: result.chatId,
       username: result.username,
       first_name: result.firstName,
     };
-    await saveConnection("telegram", conn);
+    const savedPath = await saveConnection("telegram", conn, name);
 
-    // Save secrets (for ${{ secrets.X }} interpolation in YAML)
-    await setSecret("TELEGRAM_BOT_TOKEN", botToken!);
-    await setSecret("TELEGRAM_CHAT_ID", String(result.chatId));
+    // Save secrets for ${{ secrets.X }} interpolation (only for primary connection)
+    if (name === "telegram") {
+      await setSecret("TELEGRAM_BOT_TOKEN", botToken!);
+      await setSecret("TELEGRAM_CHAT_ID", String(result.chatId));
+    }
 
-    console.log(`\n  Connected successfully!\n`);
+    const nameLabel = name !== "telegram" ? ` "${name}"` : "";
+    console.log(`\n  Connected${nameLabel} successfully!\n`);
     console.log(`  Chat ID:    ${result.chatId}`);
     if (result.username) console.log(`  Username:   @${result.username}`);
     console.log(`  Name:       ${result.firstName}`);
-    console.log(`\n  Saved to ~/.agent-worker/connections/telegram.json`);
-    console.log(`\n  Workspace YAML can now use:\n`);
-    console.log(`    connections:`);
-    console.log(`      - platform: telegram`);
-    console.log(`\n  No config needed — credentials loaded from saved connection.`);
+    console.log(`\n  Saved to ${savedPath}`);
+    console.log(`\n  Workspace YAML:\n`);
+    if (name === "default") {
+      console.log(`    connections:`);
+      console.log(`      - platform: telegram`);
+    } else {
+      console.log(`    connections:`);
+      console.log(`      - platform: telegram`);
+      console.log(`        name: ${name}`);
+    }
   } catch (err) {
     fatal(`Connection failed: ${err}`);
   }
@@ -177,41 +231,41 @@ async function connectStatus(): Promise<void> {
 
   console.log("Connections:\n");
   for (const conn of conns) {
+    const nameLabel = conn._name && conn._name !== conn.platform ? ` (${conn._name})` : "";
     switch (conn.platform) {
       case "telegram": {
-        console.log(`  telegram`);
+        console.log(`  telegram${nameLabel}`);
         console.log(`    Chat ID:  ${conn.chat_id}`);
         if (conn.username) console.log(`    Username: @${conn.username}`);
         if (conn.first_name) console.log(`    Name:     ${conn.first_name}`);
         break;
       }
       default:
-        console.log(`  ${conn.platform}`);
+        console.log(`  ${conn.platform}${nameLabel}`);
     }
     console.log();
   }
 }
 
-async function connectRm(platform?: string): Promise<void> {
+async function connectRm(platform?: string, name?: string): Promise<void> {
   if (!platform) {
-    fatal("Usage: aw connect rm <platform>");
+    fatal("Usage: aw connect rm <platform> [<name>]");
   }
-  const removed = await removeConnection(platform);
+  const connName = name ?? platform;
+  const removed = await removeConnection(platform, connName);
   if (removed) {
-    // Clean up associated secrets
-    const { deleteSecret } = await import("@agent-worker/workspace");
-    if (platform === "telegram") {
-      await deleteSecret("TELEGRAM_BOT_TOKEN");
-      await deleteSecret("TELEGRAM_CHAT_ID");
+    // Clean up associated secrets (only for primary connection)
+    if (connName === platform) {
+      const { deleteSecret } = await import("@agent-worker/workspace");
+      if (platform === "telegram") {
+        await deleteSecret("TELEGRAM_BOT_TOKEN");
+        await deleteSecret("TELEGRAM_CHAT_ID");
+      }
     }
-    console.log(`Removed ${platform} connection.`);
+    const nameLabel = connName !== platform ? ` "${connName}"` : "";
+    console.log(`Removed ${platform}${nameLabel} connection.`);
   } else {
-    console.log(`No ${platform} connection found.`);
+    const nameLabel = connName !== platform ? ` "${connName}"` : "";
+    console.log(`No ${platform}${nameLabel} connection found.`);
   }
-}
-
-// ── Public API for adapter resolution ───────────────────────────────────────
-
-export async function loadTelegramConnection(): Promise<TelegramConnection | null> {
-  return loadConnection("telegram") as Promise<TelegramConnection | null>;
 }

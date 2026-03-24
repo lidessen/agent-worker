@@ -16,6 +16,7 @@ export {
   toWorkspaceConfig,
   resolveModel,
   resolveConnections,
+  saveConnection,
   interpolate,
   runSetupSteps,
 } from "./loader.ts";

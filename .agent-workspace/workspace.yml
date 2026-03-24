@@ -25,6 +25,10 @@ channels:
 
 default_channel: general
 
+connections:
+  - platform: telegram
+    name: aw-dev
+
 setup:
   - shell: git clone --recurse-submodules https://github.com/lidessen/agent-worker.git .
   - shell: bun install

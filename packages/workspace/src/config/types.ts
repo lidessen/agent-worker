@@ -70,6 +70,10 @@ export interface SetupStep {
 export interface ConnectionDef {
   /** Platform type: "telegram". */
   platform: string;
+  /** Connection name for multiple connections of the same platform.
+   *  Defaults to the platform name (e.g. "telegram"). Used to resolve
+   *  saved connections: ~/.agent-worker/connections/{platform}/{name}.json */
+  name?: string;
   /** Platform-specific configuration (optional if saved via `aw connect`). */
   config?: Record<string, unknown>;
 }
