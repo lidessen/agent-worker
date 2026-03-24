@@ -15,7 +15,7 @@
 
 name: agent-worker-dev
 storage: file
-data_dir: .agent-workspace
+data_dir: .
 lead: maintainer
 
 channels:
