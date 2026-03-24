@@ -164,14 +164,15 @@ export class Workspace implements WorkspaceRuntime {
     }
 
     // Channel messages: route to all agents who joined this channel
-    const hasMentions = message.mentions.length > 0;
+    // Check if any mentioned name is a registered agent (not just any @text in the message)
+    const hasAgentMention = message.mentions.some((m) => this.agentChannels.has(m));
     for (const [agentName, channels] of this.agentChannels) {
       if (agentName === message.from) continue; // Don't self-deliver
       if (!channels.has(message.channel)) continue;
 
       const isMentioned = message.mentions.includes(agentName);
       // Lead gets normal priority for unmentioned messages (responsible for user comms)
-      const isLeadFallback = !hasMentions && agentName === this.lead;
+      const isLeadFallback = !hasAgentMention && agentName === this.lead;
       await this.enqueueToAgent(
         message,
         agentName,
