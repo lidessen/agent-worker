@@ -73,6 +73,7 @@ export class Workspace implements WorkspaceRuntime {
       status: this.statusStore,
       timeline: timelineStore,
       chronicle: chronicleStore,
+      lead: config.lead,
       maxMessageLength: config.maxMessageLength,
     });
 
@@ -163,13 +164,19 @@ export class Workspace implements WorkspaceRuntime {
     }
 
     // Channel messages: route to all agents who joined this channel
+    const hasMentions = message.mentions.length > 0;
     for (const [agentName, channels] of this.agentChannels) {
       if (agentName === message.from) continue; // Don't self-deliver
       if (!channels.has(message.channel)) continue;
 
-      // Check if agent is mentioned or if this is a channel broadcast
       const isMentioned = message.mentions.includes(agentName);
-      await this.enqueueToAgent(message, agentName, isMentioned ? "normal" : "background");
+      // Lead gets normal priority for unmentioned messages (responsible for user comms)
+      const isLeadFallback = !hasMentions && agentName === this.lead;
+      await this.enqueueToAgent(
+        message,
+        agentName,
+        isMentioned || isLeadFallback ? "normal" : "background",
+      );
     }
   }
 

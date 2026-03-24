@@ -14,25 +14,36 @@ export const workspacePromptSection: PromptSection = async (ctx) => {
   const members = await ctx.provider.status.getAll();
   const teammates = members.filter((m) => m.name !== ctx.agentName);
   const channels = ctx.provider.channels.listChannels();
+  const isLead = ctx.provider.lead === ctx.agentName;
 
-  const lines = [
+  const lines: string[] = [
     "## Workspace",
     "",
     `You are **@${ctx.agentName}** in a collaborative workspace with channels, teammates, and shared documents.`,
-    "",
-    "### Key mechanics",
-    "- `channel_send` posts to channels. Plain text output is your private thinking — only you see it.",
-    "- `@name` in messages notifies that teammate.",
-    "- Messages over 1200 chars: use `resource_create` first, then send a summary with the resource ID.",
-    "- `channel_read` shows full conversation history beyond what's shown below.",
-    "",
-    "### Directories",
-    `- Personal sandbox: \`${ctx.sandboxDir ?? "(not available)"}\``,
-    `- Shared workspace: \`${ctx.workspaceSandboxDir ?? "(not available)"}\``,
-    "",
-    "### Channels",
-    channels.length > 0 ? channels.map((ch) => `- #${ch}`).join("\n") : "- (none)",
   ];
+
+  if (isLead) {
+    lines.push("");
+    lines.push("### You are the workspace lead");
+    lines.push("- You are responsible for responding to user messages, even if they don't @ you directly.");
+    lines.push("- Unmentioned messages from users (e.g. telegram) are routed to you at normal priority.");
+    lines.push("- You have access to debug tools and can see all channels.");
+    lines.push("- Coordinate the team, review work, and report back to the user.");
+  }
+
+  lines.push("");
+  lines.push("### Key mechanics");
+  lines.push("- `channel_send` posts to channels. Plain text output is your private thinking -- only you see it.");
+  lines.push("- `@name` in messages notifies that teammate.");
+  lines.push("- Messages over 1200 chars: use `resource_create` first, then send a summary with the resource ID.");
+  lines.push("- `channel_read` shows full conversation history beyond what's shown below.");
+  lines.push("");
+  lines.push("### Directories");
+  lines.push(`- Personal sandbox: \`${ctx.sandboxDir ?? "(not available)"}\``);
+  lines.push(`- Shared workspace: \`${ctx.workspaceSandboxDir ?? "(not available)"}\``);
+  lines.push("");
+  lines.push("### Channels");
+  lines.push(channels.length > 0 ? channels.map((ch) => `- #${ch}`).join("\n") : "- (none)");
 
   if (teammates.length > 0) {
     lines.push("", "### Teammates", ...teammates.map((m) => `- @${m.name}: ${m.status}`));

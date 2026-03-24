@@ -207,6 +207,8 @@ export interface ContextProvider {
   readonly status: StatusStoreInterface;
   readonly timeline: TimelineStoreInterface;
   readonly chronicle: ChronicleStoreInterface;
+  /** Team lead agent name (if set). */
+  readonly lead?: string;
 
   /** Post a message to a channel. Throws if content exceeds the length limit. */
   send(msg: { channel: string; from: string; content: string; to?: string }): Promise<Message>;
