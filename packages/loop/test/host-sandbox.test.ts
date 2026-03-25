@@ -7,12 +7,14 @@ import { tmpdir } from "node:os";
 
 describe("HostSandbox", () => {
   const tmpDir = realpathSync(mkdtempSync(join(tmpdir(), "host-sandbox-test-")));
+  const extraDir = realpathSync(mkdtempSync(join(tmpdir(), "host-sandbox-extra-")));
 
   afterAll(() => {
     rmSync(tmpDir, { recursive: true, force: true });
+    rmSync(extraDir, { recursive: true, force: true });
   });
 
-  const sandbox = createHostSandbox({ cwd: tmpDir });
+  const sandbox = createHostSandbox({ cwd: tmpDir, allowedPaths: [extraDir] });
 
   test("executeCommand runs in cwd", async () => {
     const result = await sandbox.executeCommand("pwd");
@@ -49,9 +51,29 @@ describe("HostSandbox", () => {
     expect(result.stdout.trim()).toBe("from script");
   });
 
-  test("executeCommand can access paths outside cwd", async () => {
-    // HostSandbox should not restrict filesystem access
-    const result = await sandbox.executeCommand("ls /tmp");
-    expect(result.exitCode).toBe(0);
+  test("writeFiles to allowedPaths succeeds", async () => {
+    const filePath = join(extraDir, "extra.txt");
+    await sandbox.writeFiles([{ path: filePath, content: "extra content" }]);
+    const content = await readFile(filePath, "utf-8");
+    expect(content).toBe("extra content");
+  });
+
+  test("readFile from allowedPaths succeeds", async () => {
+    const filePath = join(extraDir, "extra.txt");
+    const content = await sandbox.readFile(filePath);
+    expect(content).toBe("extra content");
+  });
+
+  test("writeFiles rejects paths outside sandbox boundary", async () => {
+    const outsidePath = join(tmpdir(), "outside-sandbox.txt");
+    await expect(
+      sandbox.writeFiles([{ path: outsidePath, content: "nope" }]),
+    ).rejects.toThrow("outside sandbox boundary");
+  });
+
+  test("readFile rejects paths outside sandbox boundary", async () => {
+    await expect(sandbox.readFile("/etc/passwd")).rejects.toThrow(
+      "outside sandbox boundary",
+    );
   });
 });

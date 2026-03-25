@@ -44,7 +44,7 @@ async function createAiSdkLoop(config: RuntimeConfig): Promise<AgentLoop> {
   // When cwd is set, use HostSandbox for real filesystem access.
   // Without cwd, fall back to bash-tool's default just-bash (virtual FS).
   const bashToolOptions = config.cwd
-    ? { sandbox: createHostSandbox({ cwd: config.cwd }), destination: config.cwd }
+    ? { sandbox: createHostSandbox({ cwd: config.cwd, allowedPaths: config.allowedPaths }), destination: config.cwd }
     : undefined;
 
   return new AiSdkLoop({

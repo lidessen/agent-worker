@@ -64,7 +64,7 @@ export const conversationSection: PromptSection = async (ctx) => {
   const channels = ctx.provider.channels.listChannels();
   if (channels.length === 0 && !ctx.currentInstruction) return null;
 
-  const sections: string[] = [];
+  const sections: Array<{ text: string; hasCurrent: boolean }> = [];
 
   for (const ch of channels) {
     const allMsgs = await ctx.provider.channels.read(ch);

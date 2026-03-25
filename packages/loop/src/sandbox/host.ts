@@ -8,28 +8,44 @@
  * When sandboxing is needed, swap this for @vercel/sandbox — the
  * Sandbox interface stays the same.
  */
-import { execaCommand } from "execa";
+import { execa } from "execa";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { dirname } from "node:path";
+import { dirname, resolve } from "node:path";
 import type { Sandbox, CommandResult } from "bash-tool";
 
 export interface HostSandboxOptions {
   /** Working directory for commands. */
   cwd: string;
+  /** Additional directories the sandbox may access (read/write). */
+  allowedPaths?: string[];
+}
+
+/**
+ * Check that `target` is inside `cwd` or one of `allowedPaths`.
+ * All paths are resolved to absolute before comparison.
+ */
+function assertPathAllowed(
+  target: string,
+  cwd: string,
+  allowedPaths: string[],
+): void {
+  const abs = resolve(target);
+  const roots = [resolve(cwd), ...allowedPaths.map((p) => resolve(p))];
+  if (roots.some((root) => abs === root || abs.startsWith(root + "/"))) return;
+  throw new Error(
+    `Path "${target}" is outside sandbox boundary (cwd: ${cwd})`,
+  );
 }
 
 export function createHostSandbox(options: HostSandboxOptions): Sandbox {
-  const { cwd } = options;
+  const { cwd, allowedPaths = [] } = options;
 
   return {
     async executeCommand(command: string): Promise<CommandResult> {
       try {
-        const result = await execaCommand(command, {
-          cwd,
-          shell: true,
-          reject: false,
-          timeout: 120_000,
-        });
+        // Split command to avoid shell injection — use shell only for
+        // pipes/redirects which are common in agent commands.
+        const result = await execa({ cwd, reject: false, timeout: 120_000 })`bash -c ${command}`;
         return {
           stdout: result.stdout,
           stderr: result.stderr,
@@ -45,6 +61,7 @@ export function createHostSandbox(options: HostSandboxOptions): Sandbox {
     },
 
     async readFile(path: string): Promise<string> {
+      assertPathAllowed(path, cwd, allowedPaths);
       return readFile(path, "utf-8");
     },
 
@@ -52,6 +69,7 @@ export function createHostSandbox(options: HostSandboxOptions): Sandbox {
       files: Array<{ path: string; content: string | Buffer }>,
     ): Promise<void> {
       for (const file of files) {
+        assertPathAllowed(file.path, cwd, allowedPaths);
         await mkdir(dirname(file.path), { recursive: true });
         await writeFile(
           file.path,

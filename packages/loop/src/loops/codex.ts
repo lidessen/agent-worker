@@ -72,7 +72,8 @@ export class CodexLoop {
   }
 }
 
-function buildArgs(
+/** @internal Exported for testing. */
+export function buildArgs(
   prompt: string,
   opts: CodexLoopOptions,
   mcpConfigPath?: string | null,

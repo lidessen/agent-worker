@@ -720,7 +720,7 @@ export class Daemon {
           );
           const backlog = allMessages.slice(initialCursor);
           for (const m of backlog) {
-            const msgId = m.id ?? `${m.timestamp}-${m.content}`;
+            const msgId = m.id ?? `${m.timestamp}-${crypto.randomUUID()}`;
             seenIds.add(msgId);
             push({
               ts: new Date(m.timestamp).getTime(),

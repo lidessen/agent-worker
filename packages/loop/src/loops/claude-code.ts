@@ -73,7 +73,8 @@ export class ClaudeCodeLoop {
   }
 }
 
-function buildArgs(
+/** @internal Exported for testing. */
+export function buildArgs(
   prompt: string,
   opts: ClaudeCodeLoopOptions,
   mcpConfigPath?: string | null,
