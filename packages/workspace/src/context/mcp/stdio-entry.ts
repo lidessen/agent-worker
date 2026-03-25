@@ -43,9 +43,9 @@ async function callWorkspaceTool(name: string, args: Record<string, unknown>): P
         { headers },
       );
       const data = (await res.json()) as {
-        messages: Array<{ id: string; from: string; content: string }>;
+        messages?: Array<{ id: string; from: string; content: string }>;
       };
-      if (data.messages.length === 0) return `#${ch}: no messages`;
+      if (!data.messages?.length) return `#${ch}: no messages`;
       const lines = data.messages.map(
         (m: { id: string; from: string; content: string }) => `[${m.id}] @${m.from}: ${m.content}`,
       );
