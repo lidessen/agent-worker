@@ -10,7 +10,7 @@ import { createLoopTools, closeBrowser, type LoopToolsOptions } from "../tools/i
 // No typed model union — AI SDK supports any provider:model string
 
 export interface AiSdkLoopOptions {
-  /** AI SDK LanguageModel — string like "anthropic:claude-sonnet-4-20250514" or model instance */
+  /** AI SDK LanguageModel — string like "anthropic:claude-sonnet-4-6" or model instance */
   model: LanguageModel;
   /** System instructions */
   instructions?: string;
