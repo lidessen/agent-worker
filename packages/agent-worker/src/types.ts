@@ -69,6 +69,7 @@ export type WorkspaceStatus = "running" | "completed" | "failed";
 
 export interface ManagedWorkspaceInfo {
   name: string;
+  label?: string;
   tag?: string;
   agents: string[];
   channels: string[];

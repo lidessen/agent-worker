@@ -24,6 +24,7 @@ export interface AgentInfo {
 
 export interface WorkspaceInfo {
   name: string;
+  label?: string;
   mode?: string;
   status: string;
   agents: string[];
@@ -82,6 +83,7 @@ export interface DocInfo {
 
 export interface WorkspaceStatus {
   name: string;
+  label?: string;
   tag?: string;
   key: string;
   mode: string;

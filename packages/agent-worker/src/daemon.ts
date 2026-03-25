@@ -1056,6 +1056,7 @@ export class Daemon {
     const channels = handle.workspace.contextProvider.channels.listChannels();
     return Response.json({
       name: handle.name,
+      label: handle.resolved.def.label,
       tag: handle.tag,
       key: handle.key,
       mode: handle.mode,

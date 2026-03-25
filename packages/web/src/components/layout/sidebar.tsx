@@ -242,7 +242,7 @@ function WorkspaceSwitcher() {
 
   const options = computed(workspaces, (wsList) =>
     wsList.map((ws) => (
-      <option value={ws.name}>{ws.name}</option>
+      <option value={ws.name}>{ws.label || ws.name}</option>
     )),
   );
 

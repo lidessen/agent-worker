@@ -82,6 +82,8 @@ export interface ConnectionDef {
 export interface WorkspaceDef {
   /** Workspace name. Optional — inferred from file name or opts.name when omitted. */
   name?: string;
+  /** Human-readable display name. Shown in UI instead of the machine name. */
+  label?: string;
   /** Agent definitions. Keys are agent names. */
   agents: Record<string, AgentDef>;
   /** Channel names to create. Default: ["general"]. */

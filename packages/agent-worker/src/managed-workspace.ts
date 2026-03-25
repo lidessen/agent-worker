@@ -61,6 +61,7 @@ export class ManagedWorkspace {
     const channels = this.workspace.contextProvider.channels.listChannels();
     return {
       name: this.name,
+      label: this.resolved.def.label,
       tag: this.tag,
       agents: this.resolved.agents.map((a) => a.name),
       channels,
