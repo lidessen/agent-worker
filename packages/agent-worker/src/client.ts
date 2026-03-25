@@ -270,6 +270,7 @@ export class AwClient {
     opts?: {
       name?: string;
       configDir?: string;
+      sourcePath?: string;
       tag?: string;
       vars?: Record<string, string>;
       mode?: "service" | "task";

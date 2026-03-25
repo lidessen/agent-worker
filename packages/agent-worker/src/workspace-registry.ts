@@ -1,5 +1,6 @@
-import { join, dirname } from "node:path";
+import { join, dirname, basename } from "node:path";
 import { mkdirSync, appendFileSync, symlinkSync, existsSync } from "node:fs";
+import { readFile as readFileAsync, writeFile as writeFileAsync } from "node:fs/promises";
 import {
   createWorkspace,
   createAgentTools,
@@ -30,6 +31,13 @@ storage: file
  *
  * Emits structured events to the shared EventBus.
  */
+/** Manifest entry — persisted to workspaces.json for restart recovery. */
+interface ManifestEntry {
+  /** Absolute path to workspace YAML file. */
+  sourcePath: string;
+  tag?: string;
+}
+
 export class WorkspaceRegistry {
   private workspaces = new Map<string, ManagedWorkspace>();
   private _bus?: EventBus;
@@ -41,6 +49,75 @@ export class WorkspaceRegistry {
 
   constructor(dataDir: string) {
     this._dataDir = dataDir;
+  }
+
+  /** Path to the workspace manifest file. */
+  private get manifestPath(): string {
+    return join(this._dataDir, "workspaces.json");
+  }
+
+  /** Read manifest entries. */
+  private async readManifest(): Promise<ManifestEntry[]> {
+    try {
+      const raw = await readFileAsync(this.manifestPath, "utf-8");
+      return JSON.parse(raw);
+    } catch {
+      return [];
+    }
+  }
+
+  /** Write manifest entries. */
+  private async writeManifest(entries: ManifestEntry[]): Promise<void> {
+    await writeFileAsync(this.manifestPath, JSON.stringify(entries, null, 2), "utf-8");
+  }
+
+  /** Add workspace to manifest (for restart recovery). */
+  private async registerInManifest(input: CreateWorkspaceInput): Promise<void> {
+    if (!input.sourcePath) return; // Can't persist without file path
+    const entries = await this.readManifest();
+    const exists = entries.some((e) => e.sourcePath === input.sourcePath && e.tag === input.tag);
+    if (!exists) {
+      entries.push({ sourcePath: input.sourcePath, tag: input.tag });
+      await this.writeManifest(entries);
+    }
+  }
+
+  /** Remove workspace from manifest by key or sourcePath. */
+  private async unregisterFromManifest(key: string): Promise<void> {
+    const entries = await this.readManifest();
+    const filtered = entries.filter((e) => {
+      // Match by sourcePath basename (workspace name) + tag
+      const name = e.sourcePath.split("/").slice(-2, -1)[0] ?? basename(e.sourcePath).replace(/\.(ya?ml)$/, "");
+      const entryKey = e.tag ? `${name}:${e.tag}` : name;
+      return entryKey !== key;
+    });
+    if (filtered.length !== entries.length) {
+      await this.writeManifest(filtered);
+    }
+  }
+
+  /**
+   * Restore all workspaces from manifest. Called on daemon start after
+   * global workspace and MCP hub are ready.
+   */
+  async restoreFromManifest(): Promise<void> {
+    const entries = await this.readManifest();
+    for (const entry of entries) {
+      try {
+        const handle = await this.create({
+          source: entry.sourcePath, // loadWorkspaceDef detects file paths vs content
+          sourcePath: entry.sourcePath,
+          configDir: dirname(entry.sourcePath),
+          tag: entry.tag,
+        });
+        await handle.startLoops();
+        await handle.kickoff();
+        console.error(`[workspace-registry] restored: ${handle.info.name}`);
+      } catch (err) {
+        // Don't fail daemon startup if one workspace can't restore
+        console.error(`[workspace-registry] failed to restore ${entry.sourcePath}: ${err}`);
+      }
+    }
   }
 
   /** Set daemon connection info for CLI agent MCP proxying. */
@@ -306,6 +383,11 @@ export class WorkspaceRegistry {
 
     this.workspaces.set(key, handle);
 
+    // Persist to manifest for restart recovery (service mode only)
+    if (input.mode !== "task") {
+      await this.registerInManifest(input);
+    }
+
     this.emitEvent("workspace.created", {
       workspace: key,
       agents: resolved.agents.map((a) => a.name),
@@ -328,12 +410,13 @@ export class WorkspaceRegistry {
     return result;
   }
 
-  /** Stop and remove a workspace. */
+  /** Stop and remove a workspace. Also removes from manifest. */
   async remove(key: string): Promise<void> {
     const handle = this.workspaces.get(key);
     if (!handle) throw new Error(`Workspace "${key}" not found`);
     await handle.stop();
     this.workspaces.delete(key);
+    await this.unregisterFromManifest(key);
   }
 
   /** Stop all workspaces (including default). */

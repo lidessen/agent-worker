@@ -30,7 +30,8 @@ connections:
     name: aw-dev
 
 setup:
-  - shell: git clone --recurse-submodules https://github.com/lidessen/agent-worker.git .
+  - shell: "[ -d .git ] || git clone --recurse-submodules https://github.com/lidessen/agent-worker.git ."
+  - shell: git submodule update --init --recursive
   - shell: bun install
   - shell: git log --oneline -5
     as: recent_commits

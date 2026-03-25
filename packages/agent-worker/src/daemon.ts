@@ -202,6 +202,9 @@ export class Daemon {
     await globalWs.startLoops();
     this.registerGlobalAgents(globalWs);
 
+    // Restore registered workspaces from manifest (created via `aw create`)
+    await this.workspaces.restoreFromManifest();
+
     const info: DaemonInfo = {
       pid: process.pid,
       host: publicHost,
@@ -919,6 +922,7 @@ export class Daemon {
       source: string;
       name?: string;
       configDir?: string;
+      sourcePath?: string;
       tag?: string;
       vars?: Record<string, string>;
       mode?: "service" | "task";
