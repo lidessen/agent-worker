@@ -42,11 +42,21 @@ export interface OrchestratorConfig {
  * Equivalent to the former WorkspaceAgentLoop, but lives in the
  * orchestration layer (agent-worker) rather than workspace.
  */
+/** Default backoff for quota/rate-limit auto-pause: 5 minutes. */
+const DEFAULT_QUOTA_BACKOFF_MS = 5 * 60_000;
+/** Maximum backoff: 1 hour. */
+const MAX_BACKOFF_MS = 60 * 60_000;
+
 export class WorkspaceOrchestrator {
   private running = false;
   private paused = false;
   private pollTimer: ReturnType<typeof setTimeout> | null = null;
   private wakeResolve: (() => void) | null = null;
+
+  /** When set, auto-resume at this timestamp. */
+  private resumeAt: number | null = null;
+  /** Current backoff duration for exponential backoff on repeated failures. */
+  private backoffMs = DEFAULT_QUOTA_BACKOFF_MS;
 
   private readonly pollInterval: number;
   private readonly sections: PromptSection[];
@@ -87,13 +97,35 @@ export class WorkspaceOrchestrator {
   /** Pause the orchestrator — tick() becomes a no-op but polling continues. */
   async pause(): Promise<void> {
     this.paused = true;
+    this.resumeAt = null;
     await this.config.provider.status.set(this.config.name, "paused");
     await this.config.eventLog.log(this.config.name, "system", "Agent loop paused");
   }
 
-  /** Resume the orchestrator after a pause. */
+  /**
+   * Pause with timed auto-resume. Uses exponential backoff on repeated calls:
+   * first pause = backoffMs, second = 2x, etc. up to MAX_BACKOFF_MS.
+   * Manual resume() resets the backoff.
+   */
+  async pauseUntil(ms?: number): Promise<void> {
+    const delay = ms ?? this.backoffMs;
+    this.paused = true;
+    this.resumeAt = Date.now() + delay;
+    // Exponential backoff for next failure (capped)
+    this.backoffMs = Math.min(this.backoffMs * 2, MAX_BACKOFF_MS);
+    const mins = Math.round(delay / 60_000);
+    await this.config.provider.status.set(this.config.name, "paused", `auto-resume in ~${mins}m`);
+    await this.config.eventLog.log(
+      this.config.name, "system",
+      `Agent loop paused (auto-resume in ${mins}m, backoff: ${Math.round(this.backoffMs / 60_000)}m)`,
+    );
+  }
+
+  /** Resume the orchestrator after a pause. Resets backoff. */
   async resume(): Promise<void> {
     this.paused = false;
+    this.resumeAt = null;
+    this.backoffMs = DEFAULT_QUOTA_BACKOFF_MS;
     await this.config.provider.status.set(this.config.name, "running");
     await this.config.eventLog.log(this.config.name, "system", "Agent loop resumed");
     this.wake();
@@ -172,6 +204,11 @@ export class WorkspaceOrchestrator {
   }
 
   private async tick(): Promise<void> {
+    // Check timed auto-resume
+    if (this.paused && this.resumeAt && Date.now() >= this.resumeAt) {
+      await this.resume();
+      await this.config.eventLog.log(this.config.name, "system", "Auto-resumed after cooldown");
+    }
     if (this.paused) return;
 
     // 1. Check inbox for new messages → enqueue as instructions

@@ -352,25 +352,28 @@ export class WorkspaceRegistry {
               level: "error",
             });
 
-            // Detect quota/auth errors → pause agent + notify lead
-            if (isQuotaOrAuthError(errStr)) {
-              const reason = isAuthError(errStr)
-                ? `authentication failed`
-                : `quota/rate limit reached`;
-              await orch.pause();
+            // Classify error → decide recovery strategy
+            const strategy = classifyError(errStr) ?? await classifyErrorWithLLM(errStr);
+            if (strategy?.pause) {
+              if (strategy.autoResume) {
+                await orch.pauseUntil();
+              } else {
+                await orch.pause();
+              }
               await workspace.eventLog.log(
                 agent.name, "system",
-                `Auto-paused: ${reason}. Resume with /resume ${agent.name} or wait for cooldown.`,
+                `Auto-paused (${strategy.category}): ${strategy.reason}. ` +
+                  (strategy.autoResume ? "Will auto-resume after cooldown." : "Manual resume required."),
               );
-              // Notify lead if one is configured
+              // Notify lead
               if (workspace.lead && workspace.lead !== agent.name) {
                 try {
                   await workspace.contextProvider.send({
                     channel: workspace.defaultChannel,
                     from: "system",
-                    content: `@${workspace.lead} Agent @${agent.name} was auto-paused (${reason}). ` +
-                      `Task was: ${instruction.content.slice(0, 100)}. ` +
-                      `Reassign if needed or wait for cooldown.`,
+                    content: `@${workspace.lead} Agent @${agent.name} paused (${strategy.reason}). ` +
+                      `Task: ${instruction.content.slice(0, 100)}` +
+                      (strategy.autoResume ? "" : ". Needs manual resume or config fix."),
                   });
                 } catch { /* don't fail on notification */ }
               }
@@ -680,33 +683,95 @@ import type { LoopEvent } from "@agent-worker/loop";
 
 // ── Error classification ─────────────────────────────────────────────────
 
-const QUOTA_PATTERNS = [
-  /usage limit/i,
-  /rate limit/i,
-  /quota exceeded/i,
-  /too many requests/i,
-  /429/,
-  /capacity/i,
-  /billing/i,
-  /insufficient.*credits/i,
-];
+type ErrorCategory = "rate_limit" | "quota_exhausted" | "auth" | "server_error" | "transient";
 
-const AUTH_PATTERNS = [
-  /authentication required/i,
-  /unauthorized/i,
-  /api.key/i,
-  /invalid.*token/i,
-  /401/,
-  /forbidden/i,
-  /403/,
-];
-
-function isQuotaOrAuthError(err: string): boolean {
-  return QUOTA_PATTERNS.some((p) => p.test(err)) || AUTH_PATTERNS.some((p) => p.test(err));
+interface ErrorStrategy {
+  category: ErrorCategory;
+  /** Whether the agent should be auto-paused. */
+  pause: boolean;
+  /** Whether the agent should auto-resume after a cooldown. */
+  autoResume: boolean;
+  /** Human-readable reason for the pause. */
+  reason: string;
 }
 
-function isAuthError(err: string): boolean {
-  return AUTH_PATTERNS.some((p) => p.test(err));
+/** Patterns → strategy, checked in order (first match wins). */
+const ERROR_RULES: Array<{ patterns: RegExp[]; strategy: ErrorStrategy }> = [
+  {
+    // Rate limit — temporary, auto-resume with backoff
+    patterns: [/rate limit/i, /too many requests/i, /429/, /throttl/i],
+    strategy: { category: "rate_limit", pause: true, autoResume: true, reason: "rate limited" },
+  },
+  {
+    // Quota exhausted — longer cooldown, auto-resume (might reset hourly/daily)
+    patterns: [/usage limit/i, /quota exceeded/i, /billing/i, /insufficient.*credits/i],
+    strategy: { category: "quota_exhausted", pause: true, autoResume: true, reason: "quota exhausted" },
+  },
+  {
+    // Auth — permanent until fixed, don't auto-resume
+    patterns: [/authentication required/i, /unauthorized/i, /api.key/i, /invalid.*token/i, /401/],
+    strategy: { category: "auth", pause: true, autoResume: false, reason: "authentication failed" },
+  },
+  {
+    // Server errors — transient, auto-resume quickly
+    patterns: [/500/, /502/, /503/, /504/, /service unavailable/i, /internal server error/i],
+    strategy: { category: "server_error", pause: true, autoResume: true, reason: "server error" },
+  },
+];
+
+function classifyError(err: string): ErrorStrategy | null {
+  for (const rule of ERROR_RULES) {
+    if (rule.patterns.some((p) => p.test(err))) {
+      return rule.strategy;
+    }
+  }
+  return null;
+}
+
+/**
+ * LLM fallback for unrecognized errors. Uses a cheap model (deepseek by default)
+ * to classify the error and suggest a recovery strategy.
+ * Returns null if LLM is not available or fails.
+ */
+async function classifyErrorWithLLM(err: string): Promise<ErrorStrategy | null> {
+  try {
+    const { resolveProvider } = await import("@agent-worker/loop");
+    const { generateText, Output } = await import("ai");
+    const { z } = await import("zod");
+
+    // Try deepseek first (cheapest), fall back to any available provider
+    let model;
+    try {
+      model = await resolveProvider("deepseek", "deepseek-chat");
+    } catch {
+      // No deepseek key — skip LLM classification
+      return null;
+    }
+
+    const result = await generateText({
+      model,
+      output: Output.object({
+        schema: z.object({
+          category: z.enum(["rate_limit", "quota_exhausted", "auth", "server_error", "transient"]),
+          autoResume: z.boolean().describe("true if the error is likely temporary and will resolve on its own"),
+          reason: z.string().describe("short human-readable reason, max 10 words"),
+        }),
+      }),
+      prompt: `Classify this API/runtime error into a category. Be concise.\n\nError: ${err.slice(0, 500)}`,
+      maxTokens: 100,
+    });
+
+    if (!result.output) return null;
+    return {
+      category: result.output.category,
+      pause: true,
+      autoResume: result.output.autoResume,
+      reason: result.output.reason,
+    };
+  } catch {
+    // LLM classification failed — don't block error handling
+    return null;
+  }
 }
 
 function serializeLoopEvent(event: LoopEvent): Record<string, unknown> {
