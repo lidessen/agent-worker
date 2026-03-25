@@ -343,13 +343,38 @@ export class WorkspaceRegistry {
               status: "ok",
             });
           } catch (err) {
+            const errStr = String(err);
             this.emitEvent("workspace.agent_error", {
               workspace: key,
               agent: agent.name,
               runId,
-              error: String(err),
+              error: errStr,
               level: "error",
             });
+
+            // Detect quota/auth errors → pause agent + notify lead
+            if (isQuotaOrAuthError(errStr)) {
+              const reason = isAuthError(errStr)
+                ? `authentication failed`
+                : `quota/rate limit reached`;
+              await orch.pause();
+              await workspace.eventLog.log(
+                agent.name, "system",
+                `Auto-paused: ${reason}. Resume with /resume ${agent.name} or wait for cooldown.`,
+              );
+              // Notify lead if one is configured
+              if (workspace.lead && workspace.lead !== agent.name) {
+                try {
+                  await workspace.contextProvider.send({
+                    channel: workspace.defaultChannel,
+                    from: "system",
+                    content: `@${workspace.lead} Agent @${agent.name} was auto-paused (${reason}). ` +
+                      `Task was: ${instruction.content.slice(0, 100)}. ` +
+                      `Reassign if needed or wait for cooldown.`,
+                  });
+                } catch { /* don't fail on notification */ }
+              }
+            }
           }
         },
       });
@@ -652,6 +677,37 @@ function createRunLog(runsDir: string, runId: string): RunLog {
 }
 
 import type { LoopEvent } from "@agent-worker/loop";
+
+// ── Error classification ─────────────────────────────────────────────────
+
+const QUOTA_PATTERNS = [
+  /usage limit/i,
+  /rate limit/i,
+  /quota exceeded/i,
+  /too many requests/i,
+  /429/,
+  /capacity/i,
+  /billing/i,
+  /insufficient.*credits/i,
+];
+
+const AUTH_PATTERNS = [
+  /authentication required/i,
+  /unauthorized/i,
+  /api.key/i,
+  /invalid.*token/i,
+  /401/,
+  /forbidden/i,
+  /403/,
+];
+
+function isQuotaOrAuthError(err: string): boolean {
+  return QUOTA_PATTERNS.some((p) => p.test(err)) || AUTH_PATTERNS.some((p) => p.test(err));
+}
+
+function isAuthError(err: string): boolean {
+  return AUTH_PATTERNS.some((p) => p.test(err));
+}
 
 function serializeLoopEvent(event: LoopEvent): Record<string, unknown> {
   switch (event.type) {
