@@ -111,13 +111,15 @@ export class WorkspaceOrchestrator {
     const delay = ms ?? this.backoffMs;
     this.paused = true;
     this.resumeAt = Date.now() + delay;
-    // Exponential backoff for next failure (capped)
-    this.backoffMs = Math.min(this.backoffMs * 2, MAX_BACKOFF_MS);
+    // Only advance backoff when no explicit wait time was provided
+    if (ms === undefined) {
+      this.backoffMs = Math.min(this.backoffMs * 2, MAX_BACKOFF_MS);
+    }
     const mins = Math.round(delay / 60_000);
     await this.config.provider.status.set(this.config.name, "paused", `auto-resume in ~${mins}m`);
     await this.config.eventLog.log(
       this.config.name, "system",
-      `Agent loop paused (auto-resume in ${mins}m, backoff: ${Math.round(this.backoffMs / 60_000)}m)`,
+      `Agent loop paused (auto-resume in ${mins}m)`,
     );
   }
 
@@ -206,8 +208,8 @@ export class WorkspaceOrchestrator {
   private async tick(): Promise<void> {
     // Check timed auto-resume
     if (this.paused && this.resumeAt && Date.now() >= this.resumeAt) {
+      // resume() already logs "Agent loop resumed"
       await this.resume();
-      await this.config.eventLog.log(this.config.name, "system", "Auto-resumed after cooldown");
     }
     if (this.paused) return;
 

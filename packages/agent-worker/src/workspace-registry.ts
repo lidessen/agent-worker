@@ -145,7 +145,8 @@ export class WorkspaceRegistry {
         storageDir: globalDir,
         allowedPaths: allowedPaths.length > 0 ? allowedPaths : undefined,
       });
-      const orch = createOrchestrator({
+      let orch: WorkspaceOrchestrator;
+      orch = createOrchestrator({
         name: agent.name,
         instructions: agent.instructions,
         provider: workspace.contextProvider,
@@ -155,41 +156,9 @@ export class WorkspaceRegistry {
         pollInterval: 2000,
         sandboxDir: dirs.sandboxDir,
         workspaceSandboxDir: dirs.workspaceSandboxDir,
-        onInstruction: async (prompt, instruction) => {
-          const runId = crypto.randomUUID();
-          this.emitEvent("workspace.agent_run_start", {
-            workspace: "global",
-            agent: agent.name,
-            runId,
-            runtime: agent.runtime,
-            model: agent.model?.full,
-            instruction: instruction.content.slice(0, 200),
-          });
-          this.emitEvent("workspace.agent_prompt", {
-            workspace: "global",
-            agent: agent.name,
-            runId,
-            prompt,
-            level: "debug",
-          });
-          try {
-            await runner(prompt, instruction, runId);
-            this.emitEvent("workspace.agent_run_end", {
-              workspace: "global",
-              agent: agent.name,
-              runId,
-              status: "ok",
-            });
-          } catch (err) {
-            this.emitEvent("workspace.agent_error", {
-              workspace: "global",
-              agent: agent.name,
-              runId,
-              error: String(err),
-              level: "error",
-            });
-          }
-        },
+        // Arrow function defers orch access until invocation (after assignment)
+        onInstruction: (prompt, instruction) =>
+          this.createInstructionHandler("global", agent, workspace, runner, orch)(prompt, instruction),
       });
       loops.push(orch);
     }
@@ -307,7 +276,8 @@ export class WorkspaceRegistry {
         storageDir: actualStorageDir,
         allowedPaths: allowedPaths.length > 0 ? allowedPaths : undefined,
       });
-      const orch = createOrchestrator({
+      let orch: WorkspaceOrchestrator;
+      orch = createOrchestrator({
         name: agent.name,
         instructions: agent.instructions,
         provider: workspace.contextProvider,
@@ -317,69 +287,8 @@ export class WorkspaceRegistry {
         pollInterval: 2000,
         sandboxDir: dirs.sandboxDir,
         workspaceSandboxDir: dirs.workspaceSandboxDir,
-        onInstruction: async (prompt, instruction) => {
-          const runId = crypto.randomUUID();
-          this.emitEvent("workspace.agent_run_start", {
-            workspace: key,
-            agent: agent.name,
-            runId,
-            runtime: agent.runtime,
-            model: agent.model?.full,
-            instruction: instruction.content.slice(0, 200),
-          });
-          this.emitEvent("workspace.agent_prompt", {
-            workspace: key,
-            agent: agent.name,
-            runId,
-            prompt,
-            level: "debug",
-          });
-          try {
-            await runner(prompt, instruction, runId);
-            this.emitEvent("workspace.agent_run_end", {
-              workspace: key,
-              agent: agent.name,
-              runId,
-              status: "ok",
-            });
-          } catch (err) {
-            const errStr = String(err);
-            this.emitEvent("workspace.agent_error", {
-              workspace: key,
-              agent: agent.name,
-              runId,
-              error: errStr,
-              level: "error",
-            });
-
-            // Classify error → decide recovery strategy
-            const strategy = classifyError(errStr) ?? await classifyErrorWithLLM(errStr);
-            if (strategy?.pause) {
-              if (strategy.autoResume) {
-                await orch.pauseUntil(strategy.retryAfterMs);
-              } else {
-                await orch.pause();
-              }
-              await workspace.eventLog.log(
-                agent.name, "system",
-                `Auto-paused (${strategy.category}): ${strategy.reason}. ` +
-                  (strategy.autoResume ? "Will auto-resume after cooldown." : "Manual resume required."),
-              );
-              // Notify lead
-              if (workspace.lead && workspace.lead !== agent.name) {
-                try {
-                  await workspace.contextProvider.send({
-                    channel: workspace.defaultChannel,
-                    from: "system",
-                    content: `@${workspace.lead} Agent @${agent.name} paused (${strategy.reason}). ` +
-                      `Task: ${instruction.content.slice(0, 100)}` +
-                      (strategy.autoResume ? "" : ". Needs manual resume or config fix."),
-                  });
-                } catch { /* don't fail on notification */ }
-              }
-            }
-          }
-        },
+        onInstruction: (prompt, instruction) =>
+          this.createInstructionHandler(key, agent, workspace, runner, orch)(prompt, instruction),
       });
       loops.push(orch);
     }
@@ -442,6 +351,81 @@ export class WorkspaceRegistry {
   }
 
   // ── Internal ────────────────────────────────────────────────────────────
+
+  /**
+   * Create the onInstruction handler shared by ensureDefault and create.
+   * Handles: run lifecycle events, error classification, auto-pause, lead notification.
+   */
+  private createInstructionHandler(
+    workspaceKey: string,
+    agent: ResolvedAgent,
+    workspace: Workspace,
+    runner: (prompt: string, instruction: import("@agent-worker/workspace").Instruction, runId: string) => Promise<void>,
+    orch: WorkspaceOrchestrator,
+  ): (prompt: string, instruction: import("@agent-worker/workspace").Instruction) => Promise<void> {
+    return async (prompt, instruction) => {
+      const runId = crypto.randomUUID();
+      this.emitEvent("workspace.agent_run_start", {
+        workspace: workspaceKey,
+        agent: agent.name,
+        runId,
+        runtime: agent.runtime,
+        model: agent.model?.full,
+        instruction: instruction.content.slice(0, 200),
+      });
+      this.emitEvent("workspace.agent_prompt", {
+        workspace: workspaceKey,
+        agent: agent.name,
+        runId,
+        prompt,
+        level: "debug",
+      });
+      try {
+        await runner(prompt, instruction, runId);
+        this.emitEvent("workspace.agent_run_end", {
+          workspace: workspaceKey,
+          agent: agent.name,
+          runId,
+          status: "ok",
+        });
+      } catch (err) {
+        const errStr = String(err);
+        this.emitEvent("workspace.agent_error", {
+          workspace: workspaceKey,
+          agent: agent.name,
+          runId,
+          error: errStr,
+          level: "error",
+        });
+
+        // Classify error → decide recovery strategy
+        const strategy = classifyError(errStr) ?? await classifyErrorWithLLM(errStr);
+        if (strategy?.pause) {
+          if (strategy.autoResume) {
+            await orch.pauseUntil(strategy.retryAfterMs);
+          } else {
+            await orch.pause();
+          }
+          await workspace.eventLog.log(
+            agent.name, "system",
+            `Auto-paused (${strategy.category}): ${strategy.reason}. ` +
+              (strategy.autoResume ? "Will auto-resume after cooldown." : "Manual resume required."),
+          );
+          if (workspace.lead && workspace.lead !== agent.name) {
+            try {
+              await workspace.contextProvider.send({
+                channel: workspace.defaultChannel,
+                from: "system",
+                content: `@${workspace.lead} Agent @${agent.name} paused (${strategy.reason}). ` +
+                  `Task: ${instruction.content.slice(0, 100)}` +
+                  (strategy.autoResume ? "" : ". Needs manual resume or config fix."),
+              });
+            } catch { /* don't fail on notification */ }
+          }
+        }
+      }
+    };
+  }
 
   /**
    * Build the global workspace YAML config dynamically by discovering
@@ -704,8 +688,13 @@ const ERROR_RULES: Array<{ patterns: RegExp[]; strategy: Omit<ErrorStrategy, "re
     strategy: { category: "rate_limit", pause: true, autoResume: true, reason: "rate limited" },
   },
   {
-    patterns: [/usage limit/i, /quota exceeded/i, /billing/i, /insufficient.*credits/i],
+    patterns: [/usage limit/i, /quota exceeded/i],
     strategy: { category: "quota_exhausted", pause: true, autoResume: true, reason: "quota exhausted" },
+  },
+  {
+    // Billing/credits — account-level, won't self-resolve
+    patterns: [/billing/i, /insufficient.*credits/i, /payment/i, /subscription/i],
+    strategy: { category: "quota_exhausted", pause: true, autoResume: false, reason: "billing/credits issue" },
   },
   {
     patterns: [/authentication required/i, /unauthorized/i, /api.key/i, /invalid.*token/i, /401/],
@@ -724,7 +713,7 @@ const ERROR_RULES: Array<{ patterns: RegExp[]; strategy: Omit<ErrorStrategy, "re
  */
 function parseRetryAfter(err: string): number | undefined {
   // "retry after 60" / "try again in 60 seconds" / "wait 30s" / "reset in 5 minutes"
-  const m = err.match(/(?:retry.?after|try again in|wait|reset in|cooldown:?)\s*(\d+)\s*(s|sec|seconds?|m|min|minutes?|h|hours?|ms)?/i);
+  const m = err.match(/(?:retry.?after|retry in|try again in|wait|reset in|cooldown:?)\s*(\d+)\s*(s|sec|seconds?|m|min|minutes?|h|hours?|ms)?/i);
   if (!m) {
     // Retry-After HTTP header value (plain seconds)
     const h = err.match(/retry-after:\s*(\d+)/i);
@@ -762,13 +751,8 @@ export function setErrorClassifierModel(model: string): void {
   errorClassifierModel = model;
 }
 
-/** Auto-discover order: cheapest first (prices as of 2026-03). */
-const AUTO_DISCOVER_MODELS = [
-  ["deepseek", "deepseek-chat"],         // $0.14/MTok input — cheapest major provider
-  ["google", "gemini-3.1-flash-lite"],    // $0.25/MTok input
-  ["openai", "gpt-5-mini"],              // low cost tier
-  ["anthropic", "claude-haiku-4.5"],      // $1/MTok input
-];
+/** Auto-discover order: cheapest providers first. Uses registry defaults. */
+const AUTO_DISCOVER_PROVIDERS = ["deepseek", "google", "openai", "anthropic"];
 
 /**
  * LLM fallback for unrecognized errors. Classifies the error and extracts
@@ -778,20 +762,21 @@ async function classifyErrorWithLLM(err: string): Promise<ErrorStrategy | null> 
   if (errorClassifierModel === "off") return null;
 
   try {
-    const { resolveProvider, hasProviderKey } = await import("@agent-worker/loop");
+    const { resolveProvider, hasProviderKey, getDefaultModel } = await import("@agent-worker/loop");
     const { generateText, Output } = await import("ai");
     const { z } = await import("zod");
 
     let model;
     if (errorClassifierModel === "auto") {
-      // Try providers in order, pick first available
-      for (const [provider, modelId] of AUTO_DISCOVER_MODELS) {
-        if (hasProviderKey(provider)) {
-          try {
-            model = await resolveProvider(provider, modelId);
-            break;
-          } catch { continue; }
-        }
+      // Try providers in cheapest-first order, use registry default model
+      for (const provider of AUTO_DISCOVER_PROVIDERS) {
+        if (!hasProviderKey(provider)) continue;
+        const modelId = getDefaultModel(provider);
+        if (!modelId) continue;
+        try {
+          model = await resolveProvider(provider, modelId);
+          break;
+        } catch { continue; }
       }
       if (!model) return null;
     } else {
@@ -803,6 +788,7 @@ async function classifyErrorWithLLM(err: string): Promise<ErrorStrategy | null> 
       model = await resolveProvider(provider, modelId);
     }
 
+    const abort = AbortSignal.timeout(10_000);
     const result = await generateText({
       model,
       output: Output.object({
@@ -815,6 +801,7 @@ async function classifyErrorWithLLM(err: string): Promise<ErrorStrategy | null> 
       }),
       prompt: `Classify this API/runtime error. If the error contains a retry-after time, extract it.\n\nError: ${err.slice(0, 500)}`,
       maxTokens: 100,
+      abortSignal: abort,
     });
 
     if (!result.output) return null;
