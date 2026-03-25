@@ -762,12 +762,12 @@ export function setErrorClassifierModel(model: string): void {
   errorClassifierModel = model;
 }
 
-/** Auto-discover order: cheapest first. */
+/** Auto-discover order: cheapest first (prices as of 2026-03). */
 const AUTO_DISCOVER_MODELS = [
-  ["deepseek", "deepseek-chat"],
-  ["openai", "gpt-4o-mini"],
-  ["anthropic", "claude-haiku-4.5"],
-  ["google", "gemini-2.0-flash"],
+  ["deepseek", "deepseek-chat"],         // $0.14/MTok input — cheapest major provider
+  ["google", "gemini-3.1-flash-lite"],    // $0.25/MTok input
+  ["openai", "gpt-5-mini"],              // low cost tier
+  ["anthropic", "claude-haiku-4.5"],      // $1/MTok input
 ];
 
 /**
