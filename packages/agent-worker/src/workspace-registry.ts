@@ -33,6 +33,8 @@ storage: file
  */
 /** Manifest entry — persisted to workspaces.json for restart recovery. */
 interface ManifestEntry {
+  /** Workspace key (name or name:tag) — used for dedup and removal. */
+  key: string;
   /** Absolute path to workspace YAML file. */
   sourcePath: string;
   tag?: string;
@@ -46,6 +48,8 @@ export class WorkspaceRegistry {
   private _daemonUrl?: string;
   private _daemonToken?: string;
   private _mcpHubUrl?: string;
+  /** Serialize manifest read-modify-write to prevent concurrent corruption. */
+  private _manifestLock: Promise<void> = Promise.resolve();
 
   constructor(dataDir: string) {
     this._dataDir = dataDir;
@@ -56,13 +60,26 @@ export class WorkspaceRegistry {
     return join(this._dataDir, "workspaces.json");
   }
 
+  /** Serialize access to the manifest file. */
+  private withManifestLock<T>(fn: () => Promise<T>): Promise<T> {
+    const next = this._manifestLock.then(fn);
+    this._manifestLock = next.then(() => {}, () => {});
+    return next;
+  }
+
   /** Read manifest entries. */
   private async readManifest(): Promise<ManifestEntry[]> {
     try {
       const raw = await readFileAsync(this.manifestPath, "utf-8");
-      return JSON.parse(raw);
-    } catch {
-      return [];
+      try {
+        return JSON.parse(raw);
+      } catch (parseErr) {
+        console.error(`[workspace-registry] manifest corrupted, starting empty: ${parseErr}`);
+        return [];
+      }
+    } catch (fsErr: any) {
+      if (fsErr.code === "ENOENT") return [];
+      throw fsErr;
     }
   }
 
@@ -72,50 +89,48 @@ export class WorkspaceRegistry {
   }
 
   /** Add workspace to manifest (for restart recovery). */
-  private async registerInManifest(input: CreateWorkspaceInput): Promise<void> {
-    if (!input.sourcePath) return; // Can't persist without file path
-    const entries = await this.readManifest();
-    const exists = entries.some((e) => e.sourcePath === input.sourcePath && e.tag === input.tag);
-    if (!exists) {
-      entries.push({ sourcePath: input.sourcePath, tag: input.tag });
+  private async registerInManifest(key: string, input: CreateWorkspaceInput): Promise<void> {
+    if (!input.sourcePath) return;
+    await this.withManifestLock(async () => {
+      const entries = await this.readManifest();
+      if (entries.some((e) => e.key === key)) return;
+      entries.push({ key, sourcePath: input.sourcePath!, tag: input.tag });
       await this.writeManifest(entries);
-    }
+    });
   }
 
-  /** Remove workspace from manifest by key or sourcePath. */
+  /** Remove workspace from manifest by key. */
   private async unregisterFromManifest(key: string): Promise<void> {
-    const entries = await this.readManifest();
-    const filtered = entries.filter((e) => {
-      // Match by sourcePath basename (workspace name) + tag
-      const name = e.sourcePath.split("/").slice(-2, -1)[0] ?? basename(e.sourcePath).replace(/\.(ya?ml)$/, "");
-      const entryKey = e.tag ? `${name}:${e.tag}` : name;
-      return entryKey !== key;
+    await this.withManifestLock(async () => {
+      const entries = await this.readManifest();
+      const filtered = entries.filter((e) => e.key !== key);
+      if (filtered.length !== entries.length) {
+        await this.writeManifest(filtered);
+      }
     });
-    if (filtered.length !== entries.length) {
-      await this.writeManifest(filtered);
-    }
   }
 
   /**
    * Restore all workspaces from manifest. Called on daemon start after
    * global workspace and MCP hub are ready.
+   * Skips setup steps (sandbox already populated) and kickoff (not a fresh create).
    */
   async restoreFromManifest(): Promise<void> {
     const entries = await this.readManifest();
     for (const entry of entries) {
+      if (this.workspaces.has(entry.key)) continue;
       try {
         const handle = await this.create({
-          source: entry.sourcePath, // loadWorkspaceDef detects file paths vs content
+          source: entry.sourcePath,
           sourcePath: entry.sourcePath,
           configDir: dirname(entry.sourcePath),
           tag: entry.tag,
+          _restore: true, // skip setup + kickoff
         });
         await handle.startLoops();
-        await handle.kickoff();
-        console.error(`[workspace-registry] restored: ${handle.info.name}`);
+        console.error(`[workspace-registry] restored: ${entry.key}`);
       } catch (err) {
-        // Don't fail daemon startup if one workspace can't restore
-        console.error(`[workspace-registry] failed to restore ${entry.sourcePath}: ${err}`);
+        console.error(`[workspace-registry] failed to restore ${entry.key}: ${err}`);
       }
     }
   }
@@ -312,7 +327,7 @@ export class WorkspaceRegistry {
     if (sandboxDir) templateVars["sandbox"] = sandboxDir;
     if (input.tag) templateVars["workspace.tag"] = input.tag;
 
-    if (resolved.def.setup?.length && sandboxDir) {
+    if (resolved.def.setup?.length && sandboxDir && !input._restore) {
       mkdirSync(sandboxDir, { recursive: true });
       const { runSetupSteps } = await import("@agent-worker/workspace");
       const setupVars = await runSetupSteps(resolved.def.setup, templateVars, {
@@ -383,9 +398,9 @@ export class WorkspaceRegistry {
 
     this.workspaces.set(key, handle);
 
-    // Persist to manifest for restart recovery (service mode only)
-    if (input.mode !== "task") {
-      await this.registerInManifest(input);
+    // Persist to manifest for restart recovery (service mode only, not on restore)
+    if (input.mode !== "task" && !input._restore) {
+      await this.registerInManifest(key, input);
     }
 
     this.emitEvent("workspace.created", {

@@ -87,6 +87,8 @@ export interface CreateWorkspaceInput {
   configDir?: string;
   /** Absolute path to the source YAML file (for manifest persistence). */
   sourcePath?: string;
+  /** Internal: set by restoreFromManifest to skip setup steps and kickoff. */
+  _restore?: boolean;
   /** Instance tag (e.g. "pr-123"). */
   tag?: string;
   /** Extra variables for template interpolation. */
