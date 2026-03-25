@@ -10,7 +10,7 @@ import { createLoopTools, closeBrowser, type LoopToolsOptions } from "../tools/i
 // No typed model union — AI SDK supports any provider:model string
 
 export interface AiSdkLoopOptions {
-  /** AI SDK LanguageModel — string like "anthropic:claude-sonnet-4-6" or model instance */
+  /** AI SDK LanguageModel — "provider:model" format or model instance */
   model: LanguageModel;
   /** System instructions */
   instructions?: string;
@@ -227,7 +227,7 @@ export class AiSdkLoop {
     if (!provider) {
       return {
         ok: false,
-        error: "Unknown provider — model string should be like 'anthropic:claude-sonnet-4-6'",
+        error: "Unknown provider — model string should be 'provider:model' (e.g. 'anthropic:model-name')",
       };
     }
 

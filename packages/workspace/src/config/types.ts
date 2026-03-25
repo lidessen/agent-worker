@@ -3,7 +3,7 @@
 
 /** Model configuration object form. */
 export interface ModelDef {
-  /** Model identifier (e.g. "claude-sonnet-4-6", "gpt-5-mini"). */
+  /** Model identifier. */
   id: string;
   /** Provider override (e.g. "anthropic", "openai"). Inferred from id if omitted. */
   provider?: string;
@@ -18,15 +18,15 @@ export interface ModelDef {
  *
  * ```yaml
  * # String shorthand
- * model: claude-sonnet-4-6
+ * model: model-name
  *
  * # Provider:model shorthand (AI SDK style)
- * model: anthropic:claude-sonnet-4-6
+ * model: provider:model-name
  *
  * # Object form (with parameters)
  * model:
- *   id: claude-sonnet-4-6
- *   provider: anthropic
+ *   id: model-name
+ *   provider: provider-name
  *   temperature: 0.7
  * ```
  */

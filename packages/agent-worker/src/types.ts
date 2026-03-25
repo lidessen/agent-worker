@@ -102,8 +102,8 @@ export interface RuntimeConfig {
   type: RuntimeType;
 
   /** Model identifier. Meaning depends on type:
-   *  - ai-sdk: "provider:model" (e.g. "anthropic:claude-sonnet-4-6")
-   *  - claude-code: model name (e.g. "sonnet", "opus")
+   *  - ai-sdk: "provider:model" format
+   *  - claude-code: model alias (e.g. "sonnet", "opus")
    *  - codex/cursor: model name
    *  - mock: ignored */
   model?: string;

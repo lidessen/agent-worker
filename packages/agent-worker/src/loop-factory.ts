@@ -34,7 +34,7 @@ async function createAiSdkLoop(config: RuntimeConfig): Promise<AgentLoop> {
   const provider = extractProvider(modelStr);
   if (!provider) {
     throw new Error(
-      `Invalid model format "${modelStr}": expected "provider:modelId" (e.g. "anthropic:claude-sonnet-4-6").`,
+      `Invalid model format "${modelStr}": expected "provider:model" (e.g. "anthropic:model-name").`,
     );
   }
   const modelId = modelStr.slice(provider.length + 1);

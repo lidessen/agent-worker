@@ -40,9 +40,9 @@ export function interpolate(template: string, vars: Record<string, string>): str
  * Resolve a ModelSpec (string or object) into a normalized ResolvedModel.
  *
  * Supports:
- * - `"claude-sonnet-4-6"` → { id: "claude-sonnet-4-6", full: "claude-sonnet-4-6" }
- * - `"anthropic:claude-sonnet-4-6"` → { id: "claude-sonnet-4-6", provider: "anthropic", full: "anthropic:claude-sonnet-4-6" }
- * - `{ id: "claude-sonnet-4-6", provider: "anthropic", temperature: 0.7 }` → resolved object
+ * - `"model-name"` → { id: "model-name", full: "model-name" }
+ * - `"provider:model-name"` → { id: "model-name", provider: "provider", full: "provider:model-name" }
+ * - `{ id: "model-name", provider: "provider", temperature: 0.7 }` → resolved object
  */
 export function resolveModel(spec: ModelSpec): ResolvedModel {
   if (typeof spec === "string") {
