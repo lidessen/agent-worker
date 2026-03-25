@@ -356,7 +356,7 @@ export class WorkspaceRegistry {
             const strategy = classifyError(errStr) ?? await classifyErrorWithLLM(errStr);
             if (strategy?.pause) {
               if (strategy.autoResume) {
-                await orch.pauseUntil();
+                await orch.pauseUntil(strategy.retryAfterMs);
               } else {
                 await orch.pause();
               }
@@ -691,61 +691,116 @@ interface ErrorStrategy {
   pause: boolean;
   /** Whether the agent should auto-resume after a cooldown. */
   autoResume: boolean;
+  /** Suggested wait time in ms (extracted from error or LLM). Undefined = use default backoff. */
+  retryAfterMs?: number;
   /** Human-readable reason for the pause. */
   reason: string;
 }
 
 /** Patterns → strategy, checked in order (first match wins). */
-const ERROR_RULES: Array<{ patterns: RegExp[]; strategy: ErrorStrategy }> = [
+const ERROR_RULES: Array<{ patterns: RegExp[]; strategy: Omit<ErrorStrategy, "retryAfterMs"> }> = [
   {
-    // Rate limit — temporary, auto-resume with backoff
     patterns: [/rate limit/i, /too many requests/i, /429/, /throttl/i],
     strategy: { category: "rate_limit", pause: true, autoResume: true, reason: "rate limited" },
   },
   {
-    // Quota exhausted — longer cooldown, auto-resume (might reset hourly/daily)
     patterns: [/usage limit/i, /quota exceeded/i, /billing/i, /insufficient.*credits/i],
     strategy: { category: "quota_exhausted", pause: true, autoResume: true, reason: "quota exhausted" },
   },
   {
-    // Auth — permanent until fixed, don't auto-resume
     patterns: [/authentication required/i, /unauthorized/i, /api.key/i, /invalid.*token/i, /401/],
     strategy: { category: "auth", pause: true, autoResume: false, reason: "authentication failed" },
   },
   {
-    // Server errors — transient, auto-resume quickly
     patterns: [/500/, /502/, /503/, /504/, /service unavailable/i, /internal server error/i],
     strategy: { category: "server_error", pause: true, autoResume: true, reason: "server error" },
   },
 ];
 
+/**
+ * Extract retry-after duration from error text.
+ * Handles: "retry after 60s", "try again in 5 minutes", "reset in 3600 seconds",
+ * "Retry-After: 120", "wait 30s", "cooldown: 1h", etc.
+ */
+function parseRetryAfter(err: string): number | undefined {
+  // "retry after 60" / "try again in 60 seconds" / "wait 30s" / "reset in 5 minutes"
+  const m = err.match(/(?:retry.?after|try again in|wait|reset in|cooldown:?)\s*(\d+)\s*(s|sec|seconds?|m|min|minutes?|h|hours?|ms)?/i);
+  if (!m) {
+    // Retry-After HTTP header value (plain seconds)
+    const h = err.match(/retry-after:\s*(\d+)/i);
+    if (h) return parseInt(h[1]!, 10) * 1000;
+    return undefined;
+  }
+  const n = parseInt(m[1]!, 10);
+  const unit = (m[2] ?? "s").toLowerCase();
+  if (unit.startsWith("ms")) return n;
+  if (unit.startsWith("h")) return n * 3_600_000;
+  if (unit.startsWith("m")) return n * 60_000;
+  return n * 1000; // default seconds
+}
+
 function classifyError(err: string): ErrorStrategy | null {
   for (const rule of ERROR_RULES) {
     if (rule.patterns.some((p) => p.test(err))) {
-      return rule.strategy;
+      return { ...rule.strategy, retryAfterMs: parseRetryAfter(err) };
     }
   }
   return null;
 }
 
+// ── LLM error classifier ────────────────────────────────────────────────
+
 /**
- * LLM fallback for unrecognized errors. Uses a cheap model (deepseek by default)
- * to classify the error and suggest a recovery strategy.
- * Returns null if LLM is not available or fails.
+ * Configurable model for LLM error classification.
+ * Format: "provider:model" (e.g. "deepseek:deepseek-chat").
+ * Set to "auto" to auto-discover cheapest available, or "off" to disable.
+ */
+let errorClassifierModel: string = "auto";
+
+/** Set the model used for LLM error classification. */
+export function setErrorClassifierModel(model: string): void {
+  errorClassifierModel = model;
+}
+
+/** Auto-discover order: cheapest first. */
+const AUTO_DISCOVER_MODELS = [
+  ["deepseek", "deepseek-chat"],
+  ["openai", "gpt-4o-mini"],
+  ["anthropic", "claude-haiku-4.5"],
+  ["google", "gemini-2.0-flash"],
+];
+
+/**
+ * LLM fallback for unrecognized errors. Classifies the error and extracts
+ * retry-after timing if present.
  */
 async function classifyErrorWithLLM(err: string): Promise<ErrorStrategy | null> {
+  if (errorClassifierModel === "off") return null;
+
   try {
-    const { resolveProvider } = await import("@agent-worker/loop");
+    const { resolveProvider, hasProviderKey } = await import("@agent-worker/loop");
     const { generateText, Output } = await import("ai");
     const { z } = await import("zod");
 
-    // Try deepseek first (cheapest), fall back to any available provider
     let model;
-    try {
-      model = await resolveProvider("deepseek", "deepseek-chat");
-    } catch {
-      // No deepseek key — skip LLM classification
-      return null;
+    if (errorClassifierModel === "auto") {
+      // Try providers in order, pick first available
+      for (const [provider, modelId] of AUTO_DISCOVER_MODELS) {
+        if (hasProviderKey(provider)) {
+          try {
+            model = await resolveProvider(provider, modelId);
+            break;
+          } catch { continue; }
+        }
+      }
+      if (!model) return null;
+    } else {
+      // Explicit "provider:model" config
+      const colonIdx = errorClassifierModel.indexOf(":");
+      if (colonIdx <= 0) return null;
+      const provider = errorClassifierModel.slice(0, colonIdx);
+      const modelId = errorClassifierModel.slice(colonIdx + 1);
+      model = await resolveProvider(provider, modelId);
     }
 
     const result = await generateText({
@@ -753,11 +808,12 @@ async function classifyErrorWithLLM(err: string): Promise<ErrorStrategy | null> 
       output: Output.object({
         schema: z.object({
           category: z.enum(["rate_limit", "quota_exhausted", "auth", "server_error", "transient"]),
-          autoResume: z.boolean().describe("true if the error is likely temporary and will resolve on its own"),
+          autoResume: z.boolean().describe("true if temporary and will resolve on its own"),
+          retryAfterMs: z.number().optional().describe("suggested wait time in milliseconds, extracted from error if available"),
           reason: z.string().describe("short human-readable reason, max 10 words"),
         }),
       }),
-      prompt: `Classify this API/runtime error into a category. Be concise.\n\nError: ${err.slice(0, 500)}`,
+      prompt: `Classify this API/runtime error. If the error contains a retry-after time, extract it.\n\nError: ${err.slice(0, 500)}`,
       maxTokens: 100,
     });
 
@@ -766,10 +822,10 @@ async function classifyErrorWithLLM(err: string): Promise<ErrorStrategy | null> 
       category: result.output.category,
       pause: true,
       autoResume: result.output.autoResume,
+      retryAfterMs: result.output.retryAfterMs,
       reason: result.output.reason,
     };
   } catch {
-    // LLM classification failed — don't block error handling
     return null;
   }
 }
