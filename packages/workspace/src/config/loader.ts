@@ -240,6 +240,7 @@ export async function loadWorkspaceDef(
       channels: agentDef.channels,
       env: mergedEnv,
       mounts: resolvedMounts,
+      on_demand: agentDef.on_demand,
     });
   }
 

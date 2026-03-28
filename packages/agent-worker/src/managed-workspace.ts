@@ -21,6 +21,8 @@ export class ManagedWorkspace {
   private _bus?: EventBus;
   private _status: WorkspaceStatus = "running";
   private _statusPath?: string;
+  private _onDemandAgents: Set<string>;
+  private _mentionListener: ((msg: import("@agent-worker/workspace").Message) => void) | null = null;
 
   constructor(opts: {
     workspace: Workspace;
@@ -41,6 +43,9 @@ export class ManagedWorkspace {
     this.loops = opts.loops;
     this._bus = opts.bus;
     this._statusPath = opts.statusPath;
+    this._onDemandAgents = new Set(
+      opts.resolved.agents.filter((a) => a.on_demand).map((a) => a.name),
+    );
     this._persistStatus();
   }
 
@@ -72,10 +77,25 @@ export class ManagedWorkspace {
     };
   }
 
-  /** Start all agent loops. */
+  /** Start all agent loops (skips on_demand agents). */
   async startLoops(): Promise<void> {
     for (const loop of this.loops) {
+      if (this._onDemandAgents.has(loop.name)) continue;
       await loop.start();
+    }
+
+    if (this._onDemandAgents.size > 0) {
+      this._mentionListener = (msg) => {
+        for (const mention of msg.mentions) {
+          if (this._onDemandAgents.has(mention)) {
+            const loop = this.loops.find((l) => l.name === mention);
+            if (loop && !loop.isRunning) {
+              loop.start().catch(() => {/* best effort */});
+            }
+          }
+        }
+      };
+      this.workspace.contextProvider.channels.on("message", this._mentionListener);
     }
   }
 
@@ -104,13 +124,12 @@ export class ManagedWorkspace {
 
   /**
    * Check if all local agents are idle with empty inboxes (task completion).
-   * Returns "completed" if all idle, "failed" if any loop errored, "running" otherwise.
+   * Returns "completed" if all idle, "failed" if any loop failed fatally, "running" otherwise.
    */
   checkCompletion(): WorkspaceStatus {
+    if (this.loops.some((l) => l.isFailed)) return "failed";
     const allStopped = this.loops.every((l) => !l.isRunning);
     if (!allStopped) return "running";
-    // If we get here, all loops have stopped — consider it completed
-    // (future: check for error states in loops)
     return "completed";
   }
 
@@ -146,6 +165,10 @@ export class ManagedWorkspace {
 
   /** Stop this workspace and all its loops. */
   async stop(): Promise<void> {
+    if (this._mentionListener) {
+      this.workspace.contextProvider.channels.off("message", this._mentionListener);
+      this._mentionListener = null;
+    }
     for (const loop of this.loops) {
       if (loop.isRunning) {
         await loop.stop();

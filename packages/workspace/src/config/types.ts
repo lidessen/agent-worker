@@ -56,6 +56,8 @@ export interface AgentDef {
   env?: Record<string, string>;
   /** Filesystem mount points (symlinked into the agent's sandbox). */
   mounts?: (string | MountDef)[];
+  /** If true, agent loop is not started automatically — only launched when @mentioned. */
+  on_demand?: boolean;
 }
 
 /** Setup step: run a shell command, optionally capture output as a variable. */
@@ -136,6 +138,8 @@ export interface ResolvedAgent {
   env?: Record<string, string>;
   /** Resolved filesystem mount points. */
   mounts?: MountDef[];
+  /** If true, agent loop is not started automatically — only launched when @mentioned. */
+  on_demand?: boolean;
 }
 
 /** Result of loading and resolving a workspace definition. */
