@@ -27,23 +27,30 @@ export async function createLoopFromConfig(config: RuntimeConfig): Promise<Agent
 }
 
 async function createAiSdkLoop(config: RuntimeConfig): Promise<AgentLoop> {
-  const { AiSdkLoop } = await import("@agent-worker/loop");
+  const { AiSdkLoop, createHostSandbox } = await import("@agent-worker/loop");
 
   // Parse "provider:model" format (provider is registry key)
   const modelStr = config.model ?? getDefaultModel("anthropic") ?? "anthropic:claude-sonnet-4-6";
   const provider = extractProvider(modelStr);
   if (!provider) {
     throw new Error(
-      `Invalid model format "${modelStr}": expected "provider:modelId" (e.g. "anthropic:claude-sonnet-4-6").`,
+      `Invalid model format "${modelStr}": expected "provider:model" (e.g. "anthropic:model-name").`,
     );
   }
   const modelId = modelStr.slice(provider.length + 1);
 
   const languageModel = await resolveProvider(provider, modelId, config.env);
 
+  // When cwd is set, use HostSandbox for real filesystem access.
+  // Without cwd, fall back to bash-tool's default just-bash (virtual FS).
+  const bashToolOptions = config.cwd
+    ? { sandbox: createHostSandbox({ cwd: config.cwd, allowedPaths: config.allowedPaths }), destination: config.cwd }
+    : undefined;
+
   return new AiSdkLoop({
     model: languageModel,
     instructions: config.instructions,
+    bashToolOptions,
     loopTools: config.loopTools,
   });
 }
@@ -53,6 +60,7 @@ async function createClaudeCodeLoop(config: RuntimeConfig): Promise<AgentLoop> {
   return new ClaudeCodeLoop({
     model: config.model ?? "sonnet",
     cwd: config.cwd,
+    allowedPaths: config.allowedPaths,
     env: config.env,
     permissionMode: "bypassPermissions",
   });
@@ -63,6 +71,7 @@ async function createCodexLoop(config: RuntimeConfig): Promise<AgentLoop> {
   return new CodexLoop({
     model: config.model,
     cwd: config.cwd,
+    allowedPaths: config.allowedPaths,
     env: config.env,
     fullAuto: true,
   });
@@ -70,10 +79,15 @@ async function createCodexLoop(config: RuntimeConfig): Promise<AgentLoop> {
 
 async function createCursorLoop(config: RuntimeConfig): Promise<AgentLoop> {
   const { CursorLoop } = await import("@agent-worker/loop");
+  // Cursor has no --add-dir; pass allowedPaths via env var
+  const env = { ...config.env };
+  if (config.allowedPaths?.length) {
+    env.AGENT_ALLOWED_PATHS = config.allowedPaths.join(":");
+  }
   return new CursorLoop({
     model: config.model,
     cwd: config.cwd,
-    env: config.env,
+    env,
   });
 }
 

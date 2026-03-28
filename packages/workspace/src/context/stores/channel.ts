@@ -48,13 +48,21 @@ export class ChannelStore implements ChannelStoreInterface {
     return message;
   }
 
-  async read(channel: string, opts?: { since?: string; limit?: number }): Promise<Message[]> {
+  async read(channel: string, opts?: { since?: string; sinceId?: string; limit?: number }): Promise<Message[]> {
     const lines = await this.storage.readLines(this.channelPath(channel));
     let messages = lines.map((line) => JSON.parse(line) as Message);
 
     if (opts?.since) {
       const sinceTime = new Date(opts.since).getTime();
       messages = messages.filter((m) => new Date(m.timestamp).getTime() > sinceTime);
+    }
+
+    if (opts?.sinceId) {
+      const idx = messages.findIndex((m) => m.id === opts.sinceId);
+      // If found, take everything after it; if not found, return all (safe fallback)
+      if (idx !== -1) {
+        messages = messages.slice(idx + 1);
+      }
     }
 
     if (opts?.limit) {

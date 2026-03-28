@@ -6,14 +6,18 @@ import type { LoopToolsOptions } from "@agent-worker/loop";
 export interface DaemonConfig {
   /** TCP port. Default: 0 (auto-assign). */
   port?: number;
-  /** Hostname to bind. Default: "127.0.0.1". */
+  /** Hostname to bind. Default: "0.0.0.0". */
   host?: string;
+  /** Allow requests from Tailscale peers without auth token. Default: false. */
+  trustTailscale?: boolean;
   /** Data directory. Default: ~/.agent-worker */
   dataDir?: string;
   /** Auth token. Default: auto-generated. */
   token?: string;
   /** MCP hub port. Default: 42424. Set to 0 for auto-assign (useful in tests). */
   mcpPort?: number;
+  /** Directory containing the built web UI (SPA). Default: packages/web/dist relative to project root. */
+  webDistDir?: string;
 }
 
 // ── Daemon discovery ──────────────────────────────────────────────────────
@@ -24,6 +28,7 @@ export interface DaemonInfo {
   port: number;
   token: string;
   startedAt: number;
+  listenHost?: string;
   /** Port of the workspace MCP hub (debug + agent tools via MCP protocol). */
   mcpPort?: number;
 }
@@ -64,6 +69,7 @@ export type WorkspaceStatus = "running" | "completed" | "failed";
 
 export interface ManagedWorkspaceInfo {
   name: string;
+  label?: string;
   tag?: string;
   agents: string[];
   channels: string[];
@@ -80,6 +86,10 @@ export interface CreateWorkspaceInput {
   name?: string;
   /** Directory of the source config file (used to resolve relative data_dir). */
   configDir?: string;
+  /** Absolute path to the source YAML file (for manifest persistence). */
+  sourcePath?: string;
+  /** Internal: set by restoreFromManifest to skip setup steps and kickoff. */
+  _restore?: boolean;
   /** Instance tag (e.g. "pr-123"). */
   tag?: string;
   /** Extra variables for template interpolation. */
@@ -97,8 +107,8 @@ export interface RuntimeConfig {
   type: RuntimeType;
 
   /** Model identifier. Meaning depends on type:
-   *  - ai-sdk: "provider:model" (e.g. "anthropic:claude-sonnet-4-20250514")
-   *  - claude-code: model name (e.g. "sonnet", "opus")
+   *  - ai-sdk: "provider:model" format
+   *  - claude-code: model alias (e.g. "sonnet", "opus")
    *  - codex/cursor: model name
    *  - mock: ignored */
   model?: string;
@@ -108,6 +118,11 @@ export interface RuntimeConfig {
 
   /** Working directory for CLI-based runtimes. Default: daemon cwd. */
   cwd?: string;
+
+  /** Additional directories the agent is allowed to access beyond cwd.
+   *  Used for shared workspace sandbox, mounted repos, etc.
+   *  Currently advisory (passed to tool instructions); will be enforced in future. */
+  allowedPaths?: string[];
 
   /** Environment variable overrides (e.g. API keys). */
   env?: Record<string, string>;

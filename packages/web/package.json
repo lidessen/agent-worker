@@ -1,0 +1,14 @@
+{
+  "name": "@agent-worker/web",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "bun build ./src/index.html --outdir dist --minify",
+    "dev": "bun build ./src/index.html --outdir dist --watch"
+  },
+  "dependencies": {
+    "@semajsx/icons": "workspace:*",
+    "semajsx": "workspace:*"
+  }
+}

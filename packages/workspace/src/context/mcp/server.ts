@@ -22,7 +22,7 @@ export function createWorkspaceTools(
   return {
     // Channel tools
     channel_send: (args) =>
-      channelTools.channel_send(args as Parameters<typeof channelTools.channel_send>[0]),
+      channelTools.channel_send(args as Parameters<typeof channelTools.channel_send>[0] & { force?: boolean }),
     channel_read: (args) =>
       channelTools.channel_read(args as Parameters<typeof channelTools.channel_read>[0]),
     channel_list: () => channelTools.channel_list(),
@@ -106,7 +106,10 @@ export function createWorkspaceTools(
 export const WORKSPACE_TOOL_DEFS = {
   channel_send: {
     description:
-      "Send a message to a channel. Content must be under 1200 characters. " +
+      "Send a message to a channel. The guard checks for new messages since you last " +
+      "read the channel — if others posted, you'll get a warning with their messages. " +
+      "Review and call again with force=true to send anyway, or adjust your message. " +
+      "Content must be under 1200 characters. " +
       "For longer content, first call resource_create to store it, then send a short " +
       "message here that summarizes the content and includes the resource ID so others " +
       "can call resource_read to view the full version.",
@@ -117,6 +120,10 @@ export const WORKSPACE_TOOL_DEFS = {
         description: "Message content (max 1200 chars). Reference resource IDs for large content.",
       },
       to: { type: "string", description: "DM recipient (optional)" },
+      force: {
+        type: "boolean",
+        description: "Bypass the new-message guard (send even if channel has new messages)",
+      },
     },
     required: ["channel", "content"],
   },

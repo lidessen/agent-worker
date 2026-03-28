@@ -94,6 +94,7 @@ function buildArgs(prompt: string, opts: CursorLoopOptions): string[] {
   if (opts.extraArgs?.length) args.push(...opts.extraArgs);
 
   // Prompt must come last (positional argument)
+  // Note: Cursor has no --add-dir flag. allowedPaths passed via AGENT_ALLOWED_PATHS env var.
   args.push(prompt);
 
   return args;

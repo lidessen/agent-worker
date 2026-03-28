@@ -1,0 +1,147 @@
+import { classes, rule } from "semajsx/style";
+import { tokens } from "../theme/tokens.ts";
+
+const c = classes([
+  "viewer",
+  "header",
+  "title",
+  "toolbar",
+  "toolbarBtn",
+  "toolbarBtnActive",
+  "errorBanner",
+  "contentPre",
+  "editArea",
+] as const);
+
+export const viewer = rule`${c.viewer} {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}`;
+
+export const header = rule`${c.header} {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: ${tokens.space.md};
+  padding: ${tokens.space.md} ${tokens.space.xl};
+  border-bottom: 1px solid ${tokens.colors.border};
+  background: ${tokens.colors.headerSheen};
+  flex-shrink: 0;
+}
+@media (max-width: 640px) {
+  ${c.header} {
+    padding: ${tokens.space.sm} ${tokens.space.md};
+  }
+}`;
+
+export const title = rule`${c.title} {
+  font-size: ${tokens.fontSizes.xl};
+  font-weight: ${tokens.fontWeights.bold};
+  letter-spacing: -0.03em;
+  color: ${tokens.colors.text};
+  font-family: ${tokens.fonts.mono};
+}
+@media (max-width: 640px) {
+  ${c.title} {
+    font-size: ${tokens.fontSizes.lg};
+  }
+}`;
+
+export const toolbar = rule`${c.toolbar} {
+  display: flex;
+  gap: ${tokens.space.sm};
+  flex-shrink: 0;
+  align-items: center;
+  margin-left: auto;
+}
+@media (max-width: 640px) {
+  ${c.toolbar} {
+    gap: ${tokens.space.xs};
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+}`;
+
+export const toolbarBtn = rule`${c.toolbarBtn} {
+  background: ${tokens.colors.surfaceSecondary};
+  border: 1px solid ${tokens.colors.border};
+  border-radius: ${tokens.radii.pill};
+  color: ${tokens.colors.textMuted};
+  padding: 4px ${tokens.space.sm};
+  font-size: ${tokens.fontSizes.xs};
+  cursor: pointer;
+  transition: color ${tokens.transitions.fast}, border-color ${tokens.transitions.fast}, background ${tokens.transitions.fast};
+}
+${c.toolbarBtn}:hover {
+  color: ${tokens.colors.text};
+  border-color: ${tokens.colors.borderHover};
+  background: ${tokens.colors.surfaceHover};
+}
+@media (max-width: 640px) {
+  ${c.toolbarBtn} {
+    padding: 4px ${tokens.space.xs};
+  }
+}`;
+
+export const toolbarBtnActive = rule`${c.toolbarBtnActive} {
+  background: ${tokens.colors.buttonPrimary};
+  color: ${tokens.colors.buttonPrimaryText};
+  border-color: ${tokens.colors.buttonPrimaryBorder};
+}
+${c.toolbarBtnActive}:hover {
+  color: ${tokens.colors.buttonPrimaryText};
+  background: ${tokens.colors.buttonPrimaryHover};
+}`;
+
+export const errorBanner = rule`${c.errorBanner} {
+  padding: ${tokens.space.sm} ${tokens.space.md};
+  color: ${tokens.colors.danger};
+  font-size: ${tokens.fontSizes.xs};
+  background: ${tokens.colors.dangerSurface};
+  border-bottom: 1px solid ${tokens.colors.dangerBorder};
+}`;
+
+export const contentPre = rule`${c.contentPre} {
+  margin: 0;
+  padding: ${tokens.space.lg} ${tokens.space.xl} ${tokens.space.xl};
+  font-family: ${tokens.fonts.mono};
+  font-size: ${tokens.fontSizes.xs};
+  color: ${tokens.colors.text};
+  white-space: pre-wrap;
+  word-break: break-word;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  line-height: 1.6;
+}
+@media (max-width: 640px) {
+  ${c.contentPre} {
+    padding: ${tokens.space.md};
+    font-size: ${tokens.fontSizes.xxs};
+  }
+}`;
+
+export const editArea = rule`${c.editArea} {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  resize: none;
+  border: none;
+  padding: ${tokens.space.lg} ${tokens.space.xl} ${tokens.space.xl};
+  font-family: ${tokens.fonts.mono};
+  font-size: ${tokens.fontSizes.xs};
+  color: ${tokens.colors.text};
+  background: transparent;
+  line-height: 1.6;
+}
+${c.editArea}:focus {
+  outline: none;
+}
+@media (max-width: 640px) {
+  ${c.editArea} {
+    padding: ${tokens.space.md};
+    font-size: ${tokens.fontSizes.xxs};
+  }
+}`;

@@ -1,0 +1,4 @@
+[submodule "semajsx"]
+	path = vendor/semajsx
+	url = https://github.com/semajsx/semajsx.git
+	ignore = dirty

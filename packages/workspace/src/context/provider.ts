@@ -18,6 +18,8 @@ export interface ContextProviderConfig {
   status: StatusStoreInterface;
   timeline: TimelineStoreInterface;
   chronicle: ChronicleStoreInterface;
+  /** Team lead agent name. */
+  lead?: string;
   /** Max message length in characters. Default: 1200 */
   maxMessageLength?: number;
 }
@@ -30,6 +32,7 @@ export class CompositeContextProvider implements ContextProvider {
   readonly status: StatusStoreInterface;
   readonly timeline: TimelineStoreInterface;
   readonly chronicle: ChronicleStoreInterface;
+  readonly lead?: string;
 
   private readonly maxMessageLength: number;
 
@@ -41,6 +44,7 @@ export class CompositeContextProvider implements ContextProvider {
     this.status = config.status;
     this.timeline = config.timeline;
     this.chronicle = config.chronicle;
+    this.lead = config.lead;
     this.maxMessageLength = config.maxMessageLength ?? 1200;
   }
 

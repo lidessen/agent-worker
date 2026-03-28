@@ -60,6 +60,7 @@ export {
   toWorkspaceConfig,
   resolveModel,
   resolveConnections,
+  saveConnection,
   loadSecrets,
   saveSecrets,
   setSecret,

@@ -100,13 +100,14 @@ describe("Daemon", () => {
     expect(discovered).toBeNull();
   });
 
-  test("requires auth for non-health endpoints", async () => {
+  test("skips auth for local connections (127.0.0.1)", async () => {
     const dataDir = tmpDataDir();
     daemon = new Daemon({ port: 0, mcpPort: 0, dataDir });
     const info = await daemon.start();
 
+    // Local connections (127.0.0.1) should not require auth
     const res = await fetch(`http://${info.host}:${info.port}/agents`);
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(200);
   });
 
   test("POST /agents resolves ai-sdk default model via resolveRuntime", async () => {

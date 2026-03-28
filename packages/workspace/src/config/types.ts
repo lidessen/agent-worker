@@ -3,7 +3,7 @@
 
 /** Model configuration object form. */
 export interface ModelDef {
-  /** Model identifier (e.g. "claude-sonnet-4-5", "gpt-4o"). */
+  /** Model identifier. */
   id: string;
   /** Provider override (e.g. "anthropic", "openai"). Inferred from id if omitted. */
   provider?: string;
@@ -18,15 +18,15 @@ export interface ModelDef {
  *
  * ```yaml
  * # String shorthand
- * model: claude-sonnet-4-5
+ * model: model-name
  *
  * # Provider:model shorthand (AI SDK style)
- * model: anthropic:claude-sonnet-4-5
+ * model: provider:model-name
  *
  * # Object form (with parameters)
  * model:
- *   id: claude-sonnet-4-5
- *   provider: anthropic
+ *   id: model-name
+ *   provider: provider-name
  *   temperature: 0.7
  * ```
  */
@@ -56,6 +56,8 @@ export interface AgentDef {
   env?: Record<string, string>;
   /** Filesystem mount points (symlinked into the agent's sandbox). */
   mounts?: (string | MountDef)[];
+  /** If true, agent loop is not started automatically — only launched when @mentioned. */
+  on_demand?: boolean;
 }
 
 /** Setup step: run a shell command, optionally capture output as a variable. */
@@ -70,6 +72,10 @@ export interface SetupStep {
 export interface ConnectionDef {
   /** Platform type: "telegram". */
   platform: string;
+  /** Connection name for multiple connections of the same platform.
+   *  Defaults to the platform name (e.g. "telegram"). Used to resolve
+   *  saved connections: ~/.agent-worker/connections/{platform}/{name}.json */
+  name?: string;
   /** Platform-specific configuration (optional if saved via `aw connect`). */
   config?: Record<string, unknown>;
 }
@@ -78,6 +84,8 @@ export interface ConnectionDef {
 export interface WorkspaceDef {
   /** Workspace name. Optional — inferred from file name or opts.name when omitted. */
   name?: string;
+  /** Human-readable display name. Shown in UI instead of the machine name. */
+  label?: string;
   /** Agent definitions. Keys are agent names. */
   agents: Record<string, AgentDef>;
   /** Channel names to create. Default: ["general"]. */
@@ -96,6 +104,8 @@ export interface WorkspaceDef {
   connections?: ConnectionDef[];
   /** Workspace-level environment variables (applied to all agents as defaults). */
   env?: Record<string, string>;
+  /** Optional team lead agent name. The lead gets debug tools + all-channel access. */
+  lead?: string;
 }
 
 /** Resolved model — normalized from any ModelSpec form. */
@@ -128,6 +138,8 @@ export interface ResolvedAgent {
   env?: Record<string, string>;
   /** Resolved filesystem mount points. */
   mounts?: MountDef[];
+  /** If true, agent loop is not started automatically — only launched when @mentioned. */
+  on_demand?: boolean;
 }
 
 /** Result of loading and resolving a workspace definition. */

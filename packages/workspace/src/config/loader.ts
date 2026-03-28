@@ -40,9 +40,9 @@ export function interpolate(template: string, vars: Record<string, string>): str
  * Resolve a ModelSpec (string or object) into a normalized ResolvedModel.
  *
  * Supports:
- * - `"claude-sonnet-4-5"` → { id: "claude-sonnet-4-5", full: "claude-sonnet-4-5" }
- * - `"anthropic:claude-sonnet-4-5"` → { id: "claude-sonnet-4-5", provider: "anthropic", full: "anthropic:claude-sonnet-4-5" }
- * - `{ id: "claude-sonnet-4-5", provider: "anthropic", temperature: 0.7 }` → resolved object
+ * - `"model-name"` → { id: "model-name", full: "model-name" }
+ * - `"provider:model-name"` → { id: "model-name", provider: "provider", full: "provider:model-name" }
+ * - `{ id: "model-name", provider: "provider", temperature: 0.7 }` → resolved object
  */
 export function resolveModel(spec: ModelSpec): ResolvedModel {
   if (typeof spec === "string") {
@@ -75,12 +75,16 @@ export function resolveModel(spec: ModelSpec): ResolvedModel {
 export async function runSetupSteps(
   steps: SetupStep[],
   baseVars: Record<string, string> = {},
+  opts?: { cwd?: string },
 ): Promise<Record<string, string>> {
   const vars = { ...baseVars };
 
   for (const step of steps) {
     const cmd = interpolate(step.shell, vars);
-    const result = await execa("sh", ["-c", cmd], { reject: false });
+    const result = await execa("sh", ["-c", cmd], {
+      reject: false,
+      cwd: opts?.cwd,
+    });
 
     if (result.exitCode !== 0) {
       throw new Error(
@@ -157,7 +161,8 @@ export async function loadWorkspaceDef(
 
   // Interpolate ${{ secrets.X }} references before parsing YAML.
   // Resolution order: secrets.json → process.env
-  if (!opts.skipSetup && content.includes("${{ secrets.")) {
+  // Always run (even with skipSetup) — secrets are needed for connection config.
+  if (content.includes("${{ secrets.")) {
     const { loadSecrets } = await import("./secrets.ts");
     const secrets = await loadSecrets();
     const secretVars: Record<string, string> = {};
@@ -235,7 +240,16 @@ export async function loadWorkspaceDef(
       channels: agentDef.channels,
       env: mergedEnv,
       mounts: resolvedMounts,
+      on_demand: agentDef.on_demand,
     });
+  }
+
+  // Validate lead references an existing agent
+  if (def.lead && !def.agents[def.lead]) {
+    throw new Error(
+      `Invalid workspace definition: 'lead' references unknown agent "${def.lead}". ` +
+        `Available agents: ${Object.keys(def.agents).join(", ")}`,
+    );
   }
 
   // Build template vars
@@ -270,22 +284,63 @@ export async function loadWorkspaceDef(
 
 // ── Saved connection loading ──────────────────────────────────────────────
 
-interface TelegramConnection {
-  bot_token: string;
-  chat_id: number;
+interface SavedConnection {
+  bot_token?: string;
+  chat_id?: number;
+  [key: string]: unknown;
 }
 
-async function loadSavedTelegramConnection(): Promise<TelegramConnection | null> {
+/**
+ * Load a saved connection by platform and name.
+ * Checks two paths for backwards compatibility:
+ *   1. ~/.agent-worker/connections/{platform}/{name}.json  (new, named)
+ *   2. ~/.agent-worker/connections/{platform}.json          (legacy, name="default" only)
+ */
+async function loadSavedConnection(
+  platform: string,
+  name?: string,
+): Promise<SavedConnection | null> {
+  name ??= platform;
+  const { readFile } = await import("node:fs/promises");
+  const { join } = await import("node:path");
+  const { homedir } = await import("node:os");
+  const baseDir = join(homedir(), ".agent-worker", "connections");
+
+  // Try named path first: connections/telegram/dev-bot.json
   try {
-    const { readFile } = await import("node:fs/promises");
-    const { join } = await import("node:path");
-    const { homedir } = await import("node:os");
-    const path = join(homedir(), ".agent-worker", "connections", "telegram.json");
-    const raw = await readFile(path, "utf-8");
+    const raw = await readFile(join(baseDir, platform, `${name}.json`), "utf-8");
     return JSON.parse(raw);
-  } catch {
-    return null;
+  } catch { /* not found */ }
+
+  // Fall back to legacy flat path: connections/telegram.json
+  if (name === platform) {
+    try {
+      const raw = await readFile(join(baseDir, `${platform}.json`), "utf-8");
+      return JSON.parse(raw);
+    } catch { /* not found */ }
   }
+
+  return null;
+}
+
+/**
+ * Save a connection by platform and name.
+ * Writes to: ~/.agent-worker/connections/{platform}/{name}.json
+ */
+export async function saveConnection(
+  platform: string,
+  data: Record<string, unknown>,
+  name?: string,
+): Promise<string> {
+  name ??= platform;
+  const { writeFile, mkdir } = await import("node:fs/promises");
+  const { join } = await import("node:path");
+  const { homedir } = await import("node:os");
+  const dir = join(homedir(), ".agent-worker", "connections", platform);
+  await mkdir(dir, { recursive: true });
+  const filePath = join(dir, `${name}.json`);
+  await writeFile(filePath, JSON.stringify(data, null, 2), "utf-8");
+  return filePath;
 }
 
 // ── Connection resolution ─────────────────────────────────────────────────
@@ -297,7 +352,7 @@ async function loadSavedTelegramConnection(): Promise<TelegramConnection | null>
  * Config resolution order (each field independently):
  *   1. Explicit YAML config value
  *   2. Environment variable (TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID)
- *   3. Saved connection from `aw connect` (~/.agent-worker/connections/)
+ *   3. Saved connection from `aw connect` (~/.agent-worker/connections/{platform}/{name}.json)
  */
 export async function resolveConnections(
   defs?: ConnectionDef[],
@@ -323,23 +378,29 @@ export async function resolveConnections(
           poll_timeout?: number;
         };
 
-        // Load saved connection as fallback
-        const saved = await loadSavedTelegramConnection();
+        // Load saved connection by name (falls back to platform name)
+        const saved = await loadSavedConnection("telegram", def.name);
+        // Env vars only apply to the primary (unnamed) connection.
+        // Named connections must use explicit config or saved connection files.
+        const isPrimary = !def.name || def.name === "telegram";
+        const envToken = isPrimary ? process.env.TELEGRAM_BOT_TOKEN : undefined;
+        const envChatId = isPrimary ? process.env.TELEGRAM_CHAT_ID : undefined;
 
-        const botToken = cfg.bot_token ?? process.env.TELEGRAM_BOT_TOKEN ?? saved?.bot_token;
+        const botToken = cfg.bot_token ?? envToken ?? saved?.bot_token;
         if (!botToken) {
+          const nameHint = def.name ? ` --name ${def.name}` : "";
           throw new Error(
-            "Telegram connection requires bot_token in config, TELEGRAM_BOT_TOKEN env var, " +
-              "or a saved connection (run 'aw connect telegram')",
+            `Telegram connection${def.name ? ` "${def.name}"` : ""} requires bot_token in config, ` +
+              `${isPrimary ? "TELEGRAM_BOT_TOKEN env var, or " : ""}a saved connection (run 'aw connect telegram${nameHint}')`,
           );
         }
-        const parsedChatId = process.env.TELEGRAM_CHAT_ID
-          ? parseInt(process.env.TELEGRAM_CHAT_ID, 10)
-          : undefined;
+        const parsedChatId = envChatId ? parseInt(envChatId, 10) : undefined;
         if (parsedChatId !== undefined && isNaN(parsedChatId)) {
           throw new Error("TELEGRAM_CHAT_ID env var must be a numeric value");
         }
         const chatId = cfg.chat_id ?? parsedChatId ?? saved?.chat_id;
+        const source = cfg.bot_token ? "config" : envToken ? "env" : saved ? `saved(${def.name ?? "telegram"})` : "unknown";
+        console.error(`[connection] telegram${def.name ? `(${def.name})` : ""}: resolved from ${source}`);
         adapters.push(
           new TelegramAdapter({
             botToken,
@@ -367,6 +428,8 @@ export async function resolveConnections(
 export interface ToWorkspaceConfigOptions extends LoadOptions {
   /** Override the data directory (takes precedence over def.data_dir and the default). */
   storageDir?: string;
+  /** Separate base directory for sandboxes (when storageDir points to a repo). */
+  sandboxBaseDir?: string;
   /** Pre-resolved connections to attach. */
   connections?: ChannelAdapter[];
 }
@@ -400,8 +463,10 @@ export function toWorkspaceConfig(
     channels: def.channels,
     defaultChannel: def.default_channel,
     agents: resolved.agents.map((a) => a.name),
+    lead: def.lead,
     connections: opts.connections,
     storage,
+    sandboxBaseDir: opts.sandboxBaseDir,
     storageDir: storageType === "file" ? storageDir : undefined,
   };
 }

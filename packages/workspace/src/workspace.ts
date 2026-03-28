@@ -27,6 +27,7 @@ export class Workspace implements WorkspaceRuntime {
   readonly tag: string | undefined;
   readonly defaultChannel: string;
   readonly storageDir: string | undefined;
+  private readonly _sandboxBaseDir: string | undefined;
   readonly contextProvider: ContextProvider;
   readonly eventLog: EventLog;
   readonly bridge: ChannelBridgeInterface;
@@ -40,11 +41,16 @@ export class Workspace implements WorkspaceRuntime {
   /** Agent name → set of joined channels. */
   private agentChannels = new Map<string, Set<string>>();
 
+  /** Optional team lead agent name (gets debug tools + all-channel access). */
+  readonly lead: string | undefined;
+
   constructor(config: WorkspaceConfig) {
     this.name = config.name;
     this.tag = config.tag;
+    this.lead = config.lead;
     this.defaultChannel = config.defaultChannel ?? "general";
     this.storageDir = config.storageDir;
+    this._sandboxBaseDir = config.sandboxBaseDir;
 
     const storage = config.storage ?? new MemoryStorage();
     const channels = config.channels ?? [this.defaultChannel];
@@ -67,6 +73,7 @@ export class Workspace implements WorkspaceRuntime {
       status: this.statusStore,
       timeline: timelineStore,
       chronicle: chronicleStore,
+      lead: config.lead,
       maxMessageLength: config.maxMessageLength,
     });
 
@@ -103,8 +110,17 @@ export class Workspace implements WorkspaceRuntime {
     await this.bridgeImpl.shutdown();
   }
 
+  /** Whether the given agent name is the team lead. */
+  isLead(name: string): boolean {
+    return this.lead !== undefined && this.lead === name;
+  }
+
   async registerAgent(name: string, channels?: string[]): Promise<void> {
-    const agentChs = new Set<string>(channels ?? [this.defaultChannel]);
+    // Lead agents auto-join ALL channels (like external/debug users)
+    const chs = this.isLead(name)
+      ? this.contextProvider.channels.listChannels()
+      : (channels ?? [this.defaultChannel]);
+    const agentChs = new Set<string>(chs);
     this.agentChannels.set(name, agentChs);
 
     await this.statusStore.set(name, "idle");
@@ -123,14 +139,16 @@ export class Workspace implements WorkspaceRuntime {
 
   /** Get the shared workspace sandbox directory (collaborative files). */
   get workspaceSandboxDir(): string | undefined {
-    if (!this.storageDir) return undefined;
-    return join(this.storageDir, "sandbox");
+    const base = this._sandboxBaseDir ?? this.storageDir;
+    if (!base) return undefined;
+    return join(base, "sandbox");
   }
 
   /** Get the agent's sandbox directory (working directory for bash/files). */
   agentSandboxDir(agentName: string): string | undefined {
-    if (!this.storageDir) return undefined;
-    return join(this.storageDir, "agents", agentName, "sandbox");
+    const base = this._sandboxBaseDir ?? this.storageDir;
+    if (!base) return undefined;
+    return join(base, "agents", agentName, "sandbox");
   }
 
   // ── Internal routing ──────────────────────────────────────────────────
@@ -146,13 +164,20 @@ export class Workspace implements WorkspaceRuntime {
     }
 
     // Channel messages: route to all agents who joined this channel
+    // Check if any mentioned name is a registered agent (not just any @text in the message)
+    const hasAgentMention = message.mentions.some((m) => this.agentChannels.has(m));
     for (const [agentName, channels] of this.agentChannels) {
       if (agentName === message.from) continue; // Don't self-deliver
       if (!channels.has(message.channel)) continue;
 
-      // Check if agent is mentioned or if this is a channel broadcast
       const isMentioned = message.mentions.includes(agentName);
-      await this.enqueueToAgent(message, agentName, isMentioned ? "normal" : "background");
+      // Lead gets normal priority for unmentioned messages (responsible for user comms)
+      const isLeadFallback = !hasAgentMention && agentName === this.lead;
+      await this.enqueueToAgent(
+        message,
+        agentName,
+        isMentioned || isLeadFallback ? "normal" : "background",
+      );
     }
   }
 

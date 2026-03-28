@@ -1,8 +1,8 @@
 {
   "mcpServers": {
-    "workspace-debug": {
+    "agent-workspace": {
       "type": "http",
-      "url": "http://127.0.0.1:42424/mcp/$supervisor"
+      "url": "http://127.0.0.1:42424/mcp/$claude"
     }
   }
 }

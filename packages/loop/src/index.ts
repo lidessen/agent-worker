@@ -54,6 +54,10 @@ export { zenmux } from "./providers/zenmux.ts";
 export { ToolRelevanceEngine } from "./tool-relevance.ts";
 export type { ToolRelevanceConfig, StepContext, ToolTier } from "./tool-relevance.ts";
 
+// ── Sandbox ────────────────────────────────────────────────────────────────
+export { createHostSandbox } from "./sandbox/host.ts";
+export type { HostSandboxOptions } from "./sandbox/host.ts";
+
 // ── Built-in tools ─────────────────────────────────────────────────────────
 export {
   createLoopTools,

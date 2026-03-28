@@ -54,6 +54,100 @@ describe("Workspace Tools", () => {
       const result = await tools.channel_list!({});
       expect(result).toContain("design");
     });
+
+    test("channel_send warns when channel has new messages since last read", async () => {
+      const aliceTools = createAgentTools("alice", workspace).tools;
+      const bobTools = createAgentTools("bob", workspace).tools;
+
+      // Alice reads the channel (sets cursor)
+      await aliceTools.channel_read!({ channel: "general" });
+
+      // Bob posts a message after Alice's read
+      await bobTools.channel_send!({ channel: "general", content: "Hey everyone!", force: true });
+
+      // Alice tries to send — should be warned about Bob's message
+      const result = await aliceTools.channel_send!({
+        channel: "general",
+        content: "My response",
+      });
+      expect(result).toContain("new message");
+      expect(result).toContain("@bob");
+      expect(result).toContain("Hey everyone!");
+
+      // Verify message was NOT sent (guard blocked it)
+      const messages = await workspace.contextProvider.channels.read("general");
+      const aliceMessages = messages.filter((m) => m.from === "alice");
+      expect(aliceMessages).toHaveLength(0);
+    });
+
+    test("channel_send with force=true bypasses guard", async () => {
+      const aliceTools = createAgentTools("alice", workspace).tools;
+      const bobTools = createAgentTools("bob", workspace).tools;
+
+      // Alice reads, Bob posts
+      await aliceTools.channel_read!({ channel: "general" });
+      await bobTools.channel_send!({ channel: "general", content: "Hey!", force: true });
+
+      // Alice sends with force=true — should succeed
+      const result = await aliceTools.channel_send!({
+        channel: "general",
+        content: "My forced response",
+        force: true,
+      });
+      expect(result).toContain("Sent message");
+    });
+
+    test("channel_send ignores own messages in guard check", async () => {
+      const aliceTools = createAgentTools("alice", workspace).tools;
+
+      // Alice reads, then sends (setting cursor)
+      await aliceTools.channel_read!({ channel: "general" });
+      const result1 = await aliceTools.channel_send!({
+        channel: "general",
+        content: "First message",
+      });
+      expect(result1).toContain("Sent message");
+
+      // Alice sends again — her own previous message shouldn't trigger the guard
+      const result2 = await aliceTools.channel_send!({
+        channel: "general",
+        content: "Second message",
+      });
+      expect(result2).toContain("Sent message");
+    });
+
+    test("channel_send without prior read sends immediately (no cursor)", async () => {
+      // Post some messages first
+      await workspace.contextProvider.send({
+        channel: "general",
+        from: "bob",
+        content: "existing message",
+      });
+
+      const aliceTools = createAgentTools("alice", workspace).tools;
+      // Alice never read the channel — no cursor, so send goes through
+      const result = await aliceTools.channel_send!({
+        channel: "general",
+        content: "Hello!",
+      });
+      expect(result).toContain("Sent message");
+    });
+
+    test("channel_read updates cursor so subsequent send sees no new messages", async () => {
+      const aliceTools = createAgentTools("alice", workspace).tools;
+      const bobTools = createAgentTools("bob", workspace).tools;
+
+      // Bob posts, Alice reads (cursor moves to Bob's message)
+      await bobTools.channel_send!({ channel: "general", content: "Hey!", force: true });
+      await aliceTools.channel_read!({ channel: "general" });
+
+      // Alice sends — no new messages since read, should succeed
+      const result = await aliceTools.channel_send!({
+        channel: "general",
+        content: "Reply",
+      });
+      expect(result).toContain("Sent message");
+    });
   });
 
   describe("Inbox tools", () => {

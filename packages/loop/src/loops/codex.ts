@@ -72,7 +72,8 @@ export class CodexLoop {
   }
 }
 
-function buildArgs(
+/** @internal Exported for testing. */
+export function buildArgs(
   prompt: string,
   opts: CodexLoopOptions,
   mcpConfigPath?: string | null,
@@ -82,6 +83,9 @@ function buildArgs(
   if (opts.model) args.push("--model", opts.model);
   if (opts.fullAuto) args.push("--full-auto");
   if (opts.sandbox) args.push("--sandbox", opts.sandbox);
+  if (opts.allowedPaths?.length) {
+    for (const p of opts.allowedPaths) args.push("--add-dir", p);
+  }
   if (mcpConfigPath) args.push(...buildMcpOverrides(mcpConfigPath));
   if (opts.extraArgs?.length) args.push(...opts.extraArgs);
 

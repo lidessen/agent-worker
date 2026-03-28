@@ -29,6 +29,10 @@ export interface OrchestratorConfig {
   promptSections?: PromptSection[];
   /** Handler called with assembled prompt; returns when done. */
   onInstruction: (prompt: string, instruction: Instruction) => Promise<void>;
+  /** Agent's personal sandbox directory. */
+  sandboxDir?: string;
+  /** Shared workspace sandbox directory (visible to all agents). */
+  workspaceSandboxDir?: string;
 }
 
 /**
@@ -38,11 +42,35 @@ export interface OrchestratorConfig {
  * Equivalent to the former WorkspaceAgentLoop, but lives in the
  * orchestration layer (agent-worker) rather than workspace.
  */
+/** Default backoff for quota/rate-limit auto-pause: 5 minutes. */
+const DEFAULT_QUOTA_BACKOFF_MS = 5 * 60_000;
+/** Maximum backoff: 1 hour. */
+const MAX_BACKOFF_MS = 60 * 60_000;
+/**
+ * Grace window after startup (ms). On first tick, if inbox is empty we wait
+ * up to this long for an inbox entry before going idle. Fixes on_demand agents
+ * that start while message routing is still in-flight (routing is fire-and-forget).
+ */
+const STARTUP_GRACE_MS = 300;
+
 export class WorkspaceOrchestrator {
   private running = false;
   private paused = false;
+  private failed = false;
   private pollTimer: ReturnType<typeof setTimeout> | null = null;
   private wakeResolve: (() => void) | null = null;
+
+  /** When set, auto-resume at this timestamp. */
+  private resumeAt: number | null = null;
+  /** Current backoff duration for exponential backoff on repeated failures. */
+  private backoffMs = DEFAULT_QUOTA_BACKOFF_MS;
+  /** Timestamp of last start() call — used for startup grace window. */
+  private startedAt = 0;
+  /**
+   * True when wake() was called while not in sleep() (e.g. during tick()).
+   * Consumed by the next sleep() call to return immediately.
+   */
+  private pendingWake = false;
 
   private readonly pollInterval: number;
   private readonly sections: PromptSection[];
@@ -61,13 +89,27 @@ export class WorkspaceOrchestrator {
     return this.running;
   }
 
-  /** Start the polling loop. */
+  /** True if this loop was stopped due to a fatal (non-recoverable) error. */
+  get isFailed(): boolean {
+    return this.failed;
+  }
+
+  /** Start the polling loop. Respects persisted pause state across restarts. */
   async start(): Promise<void> {
     if (this.running) return;
     this.running = true;
+    this.startedAt = Date.now();
 
-    await this.config.provider.status.set(this.config.name, "running");
-    await this.config.eventLog.log(this.config.name, "system", "Agent loop started");
+    // Check if this agent was paused before restart
+    const allStatus = await this.config.provider.status.getAll();
+    const prevStatus = allStatus.find((s) => s.name === this.config.name)?.status;
+    if (prevStatus === "paused") {
+      this.paused = true;
+      await this.config.eventLog.log(this.config.name, "system", "Agent loop started (paused — was paused before restart)");
+    } else {
+      await this.config.provider.status.set(this.config.name, "running");
+      await this.config.eventLog.log(this.config.name, "system", "Agent loop started");
+    }
 
     this.loop();
   }
@@ -75,12 +117,38 @@ export class WorkspaceOrchestrator {
   /** Pause the orchestrator — tick() becomes a no-op but polling continues. */
   async pause(): Promise<void> {
     this.paused = true;
+    this.resumeAt = null;
+    await this.config.provider.status.set(this.config.name, "paused");
     await this.config.eventLog.log(this.config.name, "system", "Agent loop paused");
   }
 
-  /** Resume the orchestrator after a pause. */
+  /**
+   * Pause with timed auto-resume. Uses exponential backoff on repeated calls:
+   * first pause = backoffMs, second = 2x, etc. up to MAX_BACKOFF_MS.
+   * Manual resume() resets the backoff.
+   */
+  async pauseUntil(ms?: number): Promise<void> {
+    const delay = ms ?? this.backoffMs;
+    this.paused = true;
+    this.resumeAt = Date.now() + delay;
+    // Only advance backoff when no explicit wait time was provided
+    if (ms === undefined) {
+      this.backoffMs = Math.min(this.backoffMs * 2, MAX_BACKOFF_MS);
+    }
+    const mins = Math.round(delay / 60_000);
+    await this.config.provider.status.set(this.config.name, "paused", `auto-resume in ~${mins}m`);
+    await this.config.eventLog.log(
+      this.config.name, "system",
+      `Agent loop paused (auto-resume in ${mins}m)`,
+    );
+  }
+
+  /** Resume the orchestrator after a pause. Resets backoff. */
   async resume(): Promise<void> {
     this.paused = false;
+    this.resumeAt = null;
+    this.backoffMs = DEFAULT_QUOTA_BACKOFF_MS;
+    await this.config.provider.status.set(this.config.name, "running");
     await this.config.eventLog.log(this.config.name, "system", "Agent loop resumed");
     this.wake();
   }
@@ -102,13 +170,37 @@ export class WorkspaceOrchestrator {
     await this.config.eventLog.log(this.config.name, "system", "Agent loop stopped");
   }
 
+  /**
+   * Stop the loop due to a fatal (non-recoverable) error.
+   * Sets `isFailed = true` so `checkCompletion()` can report "failed".
+   */
+  async fail(reason: string): Promise<void> {
+    this.failed = true;
+    this.running = false;
+    if (this.pollTimer) {
+      clearTimeout(this.pollTimer);
+      this.pollTimer = null;
+    }
+    this.wakeResolve?.();
+
+    await this.config.provider.status.set(this.config.name, "stopped", `fatal: ${reason}`);
+    await this.config.eventLog.log(this.config.name, "system", `Agent loop failed (fatal): ${reason}`);
+  }
+
   /** Wake the loop immediately (interrupt poll wait). */
   wake(): void {
     if (this.pollTimer) {
       clearTimeout(this.pollTimer);
       this.pollTimer = null;
     }
-    this.wakeResolve?.();
+    if (this.wakeResolve) {
+      this.wakeResolve();
+      this.wakeResolve = null;
+    } else {
+      // Called during tick() when there's no active sleep — mark pending so
+      // the next sleep() returns immediately instead of losing this signal.
+      this.pendingWake = true;
+    }
   }
 
   /** Send a direct instruction (bypasses poll, synchronous). */
@@ -158,6 +250,11 @@ export class WorkspaceOrchestrator {
   }
 
   private async tick(): Promise<void> {
+    // Check timed auto-resume
+    if (this.paused && this.resumeAt && Date.now() >= this.resumeAt) {
+      // resume() already logs "Agent loop resumed"
+      await this.resume();
+    }
     if (this.paused) return;
 
     // 1. Check inbox for new messages → enqueue as instructions
@@ -192,7 +289,23 @@ export class WorkspaceOrchestrator {
 
     // 2. Dequeue and process next instruction
     const instruction = this.config.queue.dequeue(this.config.name);
-    if (!instruction) return;
+    if (!instruction) {
+      // Startup grace: inbox routing is fire-and-forget async, so on_demand agents
+      // may arrive here before their triggering message has been enqueued. Within
+      // the grace window, wait for an inbox entry instead of going idle immediately.
+      const elapsed = Date.now() - this.startedAt;
+      if (elapsed < STARTUP_GRACE_MS) {
+        await Promise.race([
+          this.config.provider.inbox.onNewEntry(this.config.name),
+          new Promise<void>((r) => setTimeout(r, STARTUP_GRACE_MS - elapsed)),
+        ]);
+        this.wake(); // Skip poll sleep so the next tick runs immediately
+        return;
+      }
+      // No work to do — ensure status reflects idle (not stuck on "running")
+      await this.config.provider.status.set(this.config.name, "idle");
+      return;
+    }
 
     await this.config.provider.status.set(
       this.config.name,
@@ -231,10 +344,16 @@ export class WorkspaceOrchestrator {
       currentPriority: instruction?.priority,
       currentMessageId: instruction?.messageId || undefined,
       currentChannel: instruction?.channel || undefined,
+      sandboxDir: this.config.sandboxDir,
+      workspaceSandboxDir: this.config.workspaceSandboxDir,
     });
   }
 
   private sleep(ms: number): Promise<void> {
+    if (this.pendingWake) {
+      this.pendingWake = false;
+      return Promise.resolve();
+    }
     return new Promise<void>((resolve) => {
       this.wakeResolve = resolve;
       this.pollTimer = setTimeout(() => {

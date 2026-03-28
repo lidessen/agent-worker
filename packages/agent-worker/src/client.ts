@@ -22,6 +22,11 @@ export interface HealthInfo {
   uptime: number;
   agents: number;
   workspaces: number;
+  runtimes?: Array<{
+    name: string;
+    status: string;
+    available: boolean;
+  }>;
 }
 
 export interface CursorResult<T> {
@@ -265,6 +270,7 @@ export class AwClient {
     opts?: {
       name?: string;
       configDir?: string;
+      sourcePath?: string;
       tag?: string;
       vars?: Record<string, string>;
       mode?: "service" | "task";
@@ -406,13 +412,16 @@ export class AwClient {
  * Read-only / inspection commands should use AwClient.discover() directly
  * so they fail fast when the daemon isn't running.
  */
-export async function ensureDaemon(dataDir?: string): Promise<AwClient> {
+export async function ensureDaemon(
+  dataDir?: string,
+  opts?: { extraArgs?: string[] },
+): Promise<AwClient> {
   const dir = dataDir ?? defaultDataDir();
   const existing = await readDaemonInfo(dir);
   if (existing) {
     return AwClient.fromInfo(existing);
   }
-  const info = await spawnDaemon(dir);
+  const info = await spawnDaemon(dir, opts?.extraArgs);
   return AwClient.fromInfo(info);
 }
 
@@ -420,7 +429,7 @@ export async function ensureDaemon(dataDir?: string): Promise<AwClient> {
  * Spawn a daemon process in the background and wait for it to be ready.
  * Returns the DaemonInfo once the daemon has written its discovery file.
  */
-async function spawnDaemon(dataDir: string): Promise<DaemonInfo> {
+async function spawnDaemon(dataDir: string, extraArgs?: string[]): Promise<DaemonInfo> {
   const cliEntry = join(dirname(fileURLToPath(import.meta.url)), "cli", "index.ts");
 
   // Strip CLAUDECODE so nested Claude Code sessions can inherit
@@ -428,12 +437,21 @@ async function spawnDaemon(dataDir: string): Promise<DaemonInfo> {
   const env = { ...process.env };
   delete env.CLAUDECODE;
 
-  // Spawn daemon as a detached background process via login shell.
-  // Using a login shell ensures user profile (~/.zshrc, ~/.bashrc) is loaded,
-  // so API keys set in shell profiles are available to the daemon.
-  const isBun = !!process.versions.bun;
-  const runtime = isBun ? "bun" : process.execPath;
-  const runtimeArgs = [...(isBun ? ["run"] : process.execArgv), cliEntry, "daemon", "start"];
+  // Use absolute path to the current runtime to avoid PATH lookup issues.
+  // Also inject the runtime's bin directory into PATH so child processes
+  // (e.g. bun spawned by the daemon) can find bun without relying on the
+  // user's PATH being inherited correctly.
+  const runtime = process.execPath;
+  const bunBinDir = dirname(runtime);
+  env.PATH = `${bunBinDir}:${env.PATH || ""}`;
+
+  const dataDirArgs = dataDir !== defaultDataDir() ? ["--data-dir", dataDir] : [];
+  const runtimeArgs = [
+    ...process.execArgv,
+    cliEntry, "daemon", "start",
+    ...dataDirArgs,
+    ...(extraArgs ?? []),
+  ];
 
   const subprocess = execa(runtime, runtimeArgs, {
     env,

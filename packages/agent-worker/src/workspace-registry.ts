@@ -1,5 +1,6 @@
-import { join } from "node:path";
+import { join, dirname, basename } from "node:path";
 import { mkdirSync, appendFileSync, symlinkSync, existsSync } from "node:fs";
+import { readFile as readFileAsync, writeFile as writeFileAsync } from "node:fs/promises";
 import {
   createWorkspace,
   createAgentTools,
@@ -30,6 +31,15 @@ storage: file
  *
  * Emits structured events to the shared EventBus.
  */
+/** Manifest entry — persisted to workspaces.json for restart recovery. */
+interface ManifestEntry {
+  /** Workspace key (name or name:tag) — used for dedup and removal. */
+  key: string;
+  /** Absolute path to workspace YAML file. */
+  sourcePath: string;
+  tag?: string;
+}
+
 export class WorkspaceRegistry {
   private workspaces = new Map<string, ManagedWorkspace>();
   private _bus?: EventBus;
@@ -38,9 +48,91 @@ export class WorkspaceRegistry {
   private _daemonUrl?: string;
   private _daemonToken?: string;
   private _mcpHubUrl?: string;
+  /** Serialize manifest read-modify-write to prevent concurrent corruption. */
+  private _manifestLock: Promise<void> = Promise.resolve();
 
   constructor(dataDir: string) {
     this._dataDir = dataDir;
+  }
+
+  /** Path to the workspace manifest file. */
+  private get manifestPath(): string {
+    return join(this._dataDir, "workspaces.json");
+  }
+
+  /** Serialize access to the manifest file. */
+  private withManifestLock<T>(fn: () => Promise<T>): Promise<T> {
+    const next = this._manifestLock.then(fn);
+    this._manifestLock = next.then(() => {}, () => {});
+    return next;
+  }
+
+  /** Read manifest entries. */
+  private async readManifest(): Promise<ManifestEntry[]> {
+    try {
+      const raw = await readFileAsync(this.manifestPath, "utf-8");
+      try {
+        return JSON.parse(raw);
+      } catch (parseErr) {
+        console.error(`[workspace-registry] manifest corrupted, starting empty: ${parseErr}`);
+        return [];
+      }
+    } catch (fsErr: any) {
+      if (fsErr.code === "ENOENT") return [];
+      throw fsErr;
+    }
+  }
+
+  /** Write manifest entries. */
+  private async writeManifest(entries: ManifestEntry[]): Promise<void> {
+    await writeFileAsync(this.manifestPath, JSON.stringify(entries, null, 2), "utf-8");
+  }
+
+  /** Add workspace to manifest (for restart recovery). */
+  private async registerInManifest(key: string, input: CreateWorkspaceInput): Promise<void> {
+    if (!input.sourcePath) return;
+    await this.withManifestLock(async () => {
+      const entries = await this.readManifest();
+      if (entries.some((e) => e.key === key)) return;
+      entries.push({ key, sourcePath: input.sourcePath!, tag: input.tag });
+      await this.writeManifest(entries);
+    });
+  }
+
+  /** Remove workspace from manifest by key. */
+  private async unregisterFromManifest(key: string): Promise<void> {
+    await this.withManifestLock(async () => {
+      const entries = await this.readManifest();
+      const filtered = entries.filter((e) => e.key !== key);
+      if (filtered.length !== entries.length) {
+        await this.writeManifest(filtered);
+      }
+    });
+  }
+
+  /**
+   * Restore all workspaces from manifest. Called on daemon start after
+   * global workspace and MCP hub are ready.
+   * Skips setup steps (sandbox already populated) and kickoff (not a fresh create).
+   */
+  async restoreFromManifest(): Promise<void> {
+    const entries = await this.readManifest();
+    for (const entry of entries) {
+      if (this.workspaces.has(entry.key)) continue;
+      try {
+        const handle = await this.create({
+          source: entry.sourcePath,
+          sourcePath: entry.sourcePath,
+          configDir: dirname(entry.sourcePath),
+          tag: entry.tag,
+          _restore: true, // skip setup + kickoff
+        });
+        await handle.startLoops();
+        console.error(`[workspace-registry] restored: ${entry.key}`);
+      } catch (err) {
+        console.error(`[workspace-registry] failed to restore ${entry.key}: ${err}`);
+      }
+    }
   }
 
   /** Set daemon connection info for CLI agent MCP proxying. */
@@ -135,11 +227,18 @@ export class WorkspaceRegistry {
         }
       }
       const agentCwd = dirs.sandboxDir ?? dirs.workspaceSandboxDir;
+      // When agent has a personal sandbox, the shared workspace sandbox is an additional path
+      const allowedPaths: string[] = [];
+      if (dirs.sandboxDir && dirs.workspaceSandboxDir) {
+        allowedPaths.push(dirs.workspaceSandboxDir);
+      }
       const runner = await this.createRunner(agent, workspace, resolved, "global", tools, {
         cwd: agentCwd,
         storageDir: globalDir,
+        allowedPaths: allowedPaths.length > 0 ? allowedPaths : undefined,
       });
-      const orch = createOrchestrator({
+      let orch: WorkspaceOrchestrator;
+      orch = createOrchestrator({
         name: agent.name,
         instructions: agent.instructions,
         provider: workspace.contextProvider,
@@ -147,41 +246,11 @@ export class WorkspaceRegistry {
         eventLog: workspace.eventLog,
         promptSections,
         pollInterval: 2000,
-        onInstruction: async (prompt, instruction) => {
-          const runId = crypto.randomUUID();
-          this.emitEvent("workspace.agent_run_start", {
-            workspace: "global",
-            agent: agent.name,
-            runId,
-            runtime: agent.runtime,
-            model: agent.model?.full,
-            instruction: instruction.content.slice(0, 200),
-          });
-          this.emitEvent("workspace.agent_prompt", {
-            workspace: "global",
-            agent: agent.name,
-            runId,
-            prompt,
-            level: "debug",
-          });
-          try {
-            await runner(prompt, instruction, runId);
-            this.emitEvent("workspace.agent_run_end", {
-              workspace: "global",
-              agent: agent.name,
-              runId,
-              status: "ok",
-            });
-          } catch (err) {
-            this.emitEvent("workspace.agent_error", {
-              workspace: "global",
-              agent: agent.name,
-              runId,
-              error: String(err),
-              level: "error",
-            });
-          }
-        },
+        sandboxDir: dirs.sandboxDir,
+        workspaceSandboxDir: dirs.workspaceSandboxDir,
+        // Arrow function defers orch access until invocation (after assignment)
+        onInstruction: (prompt, instruction) =>
+          this.createInstructionHandler("global", agent, workspace, runner, orch)(prompt, instruction),
       });
       loops.push(orch);
     }
@@ -199,11 +268,13 @@ export class WorkspaceRegistry {
 
   /** Create a workspace from YAML source. */
   async create(input: CreateWorkspaceInput): Promise<ManagedWorkspace> {
+    // Skip setup during load — we'll run it after sandbox dirs exist
     const resolved = await loadWorkspaceDef(input.source, {
       tag: input.tag,
       vars: input.vars,
       name: input.name,
       resolveRuntime,
+      skipSetup: true,
     });
     // CLI sends YAML content (not file path), so configDir won't be set by
     // loadWorkspaceDef. Patch it from the input so relative data_dir resolves
@@ -217,8 +288,12 @@ export class WorkspaceRegistry {
       throw new Error(`Workspace "${key}" already exists`);
     }
 
-    // Use daemon-managed data dir unless YAML explicitly specifies one
-    const storageDir = resolved.def.data_dir ? undefined : this.workspaceDir(key);
+    // Use daemon-managed data dir unless YAML explicitly specifies one.
+    // When data_dir is set (e.g. pointing to a repo for knowledge persistence),
+    // sandboxes still go in the daemon-managed dir — not inside the repo.
+    const daemonDir = this.workspaceDir(key);
+    const storageDir = resolved.def.data_dir ? undefined : daemonDir;
+    const sandboxBaseDir = resolved.def.data_dir ? daemonDir : undefined;
     let workspaceRef: Workspace | null = null;
     let loopsRef: WorkspaceOrchestrator[] = [];
     const getAgents = async () => {
@@ -238,15 +313,40 @@ export class WorkspaceRegistry {
       pauseAgent: async (name) => { await findLoop(name).pause(); },
       resumeAgent: async (name) => { await findLoop(name).resume(); },
     });
-    const config = toWorkspaceConfig(resolved, { tag: input.tag, storageDir, connections });
+    const config = toWorkspaceConfig(resolved, { tag: input.tag, storageDir, connections, sandboxBaseDir });
     const workspace = await createWorkspace(config);
     workspaceRef = workspace;
 
-    // Ensure sandbox directories exist and create loops for each agent
+    // Run deferred setup steps in the shared workspace sandbox
     const loops: WorkspaceOrchestrator[] = loopsRef;
+    const sandboxDir = workspace.workspaceSandboxDir;
+    const templateVars: Record<string, string> = {
+      ...input.vars,
+      "workspace.name": resolved.def.name,
+    };
+    if (sandboxDir) templateVars["sandbox"] = sandboxDir;
+    if (input.tag) templateVars["workspace.tag"] = input.tag;
+
+    if (resolved.def.setup?.length && sandboxDir && !input._restore) {
+      mkdirSync(sandboxDir, { recursive: true });
+      const { runSetupSteps } = await import("@agent-worker/workspace");
+      const setupVars = await runSetupSteps(resolved.def.setup, templateVars, {
+        cwd: sandboxDir,
+      });
+      Object.assign(templateVars, setupVars);
+    } else if (sandboxDir) {
+      mkdirSync(sandboxDir, { recursive: true });
+    }
+
+    // Re-interpolate kickoff with sandbox path + setup vars
+    if (resolved.def.kickoff) {
+      const { interpolate } = await import("@agent-worker/workspace");
+      resolved.kickoff = interpolate(resolved.def.kickoff, templateVars);
+    }
+
+    // Create agent loops
     for (const agent of resolved.agents) {
       const { tools, promptSections, dirs } = createAgentTools(agent.name, workspace);
-      if (dirs.workspaceSandboxDir) mkdirSync(dirs.workspaceSandboxDir, { recursive: true });
       if (dirs.sandboxDir) mkdirSync(dirs.sandboxDir, { recursive: true });
       // Create symlinks for agent mounts
       if (agent.mounts && dirs.sandboxDir) {
@@ -258,12 +358,18 @@ export class WorkspaceRegistry {
         }
       }
       const agentCwd = dirs.sandboxDir ?? dirs.workspaceSandboxDir;
+      const allowedPaths: string[] = [];
+      if (dirs.sandboxDir && dirs.workspaceSandboxDir) {
+        allowedPaths.push(dirs.workspaceSandboxDir);
+      }
       const actualStorageDir = storageDir ?? this.workspaceDir(key);
       const runner = await this.createRunner(agent, workspace, resolved, key, tools, {
         cwd: agentCwd,
         storageDir: actualStorageDir,
+        allowedPaths: allowedPaths.length > 0 ? allowedPaths : undefined,
       });
-      const orch = createOrchestrator({
+      let orch: WorkspaceOrchestrator;
+      orch = createOrchestrator({
         name: agent.name,
         instructions: agent.instructions,
         provider: workspace.contextProvider,
@@ -271,41 +377,10 @@ export class WorkspaceRegistry {
         eventLog: workspace.eventLog,
         promptSections,
         pollInterval: 2000,
-        onInstruction: async (prompt, instruction) => {
-          const runId = crypto.randomUUID();
-          this.emitEvent("workspace.agent_run_start", {
-            workspace: key,
-            agent: agent.name,
-            runId,
-            runtime: agent.runtime,
-            model: agent.model?.full,
-            instruction: instruction.content.slice(0, 200),
-          });
-          this.emitEvent("workspace.agent_prompt", {
-            workspace: key,
-            agent: agent.name,
-            runId,
-            prompt,
-            level: "debug",
-          });
-          try {
-            await runner(prompt, instruction, runId);
-            this.emitEvent("workspace.agent_run_end", {
-              workspace: key,
-              agent: agent.name,
-              runId,
-              status: "ok",
-            });
-          } catch (err) {
-            this.emitEvent("workspace.agent_error", {
-              workspace: key,
-              agent: agent.name,
-              runId,
-              error: String(err),
-              level: "error",
-            });
-          }
-        },
+        sandboxDir: dirs.sandboxDir,
+        workspaceSandboxDir: dirs.workspaceSandboxDir,
+        onInstruction: (prompt, instruction) =>
+          this.createInstructionHandler(key, agent, workspace, runner, orch)(prompt, instruction),
       });
       loops.push(orch);
     }
@@ -322,6 +397,11 @@ export class WorkspaceRegistry {
     });
 
     this.workspaces.set(key, handle);
+
+    // Persist to manifest for restart recovery (service mode only, not on restore)
+    if (input.mode !== "task" && !input._restore) {
+      await this.registerInManifest(key, input);
+    }
 
     this.emitEvent("workspace.created", {
       workspace: key,
@@ -345,12 +425,13 @@ export class WorkspaceRegistry {
     return result;
   }
 
-  /** Stop and remove a workspace. */
+  /** Stop and remove a workspace. Also removes from manifest. */
   async remove(key: string): Promise<void> {
     const handle = this.workspaces.get(key);
     if (!handle) throw new Error(`Workspace "${key}" not found`);
     await handle.stop();
     this.workspaces.delete(key);
+    await this.unregisterFromManifest(key);
   }
 
   /** Stop all workspaces (including default). */
@@ -368,6 +449,95 @@ export class WorkspaceRegistry {
   }
 
   // ── Internal ────────────────────────────────────────────────────────────
+
+  /**
+   * Create the onInstruction handler shared by ensureDefault and create.
+   * Handles: run lifecycle events, error classification, auto-pause, lead notification.
+   */
+  private createInstructionHandler(
+    workspaceKey: string,
+    agent: ResolvedAgent,
+    workspace: Workspace,
+    runner: (prompt: string, instruction: import("@agent-worker/workspace").Instruction, runId: string) => Promise<void>,
+    orch: WorkspaceOrchestrator,
+  ): (prompt: string, instruction: import("@agent-worker/workspace").Instruction) => Promise<void> {
+    return async (prompt, instruction) => {
+      const runId = crypto.randomUUID();
+      this.emitEvent("workspace.agent_run_start", {
+        workspace: workspaceKey,
+        agent: agent.name,
+        runId,
+        runtime: agent.runtime,
+        model: agent.model?.full,
+        instruction: instruction.content.slice(0, 200),
+      });
+      this.emitEvent("workspace.agent_prompt", {
+        workspace: workspaceKey,
+        agent: agent.name,
+        runId,
+        prompt,
+        level: "debug",
+      });
+      try {
+        await runner(prompt, instruction, runId);
+        this.emitEvent("workspace.agent_run_end", {
+          workspace: workspaceKey,
+          agent: agent.name,
+          runId,
+          status: "ok",
+        });
+      } catch (err) {
+        const errStr = String(err);
+        this.emitEvent("workspace.agent_error", {
+          workspace: workspaceKey,
+          agent: agent.name,
+          runId,
+          error: errStr,
+          level: "error",
+        });
+
+        // Classify error → decide recovery strategy
+        const strategy = classifyError(errStr) ?? await classifyErrorWithLLM(errStr);
+        if (strategy?.fatal) {
+          // Non-recoverable: stop the loop permanently and notify lead.
+          await orch.fail(strategy.reason);
+          if (workspace.lead && workspace.lead !== agent.name) {
+            try {
+              await workspace.contextProvider.send({
+                channel: workspace.defaultChannel,
+                from: "system",
+                content: `@${workspace.lead} Agent @${agent.name} stopped (fatal: ${strategy.reason}). ` +
+                  `Fix the configuration and restart the workspace.\n` +
+                  `Error: ${errStr.slice(0, 200)}`,
+              });
+            } catch { /* don't fail on notification */ }
+          }
+        } else if (strategy?.pause) {
+          if (strategy.autoResume) {
+            await orch.pauseUntil(strategy.retryAfterMs);
+          } else {
+            await orch.pause();
+          }
+          await workspace.eventLog.log(
+            agent.name, "system",
+            `Auto-paused (${strategy.category}): ${strategy.reason}. ` +
+              (strategy.autoResume ? "Will auto-resume after cooldown." : "Manual resume required."),
+          );
+          if (workspace.lead && workspace.lead !== agent.name) {
+            try {
+              await workspace.contextProvider.send({
+                channel: workspace.defaultChannel,
+                from: "system",
+                content: `@${workspace.lead} Agent @${agent.name} paused (${strategy.reason}). ` +
+                  `Task: ${instruction.content.slice(0, 100)}` +
+                  (strategy.autoResume ? "" : ". Needs manual resume or config fix."),
+              });
+            } catch { /* don't fail on notification */ }
+          }
+        }
+      }
+    };
+  }
 
   /**
    * Build the global workspace YAML config dynamically by discovering
@@ -397,7 +567,7 @@ export class WorkspaceRegistry {
     resolved: import("@agent-worker/workspace").ResolvedWorkspace,
     workspaceKey: string,
     tools: import("@agent-worker/workspace").WorkspaceToolSet,
-    opts?: { cwd?: string; storageDir?: string },
+    opts?: { cwd?: string; storageDir?: string; allowedPaths?: string[] },
   ): Promise<
     (
       prompt: string,
@@ -442,7 +612,7 @@ export class WorkspaceRegistry {
       }
 
       // For AI SDK runtimes, create a loop and run
-      const loop = await this.createAgentLoop(agent, opts?.cwd);
+      const loop = await this.createAgentLoop(agent, opts?.cwd, opts?.allowedPaths);
       if (!loop) {
         throw new Error(`No loop available for runtime: ${agent.runtime}`);
       }
@@ -515,7 +685,11 @@ export class WorkspaceRegistry {
     };
   }
 
-  private async createAgentLoop(agent: ResolvedAgent, cwd?: string): Promise<AgentLoop | null> {
+  private async createAgentLoop(
+    agent: ResolvedAgent,
+    cwd?: string,
+    allowedPaths?: string[],
+  ): Promise<AgentLoop | null> {
     if (!agent.runtime || agent.runtime === "mock") return null;
     if (!agent.model && agent.runtime === "ai-sdk") return null;
 
@@ -528,6 +702,7 @@ export class WorkspaceRegistry {
       model: agent.model?.full,
       env: agent.env,
       cwd,
+      allowedPaths,
     });
   }
 }
@@ -601,6 +776,176 @@ function createRunLog(runsDir: string, runId: string): RunLog {
 }
 
 import type { LoopEvent } from "@agent-worker/loop";
+
+// ── Error classification ─────────────────────────────────────────────────
+
+type ErrorCategory = "rate_limit" | "quota_exhausted" | "auth" | "server_error" | "transient" | "fatal";
+
+interface ErrorStrategy {
+  category: ErrorCategory;
+  /** Whether the agent should be auto-paused. */
+  pause: boolean;
+  /** Whether the agent should auto-resume after a cooldown. */
+  autoResume: boolean;
+  /**
+   * Whether this is a non-recoverable error that should stop the loop entirely.
+   * The loop will be marked as failed (isFailed=true) and checkCompletion will
+   * return "failed" for the workspace.
+   */
+  fatal?: boolean;
+  /** Suggested wait time in ms (extracted from error or LLM). Undefined = use default backoff. */
+  retryAfterMs?: number;
+  /** Human-readable reason for the pause. */
+  reason: string;
+}
+
+/** Patterns → strategy, checked in order (first match wins). */
+const ERROR_RULES: Array<{ patterns: RegExp[]; strategy: Omit<ErrorStrategy, "retryAfterMs"> }> = [
+  {
+    patterns: [/rate limit/i, /too many requests/i, /429/, /throttl/i],
+    strategy: { category: "rate_limit", pause: true, autoResume: true, reason: "rate limited" },
+  },
+  {
+    patterns: [/usage limit/i, /quota exceeded/i],
+    strategy: { category: "quota_exhausted", pause: true, autoResume: true, reason: "quota exhausted" },
+  },
+  {
+    // Billing/credits — account-level, won't self-resolve
+    patterns: [/billing/i, /insufficient.*credits/i, /payment/i, /subscription/i],
+    strategy: { category: "quota_exhausted", pause: true, autoResume: false, reason: "billing/credits issue" },
+  },
+  {
+    patterns: [/authentication required/i, /unauthorized/i, /api.key/i, /invalid.*token/i, /401/],
+    strategy: { category: "auth", pause: true, autoResume: false, reason: "authentication failed" },
+  },
+  {
+    patterns: [/500/, /502/, /503/, /504/, /service unavailable/i, /internal server error/i],
+    strategy: { category: "server_error", pause: true, autoResume: true, reason: "server error" },
+  },
+  {
+    // Environment/config errors that will never self-resolve — stop the loop immediately.
+    patterns: [
+      /no cursor ide installation found/i,
+      /cursor.*not installed/i,
+      /unknown provider:/i,
+      /provider.*is registered but has no adapter/i,
+      /command not found/i,
+      /ENOENT.*which/i,
+    ],
+    strategy: { category: "fatal", pause: false, autoResume: false, fatal: true, reason: "environment/config error" },
+  },
+];
+
+/**
+ * Extract retry-after duration from error text.
+ * Handles: "retry after 60s", "try again in 5 minutes", "reset in 3600 seconds",
+ * "Retry-After: 120", "wait 30s", "cooldown: 1h", etc.
+ */
+function parseRetryAfter(err: string): number | undefined {
+  // "retry after 60" / "try again in 60 seconds" / "wait 30s" / "reset in 5 minutes"
+  const m = err.match(/(?:retry.?after|retry in|try again in|wait|reset in|cooldown:?)\s*(\d+)\s*(s|sec|seconds?|m|min|minutes?|h|hours?|ms)?/i);
+  if (!m) {
+    // Retry-After HTTP header value (plain seconds)
+    const h = err.match(/retry-after:\s*(\d+)/i);
+    if (h) return parseInt(h[1]!, 10) * 1000;
+    return undefined;
+  }
+  const n = parseInt(m[1]!, 10);
+  const unit = (m[2] ?? "s").toLowerCase();
+  if (unit.startsWith("ms")) return n;
+  if (unit.startsWith("h")) return n * 3_600_000;
+  if (unit.startsWith("m")) return n * 60_000;
+  return n * 1000; // default seconds
+}
+
+function classifyError(err: string): ErrorStrategy | null {
+  for (const rule of ERROR_RULES) {
+    if (rule.patterns.some((p) => p.test(err))) {
+      return { ...rule.strategy, retryAfterMs: parseRetryAfter(err) };
+    }
+  }
+  return null;
+}
+
+// ── LLM error classifier ────────────────────────────────────────────────
+
+/**
+ * Configurable model for LLM error classification.
+ * Format: "provider:model" (e.g. "deepseek:deepseek-chat").
+ * Set to "auto" to auto-discover cheapest available, or "off" to disable.
+ */
+let errorClassifierModel: string = "auto";
+
+/** Set the model used for LLM error classification. */
+export function setErrorClassifierModel(model: string): void {
+  errorClassifierModel = model;
+}
+
+/** Auto-discover order: cheapest providers first. Uses registry defaults. */
+const AUTO_DISCOVER_PROVIDERS = ["deepseek", "google", "openai", "anthropic"];
+
+/**
+ * LLM fallback for unrecognized errors. Classifies the error and extracts
+ * retry-after timing if present.
+ */
+async function classifyErrorWithLLM(err: string): Promise<ErrorStrategy | null> {
+  if (errorClassifierModel === "off") return null;
+
+  try {
+    const { resolveProvider, hasProviderKey, getDefaultModel } = await import("@agent-worker/loop");
+    const { generateText, Output } = await import("ai");
+    const { z } = await import("zod");
+
+    let model;
+    if (errorClassifierModel === "auto") {
+      // Try providers in cheapest-first order, use registry default model
+      for (const provider of AUTO_DISCOVER_PROVIDERS) {
+        if (!hasProviderKey(provider)) continue;
+        const modelId = getDefaultModel(provider);
+        if (!modelId) continue;
+        try {
+          model = await resolveProvider(provider, modelId);
+          break;
+        } catch { continue; }
+      }
+      if (!model) return null;
+    } else {
+      // Explicit "provider:model" config
+      const colonIdx = errorClassifierModel.indexOf(":");
+      if (colonIdx <= 0) return null;
+      const provider = errorClassifierModel.slice(0, colonIdx);
+      const modelId = errorClassifierModel.slice(colonIdx + 1);
+      model = await resolveProvider(provider, modelId);
+    }
+
+    const abort = AbortSignal.timeout(10_000);
+    const result = await generateText({
+      model,
+      output: Output.object({
+        schema: z.object({
+          category: z.enum(["rate_limit", "quota_exhausted", "auth", "server_error", "transient"]),
+          autoResume: z.boolean().describe("true if temporary and will resolve on its own"),
+          retryAfterMs: z.number().optional().describe("suggested wait time in milliseconds, extracted from error if available"),
+          reason: z.string().describe("short human-readable reason, max 10 words"),
+        }),
+      }),
+      prompt: `Classify this API/runtime error. If the error contains a retry-after time, extract it.\n\nError: ${err.slice(0, 500)}`,
+      maxTokens: 100,
+      abortSignal: abort,
+    });
+
+    if (!result.output) return null;
+    return {
+      category: result.output.category,
+      pause: true,
+      autoResume: result.output.autoResume,
+      retryAfterMs: result.output.retryAfterMs,
+      reason: result.output.reason,
+    };
+  } catch {
+    return null;
+  }
+}
 
 function serializeLoopEvent(event: LoopEvent): Record<string, unknown> {
   switch (event.type) {

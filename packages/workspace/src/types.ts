@@ -138,11 +138,17 @@ export interface WorkspaceConfig {
   agents?: string[];
   connections?: ChannelAdapter[];
   storage?: StorageBackend;
-  /** Root directory for this workspace's file storage. */
+  /** Root directory for this workspace's file storage (docs, chronicle, channels). */
   storageDir?: string;
+  /** Root directory for agent sandboxes. Defaults to storageDir if not set.
+   *  Separate from storageDir when data_dir points to a repo (knowledge in repo,
+   *  sandboxes in daemon-managed dir). */
+  sandboxBaseDir?: string;
   queueConfig?: QueueConfig;
   /** SmartSend threshold in characters. Default: 1200 */
   maxMessageLength?: number;
+  /** Optional team lead agent name (gets debug tools + all-channel access). */
+  lead?: string;
 }
 
 // ── Channel Bridge & Adapter ───────────────────────────────────────────────
@@ -201,6 +207,8 @@ export interface ContextProvider {
   readonly status: StatusStoreInterface;
   readonly timeline: TimelineStoreInterface;
   readonly chronicle: ChronicleStoreInterface;
+  /** Team lead agent name (if set). */
+  readonly lead?: string;
 
   /** Post a message to a channel. Throws if content exceeds the length limit. */
   send(msg: { channel: string; from: string; content: string; to?: string }): Promise<Message>;
@@ -210,7 +218,7 @@ export interface ContextProvider {
 
 export interface ChannelStoreInterface {
   append(channel: string, message: Omit<Message, "id" | "timestamp">): Promise<Message>;
-  read(channel: string, opts?: { since?: string; limit?: number }): Promise<Message[]>;
+  read(channel: string, opts?: { since?: string; sinceId?: string; limit?: number }): Promise<Message[]>;
   getMessage(channel: string, messageId: string): Promise<Message | null>;
   listChannels(): string[];
   createChannel(name: string): void;
