@@ -46,10 +46,17 @@ export interface OrchestratorConfig {
 const DEFAULT_QUOTA_BACKOFF_MS = 5 * 60_000;
 /** Maximum backoff: 1 hour. */
 const MAX_BACKOFF_MS = 60 * 60_000;
+/**
+ * Grace window after startup (ms). On first tick, if inbox is empty we wait
+ * up to this long for an inbox entry before going idle. Fixes on_demand agents
+ * that start while message routing is still in-flight (routing is fire-and-forget).
+ */
+const STARTUP_GRACE_MS = 300;
 
 export class WorkspaceOrchestrator {
   private running = false;
   private paused = false;
+  private failed = false;
   private pollTimer: ReturnType<typeof setTimeout> | null = null;
   private wakeResolve: (() => void) | null = null;
 
@@ -57,6 +64,13 @@ export class WorkspaceOrchestrator {
   private resumeAt: number | null = null;
   /** Current backoff duration for exponential backoff on repeated failures. */
   private backoffMs = DEFAULT_QUOTA_BACKOFF_MS;
+  /** Timestamp of last start() call — used for startup grace window. */
+  private startedAt = 0;
+  /**
+   * True when wake() was called while not in sleep() (e.g. during tick()).
+   * Consumed by the next sleep() call to return immediately.
+   */
+  private pendingWake = false;
 
   private readonly pollInterval: number;
   private readonly sections: PromptSection[];
@@ -75,10 +89,16 @@ export class WorkspaceOrchestrator {
     return this.running;
   }
 
+  /** True if this loop was stopped due to a fatal (non-recoverable) error. */
+  get isFailed(): boolean {
+    return this.failed;
+  }
+
   /** Start the polling loop. Respects persisted pause state across restarts. */
   async start(): Promise<void> {
     if (this.running) return;
     this.running = true;
+    this.startedAt = Date.now();
 
     // Check if this agent was paused before restart
     const allStatus = await this.config.provider.status.getAll();
@@ -150,13 +170,37 @@ export class WorkspaceOrchestrator {
     await this.config.eventLog.log(this.config.name, "system", "Agent loop stopped");
   }
 
+  /**
+   * Stop the loop due to a fatal (non-recoverable) error.
+   * Sets `isFailed = true` so `checkCompletion()` can report "failed".
+   */
+  async fail(reason: string): Promise<void> {
+    this.failed = true;
+    this.running = false;
+    if (this.pollTimer) {
+      clearTimeout(this.pollTimer);
+      this.pollTimer = null;
+    }
+    this.wakeResolve?.();
+
+    await this.config.provider.status.set(this.config.name, "stopped", `fatal: ${reason}`);
+    await this.config.eventLog.log(this.config.name, "system", `Agent loop failed (fatal): ${reason}`);
+  }
+
   /** Wake the loop immediately (interrupt poll wait). */
   wake(): void {
     if (this.pollTimer) {
       clearTimeout(this.pollTimer);
       this.pollTimer = null;
     }
-    this.wakeResolve?.();
+    if (this.wakeResolve) {
+      this.wakeResolve();
+      this.wakeResolve = null;
+    } else {
+      // Called during tick() when there's no active sleep — mark pending so
+      // the next sleep() returns immediately instead of losing this signal.
+      this.pendingWake = true;
+    }
   }
 
   /** Send a direct instruction (bypasses poll, synchronous). */
@@ -246,6 +290,18 @@ export class WorkspaceOrchestrator {
     // 2. Dequeue and process next instruction
     const instruction = this.config.queue.dequeue(this.config.name);
     if (!instruction) {
+      // Startup grace: inbox routing is fire-and-forget async, so on_demand agents
+      // may arrive here before their triggering message has been enqueued. Within
+      // the grace window, wait for an inbox entry instead of going idle immediately.
+      const elapsed = Date.now() - this.startedAt;
+      if (elapsed < STARTUP_GRACE_MS) {
+        await Promise.race([
+          this.config.provider.inbox.onNewEntry(this.config.name),
+          new Promise<void>((r) => setTimeout(r, STARTUP_GRACE_MS - elapsed)),
+        ]);
+        this.wake(); // Skip poll sleep so the next tick runs immediately
+        return;
+      }
       // No work to do — ensure status reflects idle (not stuck on "running")
       await this.config.provider.status.set(this.config.name, "idle");
       return;
@@ -294,6 +350,10 @@ export class WorkspaceOrchestrator {
   }
 
   private sleep(ms: number): Promise<void> {
+    if (this.pendingWake) {
+      this.pendingWake = false;
+      return Promise.resolve();
+    }
     return new Promise<void>((resolve) => {
       this.wakeResolve = resolve;
       this.pollTimer = setTimeout(() => {
