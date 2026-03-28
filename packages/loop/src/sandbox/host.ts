@@ -49,7 +49,7 @@ export function createHostSandbox(options: HostSandboxOptions): Sandbox {
         return {
           stdout: result.stdout,
           stderr: result.stderr,
-          exitCode: result.exitCode,
+          exitCode: result.exitCode ?? 1,
         };
       } catch (err) {
         return {

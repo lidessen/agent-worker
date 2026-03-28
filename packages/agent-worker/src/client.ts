@@ -437,14 +437,17 @@ async function spawnDaemon(dataDir: string, extraArgs?: string[]): Promise<Daemo
   const env = { ...process.env };
   delete env.CLAUDECODE;
 
-  // Spawn daemon as a detached background process via login shell.
-  // Using a login shell ensures user profile (~/.zshrc, ~/.bashrc) is loaded,
-  // so API keys set in shell profiles are available to the daemon.
-  const isBun = !!process.versions.bun;
-  const runtime = isBun ? "bun" : process.execPath;
+  // Use absolute path to the current runtime to avoid PATH lookup issues.
+  // Also inject the runtime's bin directory into PATH so child processes
+  // (e.g. bun spawned by the daemon) can find bun without relying on the
+  // user's PATH being inherited correctly.
+  const runtime = process.execPath;
+  const bunBinDir = dirname(runtime);
+  env.PATH = `${bunBinDir}:${env.PATH || ""}`;
+
   const dataDirArgs = dataDir !== defaultDataDir() ? ["--data-dir", dataDir] : [];
   const runtimeArgs = [
-    ...(isBun ? ["run"] : process.execArgv),
+    ...process.execArgv,
     cliEntry, "daemon", "start",
     ...dataDirArgs,
     ...(extraArgs ?? []),

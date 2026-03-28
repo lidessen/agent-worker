@@ -498,7 +498,21 @@ export class WorkspaceRegistry {
 
         // Classify error → decide recovery strategy
         const strategy = classifyError(errStr) ?? await classifyErrorWithLLM(errStr);
-        if (strategy?.pause) {
+        if (strategy?.fatal) {
+          // Non-recoverable: stop the loop permanently and notify lead.
+          await orch.fail(strategy.reason);
+          if (workspace.lead && workspace.lead !== agent.name) {
+            try {
+              await workspace.contextProvider.send({
+                channel: workspace.defaultChannel,
+                from: "system",
+                content: `@${workspace.lead} Agent @${agent.name} stopped (fatal: ${strategy.reason}). ` +
+                  `Fix the configuration and restart the workspace.\n` +
+                  `Error: ${errStr.slice(0, 200)}`,
+              });
+            } catch { /* don't fail on notification */ }
+          }
+        } else if (strategy?.pause) {
           if (strategy.autoResume) {
             await orch.pauseUntil(strategy.retryAfterMs);
           } else {
@@ -765,7 +779,7 @@ import type { LoopEvent } from "@agent-worker/loop";
 
 // ── Error classification ─────────────────────────────────────────────────
 
-type ErrorCategory = "rate_limit" | "quota_exhausted" | "auth" | "server_error" | "transient";
+type ErrorCategory = "rate_limit" | "quota_exhausted" | "auth" | "server_error" | "transient" | "fatal";
 
 interface ErrorStrategy {
   category: ErrorCategory;
@@ -773,6 +787,12 @@ interface ErrorStrategy {
   pause: boolean;
   /** Whether the agent should auto-resume after a cooldown. */
   autoResume: boolean;
+  /**
+   * Whether this is a non-recoverable error that should stop the loop entirely.
+   * The loop will be marked as failed (isFailed=true) and checkCompletion will
+   * return "failed" for the workspace.
+   */
+  fatal?: boolean;
   /** Suggested wait time in ms (extracted from error or LLM). Undefined = use default backoff. */
   retryAfterMs?: number;
   /** Human-readable reason for the pause. */
@@ -801,6 +821,18 @@ const ERROR_RULES: Array<{ patterns: RegExp[]; strategy: Omit<ErrorStrategy, "re
   {
     patterns: [/500/, /502/, /503/, /504/, /service unavailable/i, /internal server error/i],
     strategy: { category: "server_error", pause: true, autoResume: true, reason: "server error" },
+  },
+  {
+    // Environment/config errors that will never self-resolve — stop the loop immediately.
+    patterns: [
+      /no cursor ide installation found/i,
+      /cursor.*not installed/i,
+      /unknown provider:/i,
+      /provider.*is registered but has no adapter/i,
+      /command not found/i,
+      /ENOENT.*which/i,
+    ],
+    strategy: { category: "fatal", pause: false, autoResume: false, fatal: true, reason: "environment/config error" },
   },
 ];
 
