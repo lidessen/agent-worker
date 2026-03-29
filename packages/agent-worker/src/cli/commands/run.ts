@@ -17,7 +17,7 @@ export async function run(args: string[]): Promise<void> {
   }
 
   const tag = getFlag(args, "--tag");
-  const wait = getFlag(args, "--wait") ?? "5m";
+  const wait = getFlag(args, "--wait") ?? "30m";
   const vars = parseVars(args);
 
   try {
