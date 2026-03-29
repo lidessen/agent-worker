@@ -57,27 +57,32 @@ export function createChannelTools(
         }
       }
 
+      // Block send if any mentioned agents are not subscribed to this channel
+      if (lookupAgentChannels) {
+        const mentions = extractMentions(content);
+        const notInChannel = mentions.filter((m) => {
+          const channels = lookupAgentChannels(m);
+          return channels !== undefined && !channels.has(channel);
+        });
+        if (notInChannel.length > 0) {
+          const lines = notInChannel.map((m) => {
+            const channels = lookupAgentChannels(m)!;
+            const subs = [...channels].join(", ") || "none";
+            return `  @${m} subscribes to: ${subs}`;
+          });
+          const agentList = notInChannel.map((m) => `@${m}`).join(", ");
+          return (
+            `ERROR: Cannot send — ${agentList} ${notInChannel.length === 1 ? "is" : "are"} not in #${channel}.\n` +
+            `${lines.join("\n")}\n\n` +
+            "Send to a channel they subscribe to instead, or remove the @mention."
+          );
+        }
+      }
+
       try {
         const msg = await provider.send({ channel, from: agentName, content, to });
         // Update cursor to our own message
         cursors.set(channel, msg.id);
-
-        // Warn if any mentioned agents are not subscribed to this channel
-        if (lookupAgentChannels) {
-          const mentions = extractMentions(content);
-          const notInChannel = mentions.filter((m) => {
-            const channels = lookupAgentChannels(m);
-            return channels !== undefined && !channels.has(channel);
-          });
-          if (notInChannel.length > 0) {
-            const agentList = notInChannel.map((m) => `@${m}`).join(", ");
-            return (
-              `Sent message ${msg.id} to #${channel}\n\n` +
-              `⚠️ ${agentList} ${notInChannel.length === 1 ? "is" : "are"} not subscribed to #${channel} and won't receive this message. ` +
-              `You can re-send to a channel they're in (use team_members to check), or accept that only other #${channel} subscribers see it.`
-            );
-          }
-        }
 
         return `Sent message ${msg.id} to #${channel}`;
       } catch (err) {
