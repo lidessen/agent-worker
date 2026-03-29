@@ -13,8 +13,9 @@ export function createWorkspaceTools(
   agentName: string,
   provider: ContextProvider,
   agentChannels: Set<string>,
+  lookupAgentChannels?: (name: string) => Set<string> | undefined,
 ): WorkspaceToolSet {
-  const channelTools = createChannelTools(agentName, provider, agentChannels);
+  const channelTools = createChannelTools(agentName, provider, agentChannels, lookupAgentChannels);
   const inboxTools = createInboxTools(agentName, provider);
   const teamTools = createTeamTools(agentName, provider);
   const resourceTools = createResourceTools(agentName, provider);

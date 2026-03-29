@@ -133,6 +133,54 @@ describe("Workspace Tools", () => {
       expect(result).toContain("Sent message");
     });
 
+    test("channel_send warns when mentioned agent is not in the channel", async () => {
+      // Register coder in #design only (not #general)
+      await workspace.registerAgent("coder", ["design"]);
+
+      const aliceTools = createAgentTools("alice", workspace).tools;
+      // Alice sends with force=true (no cursor yet) mentioning @coder in #general
+      const result = await aliceTools.channel_send!({
+        channel: "general",
+        content: "Hey @coder, can you review this?",
+        force: true,
+      });
+
+      // Message was sent
+      expect(result).toContain("Sent message");
+      const messages = await workspace.contextProvider.channels.read("general");
+      expect(messages.some((m) => m.from === "alice")).toBe(true);
+
+      // Warning included
+      expect(result).toContain("⚠️");
+      expect(result).toContain("@coder");
+      expect(result).toContain("not subscribed to #general");
+    });
+
+    test("channel_send does not warn when mentioned agent is in the channel", async () => {
+      const aliceTools = createAgentTools("alice", workspace).tools;
+      // bob is in #general by default
+      const result = await aliceTools.channel_send!({
+        channel: "general",
+        content: "Hey @bob!",
+        force: true,
+      });
+
+      expect(result).toContain("Sent message");
+      expect(result).not.toContain("⚠️");
+    });
+
+    test("channel_send does not warn for unknown @mentions (non-agent names)", async () => {
+      const aliceTools = createAgentTools("alice", workspace).tools;
+      const result = await aliceTools.channel_send!({
+        channel: "general",
+        content: "See @everyone for details",
+        force: true,
+      });
+
+      expect(result).toContain("Sent message");
+      expect(result).not.toContain("⚠️");
+    });
+
     test("channel_read updates cursor so subsequent send sees no new messages", async () => {
       const aliceTools = createAgentTools("alice", workspace).tools;
       const bobTools = createAgentTools("bob", workspace).tools;

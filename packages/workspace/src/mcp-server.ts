@@ -269,7 +269,8 @@ export class WorkspaceMcpHub {
     });
 
     const agentChannels = this.workspace.getAgentChannels(agentName);
-    const tools = createWorkspaceTools(agentName, this.workspace.contextProvider, agentChannels);
+    const tools = createWorkspaceTools(agentName, this.workspace.contextProvider, agentChannels,
+      (name) => this.workspace.hasAgent(name) ? this.workspace.getAgentChannels(name) : undefined);
 
     const defs = WORKSPACE_TOOL_DEFS as Record<string, ToolDef>;
     for (const [name, fn] of Object.entries(tools)) {

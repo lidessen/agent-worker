@@ -1,4 +1,5 @@
 import type { ContextProvider } from "../../types.ts";
+import { extractMentions } from "../../utils.ts";
 
 export interface ChannelTools {
   channel_send: (args: {
@@ -23,6 +24,8 @@ export function createChannelTools(
   agentName: string,
   provider: ContextProvider,
   agentChannels: Set<string>,
+  /** Lookup function: returns the channels a registered agent has joined, or undefined if not a registered agent. */
+  lookupAgentChannels?: (name: string) => Set<string> | undefined,
 ): ChannelTools {
   /** Cursor: channel → last-seen message ID. */
   const cursors: ChannelCursors = new Map();
@@ -58,6 +61,24 @@ export function createChannelTools(
         const msg = await provider.send({ channel, from: agentName, content, to });
         // Update cursor to our own message
         cursors.set(channel, msg.id);
+
+        // Warn if any mentioned agents are not subscribed to this channel
+        if (lookupAgentChannels) {
+          const mentions = extractMentions(content);
+          const notInChannel = mentions.filter((m) => {
+            const channels = lookupAgentChannels(m);
+            return channels !== undefined && !channels.has(channel);
+          });
+          if (notInChannel.length > 0) {
+            const agentList = notInChannel.map((m) => `@${m}`).join(", ");
+            return (
+              `Sent message ${msg.id} to #${channel}\n\n` +
+              `⚠️ ${agentList} ${notInChannel.length === 1 ? "is" : "are"} not subscribed to #${channel} and won't receive this message. ` +
+              `You can re-send to a channel they're in (use team_members to check), or accept that only other #${channel} subscribers see it.`
+            );
+          }
+        }
+
         return `Sent message ${msg.id} to #${channel}`;
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);
