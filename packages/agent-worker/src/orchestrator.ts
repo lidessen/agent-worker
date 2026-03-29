@@ -33,6 +33,8 @@ export interface OrchestratorConfig {
   sandboxDir?: string;
   /** Shared workspace sandbox directory (visible to all agents). */
   workspaceSandboxDir?: string;
+  /** Whether this agent is on_demand (started only via @mention, not at startup). */
+  onDemand?: boolean;
 }
 
 /**
@@ -290,11 +292,13 @@ export class WorkspaceOrchestrator {
     // 2. Dequeue and process next instruction
     const instruction = this.config.queue.dequeue(this.config.name);
     if (!instruction) {
-      // Startup grace: inbox routing is fire-and-forget async, so on_demand agents
+      // Startup grace: inbox routing is fire-and-forget async, so agents
       // may arrive here before their triggering message has been enqueued. Within
       // the grace window, wait for an inbox entry instead of going idle immediately.
+      // on_demand agents are excluded: they are started precisely because a mention
+      // was routed to their inbox, so no grace delay is needed.
       const elapsed = Date.now() - this.startedAt;
-      if (elapsed < STARTUP_GRACE_MS) {
+      if (!this.config.onDemand && elapsed < STARTUP_GRACE_MS) {
         await Promise.race([
           this.config.provider.inbox.onNewEntry(this.config.name),
           new Promise<void>((r) => setTimeout(r, STARTUP_GRACE_MS - elapsed)),
