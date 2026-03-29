@@ -457,6 +457,7 @@ export function toWorkspaceConfig(
     `/tmp/agent-worker-${def.name}${opts.tag ? `-${opts.tag}` : ""}`;
   const storage = storageType === "memory" ? new MemoryStorage() : new FileStorage(storageDir);
 
+  const onDemandAgents = resolved.agents.filter((a) => a.on_demand).map((a) => a.name);
   return {
     name: def.name,
     tag: opts.tag,
@@ -464,6 +465,7 @@ export function toWorkspaceConfig(
     defaultChannel: def.default_channel,
     agents: resolved.agents.map((a) => a.name),
     lead: def.lead,
+    onDemandAgents: onDemandAgents.length > 0 ? onDemandAgents : undefined,
     connections: opts.connections,
     storage,
     sandboxBaseDir: opts.sandboxBaseDir,

@@ -107,6 +107,76 @@ describe("Workspace", () => {
     expect(bobInbox[0]!.priority).toBe("background");
   });
 
+  describe("on_demand agent routing", () => {
+    let wsWithOnDemand: Workspace;
+
+    beforeEach(async () => {
+      wsWithOnDemand = await createWorkspace({
+        name: "on-demand-test",
+        agents: ["alice", "bot"],
+        onDemandAgents: ["bot"],
+        storage: new MemoryStorage(),
+      });
+    });
+
+    test("broadcast does not reach on_demand agent", async () => {
+      await wsWithOnDemand.contextProvider.send({
+        channel: "general",
+        from: "alice",
+        content: "Hello everyone",
+      });
+
+      const botInbox = await wsWithOnDemand.contextProvider.inbox.peek("bot");
+      expect(botInbox).toHaveLength(0);
+    });
+
+    test("@mention wakes on_demand agent", async () => {
+      await wsWithOnDemand.contextProvider.send({
+        channel: "general",
+        from: "alice",
+        content: "Hey @bot please help",
+      });
+
+      const botInbox = await wsWithOnDemand.contextProvider.inbox.peek("bot");
+      expect(botInbox).toHaveLength(1);
+      expect(botInbox[0]!.priority).toBe("normal");
+    });
+
+    test("DM reaches on_demand agent", async () => {
+      await wsWithOnDemand.contextProvider.send({
+        channel: "general",
+        from: "alice",
+        content: "Private message",
+        to: "bot",
+      });
+
+      const botInbox = await wsWithOnDemand.contextProvider.inbox.peek("bot");
+      expect(botInbox).toHaveLength(1);
+      expect(botInbox[0]!.priority).toBe("immediate");
+    });
+
+    test("non-on_demand agent still receives broadcasts", async () => {
+      const ws = await createWorkspace({
+        name: "mixed",
+        agents: ["alice", "bob", "bot"],
+        onDemandAgents: ["bot"],
+        storage: new MemoryStorage(),
+      });
+
+      await ws.contextProvider.send({
+        channel: "general",
+        from: "alice",
+        content: "General announcement",
+      });
+
+      const bobInbox = await ws.contextProvider.inbox.peek("bob");
+      expect(bobInbox).toHaveLength(1);
+
+      const botInbox = await ws.contextProvider.inbox.peek("bot");
+      expect(botInbox).toHaveLength(0);
+    });
+  });
+
   test("shutdown completes without error", async () => {
     await workspace.shutdown();
   });

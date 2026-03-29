@@ -149,6 +149,8 @@ export interface WorkspaceConfig {
   maxMessageLength?: number;
   /** Optional team lead agent name (gets debug tools + all-channel access). */
   lead?: string;
+  /** Agent names that are on-demand (only wake on @mention, not broadcasts). */
+  onDemandAgents?: string[];
 }
 
 // ── Channel Bridge & Adapter ───────────────────────────────────────────────

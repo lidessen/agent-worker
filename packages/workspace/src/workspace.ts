@@ -44,11 +44,15 @@ export class Workspace implements WorkspaceRuntime {
   /** Optional team lead agent name (gets debug tools + all-channel access). */
   readonly lead: string | undefined;
 
+  /** Agents that only wake on @mention, not channel broadcasts. */
+  private readonly _onDemandAgents: Set<string>;
+
   constructor(config: WorkspaceConfig) {
     this.name = config.name;
     this.tag = config.tag;
     this.lead = config.lead;
     this.defaultChannel = config.defaultChannel ?? "general";
+    this._onDemandAgents = new Set(config.onDemandAgents ?? []);
     this.storageDir = config.storageDir;
     this._sandboxBaseDir = config.sandboxBaseDir;
 
@@ -171,6 +175,8 @@ export class Workspace implements WorkspaceRuntime {
       if (!channels.has(message.channel)) continue;
 
       const isMentioned = message.mentions.includes(agentName);
+      // on_demand agents only wake on @mention, skip them on broadcasts
+      if (this._onDemandAgents.has(agentName) && !isMentioned) continue;
       // Lead gets normal priority for unmentioned messages (responsible for user comms)
       const isLeadFallback = !hasAgentMention && agentName === this.lead;
       await this.enqueueToAgent(
