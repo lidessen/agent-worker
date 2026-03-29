@@ -57,27 +57,36 @@ export function createChannelTools(
         }
       }
 
+      // ── @mention guard ───────────────────────────────────────────
+      // Before sending, verify that @mentioned agents are in this channel.
+      if (lookupAgentChannels && !force) {
+        const mentions = extractMentions(content);
+        const notInChannel = mentions.filter((m) => {
+          const channels = lookupAgentChannels(m);
+          return channels !== undefined && !channels.has(channel);
+        });
+        if (notInChannel.length > 0) {
+          const agentDetails = notInChannel
+            .map((m) => {
+              const channels = lookupAgentChannels(m)!;
+              const channelList = [...channels].map((c) => `#${c}`).join(", ") || "no channels";
+              return `  @${m} is in: ${channelList}`;
+            })
+            .join("\n");
+          const agentList = notInChannel.map((m) => `@${m}`).join(", ");
+          return (
+            `⚠ ${agentList} ${notInChannel.length === 1 ? "is" : "are"} not subscribed to #${channel} — message not sent.\n` +
+            `${agentDetails}\n\n` +
+            "Re-send to a channel they're in, or call channel_send again with force=true to post anyway " +
+            `(the message will appear in #${channel} but won't reach the mentioned agent).`
+          );
+        }
+      }
+
       try {
         const msg = await provider.send({ channel, from: agentName, content, to });
         // Update cursor to our own message
         cursors.set(channel, msg.id);
-
-        // Warn if any mentioned agents are not subscribed to this channel
-        if (lookupAgentChannels) {
-          const mentions = extractMentions(content);
-          const notInChannel = mentions.filter((m) => {
-            const channels = lookupAgentChannels(m);
-            return channels !== undefined && !channels.has(channel);
-          });
-          if (notInChannel.length > 0) {
-            const agentList = notInChannel.map((m) => `@${m}`).join(", ");
-            return (
-              `Sent message ${msg.id} to #${channel}\n\n` +
-              `⚠️ ${agentList} ${notInChannel.length === 1 ? "is" : "are"} not subscribed to #${channel} and won't receive this message. ` +
-              `You can re-send to a channel they're in (use team_members to check), or accept that only other #${channel} subscribers see it.`
-            );
-          }
-        }
 
         return `Sent message ${msg.id} to #${channel}`;
       } catch (err) {

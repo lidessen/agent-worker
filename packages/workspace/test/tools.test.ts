@@ -133,12 +133,35 @@ describe("Workspace Tools", () => {
       expect(result).toContain("Sent message");
     });
 
-    test("channel_send warns when mentioned agent is not in the channel", async () => {
+    test("channel_send blocks send and warns when mentioned agent is not in the channel", async () => {
       // Register coder in #design only (not #general)
       await workspace.registerAgent("coder", ["design"]);
 
       const aliceTools = createAgentTools("alice", workspace).tools;
-      // Alice sends with force=true (no cursor yet) mentioning @coder in #general
+      // Alice mentions @coder in #general — should be blocked with a warning
+      const result = await aliceTools.channel_send!({
+        channel: "general",
+        content: "Hey @coder, can you review this?",
+      });
+
+      // Message was NOT sent
+      expect(result).not.toContain("Sent message");
+      const messages = await workspace.contextProvider.channels.read("general");
+      expect(messages.some((m) => m.from === "alice")).toBe(false);
+
+      // Warning includes agent name, channel info, and force hint
+      expect(result).toContain("⚠");
+      expect(result).toContain("@coder");
+      expect(result).toContain("not subscribed to #general");
+      expect(result).toContain("force=true");
+      // Lists the channels coder is actually in
+      expect(result).toContain("#design");
+    });
+
+    test("channel_send with force=true bypasses mention guard and sends", async () => {
+      await workspace.registerAgent("coder", ["design"]);
+
+      const aliceTools = createAgentTools("alice", workspace).tools;
       const result = await aliceTools.channel_send!({
         channel: "general",
         content: "Hey @coder, can you review this?",
@@ -149,11 +172,6 @@ describe("Workspace Tools", () => {
       expect(result).toContain("Sent message");
       const messages = await workspace.contextProvider.channels.read("general");
       expect(messages.some((m) => m.from === "alice")).toBe(true);
-
-      // Warning included
-      expect(result).toContain("⚠️");
-      expect(result).toContain("@coder");
-      expect(result).toContain("not subscribed to #general");
     });
 
     test("channel_send does not warn when mentioned agent is in the channel", async () => {
@@ -162,11 +180,10 @@ describe("Workspace Tools", () => {
       const result = await aliceTools.channel_send!({
         channel: "general",
         content: "Hey @bob!",
-        force: true,
       });
 
       expect(result).toContain("Sent message");
-      expect(result).not.toContain("⚠️");
+      expect(result).not.toContain("⚠");
     });
 
     test("channel_send does not warn for unknown @mentions (non-agent names)", async () => {
@@ -174,11 +191,10 @@ describe("Workspace Tools", () => {
       const result = await aliceTools.channel_send!({
         channel: "general",
         content: "See @everyone for details",
-        force: true,
       });
 
       expect(result).toContain("Sent message");
-      expect(result).not.toContain("⚠️");
+      expect(result).not.toContain("⚠");
     });
 
     test("channel_read updates cursor so subsequent send sees no new messages", async () => {
