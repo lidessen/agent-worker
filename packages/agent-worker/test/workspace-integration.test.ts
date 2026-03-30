@@ -159,3 +159,128 @@ describe("Unified daemon (workspace routes)", () => {
     expect(workspaces.find((w) => w.name === "test-ws")).toBeUndefined();
   });
 });
+
+// ── Mention guard integration tests (daemon /send path) ──────────────────────
+
+const MENTION_GUARD_YAML = `
+name: guard-ws
+channels:
+  - general
+  - dev
+lead: lead
+agents:
+  lead:
+    runtime: mock
+  coder:
+    runtime: mock
+    on_demand: true
+    channels:
+      - general
+storage: memory
+`;
+
+describe("Mention guard via daemon /send (stdio-entry path)", () => {
+  let daemon: Daemon | null = null;
+  let client: AwClient;
+
+  async function setup() {
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const { mkdirSync } = await import("node:fs");
+    const dataDir = join(
+      tmpdir(),
+      `aw-guard-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    );
+    mkdirSync(dataDir, { recursive: true });
+    daemon = new Daemon({ port: 0, mcpPort: 0, dataDir });
+    const info = await daemon.start();
+    client = AwClient.fromInfo(info);
+    await client.createWorkspace(MENTION_GUARD_YAML);
+  }
+
+  afterEach(async () => {
+    if (daemon) {
+      await daemon.shutdown();
+      daemon = null;
+    }
+  });
+
+  test("guard blocks @mention of on_demand agent not in target channel", async () => {
+    await setup();
+
+    // lead sends @coder to #dev — coder is only in #general
+    const result = await client.sendToWorkspace("guard-ws", {
+      channel: "dev",
+      from: "lead",
+      content: "Hey @coder, review this",
+    });
+
+    expect(result.sent).toBe(false);
+    expect(result.warning).toBeDefined();
+    expect(result.warning).toContain("@coder");
+    expect(result.warning).toContain("#dev");
+    expect(result.warning).toContain("force=true");
+
+    // Message was NOT written to channel
+    const chData = await client.readChannel("guard-ws", "dev");
+    expect(chData.messages.every((m) => !m.content.includes("review this"))).toBe(true);
+  });
+
+  test("guard allows @mention when agent is in the channel", async () => {
+    await setup();
+
+    // lead sends @coder to #general — coder IS in #general
+    const result = await client.sendToWorkspace("guard-ws", {
+      channel: "general",
+      from: "lead",
+      content: "Hey @coder, review this",
+    });
+
+    expect(result.sent).toBe(true);
+    expect(result.warning).toBeUndefined();
+  });
+
+  test("force=true bypasses guard and sends anyway", async () => {
+    await setup();
+
+    const result = await client.sendToWorkspace("guard-ws", {
+      channel: "dev",
+      from: "lead",
+      content: "Hey @coder, urgent!",
+      force: true,
+    });
+
+    expect(result.sent).toBe(true);
+    expect(result.warning).toBeUndefined();
+
+    const chData = await client.readChannel("guard-ws", "dev");
+    expect(chData.messages.some((m) => m.content.includes("urgent!"))).toBe(true);
+  });
+
+  test("guard does not fire for DM sends (agent field)", async () => {
+    await setup();
+
+    // DM to coder — guard does not apply to targeted DMs
+    const result = await client.sendToWorkspace("guard-ws", {
+      from: "lead",
+      content: "Hey @coder, DM",
+      agent: "coder",
+    });
+
+    expect(result.sent).toBe(true);
+  });
+
+  test("workspace lead agent is in all channels — guard does not fire in any channel", async () => {
+    await setup();
+
+    // lead is the workspace-level lead — gets all channels automatically
+    // Guard should NOT fire when @mentioning lead in #dev
+    const leadResult = await client.sendToWorkspace("guard-ws", {
+      channel: "dev",
+      from: "anyone",
+      content: "@lead ping",
+    });
+    expect(leadResult.sent).toBe(true);
+    expect(leadResult.warning).toBeUndefined();
+  });
+});

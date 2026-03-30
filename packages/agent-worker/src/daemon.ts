@@ -49,7 +49,7 @@ import { ManagedWorkspace } from "./managed-workspace.ts";
 import { DaemonEventLog } from "./event-log.ts";
 import { createLoopFromConfig } from "./loop-factory.ts";
 import { writeDaemonInfo, removeDaemonInfo, generateToken, defaultDataDir } from "./discovery.ts";
-import { WorkspaceMcpHub } from "@agent-worker/workspace";
+import { WorkspaceMcpHub, extractMentions } from "@agent-worker/workspace";
 import { detectAiSdkModel, resolveRuntime } from "./resolve-runtime.ts";
 import {
   checkCliAvailability,
@@ -1004,6 +1004,7 @@ export class Daemon {
       from?: string;
       agent?: string;
       channel?: string;
+      force?: boolean;
     };
 
     if (!body.content) {
@@ -1011,6 +1012,38 @@ export class Daemon {
     }
 
     const from = body.from ?? "user";
+
+    // ── @mention guard ─────────────────────────────────────────────────────
+    // For channel broadcasts (no DM target), verify @mentioned agents are
+    // subscribed to the target channel. Skip if force=true.
+    if (!body.agent && !body.force) {
+      const channel = body.channel ?? handle.resolved.def.default_channel ?? "general";
+      const mentions = extractMentions(body.content);
+      if (mentions.length > 0) {
+        const ws = handle.workspace;
+        const notInChannel = mentions.filter((m) => {
+          if (!ws.hasAgent(m)) return false;
+          return !ws.getAgentChannels(m).has(channel);
+        });
+        if (notInChannel.length > 0) {
+          const agentDetails = notInChannel
+            .map((m) => {
+              const chs = [...ws.getAgentChannels(m)].map((c) => `#${c}`).join(", ") || "no channels";
+              return `  @${m} is in: ${chs}`;
+            })
+            .join("\n");
+          const agentList = notInChannel.map((m) => `@${m}`).join(", ");
+          return Response.json({
+            sent: false,
+            warning:
+              `⚠ ${agentList} ${notInChannel.length === 1 ? "is" : "are"} not subscribed to #${channel} — message not sent.\n` +
+              `${agentDetails}\n\n` +
+              "Re-send to a channel they're in, or call channel_send again with force=true to post anyway " +
+              `(the message will appear in #${channel} but won't reach the mentioned agent).`,
+          });
+        }
+      }
+    }
 
     // Workspace send semantics:
     // - Only channel → broadcast to channel

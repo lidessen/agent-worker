@@ -458,12 +458,23 @@ export function toWorkspaceConfig(
   const storage = storageType === "memory" ? new MemoryStorage() : new FileStorage(storageDir);
 
   const onDemandAgents = resolved.agents.filter((a) => a.on_demand).map((a) => a.name);
+
+  // Build per-agent channel map — only include agents that specify channels explicitly.
+  // Agents without a channels entry will default to [defaultChannel] in registerAgent.
+  const agentChannelsMap: Record<string, string[]> = {};
+  for (const agent of resolved.agents) {
+    if (agent.channels && agent.channels.length > 0) {
+      agentChannelsMap[agent.name] = agent.channels;
+    }
+  }
+
   return {
     name: def.name,
     tag: opts.tag,
     channels: def.channels,
     defaultChannel: def.default_channel,
     agents: resolved.agents.map((a) => a.name),
+    agentChannels: Object.keys(agentChannelsMap).length > 0 ? agentChannelsMap : undefined,
     lead: def.lead,
     onDemandAgents: onDemandAgents.length > 0 ? onDemandAgents : undefined,
     connections: opts.connections,

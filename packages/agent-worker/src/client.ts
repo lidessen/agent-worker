@@ -38,6 +38,8 @@ export interface SendResult {
   sent: number | boolean;
   state?: string;
   routed_to?: string;
+  /** Set when the mention guard blocked the send. */
+  warning?: string;
 }
 
 export interface AgentStateResult {
@@ -318,7 +320,7 @@ export class AwClient {
 
   async sendToWorkspace(
     key: string,
-    opts: { content: string; from?: string; agent?: string; channel?: string },
+    opts: { content: string; from?: string; agent?: string; channel?: string; force?: boolean },
   ): Promise<SendResult> {
     return this.request(`/workspaces/${encodeURIComponent(key)}/send`, {
       method: "POST",

@@ -30,9 +30,16 @@ async function callWorkspaceTool(name: string, args: Record<string, unknown>): P
       const res = await fetch(`${daemonUrl}/workspaces/${workspace}/send`, {
         method: "POST",
         headers,
-        body: JSON.stringify({ content: args.content, from: agent, channel: ch, agent: args.to }),
+        body: JSON.stringify({
+          content: args.content,
+          from: agent,
+          channel: ch,
+          agent: args.to,
+          force: args.force,
+        }),
       });
-      const data = (await res.json()) as { sent?: boolean };
+      const data = (await res.json()) as { sent?: boolean; warning?: string };
+      if (!data.sent && data.warning) return data.warning;
       return data.sent ? `Sent to #${ch}` : "Send failed";
     },
     channel_read: async () => {

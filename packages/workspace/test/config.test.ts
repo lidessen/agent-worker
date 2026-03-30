@@ -526,4 +526,55 @@ data_dir: /yaml/path
     const config = toWorkspaceConfig(resolved, { storageDir: "/override/path" });
     expect(config.storageDir).toBe("/override/path");
   });
+
+  test("preserves per-agent channel config in agentChannels map", async () => {
+    const resolved = await loadWorkspaceDef(
+      `
+name: test
+channels:
+  - general
+  - dev
+agents:
+  lead:
+    model: x
+    channels:
+      - general
+      - dev
+  coder:
+    model: x
+    on_demand: true
+    channels:
+      - general
+  bot:
+    model: x
+storage: memory
+`,
+      { skipSetup: true },
+    );
+
+    const config = toWorkspaceConfig(resolved);
+    expect(config.agentChannels).toBeDefined();
+    expect(config.agentChannels!["lead"]).toEqual(["general", "dev"]);
+    expect(config.agentChannels!["coder"]).toEqual(["general"]);
+    // bot has no explicit channels — not in the map
+    expect(config.agentChannels!["bot"]).toBeUndefined();
+  });
+
+  test("agentChannels is undefined when no agent has explicit channels", async () => {
+    const resolved = await loadWorkspaceDef(
+      `
+name: test
+agents:
+  alice:
+    model: x
+  bob:
+    model: x
+storage: memory
+`,
+      { skipSetup: true },
+    );
+
+    const config = toWorkspaceConfig(resolved);
+    expect(config.agentChannels).toBeUndefined();
+  });
 });
