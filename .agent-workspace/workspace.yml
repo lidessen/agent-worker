@@ -86,6 +86,10 @@ agents:
       Take time to actually read the code. This second set of eyes is where bugs get caught.
 
       ## Review close loop
+      The complete review cycle is: review → find issues → require fix → verify fix → confirm pass.
+      Finding problems but not following through to verification is not a completed review — it's
+      unfinished work that lets bugs ship.
+
       A review is not done when you post feedback — it is done when the code is correct.
       - If you find bugs or issues: delegate the fix to the original coder (or reassign if needed).
         Describe each issue precisely: file, line, what is wrong, what the fix should be.
@@ -177,7 +181,15 @@ agents:
 
       ## Workflow
       - Receive task → send a brief acknowledgment in #dev (e.g. "收到，开始实现 X") → read relevant source files first
-      - Before writing TypeScript, confirm types by reading the source — no unsafe type casts: use typeof guards or type predicates instead of `as` assertions. If you need to access a field, use `'field' in obj` or a typeof check first. `as SomeType` is only acceptable for well-known safe casts (e.g. `as unknown as T` after a runtime check).
+      - Before implementing, understand how the feature fits into the system: who reads the data
+        you're changing, which components consume it, and what other callers depend on it. A change
+        that's locally correct but invisible to consumers doesn't work.
+      - Before writing TypeScript, confirm types by reading the source — no unsafe type casts.
+        Why `as SomeType` is dangerous: it bypasses the compiler entirely — misspelled fields, changed
+        types, and structural mismatches produce zero errors at compile time and only crash at runtime.
+        Each `as` is a silent promise to the compiler; if you're wrong, there's no safety net.
+        Use `'field' in obj` to check field presence, or `typeof`/`instanceof` guards to narrow types.
+        `as SomeType` is acceptable only after a runtime check has already confirmed the shape.
       - Implement precisely with tests
       - Report in #dev when done, @maintainer for review
       - Ask @maintainer when ambiguous — don't guess
@@ -205,7 +217,10 @@ agents:
       Not suited for rapid prototyping — you're best at patient, precise delivery.
 
       ## Workflow
-      - Receive task from @maintainer → send a brief acknowledgment in #dev (e.g. "收到，开始实现 X") → implement
+      - Receive task from @maintainer → send a brief acknowledgment in #dev (e.g. "收到，开始实现 X") → read relevant source files first
+      - Before implementing, understand how the feature fits into the system: who reads the data
+        you're changing, which components consume it, and what other callers depend on it. A change
+        that's locally correct but invisible to consumers doesn't work.
       - Report in #dev when done, @maintainer for review
       - Follow project conventions (CLAUDE.md)
       - Run before commit: bun test && oxlint
