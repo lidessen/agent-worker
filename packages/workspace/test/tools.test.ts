@@ -197,6 +197,52 @@ describe("Workspace Tools", () => {
       expect(result).not.toContain("⚠");
     });
 
+    test("mention guard fires for on_demand agent not in the target channel", async () => {
+      // on_demand agent listed only in onDemandAgents (not in agents) — still registered
+      const ws = await createWorkspace({
+        name: "on-demand-mention-test",
+        channels: ["general", "design"],
+        agents: ["alice"],
+        onDemandAgents: ["bot"],
+        agentChannelMap: { bot: ["design"] },
+        storage: new MemoryStorage(),
+      });
+
+      const aliceTools = createAgentTools("alice", ws).tools;
+      // alice mentions @bot in #general but bot is only in #design
+      const result = await aliceTools.channel_send!({
+        channel: "general",
+        content: "Hey @bot can you help?",
+      });
+
+      expect(result).not.toContain("Sent message");
+      expect(result).toContain("⚠");
+      expect(result).toContain("@bot");
+      expect(result).toContain("not subscribed to #general");
+      expect(result).toContain("#design");
+    });
+
+    test("mention guard allows on_demand agent mentioned in its own channel", async () => {
+      const ws = await createWorkspace({
+        name: "on-demand-mention-ok",
+        channels: ["general", "design"],
+        agents: ["alice"],
+        onDemandAgents: ["bot"],
+        agentChannelMap: { bot: ["design"] },
+        storage: new MemoryStorage(),
+      });
+
+      const aliceTools = createAgentTools("alice", ws).tools;
+      await aliceTools.channel_join!({ channel: "design" });
+      const result = await aliceTools.channel_send!({
+        channel: "design",
+        content: "Hey @bot!",
+      });
+
+      expect(result).toContain("Sent message");
+      expect(result).not.toContain("⚠");
+    });
+
     test("channel_read updates cursor so subsequent send sees no new messages", async () => {
       const aliceTools = createAgentTools("alice", workspace).tools;
       const bobTools = createAgentTools("bob", workspace).tools;

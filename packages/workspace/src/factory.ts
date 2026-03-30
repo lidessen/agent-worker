@@ -9,10 +9,23 @@ import type { PromptSection } from "./loop/prompt.ts";
 export async function createWorkspace(config: WorkspaceConfig): Promise<Workspace> {
   const workspace = new Workspace(config);
 
-  // Register agents
+  // Register agents (with per-agent channel overrides when available)
   if (config.agents) {
     for (const agent of config.agents) {
-      await workspace.registerAgent(agent);
+      const channels = config.agentChannelMap?.[agent];
+      await workspace.registerAgent(agent, channels);
+    }
+  }
+
+  // Ensure on_demand agents are registered even if omitted from config.agents.
+  // This guarantees lookupAgentChannels always returns a Set (never undefined)
+  // for known on_demand agents, so the @mention guard fires correctly.
+  if (config.onDemandAgents) {
+    for (const agent of config.onDemandAgents) {
+      if (!workspace.hasAgent(agent)) {
+        const channels = config.agentChannelMap?.[agent];
+        await workspace.registerAgent(agent, channels);
+      }
     }
   }
 

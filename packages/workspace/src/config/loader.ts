@@ -458,6 +458,7 @@ export function toWorkspaceConfig(
   const storage = storageType === "memory" ? new MemoryStorage() : new FileStorage(storageDir);
 
   const onDemandAgents = resolved.agents.filter((a) => a.on_demand).map((a) => a.name);
+  const agentsWithChannels = resolved.agents.filter((a) => a.channels && a.channels.length > 0);
   return {
     name: def.name,
     tag: opts.tag,
@@ -466,6 +467,9 @@ export function toWorkspaceConfig(
     agents: resolved.agents.map((a) => a.name),
     lead: def.lead,
     onDemandAgents: onDemandAgents.length > 0 ? onDemandAgents : undefined,
+    agentChannelMap: agentsWithChannels.length > 0
+      ? Object.fromEntries(agentsWithChannels.map((a) => [a.name, a.channels!]))
+      : undefined,
     connections: opts.connections,
     storage,
     sandboxBaseDir: opts.sandboxBaseDir,
