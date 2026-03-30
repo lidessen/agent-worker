@@ -12,7 +12,7 @@ description: |
 > **CLI path**: All bash code blocks use `$AW_CMD` for the agent-worker CLI.
 > Define it at the start of any shell session before running commands:
 > ```bash
-> AW_CMD="bun $(git rev-parse --show-toplevel)/packages/agent-worker/src/cli/index.ts"
+> AW_CMD="/Users/lidessen/.bun/bin/bun /Users/lidessen/workspaces/agent-worker/packages/agent-worker/src/cli/index.ts"
 > ```
 
 
