@@ -151,6 +151,8 @@ export interface WorkspaceConfig {
   lead?: string;
   /** Agent names that are on-demand (only wake on @mention, not broadcasts). */
   onDemandAgents?: string[];
+  /** Per-agent channel overrides. If set, the agent is registered in those channels instead of defaultChannel. */
+  agentChannelMap?: Record<string, string[]>;
 }
 
 // ── Channel Bridge & Adapter ───────────────────────────────────────────────

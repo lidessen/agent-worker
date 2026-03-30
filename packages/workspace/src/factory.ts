@@ -12,7 +12,7 @@ export async function createWorkspace(config: WorkspaceConfig): Promise<Workspac
   // Register agents
   if (config.agents) {
     for (const agent of config.agents) {
-      await workspace.registerAgent(agent);
+      await workspace.registerAgent(agent, config.agentChannelMap?.[agent]);
     }
   }
 
