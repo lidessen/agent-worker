@@ -186,6 +186,53 @@ describe("Workspace Tools", () => {
       expect(result).not.toContain("⚠");
     });
 
+    test("channel_send does not warn when on_demand agent is in the target channel", async () => {
+      // on_demand agent registered with explicit channels including #design
+      const wsWithOnDemand = await createWorkspace({
+        name: "on-demand-test",
+        channels: ["general", "design"],
+        agents: ["alice", "bot"],
+        agentChannels: { bot: ["design"] },
+        onDemandAgents: ["bot"],
+        storage: new MemoryStorage(),
+      });
+
+      const aliceTools = createAgentTools("alice", wsWithOnDemand).tools;
+      // Alice sends @bot in #design — bot is registered there, guard should not fire
+      const result = await aliceTools.channel_send!({
+        channel: "design",
+        content: "Hey @bot, please review",
+      });
+
+      expect(result).toContain("Sent message");
+      expect(result).not.toContain("⚠");
+    });
+
+    test("channel_send warns when on_demand agent is not in the target channel", async () => {
+      // on_demand agent registered with only #design
+      const wsWithOnDemand = await createWorkspace({
+        name: "on-demand-test2",
+        channels: ["general", "design"],
+        agents: ["alice", "bot"],
+        agentChannels: { bot: ["design"] },
+        onDemandAgents: ["bot"],
+        storage: new MemoryStorage(),
+      });
+
+      const aliceTools = createAgentTools("alice", wsWithOnDemand).tools;
+      // Alice sends @bot in #general — bot is only in #design, guard should fire
+      const result = await aliceTools.channel_send!({
+        channel: "general",
+        content: "Hey @bot, please review",
+      });
+
+      expect(result).not.toContain("Sent message");
+      expect(result).toContain("⚠");
+      expect(result).toContain("@bot");
+      expect(result).toContain("not subscribed to #general");
+      expect(result).toContain("#design");
+    });
+
     test("channel_send does not warn for unknown @mentions (non-agent names)", async () => {
       const aliceTools = createAgentTools("alice", workspace).tools;
       const result = await aliceTools.channel_send!({

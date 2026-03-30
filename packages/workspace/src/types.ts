@@ -136,6 +136,8 @@ export interface WorkspaceConfig {
   channels?: string[];
   defaultChannel?: string;
   agents?: string[];
+  /** Per-agent channel subscriptions. If provided for an agent, overrides the default channel. */
+  agentChannels?: Record<string, string[]>;
   connections?: ChannelAdapter[];
   storage?: StorageBackend;
   /** Root directory for this workspace's file storage (docs, chronicle, channels). */

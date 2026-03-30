@@ -458,12 +458,16 @@ export function toWorkspaceConfig(
   const storage = storageType === "memory" ? new MemoryStorage() : new FileStorage(storageDir);
 
   const onDemandAgents = resolved.agents.filter((a) => a.on_demand).map((a) => a.name);
+  const agentChannelEntries = resolved.agents
+    .filter((a) => a.channels && a.channels.length > 0)
+    .map((a) => [a.name, a.channels!] as const);
   return {
     name: def.name,
     tag: opts.tag,
     channels: def.channels,
     defaultChannel: def.default_channel,
     agents: resolved.agents.map((a) => a.name),
+    agentChannels: agentChannelEntries.length > 0 ? Object.fromEntries(agentChannelEntries) : undefined,
     lead: def.lead,
     onDemandAgents: onDemandAgents.length > 0 ? onDemandAgents : undefined,
     connections: opts.connections,
