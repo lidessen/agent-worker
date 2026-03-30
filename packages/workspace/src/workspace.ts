@@ -120,8 +120,10 @@ export class Workspace implements WorkspaceRuntime {
   }
 
   async registerAgent(name: string, channels?: string[]): Promise<void> {
-    // Lead agents auto-join ALL channels (like external/debug users)
-    const chs = this.isLead(name)
+    // Lead and on_demand agents auto-join ALL channels.
+    // on_demand agents need all channels so @mentions route correctly from any channel;
+    // broadcasts are still suppressed by the _onDemandAgents check in routeMessageToInboxes.
+    const chs = this.isLead(name) || this._onDemandAgents.has(name)
       ? this.contextProvider.channels.listChannels()
       : (channels ?? [this.defaultChannel]);
     const agentChs = new Set<string>(chs);

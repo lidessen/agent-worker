@@ -197,6 +197,26 @@ describe("Workspace Tools", () => {
       expect(result).not.toContain("⚠");
     });
 
+    test("channel_send does not warn for on_demand agent mentioned in any channel", async () => {
+      const ws = await createWorkspace({
+        name: "od-test",
+        channels: ["general", "design"],
+        agents: ["alice", "bot"],
+        onDemandAgents: ["bot"],
+        storage: new MemoryStorage(),
+      });
+
+      const aliceTools = createAgentTools("alice", ws).tools;
+      // bot is on_demand — should be reachable via @mention in any channel, no warning
+      const result = await aliceTools.channel_send!({
+        channel: "design",
+        content: "Hey @bot, review this design",
+      });
+
+      expect(result).toContain("Sent message");
+      expect(result).not.toContain("⚠");
+    });
+
     test("channel_read updates cursor so subsequent send sees no new messages", async () => {
       const aliceTools = createAgentTools("alice", workspace).tools;
       const bobTools = createAgentTools("bob", workspace).tools;
