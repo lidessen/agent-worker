@@ -9,6 +9,12 @@ description: |
   team outperforms solo agents. Trigger on phrases like 'dev eval', 'run eval', 'compare
   performance', 'benchmark', '对比评估', '开发评估', '跑评估', 'eval iteration', '/dev-eval'.
 ---
+> **CLI path**: All bash code blocks use `$AW_CMD` for the agent-worker CLI.
+> Define it at the start of any shell session before running commands:
+> ```bash
+> AW_CMD="bun $(git rev-parse --show-toplevel)/packages/agent-worker/src/cli/index.ts"
+> ```
+
 
 > **Statistical significance notice**: A single eval run is anecdotal. Conclusions require
 > ≥3 independent runs of the same task config before attributing score differences to
@@ -29,7 +35,7 @@ agents evaluate and review the results.
               ▼                                 ▼
  ┌──────────────────────┐       ┌──────────────────────────┐
  │  Agent-Worker Team   │       │  Claude-Code Team Agents  │
- │  aw run eval.yaml    │       │  (Plan → Impl → Review)   │
+ │  $AW_CMD run eval.yaml    │       │  (Plan → Impl → Review)   │
  │  (both in worktrees) │       │  isolation: "worktree"     │
  └──────────┬───────────┘       └─────────────┬────────────┘
             │ ← process exits                 │ ← agent returns
@@ -238,15 +244,15 @@ Then run with **parallel log capture**:
 ```bash
 EVAL_DIR=.agent-workspace/evals/YYYY-MM-DD-slug
 
-# 1. Start parallel event log capture BEFORE aw run (run_in_background)
+# 1. Start parallel event log capture BEFORE $AW_CMD run (run_in_background)
 #    Use workspace key "eval-team" — must match YAML name field.
 #    If using --tag, key becomes "eval-team:tag-value".
-#    MUST use -f (--follow) for SSE streaming mode — without it, aw log does a
+#    MUST use -f (--follow) for SSE streaming mode — without it, $AW_CMD log does a
 #    one-shot read of existing events and exits immediately.
-aw log @eval-team -f --json > $EVAL_DIR/team-log.jsonl
+$AW_CMD log @eval-team -f --json > $EVAL_DIR/team-log.jsonl
 
 # 2. Run workspace as task (run_in_background)
-aw run $EVAL_DIR/eval-workspace.yaml \
+$AW_CMD run $EVAL_DIR/eval-workspace.yaml \
   --var eval_dir="$EVAL_DIR" \
   --var project_path="$TEAM_WORKTREE" \
   --wait 30m
@@ -278,9 +284,9 @@ Use `--tag` to run the same config multiple times:
 
 ```bash
 # With tag, workspace key becomes "eval-team:iter-1"
-# Log capture must match: aw log @eval-team:iter-1 -f --json
-aw run eval-workspace.yaml --tag iter-1 --var eval_dir="..." --wait 30m
-aw run eval-workspace.yaml --tag iter-2 --var eval_dir="..." --wait 30m
+# Log capture must match: $AW_CMD log @eval-team:iter-1 -f --json
+$AW_CMD run eval-workspace.yaml --tag iter-1 --var eval_dir="..." --wait 30m
+$AW_CMD run eval-workspace.yaml --tag iter-2 --var eval_dir="..." --wait 30m
 ```
 
 #### Option 2: Service mode (RECOMMENDED until aw run is fixed)
@@ -292,11 +298,11 @@ This mode does NOT auto-remove — you can collect artifacts at leisure.
 
 ```bash
 # 1. Verify workspace is running
-aw ls
+$AW_CMD ls
 
 # 2. Send task to the orchestrator agent within the workspace
 #    Syntax: agent@workspace — "claude-code" is the agent, "eval-team" is the workspace
-aw send "claude-code@eval-team" "$(cat .agent-workspace/evals/.../task-spec.md)
+$AW_CMD send "claude-code@eval-team" "$(cat .agent-workspace/evals/.../task-spec.md)
 
 完成后请在 general 频道发送: EVAL_COMPLETE_TEAM
 
@@ -307,7 +313,7 @@ aw send "claude-code@eval-team" "$(cat .agent-workspace/evals/.../task-spec.md)
 
 ```bash
 # Option A: Read workspace channel — must scope to workspace
-aw read "@eval-team#general" 5   # look for EVAL_COMPLETE_TEAM
+$AW_CMD read "@eval-team#general" 5   # look for EVAL_COMPLETE_TEAM
 
 # Option B: Check all agents idle via MCP
 agents               # all idle = likely done
@@ -340,7 +346,9 @@ Agent(
      Follow existing patterns and conventions from CLAUDE.md.
   3. REVIEW: After implementation, review your own changes for correctness,
      completeness, and code quality. Fix any critical issues.
-  4. REPORT: When done, output a structured completion report:
+  4. COMMIT: After completing implementation and tests, commit all changes:
+     git add -A && git commit -m "feat: <brief task description>"
+  5. REPORT: When done, output a structured completion report:
      - Files changed (with paths)
      - Tests added/modified
      - Key design decisions
@@ -368,9 +376,9 @@ Write task-spec.md to the eval dir
 
 # Step 1 (parallel):
 #   Bash (run_in_background): start log capture (MUST use -f for streaming)
-#     aw log @eval-team -f --json > $EVAL_DIR/team-log.jsonl
-#   Bash (run_in_background): aw run
-#     aw run $EVAL_DIR/eval-workspace.yaml --wait 30m
+#     $AW_CMD log @eval-team -f --json > $EVAL_DIR/team-log.jsonl
+#   Bash (run_in_background): $AW_CMD run
+#     $AW_CMD run $EVAL_DIR/eval-workspace.yaml --wait 30m
 #   Agent (worktree): Claude-Code team pipeline
 #     Agent(isolation: "worktree", prompt: "...")
 ```
@@ -381,8 +389,8 @@ You get notified when each completes — no polling needed.
 
 While both run, you can optionally monitor workspace progress:
 ```
-aw ls                               → workspace status
-aw read "@eval-team#general" 5      → recent channel messages
+$AW_CMD ls                               → workspace status
+$AW_CMD read "@eval-team#general" 5      → recent channel messages
 ```
 
 ## Phase 2: Collect Artifacts
@@ -744,11 +752,11 @@ How each side signals completion:
 The `aw` CLI uses a unified target syntax: `[agent][@workspace[:tag]][#channel]`
 
 ```
-aw send "claude-code@eval-team" "msg"      # send to agent in workspace
-aw send "@eval-team" "msg"                  # send to workspace (kickoff channel)
-aw read "@eval-team#general" 10             # read workspace channel
-aw log @eval-team -f --json                 # stream workspace events (SSE)
-aw log @eval-team:iter-1 -f --json          # stream tagged workspace events
+$AW_CMD send "claude-code@eval-team" "msg"      # send to agent in workspace
+$AW_CMD send "@eval-team" "msg"                  # send to workspace (kickoff channel)
+$AW_CMD read "@eval-team#general" 10             # read workspace channel
+$AW_CMD log @eval-team -f --json                 # stream workspace events (SSE)
+$AW_CMD log @eval-team:iter-1 -f --json          # stream tagged workspace events
 ```
 
 See [target.ts](packages/agent-worker/src/cli/target.ts) for full grammar.
@@ -868,10 +876,10 @@ For rigorous comparison, run the **same task** with **two different YAML configs
 
 ```bash
 # Config A: baseline team
-aw run eval-workspace-A.yaml --tag config-a --wait 30m
+$AW_CMD run eval-workspace-A.yaml --tag config-a --wait 30m
 
 # Config B: experimental team (different prompts/roles)
-aw run eval-workspace-B.yaml --tag config-b --wait 30m
+$AW_CMD run eval-workspace-B.yaml --tag config-b --wait 30m
 ```
 
 Both run against the same task-spec.md. Compare the scorecards to see which team
