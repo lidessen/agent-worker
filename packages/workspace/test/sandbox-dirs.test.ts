@@ -6,6 +6,14 @@ import {
 } from "../src/context/mcp/prompts.ts";
 import { createWorkspace } from "../src/factory.ts";
 import { MemoryStorage } from "../src/context/storage.ts";
+import { renderPromptDocument } from "../src/loop/prompt-ui.tsx";
+
+function renderSectionResult(
+  result: Awaited<ReturnType<typeof workspacePromptSection>>,
+): string | null {
+  if (!result) return null;
+  return renderPromptDocument(Array.isArray(result) ? result : [result]);
+}
 
 describe("Sandbox directory visibility", () => {
   test("workspacePromptSection includes both sandbox dirs", async () => {
@@ -24,11 +32,12 @@ describe("Sandbox directory visibility", () => {
       workspaceSandboxDir: "/data/sandbox",
     });
 
-    expect(result).toContain("### Directories");
-    expect(result).toContain("/data/agents/alice/sandbox");
-    expect(result).toContain("/data/sandbox");
-    expect(result).toContain("Personal sandbox");
-    expect(result).toContain("Shared workspace");
+    const text = renderSectionResult(result);
+    expect(text).toContain("Directories");
+    expect(text).toContain("/data/agents/alice/sandbox");
+    expect(text).toContain("/data/sandbox");
+    expect(text).toContain("Personal sandbox");
+    expect(text).toContain("Shared workspace");
   });
 
   test("workspacePromptSection shows (not available) when dirs are undefined", async () => {
@@ -45,7 +54,8 @@ describe("Sandbox directory visibility", () => {
       inboxEntries: [],
     });
 
-    expect(result).toContain("(not available)");
+    const text = renderSectionResult(result);
+    expect(text).toContain("(not available)");
   });
 
   test("assemblePrompt passes sandbox dirs through to sections", async () => {

@@ -3,6 +3,7 @@ import { assemblePrompt, soulSection, inboxSection } from "../src/loop/prompt.ts
 import { MemoryStorage } from "../src/context/storage.ts";
 import { createWorkspace } from "../src/factory.ts";
 import type { InboxEntry } from "../src/types.ts";
+import { renderPromptDocument } from "../src/loop/prompt-ui.tsx";
 
 function makeInboxEntry(overrides: Partial<InboxEntry> = {}): InboxEntry {
   return {
@@ -15,6 +16,13 @@ function makeInboxEntry(overrides: Partial<InboxEntry> = {}): InboxEntry {
     enqueuedAt: new Date().toISOString(),
     ...overrides,
   };
+}
+
+function renderSectionResult(
+  result: Awaited<ReturnType<typeof soulSection>>,
+): string | null {
+  if (!result) return null;
+  return renderPromptDocument(Array.isArray(result) ? result : [result]);
 }
 
 describe("Prompt assembly", () => {
@@ -32,7 +40,9 @@ describe("Prompt assembly", () => {
       inboxEntries: [],
     });
 
-    expect(result).toContain("You are a helpful assistant.");
+    const text = renderSectionResult(result);
+    expect(text).toContain("[Instructions]");
+    expect(text).toContain("You are a helpful assistant.");
   });
 
   test("soulSection returns null without instructions", async () => {
@@ -68,12 +78,13 @@ describe("Prompt assembly", () => {
       ],
     });
 
-    expect(result).toContain("## Pending Inbox (3)");
-    expect(result).toContain("### #general (3 new)");
-    expect(result).toContain('@carol: "Second heads-up for @bob"');
-    expect(result).toContain('@dave: "Third note for @bob"');
-    expect(result).toContain("+1 more");
-    expect(result).toContain("channel_read");
+    const text = renderSectionResult(result);
+    expect(text).toContain("[Pending Inbox (3)]");
+    expect(text).toContain("#general (3 new)");
+    expect(text).toContain('@carol: "Second heads-up for @bob"');
+    expect(text).toContain('@dave: "Third note for @bob"');
+    expect(text).toContain("+1 more");
+    expect(text).toContain("channel_read");
   });
 
   test("inboxSection excludes the current message from pending summaries", async () => {
@@ -94,11 +105,12 @@ describe("Prompt assembly", () => {
       currentMessageId: "msg-1",
     });
 
-    expect(result).toBeTruthy();
-    expect(result!).not.toContain("Current task for @bob");
-    expect(result).toContain("#general");
-    expect(result).toContain('@carol: "Another task for @bob"');
-    expect(result).toContain("channel_read");
+    const text = renderSectionResult(result);
+    expect(text).toBeTruthy();
+    expect(text!).not.toContain("Current task for @bob");
+    expect(text).toContain("#general");
+    expect(text).toContain('@carol: "Another task for @bob"');
+    expect(text).toContain("channel_read");
   });
 
   test("assemblePrompt joins sections with dividers", async () => {
@@ -123,7 +135,7 @@ describe("Prompt assembly", () => {
     });
 
     expect(result).toContain("Be helpful.");
-    expect(result).toContain("Pending Inbox");
+    expect(result).toContain("[Pending Inbox");
     expect(result).toContain("---");
   });
 });

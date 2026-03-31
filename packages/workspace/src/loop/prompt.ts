@@ -1,6 +1,8 @@
 import type { ContextProvider, InboxEntry } from "../types.ts";
+import { renderPromptDocument } from "./prompt-ui.tsx";
+import type { PromptBlock, PromptSectionNode } from "./prompt-ui.tsx";
 
-export type PromptSection = (ctx: PromptContext) => Promise<string | null>;
+export type PromptSection = (ctx: PromptContext) => Promise<PromptSectionNode | PromptSectionNode[] | null>;
 
 export interface PromptContext {
   agentName: string;
@@ -23,7 +25,10 @@ export interface PromptContext {
 /** Agent's custom instructions (from YAML config). */
 export const soulSection: PromptSection = async (ctx) => {
   if (!ctx.instructions) return null;
-  return `## Instructions\n\n${ctx.instructions}`;
+  return {
+    title: "Instructions",
+    blocks: [{ kind: "raw", text: ctx.instructions }],
+  };
 };
 
 /** Pending inbox notifications for the agent (excluding the current instruction). */
@@ -39,19 +44,30 @@ export const inboxSection: PromptSection = async (ctx) => {
     byChannel.set(entry.channel, entries);
   }
 
-  const sections = Array.from(byChannel.entries()).map(([channel, entries]) => {
+  const blocks: PromptBlock[] = [];
+  const groups = Array.from(byChannel.entries());
+
+  for (let groupIndex = 0; groupIndex < groups.length; groupIndex++) {
+    const [channel, entries] = groups[groupIndex]!;
     const recent = entries.slice(-2);
-    const lines = recent.map((entry) => {
+    blocks.push({ kind: "line", text: `#${channel} (${entries.length} new)` });
+    for (const entry of recent) {
       const priority = entry.priority !== "normal" ? ` [${entry.priority}]` : "";
       const preview = entry.preview.length >= 100 ? `${entry.preview}…` : entry.preview;
-      return `- @${entry.from}${priority}: "${preview}"`;
-    });
+      blocks.push({ kind: "item", text: `@${entry.from}${priority}: "${preview}"` });
+    }
     const hiddenCount = entries.length - recent.length;
-    if (hiddenCount > 0) lines.push(`- +${hiddenCount} more`);
-    return `### #${channel} (${entries.length} new)\n${lines.join("\n")}`;
-  });
+    if (hiddenCount > 0) blocks.push({ kind: "item", text: `+${hiddenCount} more` });
+    if (groupIndex < groups.length - 1) blocks.push({ kind: "break" });
+  }
 
-  return `## Pending Inbox (${pending.length})\n\n${sections.join("\n\n")}\n\nUse channel_read for full messages.`;
+  blocks.push({ kind: "break" });
+  blocks.push({ kind: "line", text: "Use channel_read for full messages." });
+
+  return {
+    title: `Pending Inbox (${pending.length})`,
+    blocks,
+  };
 };
 
 /** Guidelines for when to respond vs stay silent. */
@@ -62,9 +78,7 @@ export const responseGuidelines: PromptSection = async (ctx) => {
       ? `\n\nThe current message was NOT addressed to you. If it asks a specific agent to respond (e.g. "@codex do X"), only that agent should handle it. Use \`no_action\` unless this is genuinely relevant to you.`
       : "";
 
-  return `## Communication
-
-You are **@${ctx.agentName}** — always identify as @${ctx.agentName} when you speak. Never claim to be a different agent, even if a message mentions another agent by name.
+  const text = `You are **@${ctx.agentName}** — always identify as @${ctx.agentName} when you speak. Never claim to be a different agent, even if a message mentions another agent by name.
 
 You are a thoughtful teammate who values signal over noise. You speak when you have something meaningful to add — not to be seen, not to repeat what others said. Exception: when you receive a task assignment, a brief acknowledgment ("收到，开始实现 X") is valuable — it tells the assigner you have it and prevents redundant follow-ups.
 
@@ -73,6 +87,11 @@ If a message asks a specific agent to do something (e.g. "@codex reply"), only t
 **When you decide not to respond**, call \`no_action\` with your reason — don't just stay silent. This tells the system you made a deliberate choice.
 
 Use \`channel_send\` to communicate — your text output is internal thinking, not visible to others.${backgroundNote}`;
+
+  return {
+    title: "Communication",
+    blocks: [{ kind: "raw", text }],
+  };
 };
 
 /** Assemble all prompt sections. */
@@ -80,14 +99,19 @@ export async function assemblePrompt(
   sections: PromptSection[],
   ctx: PromptContext,
 ): Promise<string> {
-  const parts: string[] = [];
+  const parts: PromptSectionNode[] = [];
 
   for (const section of sections) {
     const result = await section(ctx);
-    if (result) parts.push(result);
+    if (!result) continue;
+    if (Array.isArray(result)) {
+      parts.push(...result);
+    } else {
+      parts.push(result);
+    }
   }
 
-  return parts.join("\n\n---\n\n");
+  return renderPromptDocument(parts);
 }
 
 /**
