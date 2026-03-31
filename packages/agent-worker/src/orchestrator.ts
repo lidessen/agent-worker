@@ -263,20 +263,14 @@ export class WorkspaceOrchestrator {
     const inboxEntries = await this.config.provider.inbox.peek(this.config.name);
 
     for (const entry of inboxEntries) {
-      const msg = await this.config.provider.channels.getMessage(entry.channel, entry.messageId);
-      if (!msg) continue;
-
       await this.config.provider.inbox.markSeen(this.config.name, entry.messageId);
 
       const existing = this.config.queue.peek(this.config.name);
       if (existing?.messageId === entry.messageId) continue;
 
-      // Include sender and channel so the agent knows this is a channel
-      // message, not a bare instruction. Prevents identity confusion
-      // (e.g. agent seeing "@codex do X" and thinking it IS codex).
-      const content = msg.to
-        ? `DM from @${msg.from}: ${msg.content}`
-        : `@${msg.from} in #${entry.channel}: ${msg.content}`;
+      // Notification-only content — agent uses channel_read to get full message.
+      const preview = entry.preview.length >= 100 ? `${entry.preview}…` : entry.preview;
+      const content = `@${entry.from} in #${entry.channel}: "${preview}" — use channel_read for full message`;
       const instruction: Instruction = {
         id: nanoid(),
         agentName: this.config.name,

@@ -14,16 +14,12 @@ export function createInboxTools(agentName: string, provider: ContextProvider): 
       const entries = await provider.inbox.peek(agentName);
       if (entries.length === 0) return "Inbox: empty";
 
-      const lines: string[] = [];
-      for (const entry of entries) {
-        const msg = await provider.channels.getMessage(entry.channel, entry.messageId);
-        if (!msg) continue;
+      const lines = entries.map((entry) => {
         const priority = entry.priority !== "normal" ? ` [${entry.priority}]` : "";
-        lines.push(
-          `- [${msg.id}] #${entry.channel} from:@${msg.from}${priority}: "${msg.content}"`,
-        );
-      }
-      return `Inbox (${lines.length} pending):\n${lines.join("\n")}`;
+        const preview = entry.preview.length >= 100 ? `${entry.preview}…` : entry.preview;
+        return `- [${entry.messageId}] #${entry.channel} from:@${entry.from}${priority}: "${preview}"`;
+      });
+      return `Inbox (${lines.length} pending):\n${lines.join("\n")}\nUse channel_read to view full messages.`;
     },
 
     async my_inbox_ack(args) {

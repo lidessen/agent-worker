@@ -206,6 +206,8 @@ export class Workspace implements WorkspaceRuntime {
     await this.inboxStore.enqueue(agentName, {
       messageId: message.id,
       channel: message.channel,
+      from: message.from,
+      preview: message.content.slice(0, 100),
       priority: p,
       state: "pending",
       enqueuedAt: new Date().toISOString(),

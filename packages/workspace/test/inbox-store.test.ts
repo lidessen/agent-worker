@@ -16,6 +16,8 @@ describe("InboxStore", () => {
     return {
       messageId,
       channel: "general",
+      from: "alice",
+      preview: "test message",
       priority: "normal",
       state: "pending",
       enqueuedAt: new Date().toISOString(),

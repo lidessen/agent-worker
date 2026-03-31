@@ -27,6 +27,10 @@ export interface Message {
 export interface InboxEntry {
   messageId: string;
   channel: string;
+  /** Sender of the message that triggered this notification. */
+  from: string;
+  /** First 100 characters of the message content. */
+  preview: string;
   priority: Priority;
   state: InboxState;
   enqueuedAt: string;

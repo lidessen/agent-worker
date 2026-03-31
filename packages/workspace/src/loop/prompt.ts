@@ -26,22 +26,17 @@ export const soulSection: PromptSection = async (ctx) => {
   return `## Instructions\n\n${ctx.instructions}`;
 };
 
-/** Pending inbox messages for the agent (excluding the current instruction). */
+/** Pending inbox notifications for the agent (excluding the current instruction). */
 export const inboxSection: PromptSection = async (ctx) => {
   // Filter out the message currently being processed
   const pending = ctx.inboxEntries.filter((e) => e.messageId !== ctx.currentMessageId);
   if (pending.length === 0) return null;
 
-  const lines: string[] = [];
-  for (const entry of pending) {
-    const msg = await ctx.provider.channels.getMessage(entry.channel, entry.messageId);
-    if (!msg) continue;
+  const lines = pending.map((entry) => {
     const priority = entry.priority !== "normal" ? ` [${entry.priority}]` : "";
-    const content = msg.content.length > 150 ? msg.content.slice(0, 150) + "…" : msg.content;
-    lines.push(`- ${priority} @${msg.from} in #${entry.channel}: ${content}`);
-  }
+    return `- ${priority}#${entry.channel} from @${entry.from} — use channel_read to view`;
+  });
 
-  if (lines.length === 0) return null;
   return `## Pending Inbox (${lines.length})\n\n${lines.join("\n")}`;
 };
 

@@ -60,8 +60,9 @@ describe("Prompt assembly", () => {
       inboxEntries: entries,
     });
 
-    expect(result).toContain("Hey @bob review this");
     expect(result).toContain("#general");
+    expect(result).toContain("from @alice");
+    expect(result).toContain("channel_read");
   });
 
   test("assemblePrompt joins sections with dividers", async () => {

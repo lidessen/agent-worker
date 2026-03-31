@@ -215,7 +215,7 @@ describe("Workspace Tools", () => {
   });
 
   describe("Inbox tools", () => {
-    test("my_inbox shows pending messages", async () => {
+    test("my_inbox shows pending notifications", async () => {
       await workspace.contextProvider.send({
         channel: "general",
         from: "alice",
@@ -224,7 +224,9 @@ describe("Workspace Tools", () => {
 
       const { tools } = createAgentTools("bob", workspace);
       const result = await tools.my_inbox!({});
-      expect(result).toContain("Hey @bob");
+      expect(result).toContain("#general");
+      expect(result).toContain("from:@alice");
+      expect(result).toContain("channel_read");
     });
 
     test("my_inbox_ack removes entry", async () => {
