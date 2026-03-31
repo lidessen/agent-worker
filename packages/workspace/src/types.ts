@@ -229,7 +229,7 @@ export interface InboxStoreInterface {
   markRunStart(agentName: string): Promise<void>;
   hasEntry(agentName: string, messageId: string): Promise<boolean>;
   /** Returns a promise that resolves when a new inbox entry arrives for the agent. */
-  onNewEntry(agentName: string): Promise<void>;
+  waitForMessage(agentName: string): Promise<void>;
 }
 
 export interface DocumentStoreInterface {

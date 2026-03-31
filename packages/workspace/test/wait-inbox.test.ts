@@ -3,7 +3,7 @@ import { InboxStore } from "../src/context/stores/inbox.ts";
 import { MemoryStorage } from "../src/context/storage.ts";
 import type { InboxEntry } from "../src/types.ts";
 
-describe("wait_inbox / onNewEntry", () => {
+describe("wait_inbox / waitForMessage (InboxStore)", () => {
   let storage: MemoryStorage;
   let store: InboxStore;
 
@@ -23,8 +23,8 @@ describe("wait_inbox / onNewEntry", () => {
     };
   }
 
-  test("onNewEntry resolves when a message is enqueued", async () => {
-    const waiting = store.onNewEntry("alice");
+  test("waitForMessage resolves when a message is enqueued", async () => {
+    const waiting = store.waitForMessage("alice");
 
     // Enqueue in parallel
     setTimeout(() => store.enqueue("alice", makeEntry("msg1")), 10);
@@ -36,9 +36,9 @@ describe("wait_inbox / onNewEntry", () => {
     expect(entries[0]!.messageId).toBe("msg1");
   });
 
-  test("onNewEntry does not resolve for a different agent", async () => {
+  test("waitForMessage does not resolve for a different agent", async () => {
     let resolved = false;
-    const waiting = store.onNewEntry("alice").then(() => {
+    const waiting = store.waitForMessage("alice").then(() => {
       resolved = true;
     });
 
@@ -55,22 +55,22 @@ describe("wait_inbox / onNewEntry", () => {
     expect(resolved).toBe(true);
   });
 
-  test("onNewEntry with timeout expires correctly", async () => {
+  test("waitForMessage with timeout expires correctly", async () => {
     const result = await Promise.race([
-      store.onNewEntry("alice").then(() => "received"),
+      store.waitForMessage("alice").then(() => "received"),
       new Promise<string>((resolve) => setTimeout(() => resolve("timeout"), 100)),
     ]);
 
     expect(result).toBe("timeout");
   });
 
-  test("onNewEntry with timeout resolves before timeout when message arrives", async () => {
+  test("waitForMessage with timeout resolves before timeout when message arrives", async () => {
     const start = Date.now();
 
     setTimeout(() => store.enqueue("alice", makeEntry("msg1")), 10);
 
     const result = await Promise.race([
-      store.onNewEntry("alice").then(() => "received"),
+      store.waitForMessage("alice").then(() => "received"),
       new Promise<string>((resolve) => setTimeout(() => resolve("timeout"), 5000)),
     ]);
 
@@ -80,8 +80,8 @@ describe("wait_inbox / onNewEntry", () => {
   });
 
   test("multiple listeners are all notified", async () => {
-    const p1 = store.onNewEntry("alice");
-    const p2 = store.onNewEntry("alice");
+    const p1 = store.waitForMessage("alice");
+    const p2 = store.waitForMessage("alice");
 
     await store.enqueue("alice", makeEntry("msg1"));
 

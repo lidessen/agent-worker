@@ -35,7 +35,7 @@ export function createWorkspaceTools(
     wait_inbox: async (args) => {
       const timeoutMs = (args.timeout as number) ?? 60000;
       const result = await Promise.race([
-        provider.inbox.onNewEntry(agentName).then(() => "received" as const),
+        provider.inbox.waitForMessage(agentName).then(() => "received" as const),
         new Promise<"timeout">((resolve) => setTimeout(() => resolve("timeout"), timeoutMs)),
       ]);
 

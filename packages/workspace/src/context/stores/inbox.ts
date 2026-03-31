@@ -121,7 +121,7 @@ export class InboxStore implements InboxStoreInterface {
   }
 
   /** Register a one-shot listener for when a new inbox entry arrives. */
-  onNewEntry(agentName: string): Promise<void> {
+  waitForMessage(agentName: string): Promise<void> {
     return new Promise((resolve) => {
       const list = this.listeners.get(agentName) ?? [];
       list.push(resolve);

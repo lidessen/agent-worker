@@ -8,6 +8,7 @@ export class Inbox {
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
   private messageCounter = 0;
   private lastPeekCounter = 0;
+  private waitListeners: Array<() => void> = [];
 
   private readonly debounceMs: number;
   private readonly peekThreshold: number;
@@ -43,6 +44,12 @@ export class Inbox {
     // Fire any pending inbox_wait reminders — message arrived
     if (this.reminders) {
       this.reminders.fireByLabel("inbox_wait", "completed", `New message: ${msg.id}`);
+    }
+
+    // Notify one-shot waitForMessage listeners
+    if (this.waitListeners.length > 0) {
+      const batch = this.waitListeners.splice(0);
+      for (const cb of batch) cb();
     }
 
     // Debounced wake
@@ -117,6 +124,13 @@ export class Inbox {
     });
 
     return `📥 Inbox (${unread.length} unread):\n${lines.join("\n")}`;
+  }
+
+  /** Returns a promise that resolves when the next message is pushed into this inbox. */
+  waitForMessage(): Promise<void> {
+    return new Promise((resolve) => {
+      this.waitListeners.push(resolve);
+    });
   }
 
   /** Count of unread messages */
