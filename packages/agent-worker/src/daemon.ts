@@ -1151,7 +1151,7 @@ export class Daemon {
     const channels = handle.workspace.contextProvider.channels;
 
     const formatMsg = (msg: { id: string; from: string; content: string; timestamp: string; to?: string }) => ({
-      ts: Date.now(),
+      ts: new Date(msg.timestamp).getTime(),
       type: "message",
       channel: ch,
       id: msg.id,
@@ -1166,7 +1166,23 @@ export class Daemon {
     return this.createSSEStream(async (push) => {
       const seenIds = new Set<string>();
 
-      // Backlog replay from cursor offset
+      // 1. Subscribe first and buffer live messages to avoid the read→subscribe gap
+      const buffer: Parameters<typeof formatMsg>[0][] = [];
+      let flushing = false;
+      const listener = (msg: any) => {
+        if (msg.channel !== ch) return;
+        if (!matchesAgent(msg)) return;
+        if (flushing) {
+          if (seenIds.has(msg.id)) return;
+          seenIds.add(msg.id);
+          push(formatMsg(msg));
+        } else {
+          buffer.push(msg);
+        }
+      };
+      channels.on("message", listener);
+
+      // 2. Replay backlog from cursor offset
       const history = await channels.read(ch);
       const sliced = history.slice(cursor);
       for (const msg of sliced) {
@@ -1175,15 +1191,15 @@ export class Daemon {
         push(formatMsg(msg));
       }
 
-      // Live listener with channel + agent + dedup filters
-      const listener = (msg: any) => {
-        if (msg.channel !== ch) return;
-        if (!matchesAgent(msg)) return;
-        if (seenIds.has(msg.id)) return;
+      // 3. Flush buffered live messages, deduping against backlog
+      flushing = true;
+      for (const msg of buffer) {
+        if (seenIds.has(msg.id)) continue;
         seenIds.add(msg.id);
         push(formatMsg(msg));
-      };
-      channels.on("message", listener);
+      }
+      buffer.length = 0;
+
       return () => {
         channels.off("message", listener);
       };

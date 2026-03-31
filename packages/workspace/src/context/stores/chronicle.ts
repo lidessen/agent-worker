@@ -33,7 +33,7 @@ export class ChronicleStore implements ChronicleStoreInterface {
     const sorted = files.filter((f) => f.endsWith(".jsonl")).sort();
 
     // Read from newest shard backwards — stop early when we have enough
-    const needAll = !opts?.limit || opts?.category;
+    const needAll = !opts?.limit;
     const entries: ChronicleEntry[] = [];
 
     const order = needAll ? sorted : [...sorted].reverse();
@@ -48,25 +48,21 @@ export class ChronicleStore implements ChronicleStoreInterface {
         }
       }
 
+      const filtered = opts?.category ? parsed.filter((e) => e.category === opts.category) : parsed;
+
       if (needAll) {
-        entries.push(...parsed);
+        entries.push(...filtered);
       } else {
         // Reading in reverse shard order — prepend to maintain chronological order
-        entries.unshift(...parsed);
+        entries.unshift(...filtered);
         if (entries.length >= opts!.limit!) break;
       }
     }
 
-    let result = entries;
-
-    if (opts?.category) {
-      result = result.filter((e) => e.category === opts.category);
-    }
-
     if (opts?.limit) {
-      result = result.slice(-opts.limit);
+      return entries.slice(-opts.limit);
     }
 
-    return result;
+    return entries;
   }
 }

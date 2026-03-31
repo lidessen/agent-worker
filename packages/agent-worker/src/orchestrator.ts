@@ -292,13 +292,13 @@ export class WorkspaceOrchestrator {
     // 2. Dequeue and process next instruction
     const instruction = this.config.queue.dequeue(this.config.name);
     if (!instruction) {
-      // Startup grace: inbox routing is fire-and-forget async, so agents
-      // may arrive here before their triggering message has been enqueued. Within
-      // the grace window, wait for an inbox entry instead of going idle immediately.
-      // on_demand agents are excluded: they are started precisely because a mention
-      // was routed to their inbox, so no grace delay is needed.
+      // Startup grace: inbox routing is fire-and-forget async, so on_demand
+      // agents may arrive here before their triggering mention has been enqueued.
+      // Within the grace window, wait for an inbox entry instead of going idle.
+      // Only on_demand agents need this — persistent agents start at daemon launch
+      // with no in-flight messages.
       const elapsed = Date.now() - this.startedAt;
-      if (!this.config.onDemand && elapsed < STARTUP_GRACE_MS) {
+      if (this.config.onDemand && elapsed < STARTUP_GRACE_MS) {
         await Promise.race([
           this.config.provider.inbox.onNewEntry(this.config.name),
           new Promise<void>((r) => setTimeout(r, STARTUP_GRACE_MS - elapsed)),
