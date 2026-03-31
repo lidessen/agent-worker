@@ -207,7 +207,7 @@ export class Workspace implements WorkspaceRuntime {
       messageId: message.id,
       channel: message.channel,
       from: message.from,
-      preview: message.content.slice(0, 100),
+      preview: message.content.replace(/\n/g, " ").slice(0, 100),
       priority: p,
       state: "pending",
       enqueuedAt: new Date().toISOString(),

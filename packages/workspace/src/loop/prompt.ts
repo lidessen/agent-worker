@@ -32,12 +32,26 @@ export const inboxSection: PromptSection = async (ctx) => {
   const pending = ctx.inboxEntries.filter((e) => e.messageId !== ctx.currentMessageId);
   if (pending.length === 0) return null;
 
-  const lines = pending.map((entry) => {
-    const priority = entry.priority !== "normal" ? ` [${entry.priority}]` : "";
-    return `- ${priority}#${entry.channel} from @${entry.from} — use channel_read to view`;
+  const byChannel = new Map<string, InboxEntry[]>();
+  for (const entry of pending) {
+    const entries = byChannel.get(entry.channel) ?? [];
+    entries.push(entry);
+    byChannel.set(entry.channel, entries);
+  }
+
+  const sections = Array.from(byChannel.entries()).map(([channel, entries]) => {
+    const recent = entries.slice(-2);
+    const lines = recent.map((entry) => {
+      const priority = entry.priority !== "normal" ? ` [${entry.priority}]` : "";
+      const preview = entry.preview.length >= 100 ? `${entry.preview}…` : entry.preview;
+      return `- @${entry.from}${priority}: "${preview}"`;
+    });
+    const hiddenCount = entries.length - recent.length;
+    if (hiddenCount > 0) lines.push(`- +${hiddenCount} more`);
+    return `### #${channel} (${entries.length} new)\n${lines.join("\n")}`;
   });
 
-  return `## Pending Inbox (${lines.length})\n\n${lines.join("\n")}`;
+  return `## Pending Inbox (${pending.length})\n\n${sections.join("\n\n")}\n\nUse channel_read for full messages.`;
 };
 
 /** Guidelines for when to respond vs stay silent. */
