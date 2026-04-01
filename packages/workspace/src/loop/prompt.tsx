@@ -1,6 +1,8 @@
+/** @jsxImportSource semajsx/prompt */
+
 import type { ContextProvider, InboxEntry } from "../types.ts";
 import { renderPromptDocument } from "./prompt-ui.tsx";
-import type { PromptBlock, PromptSectionNode } from "./prompt-ui.tsx";
+import type { PromptSectionNode } from "./prompt-ui.tsx";
 
 export type PromptSection = (ctx: PromptContext) => Promise<PromptSectionNode | PromptSectionNode[] | null>;
 
@@ -25,15 +27,15 @@ export interface PromptContext {
 /** Agent's custom instructions (from YAML config). */
 export const soulSection: PromptSection = async (ctx) => {
   if (!ctx.instructions) return null;
-  return {
-    title: "Instructions",
-    blocks: [{ kind: "raw", text: ctx.instructions }],
-  };
+  return (
+    <section title="Instructions">
+      <raw>{ctx.instructions}</raw>
+    </section>
+  );
 };
 
 /** Pending inbox notifications for the agent (excluding the current instruction). */
 export const inboxSection: PromptSection = async (ctx) => {
-  // Filter out the message currently being processed
   const pending = ctx.inboxEntries.filter((e) => e.messageId !== ctx.currentMessageId);
   if (pending.length === 0) return null;
 
@@ -44,30 +46,33 @@ export const inboxSection: PromptSection = async (ctx) => {
     byChannel.set(entry.channel, entries);
   }
 
-  const blocks: PromptBlock[] = [];
   const groups = Array.from(byChannel.entries());
-
-  for (let groupIndex = 0; groupIndex < groups.length; groupIndex++) {
-    const [channel, entries] = groups[groupIndex]!;
-    const recent = entries.slice(-2);
-    blocks.push({ kind: "line", text: `#${channel} (${entries.length} new)` });
-    for (const entry of recent) {
-      const priority = entry.priority !== "normal" ? ` [${entry.priority}]` : "";
-      const preview = entry.preview.length >= 100 ? `${entry.preview}…` : entry.preview;
-      blocks.push({ kind: "item", text: `@${entry.from}${priority}: "${preview}"` });
-    }
-    const hiddenCount = entries.length - recent.length;
-    if (hiddenCount > 0) blocks.push({ kind: "item", text: `+${hiddenCount} more` });
-    if (groupIndex < groups.length - 1) blocks.push({ kind: "break" });
-  }
-
-  blocks.push({ kind: "break" });
-  blocks.push({ kind: "line", text: "Use channel_read for full messages." });
-
-  return {
-    title: `Pending Inbox (${pending.length})`,
-    blocks,
-  };
+  return (
+    <section title={`Pending Inbox (${pending.length})`}>
+      {groups.map(([channel, entries], groupIndex) => {
+        const recent = entries.slice(-2);
+        const hiddenCount = entries.length - recent.length;
+        return (
+          <>
+            <line key={`channel.${channel}`}>{`#${channel} (${entries.length} new)`}</line>
+            {recent.map((entry) => {
+              const priority = entry.priority !== "normal" ? ` [${entry.priority}]` : "";
+              const preview = entry.preview.length >= 100 ? `${entry.preview}…` : entry.preview;
+              return (
+                <item key={`entry.${entry.messageId}`}>
+                  {`@${entry.from}${priority}: "${preview}"`}
+                </item>
+              );
+            })}
+            {hiddenCount > 0 && <item key={`more.${channel}`}>{`+${hiddenCount} more`}</item>}
+            {groupIndex < groups.length - 1 && <br key={`break.${channel}`} />}
+          </>
+        );
+      })}
+      <br />
+      <line>Use channel_read for full messages.</line>
+    </section>
+  );
 };
 
 /** Guidelines for when to respond vs stay silent. */
@@ -88,10 +93,11 @@ If a message asks a specific agent to do something (e.g. "@codex reply"), only t
 
 Use \`channel_send\` to communicate — your text output is internal thinking, not visible to others.${backgroundNote}`;
 
-  return {
-    title: "Communication",
-    blocks: [{ kind: "raw", text }],
-  };
+  return (
+    <section title="Communication">
+      <raw>{text}</raw>
+    </section>
+  );
 };
 
 /** Assemble all prompt sections. */

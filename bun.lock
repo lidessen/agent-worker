@@ -84,7 +84,6 @@
       "name": "@agent-worker/web",
       "version": "0.0.1",
       "dependencies": {
-        "@semajsx/icons": "workspace:*",
         "semajsx": "workspace:*",
       },
     },
@@ -94,39 +93,12 @@
       "dependencies": {
         "@agent-worker/shared": "workspace:*",
         "@modelcontextprotocol/sdk": "^1.27.1",
+        "semajsx": "workspace:*",
         "yaml": "^2.8.2",
         "zod": "^4.3.6",
       },
       "devDependencies": {
         "agent-worker": "workspace:*",
-      },
-    },
-    "vendor/semajsx/packages/blocks": {
-      "name": "@semajsx/blocks",
-      "version": "0.1.0",
-      "dependencies": {
-        "@semajsx/core": "workspace:*",
-        "@semajsx/dom": "workspace:*",
-        "@semajsx/signal": "workspace:*",
-        "@semajsx/style": "workspace:*",
-      },
-      "devDependencies": {
-        "@semajsx/configs": "workspace:*",
-        "tsdown": "^0.20.1",
-        "typescript": "^5.9.3",
-      },
-    },
-    "vendor/semajsx/packages/chat": {
-      "name": "@semajsx/chat",
-      "version": "0.1.0",
-      "dependencies": {
-        "@semajsx/core": "workspace:*",
-        "@semajsx/dom": "workspace:*",
-        "@semajsx/signal": "workspace:*",
-        "@semajsx/style": "workspace:*",
-      },
-      "devDependencies": {
-        "@semajsx/configs": "workspace:*",
       },
     },
     "vendor/semajsx/packages/configs": {
@@ -158,24 +130,6 @@
       },
       "devDependencies": {
         "@semajsx/configs": "workspace:*",
-      },
-    },
-    "vendor/semajsx/packages/icons": {
-      "name": "@semajsx/icons",
-      "version": "0.1.0",
-      "dependencies": {
-        "@semajsx/core": "workspace:*",
-        "lucide": "^0.577.0",
-      },
-      "devDependencies": {
-        "@semajsx/configs": "workspace:*",
-        "@semajsx/dom": "workspace:*",
-        "tsdown": "^0.20.1",
-        "typescript": "^5.9.3",
-        "vitest": "^4.0.18",
-      },
-      "peerDependencies": {
-        "@semajsx/dom": "workspace:*",
       },
     },
     "vendor/semajsx/packages/logger": {
@@ -213,6 +167,18 @@
         "@semajsx/dom",
       ],
     },
+    "vendor/semajsx/packages/prompt": {
+      "name": "@semajsx/prompt",
+      "version": "0.1.0",
+      "dependencies": {
+        "@semajsx/core": "workspace:*",
+        "@semajsx/signal": "workspace:*",
+        "@semajsx/utils": "workspace:*",
+      },
+      "devDependencies": {
+        "@semajsx/configs": "workspace:*",
+      },
+    },
     "vendor/semajsx/packages/semajsx": {
       "name": "semajsx",
       "version": "0.11.0",
@@ -232,12 +198,11 @@
         "zod": "^4.3.6",
       },
       "devDependencies": {
-        "@semajsx/blocks": "workspace:*",
-        "@semajsx/chat": "workspace:*",
         "@semajsx/configs": "workspace:*",
         "@semajsx/core": "workspace:*",
         "@semajsx/dom": "workspace:*",
         "@semajsx/logger": "workspace:*",
+        "@semajsx/prompt": "workspace:*",
         "@semajsx/signal": "workspace:*",
         "@semajsx/ssg": "workspace:*",
         "@semajsx/ssr": "workspace:*",
@@ -727,21 +692,17 @@
 
     "@sec-ant/readable-stream": ["@sec-ant/readable-stream@0.4.1", "", {}, "sha512-831qok9r2t8AlxLko40y2ebgSDhenenCatLVeW/uBtnHPyhHOvG0C7TvfgecV+wHzIm5KUICgzmVpWS+IMEAeg=="],
 
-    "@semajsx/blocks": ["@semajsx/blocks@workspace:vendor/semajsx/packages/blocks"],
-
-    "@semajsx/chat": ["@semajsx/chat@workspace:vendor/semajsx/packages/chat"],
-
     "@semajsx/configs": ["@semajsx/configs@workspace:vendor/semajsx/packages/configs"],
 
     "@semajsx/core": ["@semajsx/core@workspace:vendor/semajsx/packages/core"],
 
     "@semajsx/dom": ["@semajsx/dom@workspace:vendor/semajsx/packages/dom"],
 
-    "@semajsx/icons": ["@semajsx/icons@workspace:vendor/semajsx/packages/icons"],
-
     "@semajsx/logger": ["@semajsx/logger@workspace:vendor/semajsx/packages/logger"],
 
     "@semajsx/mermaid": ["@semajsx/mermaid@workspace:vendor/semajsx/packages/mermaid"],
+
+    "@semajsx/prompt": ["@semajsx/prompt@workspace:vendor/semajsx/packages/prompt"],
 
     "@semajsx/signal": ["@semajsx/signal@workspace:vendor/semajsx/packages/signal"],
 
@@ -1241,7 +1202,7 @@
 
     "lru-cache": ["lru-cache@11.2.7", "", {}, "sha512-aY/R+aEsRelme17KGQa/1ZSIpLpNYYrhcrepKTZgE+W3WM16YMCaPwOHLHsmopZHELU0Ojin1lPVxKR0MihncA=="],
 
-    "lucide": ["lucide@0.577.0", "", {}, "sha512-PpC/m5eOItp/WU/GlQPFBXDOhq6HibL73KzYP37OX3LM7VmzWQF8voEj8QRWUFvy9FIKfeDQkWYoyS1D/MdWFA=="],
+    "lucide": ["lucide@0.575.0", "", {}, "sha512-+xwqZpvrqPioU8bSH49zH2xARfnKyZgIjdnfbex0CrURB3q4wNFhinYN1Z9Q3lE16Q/6N9iEXnStvyS3c70RKw=="],
 
     "magic-string": ["magic-string@0.30.21", "", { "dependencies": { "@jridgewell/sourcemap-codec": "^1.5.5" } }, "sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ=="],
 
@@ -1697,8 +1658,6 @@
 
     "@modelcontextprotocol/sdk/hono": ["hono@4.12.5", "", {}, "sha512-3qq+FUBtlTHhtYxbxheZgY8NIFnkkC/MR8u5TTsr7YZ3wixryQ3cCwn3iZbg8p8B88iDBBAYSfZDS75t8MN7Vg=="],
 
-    "@semajsx/ssg/lucide": ["lucide@0.575.0", "", {}, "sha512-+xwqZpvrqPioU8bSH49zH2xARfnKyZgIjdnfbex0CrURB3q4wNFhinYN1Z9Q3lE16Q/6N9iEXnStvyS3c70RKw=="],
-
     "@vue/compiler-core/@babel/parser": ["@babel/parser@7.29.2", "", { "dependencies": { "@babel/types": "^7.29.0" }, "bin": "./bin/babel-parser.js" }, "sha512-4GgRzy/+fsBa72/RZVJmGKPmZu9Byn8o4MoLpmNe1m8ZfYnz5emHLQz3U4gLud6Zwl0RZIcgiLD7Uq7ySFuDLA=="],
 
     "@vue/compiler-core/estree-walker": ["estree-walker@2.0.2", "", {}, "sha512-Rfkk/Mp/DL7JVje3u18FxFujQlTNR2q6QfMSMB7AvCBx91NGj/ba3kCfza0f6dVDbw7YlRf/nDrn7pQrCCyQ/w=="],
@@ -1724,8 +1683,6 @@
     "rc/ini": ["ini@1.3.8", "", {}, "sha512-JV/yugV2uzW5iMRSiZAyDtQd+nxtUnjeLt0acNdw98kKLrvuRVyB80tsREOE7yvGVgalhZ6RNXCmEHkUKBKxew=="],
 
     "semajsx/@types/bun": ["@types/bun@1.3.11", "", { "dependencies": { "bun-types": "1.3.11" } }, "sha512-5vPne5QvtpjGpsGYXiFyycfpDF2ECyPcTSsFBMa0fraoxiQyMJ3SmuQIGhzPg2WJuWxVBoxWJ2kClYTcw/4fAg=="],
-
-    "semajsx/lucide": ["lucide@0.575.0", "", {}, "sha512-+xwqZpvrqPioU8bSH49zH2xARfnKyZgIjdnfbex0CrURB3q4wNFhinYN1Z9Q3lE16Q/6N9iEXnStvyS3c70RKw=="],
 
     "unrun/rolldown": ["rolldown@1.0.0-rc.9", "", { "dependencies": { "@oxc-project/types": "=0.115.0", "@rolldown/pluginutils": "1.0.0-rc.9" }, "optionalDependencies": { "@rolldown/binding-android-arm64": "1.0.0-rc.9", "@rolldown/binding-darwin-arm64": "1.0.0-rc.9", "@rolldown/binding-darwin-x64": "1.0.0-rc.9", "@rolldown/binding-freebsd-x64": "1.0.0-rc.9", "@rolldown/binding-linux-arm-gnueabihf": "1.0.0-rc.9", "@rolldown/binding-linux-arm64-gnu": "1.0.0-rc.9", "@rolldown/binding-linux-arm64-musl": "1.0.0-rc.9", "@rolldown/binding-linux-ppc64-gnu": "1.0.0-rc.9", "@rolldown/binding-linux-s390x-gnu": "1.0.0-rc.9", "@rolldown/binding-linux-x64-gnu": "1.0.0-rc.9", "@rolldown/binding-linux-x64-musl": "1.0.0-rc.9", "@rolldown/binding-openharmony-arm64": "1.0.0-rc.9", "@rolldown/binding-wasm32-wasi": "1.0.0-rc.9", "@rolldown/binding-win32-arm64-msvc": "1.0.0-rc.9", "@rolldown/binding-win32-x64-msvc": "1.0.0-rc.9" }, "bin": { "rolldown": "bin/cli.mjs" } }, "sha512-9EbgWge7ZH+yqb4d2EnELAntgPTWbfL8ajiTW+SyhJEC4qhBbkCKbqFV4Ge4zmu5ziQuVbWxb/XwLZ+RIO7E8Q=="],
 

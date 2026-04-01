@@ -23,19 +23,19 @@ export { MemoryStorage, FileStorage } from "./context/storage.ts";
 export { InstructionQueue } from "./loop/priority-queue.ts";
 
 // ── Prompt ─────────────────────────────────────────────────────────────────
-export { assemblePrompt, BASE_SECTIONS, soulSection, inboxSection } from "./loop/prompt.ts";
+export { assemblePrompt, BASE_SECTIONS, soulSection, inboxSection } from "./loop/prompt.tsx";
 export {
   workspacePromptSection,
   conversationSection,
   docsPromptSection,
   WORKSPACE_PROMPT_SECTIONS,
-} from "./context/mcp/prompts.ts";
+} from "./context/mcp/prompts.tsx";
 
 // Re-export DEFAULT_SECTIONS as the full set (base + workspace) for external callers.
-import { BASE_SECTIONS } from "./loop/prompt.ts";
-import { WORKSPACE_PROMPT_SECTIONS } from "./context/mcp/prompts.ts";
+import { BASE_SECTIONS } from "./loop/prompt.tsx";
+import { WORKSPACE_PROMPT_SECTIONS } from "./context/mcp/prompts.tsx";
 export const DEFAULT_SECTIONS = [...BASE_SECTIONS, ...WORKSPACE_PROMPT_SECTIONS];
-export type { PromptSection, PromptContext } from "./loop/prompt.ts";
+export type { PromptSection, PromptContext } from "./loop/prompt.tsx";
 
 // ── MCP tools ──────────────────────────────────────────────────────────────
 export { createWorkspaceTools, WORKSPACE_TOOL_DEFS } from "./context/mcp/server.ts";

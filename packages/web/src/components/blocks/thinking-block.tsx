@@ -1,6 +1,6 @@
 /** @jsxImportSource semajsx/dom */
 
-import { Icon, ChevronDown, ChevronRight } from "@semajsx/icons";
+import { Icon, ChevronDown, ChevronRight } from "../icons.tsx";
 import { signal, computed } from "semajsx/signal";
 import type { DaemonEvent } from "../../api/types.ts";
 import * as styles from "./thinking-block.style.ts";

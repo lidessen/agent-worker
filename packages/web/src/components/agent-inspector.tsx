@@ -1,6 +1,6 @@
 /** @jsxImportSource semajsx/dom */
 
-import { Icon, ChevronDown } from "@semajsx/icons";
+import { Icon, ChevronDown } from "./icons.tsx";
 import { computed } from "semajsx/signal";
 import type { Signal, ReadableSignal } from "semajsx/signal";
 import type { AgentState, InboxItem, TodoItem } from "../api/types.ts";

@@ -1,8 +1,8 @@
 import type { WorkspaceConfig } from "./types.ts";
 import { Workspace } from "./workspace.ts";
 import { createWorkspaceTools, type WorkspaceToolSet } from "./context/mcp/server.ts";
-import { WORKSPACE_PROMPT_SECTIONS } from "./context/mcp/prompts.ts";
-import type { PromptSection } from "./loop/prompt.ts";
+import { WORKSPACE_PROMPT_SECTIONS } from "./context/mcp/prompts.tsx";
+import type { PromptSection } from "./loop/prompt.tsx";
 
 // ── createWorkspace ────────────────────────────────────────────────────────
 

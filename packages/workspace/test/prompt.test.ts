@@ -1,5 +1,5 @@
 import { test, expect, describe } from "bun:test";
-import { assemblePrompt, soulSection, inboxSection } from "../src/loop/prompt.ts";
+import { assemblePrompt, soulSection, inboxSection } from "../src/loop/prompt.tsx";
 import { MemoryStorage } from "../src/context/storage.ts";
 import { createWorkspace } from "../src/factory.ts";
 import type { InboxEntry } from "../src/types.ts";
