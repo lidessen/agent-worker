@@ -1,6 +1,6 @@
 /** @jsxImportSource semajsx/dom */
 
-import { Icon, ArrowLeft } from "../components/icons.tsx";
+import { Icon, ArrowLeft } from "@semajsx/icons";
 import { signal, computed } from "semajsx/signal";
 import { onCleanup } from "semajsx/dom";
 import {

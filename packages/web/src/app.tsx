@@ -24,7 +24,7 @@ import {
   VercelIcon,
   parsePlatformName,
 } from "./components/brand-icons.tsx";
-import { Icon, Drama } from "./components/icons.tsx";
+import { Icon, Drama } from "@semajsx/icons";
 import * as styles from "./app.style.ts";
 
 // Import all views

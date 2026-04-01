@@ -1,6 +1,6 @@
 /** @jsxImportSource semajsx/dom */
 
-import { Icon, ArrowUp } from "./icons.tsx";
+import { Icon, ArrowUp } from "@semajsx/icons";
 import { computed, signal } from "semajsx/signal";
 import { onCleanup } from "semajsx/dom";
 import * as styles from "./chat-input.style.ts";

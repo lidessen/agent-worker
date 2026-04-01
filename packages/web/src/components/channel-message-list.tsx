@@ -1,6 +1,6 @@
 /** @jsxImportSource semajsx/dom */
 
-import { Icon, MessageCircle } from "./icons.tsx";
+import { Icon, MessageCircle } from "@semajsx/icons";
 import { computed } from "semajsx/signal";
 import type { ReadableSignal } from "semajsx/signal";
 import { onCleanup } from "semajsx/dom";

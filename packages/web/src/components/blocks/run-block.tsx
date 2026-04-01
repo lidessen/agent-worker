@@ -1,6 +1,6 @@
 /** @jsxImportSource semajsx/dom */
 
-import { Icon, ArrowUp, ArrowDown } from "../icons.tsx";
+import { Icon, ArrowUp, ArrowDown } from "@semajsx/icons";
 import type { DaemonEvent } from "../../api/types.ts";
 import * as styles from "./run-block.style.ts";
 
