@@ -1,6 +1,6 @@
 /** @jsxImportSource semajsx/dom */
 
-import { Icon, Drama } from "@semajsx/icons";
+import { Icon, Drama } from "semajsx/icons";
 import { signal, computed } from "semajsx/signal";
 import { onCleanup } from "semajsx/dom";
 import { client } from "../stores/connection.ts";

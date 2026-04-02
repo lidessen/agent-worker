@@ -84,7 +84,6 @@
       "name": "@agent-worker/web",
       "version": "0.0.1",
       "dependencies": {
-        "@semajsx/icons": "workspace:*",
         "semajsx": "workspace:*",
       },
     },
@@ -250,6 +249,7 @@
         "@semajsx/configs": "workspace:*",
         "@semajsx/core": "workspace:*",
         "@semajsx/dom": "workspace:*",
+        "@semajsx/icons": "workspace:*",
         "@semajsx/logger": "workspace:*",
         "@semajsx/prompt": "workspace:*",
         "@semajsx/signal": "workspace:*",

@@ -3,7 +3,7 @@
 import type { JSXNode } from "semajsx/core";
 import { computed } from "semajsx/signal";
 import { onCleanup } from "semajsx/dom";
-import { Icon, Drama } from "@semajsx/icons";
+import { Icon, Drama } from "semajsx/icons";
 import { ClaudeIcon, CursorIcon, OpenAIIcon, VercelIcon } from "../brand-icons.tsx";
 import { connectionState } from "../../stores/connection.ts";
 import { workspaces } from "../../stores/workspaces.ts";

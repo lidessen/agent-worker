@@ -1,6 +1,6 @@
 /** @jsxImportSource semajsx/dom */
 
-import { Icon, Wrench, ChevronDown, ChevronRight } from "@semajsx/icons";
+import { Icon, Wrench, ChevronDown, ChevronRight } from "semajsx/icons";
 import { signal, computed } from "semajsx/signal";
 import type { DaemonEvent } from "../../api/types.ts";
 import * as styles from "./tool-call-block.style.ts";
