@@ -35,3 +35,11 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # Finder (MacOS) folder config
 .DS_Store
+
+# local workspace runtime artifacts
+.agent-workspace/chronicle/
+.agent-workspace/documents/
+.agent-workspace/evals/
+.agent-workspace/global/
+.claude/skills/dev-eval/scripts/
+.claude/worktrees/
