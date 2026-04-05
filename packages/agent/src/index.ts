@@ -49,6 +49,7 @@ export type {
   AssembledPrompt,
   ContextConfig,
   ToolKitConfig,
+  RuntimeHooksConfig,
   Message,
   RunInfo,
 } from "./types.ts";

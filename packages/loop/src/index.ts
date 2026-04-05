@@ -35,6 +35,13 @@ export {
 } from "./utils/cli.ts";
 export { runCliLoop, type CliLoopConfig } from "./utils/cli-loop.ts";
 export { createStreamParser } from "./utils/stream-parser.ts";
+export { createSdkMcpServer, type SdkMcpToolDefinition } from "./utils/claude-sdk.ts";
+export type {
+  ClaudeHooks,
+  ClaudeHookEvent,
+  ClaudeHookCallback,
+  ClaudeHookCallbackMatcher,
+} from "./utils/claude-sdk.ts";
 export {
   resolveProvider,
   getDefaultModel,

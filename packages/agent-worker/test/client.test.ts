@@ -122,6 +122,87 @@ describe("AwClient", () => {
     expect(typeof state.history).toBe("number");
   });
 
+  test("readAgentEvents returns runtime_event entries for tools", async () => {
+    await setup();
+    const loop: AgentLoop = {
+      supports: [],
+      _status: "idle" as LoopStatus,
+      get status(): LoopStatus {
+        return this._status;
+      },
+      run(): LoopRun {
+        this._status = "running";
+        const events: LoopEvent[] = [
+          {
+            type: "tool_call_start",
+            name: "agent_todo",
+            callId: "call_1",
+            args: { action: "add", text: "Write tests" },
+          },
+          {
+            type: "tool_call_end",
+            name: "agent_todo",
+            callId: "call_1",
+            result: "ok",
+            durationMs: 12,
+          },
+        ];
+        const result = Promise.resolve().then(() => {
+          this._status = "completed";
+          return {
+            events,
+            usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+            durationMs: 10,
+          } satisfies LoopResult;
+        });
+        return {
+          async *[Symbol.asyncIterator]() {
+            for (const event of events) yield event;
+          },
+          result,
+        };
+      },
+      cancel() {
+        this._status = "cancelled";
+      },
+      setMcpConfig() {},
+    } as AgentLoop & { _status: LoopStatus };
+
+    await daemon.agentRegistry.create({
+      name: "runtime-events",
+      config: {
+        name: "runtime-events",
+        instructions: "test",
+        loop,
+        inbox: { debounceMs: 0 },
+      },
+    });
+
+    await client.sendToAgent("runtime-events", [{ content: "go" }]);
+    await Bun.sleep(200);
+
+    const result = await client.readAgentEvents("runtime-events", 0);
+    expect(
+      result.entries.some(
+        (e: any) =>
+          e.type === "runtime_event" &&
+          e.eventKind === "tool" &&
+          e.phase === "start" &&
+          e.name === "agent_todo",
+      ),
+    ).toBe(true);
+    expect(
+      result.entries.some(
+        (e: any) =>
+          e.type === "runtime_event" &&
+          e.eventKind === "tool" &&
+          e.phase === "end" &&
+          e.name === "agent_todo" &&
+          e.callId === "call_1",
+      ),
+    ).toBe(true);
+  });
+
   test("removeAgent", async () => {
     await setup();
     await daemon.agentRegistry.create({

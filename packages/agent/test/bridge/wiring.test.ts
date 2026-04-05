@@ -11,7 +11,10 @@ import { ReminderManager } from "../../src/reminder.ts";
 import { tool, type ToolSet } from "ai";
 import { z } from "zod";
 
-function createMockLoop(supports: string[] = []): AgentLoop {
+function createMockLoop(
+  supports: string[] = [],
+  opts: { sdkMcp?: boolean; cliMcp?: boolean } = {},
+): AgentLoop {
   const mockLoop: AgentLoop = {
     supports: supports as any,
     run: mock(() => ({}) as any),
@@ -21,7 +24,9 @@ function createMockLoop(supports: string[] = []): AgentLoop {
     },
     setTools: mock(() => {}),
     setPrepareStep: mock(() => {}),
-    setMcpConfig: mock(() => {}),
+    setMcpConfig: opts.cliMcp === false ? undefined : mock(() => {}),
+    setMcpServers: opts.sdkMcp ? mock(() => {}) : undefined,
+    setHooks: mock(() => {}),
   };
   return mockLoop;
 }
@@ -29,6 +34,7 @@ function createMockLoop(supports: string[] = []): AgentLoop {
 function createDeps(
   loop: AgentLoop,
   toolkit?: { tools?: ToolSet; includeBuiltins?: boolean },
+  runtimeHooks?: { hooks?: Record<string, unknown> },
 ): LoopWiringDeps {
   const inbox = new Inbox({}, () => {});
   const todos = new TodoManager();
@@ -58,6 +64,7 @@ function createDeps(
     sendGuard,
     reminders,
     toolkit,
+    runtimeHooks,
   };
 }
 
@@ -137,6 +144,20 @@ describe("LoopWiring", () => {
       await expect(wiring.init()).rejects.toThrow(/reserved prefix/);
     });
 
+    test("validates reserved prefix even for MCP-backed loops", async () => {
+      mockLoop = createMockLoop([], { sdkMcp: true });
+      const userTools: ToolSet = {
+        agent_reserved: tool({
+          description: "Should fail",
+          inputSchema: z.object({}),
+          execute: async () => "result",
+        }),
+      };
+
+      wiring = new LoopWiring(createDeps(mockLoop, { tools: userTools, includeBuiltins: false }));
+      await expect(wiring.init()).rejects.toThrow(/reserved prefix/);
+    });
+
     test("does not call setTools when tools object is empty", async () => {
       mockLoop = createMockLoop(["directTools"]);
       wiring = new LoopWiring(createDeps(mockLoop, { includeBuiltins: false }));
@@ -183,6 +204,35 @@ describe("LoopWiring", () => {
     });
   });
 
+  describe("hooks capability", () => {
+    test("sets default runtime hooks when loop supports hooks", async () => {
+      mockLoop = createMockLoop(["hooks"]);
+      wiring = new LoopWiring(createDeps(mockLoop));
+      await wiring.init();
+
+      expect(mockLoop.setHooks).toHaveBeenCalledTimes(1);
+      const hooks = (mockLoop.setHooks as any).mock.calls[0][0];
+      expect(hooks.Notification).toBeDefined();
+      expect(hooks.PreCompact).toBeDefined();
+      expect(hooks.Stop).toBeDefined();
+    });
+
+    test("merges configured hooks when loop supports hooks", async () => {
+      mockLoop = createMockLoop(["hooks"]);
+      const hooks = {
+        Notification: [{ hooks: [async () => ({ continue: true })] }],
+      };
+      wiring = new LoopWiring(createDeps(mockLoop, undefined, { hooks }));
+      await wiring.init();
+
+      expect(mockLoop.setHooks).toHaveBeenCalledTimes(1);
+      const merged = (mockLoop.setHooks as any).mock.calls[0][0];
+      expect(merged.Notification.length).toBeGreaterThan(1);
+      expect(merged.PreCompact).toBeDefined();
+      expect(merged.Stop).toBeDefined();
+    });
+  });
+
   describe("CLI bridge setup", () => {
     test("starts bridge and MCP server for CLI loops", async () => {
       mockLoop = createMockLoop([]); // No capabilities = CLI loop
@@ -211,6 +261,19 @@ describe("LoopWiring", () => {
 
       expect(mockLoop.setMcpConfig).not.toHaveBeenCalled();
     });
+
+    test("prefers sdk-native MCP servers when loop supports setMcpServers", async () => {
+      mockLoop = createMockLoop([], { sdkMcp: true });
+      wiring = new LoopWiring(createDeps(mockLoop));
+      await wiring.init();
+
+      expect(mockLoop.setMcpServers).toHaveBeenCalledTimes(1);
+      expect(mockLoop.setMcpConfig).not.toHaveBeenCalled();
+
+      const servers = (mockLoop.setMcpServers as any).mock.calls[0][0];
+      expect(servers).toBeDefined();
+      expect(typeof servers["agent-worker"]).toBe("object");
+    });
   });
 
   describe("combined capabilities", () => {
@@ -221,6 +284,7 @@ describe("LoopWiring", () => {
 
       expect(mockLoop.setTools).toHaveBeenCalledTimes(1);
       expect(mockLoop.setPrepareStep).toHaveBeenCalledTimes(1);
+      expect(mockLoop.setMcpServers).toBeUndefined();
       expect(mockLoop.setMcpConfig).not.toHaveBeenCalled();
     });
 

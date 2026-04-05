@@ -8,6 +8,16 @@ export type LoopEvent =
   | { type: "text"; text: string }
   | { type: "thinking"; text: string }
   | {
+      type: "hook";
+      phase: "started" | "progress" | "response";
+      name: string;
+      hookEvent: string;
+      output?: string;
+      stdout?: string;
+      stderr?: string;
+      outcome?: "success" | "error" | "cancelled";
+    }
+  | {
       type: "tool_call_start";
       name: string;
       /** Present on Claude Code, Cursor, AI SDK. Absent on Codex. */
@@ -169,6 +179,8 @@ export interface CodexLoopOptions extends CliLoopOptions {
   sandbox?: "read-only" | "workspace-write" | "danger-full-access";
   /** Run in full-auto mode (no confirmations, workspace-write sandbox) */
   fullAuto?: boolean;
+  /** Resume an existing app-server thread. */
+  threadId?: string;
 }
 
 export interface CursorLoopOptions extends CliLoopOptions {}

@@ -1,6 +1,6 @@
 import { test, expect, beforeEach } from "bun:test";
 import { EventBus } from "./event-bus.ts";
-import type { BusEvent } from "./event-bus.ts";
+import type { AgentRuntimeEvent, BusEvent, KnownBusEvent } from "./event-bus.ts";
 
 let bus: EventBus;
 
@@ -90,13 +90,43 @@ test("ts is preserved when explicitly provided", () => {
 });
 
 test("extra fields are passed through", () => {
-  const received: BusEvent[] = [];
+  const received: KnownBusEvent[] = [];
   bus.on((e) => received.push(e));
 
   bus.emit({ type: "agent.run_start", source: "agent", runId: "abc", agent: "coder" });
 
   expect(received[0]!.runId).toBe("abc");
   expect(received[0]!.agent).toBe("coder");
+});
+
+test("agent.runtime_event uses the shared runtime schema", () => {
+  const received: KnownBusEvent[] = [];
+  bus.on((e) => received.push(e));
+
+  const event: Omit<AgentRuntimeEvent, "ts"> = {
+    type: "agent.runtime_event",
+    source: "agent",
+    agent: "coder",
+    runId: "run_1",
+    eventKind: "tool",
+    phase: "start",
+    name: "agent_todo",
+    callId: "call_1",
+    args: { action: "add" },
+  };
+
+  bus.emit(event);
+
+  expect(received[0]).toMatchObject({
+    type: "agent.runtime_event",
+    source: "agent",
+    agent: "coder",
+    runId: "run_1",
+    eventKind: "tool",
+    phase: "start",
+    name: "agent_todo",
+    callId: "call_1",
+  });
 });
 
 // ── size / clear ───────────────────────────────────────────────────────────
