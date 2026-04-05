@@ -118,13 +118,36 @@ export class ManagedAgent {
         this._appendEvent({ type: "text", text: event.text });
         this._appendResponse({ type: "text", text: event.text });
       } else if (event.type === "tool_call_start") {
-        this._appendEvent({ type: "tool_call_start", name: event.name, args: event.args });
+        this._appendEvent({
+          type: "runtime_event",
+          eventKind: "tool",
+          phase: "start",
+          name: event.name,
+          callId: event.callId,
+          args: event.args,
+        });
       } else if (event.type === "tool_call_end") {
         this._appendEvent({
-          type: "tool_call_end",
+          type: "runtime_event",
+          eventKind: "tool",
+          phase: "end",
           name: event.name,
+          callId: event.callId,
           result: event.result,
           durationMs: event.durationMs,
+          error: event.error,
+        });
+      } else if (event.type === "hook") {
+        this._appendEvent({
+          type: "runtime_event",
+          eventKind: "hook",
+          phase: event.phase,
+          name: event.name,
+          hookEvent: event.hookEvent,
+          output: event.output,
+          stdout: event.stdout,
+          stderr: event.stderr,
+          outcome: event.outcome,
         });
       } else if (event.type === "thinking") {
         this._appendEvent({ type: "thinking", text: event.text });

@@ -13,7 +13,7 @@ export type AgentState = "idle" | "waiting" | "processing" | "error" | "stopped"
 
 // ── AgentLoop capability interface ─────────────────────────────────────────
 
-export type LoopCapability = "directTools" | "prepareStep";
+export type LoopCapability = "directTools" | "prepareStep" | "interruptible" | "hooks";
 
 export type PrepareStepResult = {
   system?: string;
@@ -50,6 +50,14 @@ export interface AgentLoop {
   setPrepareStep?(fn: PrepareStepFunction): void;
   /** Add MCP server config for CLI loops. Present when supports is empty (CLI). */
   setMcpConfig?(configPath: string): void;
+  /** Add live MCP server objects for SDK-capable loops. */
+  setMcpServers?(servers: Record<string, unknown>): void;
+  /** Resume a known app-server thread/session if supported. */
+  setThreadId?(threadId: string): void;
+  /** Inject a short follow-up into the currently active turn if supported. */
+  interrupt?(input: string): Promise<void>;
+  /** Register runtime hook callbacks when supported. */
+  setHooks?(hooks: Record<string, unknown>): void;
 }
 
 // ── Inbox ──────────────────────────────────────────────────────────────────
@@ -147,7 +155,7 @@ export interface MemoryConfig {
   /** Custom extraction function (alternative to model-based extraction) */
   extractMemories?: (turns: Turn[]) => Promise<string[]>;
   /** When to extract. Default: "checkpoint" */
-  extractAt?: "checkpoint" | "idle" | "never";
+  extractAt?: "checkpoint" | "event" | "idle" | "never";
   /** Max memories to inject per prompt. Default: 10 */
   maxInjected?: number;
 }
@@ -161,6 +169,11 @@ export interface ToolKitConfig {
   includeBuiltins?: boolean;
 }
 
+export interface RuntimeHooksConfig {
+  /** Runtime-specific hook definitions, passed through to loops that support hooks. */
+  hooks?: Record<string, unknown>;
+}
+
 // ── Agent config ───────────────────────────────────────────────────────────
 
 export interface AgentConfig {
@@ -172,6 +185,8 @@ export interface AgentConfig {
   loop: AgentLoop;
   /** Tool assembly config */
   toolkit?: ToolKitConfig;
+  /** Runtime hook config for loops that support hooks. */
+  runtimeHooks?: RuntimeHooksConfig;
   /** Max loop.run() calls per wake cycle. Default: 10 */
   maxRuns?: number;
   /** Inbox config */

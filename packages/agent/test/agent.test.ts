@@ -2,6 +2,7 @@ import { test, expect, describe } from "bun:test";
 import { Agent } from "../src/agent.ts";
 import type { AgentLoop, AgentState } from "../src/types.ts";
 import type { LoopRun, LoopResult, LoopEvent, LoopStatus } from "@agent-worker/loop";
+import { EventBus } from "@agent-worker/shared";
 
 /** Create a mock AgentLoop that returns a fixed text response */
 function createMockLoop(response = "Hello!"): AgentLoop & {
@@ -61,6 +62,56 @@ function createMockLoop(response = "Hello!"): AgentLoop & {
     setTools() {},
     setPrepareStep() {},
   };
+  return mock;
+}
+
+function createInterruptibleLoop(): AgentLoop & {
+  interrupts: string[];
+} {
+  const mock: AgentLoop & {
+    interrupts: string[];
+    _status: LoopStatus;
+  } = {
+    supports: ["interruptible"],
+    interrupts: [],
+    _status: "idle" as LoopStatus,
+
+    get status(): LoopStatus {
+      return mock._status;
+    },
+
+    run(_prompt: string): LoopRun {
+      mock._status = "running";
+      const textEvent: LoopEvent = { type: "text", text: "working" };
+      const result = new Promise<LoopResult>((resolve) => {
+        setTimeout(() => {
+          mock._status = "completed";
+          resolve({
+            events: [textEvent],
+            usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+            durationMs: 300,
+          });
+        }, 300);
+      });
+
+      return {
+        async *[Symbol.asyncIterator]() {
+          yield textEvent;
+          await new Promise((resolve) => setTimeout(resolve, 350));
+        },
+        result,
+      };
+    },
+
+    async interrupt(input: string) {
+      mock.interrupts.push(input);
+    },
+
+    cancel() {
+      mock._status = "cancelled";
+    },
+  };
+
   return mock;
 }
 
@@ -182,6 +233,121 @@ describe("Agent", () => {
     expect(states).toContain("waiting");
     expect(states).toContain("processing");
     expect(states).toContain("idle");
+  });
+
+  test("processing notifications interrupt interruptible loops", async () => {
+    const loop = createInterruptibleLoop();
+    const agent = new Agent({
+      loop,
+      inbox: { debounceMs: 10 },
+    });
+    await agent.init();
+
+    agent.push("start work");
+    await new Promise((r) => setTimeout(r, 40));
+    agent.push("new channel message");
+
+    await new Promise((r) => setTimeout(r, 250));
+
+    expect(loop.interrupts).toHaveLength(1);
+    expect(loop.interrupts[0]).toContain("[notification]");
+    expect(loop.interrupts[0]).toContain("source: channel");
+    expect(loop.interrupts[0]).toContain("workspace_attention:");
+  });
+
+  test("todo changes during processing interrupt with todo source", async () => {
+    const loop = createInterruptibleLoop();
+    const agent = new Agent({
+      loop,
+      inbox: { debounceMs: 10 },
+    });
+    await agent.init();
+
+    agent.push("start work");
+    await new Promise((r) => setTimeout(r, 40));
+    agent.todos;
+    const todoLoop = (agent as any).todoManager as { add(text: string): void };
+    todoLoop.add("follow up");
+
+    await new Promise((r) => setTimeout(r, 250));
+
+    expect(loop.interrupts).toHaveLength(1);
+    expect(loop.interrupts[0]).toContain("source: todo");
+  });
+
+  test("bus emits unified runtime_event schema for tools and hooks", async () => {
+    const bus = new EventBus();
+    const events: any[] = [];
+    bus.on((event) => events.push(event));
+
+    const loop: AgentLoop = {
+      supports: [],
+      _status: "idle" as LoopStatus,
+      get status() {
+        return this._status;
+      },
+      run(): LoopRun {
+        this._status = "running";
+        const runtimeEvents: LoopEvent[] = [
+          { type: "tool_call_start", name: "agent_todo", callId: "call_1", args: { action: "add" } },
+          { type: "tool_call_end", name: "agent_todo", callId: "call_1", result: "ok", durationMs: 12 },
+          { type: "hook", phase: "response", name: "workspace-notify", hookEvent: "Notification", outcome: "success" },
+        ];
+        const result = Promise.resolve().then(() => {
+          this._status = "completed";
+          return {
+            events: runtimeEvents,
+            usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+            durationMs: 10,
+          } satisfies LoopResult;
+        });
+        return {
+          async *[Symbol.asyncIterator]() {
+            for (const event of runtimeEvents) yield event;
+          },
+          result,
+        };
+      },
+      cancel() {
+        this._status = "cancelled";
+      },
+      setMcpConfig() {},
+    } as AgentLoop & { _status: LoopStatus };
+
+    const agent = new Agent({
+      loop,
+      bus,
+      inbox: { debounceMs: 10 },
+    });
+    await agent.init();
+    agent.push("run");
+    await new Promise((r) => setTimeout(r, 250));
+
+    const runtimeEvents = events.filter((event) => event.type === "agent.runtime_event");
+    expect(runtimeEvents).toHaveLength(3);
+    expect(runtimeEvents[0]).toMatchObject({
+      source: "agent",
+      eventKind: "tool",
+      phase: "start",
+      name: "agent_todo",
+      callId: "call_1",
+    });
+    expect(runtimeEvents[1]).toMatchObject({
+      source: "agent",
+      eventKind: "tool",
+      phase: "end",
+      name: "agent_todo",
+      callId: "call_1",
+      durationMs: 12,
+    });
+    expect(runtimeEvents[2]).toMatchObject({
+      source: "agent",
+      eventKind: "hook",
+      phase: "response",
+      name: "workspace-notify",
+      hookEvent: "Notification",
+      outcome: "success",
+    });
   });
 
   test("todos are accessible", async () => {

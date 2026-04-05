@@ -8,7 +8,7 @@ import type {
   TodoItem,
   Turn,
 } from "./types.ts";
-import type { EventBus } from "@agent-worker/shared";
+import type { AgentRuntimeEvent, EventBus } from "@agent-worker/shared";
 import { Inbox } from "./inbox.ts";
 import { TodoManager } from "./todo.ts";
 import { InMemoryNotesStorage } from "./notes.ts";
@@ -43,6 +43,9 @@ export class Agent {
 
   private listeners = new Map<EventName, Set<Function>>();
   private processingPromise: Promise<void> | null = null;
+  private interruptTimer: ReturnType<typeof setTimeout> | null = null;
+  private pendingInterruptSource: "channel" | "reminder" | "todo" | null = null;
+  private pendingInterruptReason: string | null = null;
 
   constructor(config: AgentConfig) {
     this.config = config;
@@ -62,6 +65,20 @@ export class Agent {
 
     // Wire inbox ↔ reminders
     this.inbox.setReminders(this.reminders);
+    this.inbox.setOnMessage((msg) => {
+      this.emit("messageReceived", msg);
+      if (this._state === "processing") {
+        this.scheduleWorkspaceInterrupt(
+          classifyInboxNotification(msg),
+          `New workspace notification: ${msg.id}`,
+        );
+      }
+    });
+    this.todoManager.setOnChange(() => {
+      if (this._state === "processing" && this.todoManager.pending.length > 0) {
+        this.scheduleWorkspaceInterrupt("todo", "Todo state changed while processing");
+      }
+    });
 
     // RunCoordinator owns the processing loop and history
     this.coordinator = new RunCoordinator({
@@ -88,6 +105,7 @@ export class Agent {
       reminders: this.reminders,
       coordinator: this.coordinator,
       toolkit: config.toolkit,
+      runtimeHooks: config.runtimeHooks,
     });
   }
 
@@ -99,6 +117,10 @@ export class Agent {
 
   async stop(): Promise<void> {
     this.setState("stopped");
+    if (this.interruptTimer) {
+      clearTimeout(this.interruptTimer);
+      this.interruptTimer = null;
+    }
     this.config.loop.cancel();
     this.inbox.cancelDebounce();
     this.reminders.cancelAll();
@@ -113,8 +135,7 @@ export class Agent {
       throw new Error("Agent is stopped");
     }
 
-    const msg = this.inbox.push(message);
-    this.emit("messageReceived", msg);
+    this.inbox.push(message);
 
     if (this._state === "processing") {
       this.inbox.cancelDebounce();
@@ -171,6 +192,17 @@ export class Agent {
     this.bus?.emit({ type, source: "agent", agent: this.agentName, ...data });
   }
 
+  private busEmitRuntimeEvent(
+    event: Omit<AgentRuntimeEvent, "ts" | "type" | "source" | "agent">,
+  ): void {
+    this.bus?.emit({
+      type: "agent.runtime_event",
+      source: "agent",
+      agent: this.agentName,
+      ...event,
+    });
+  }
+
   // ── Internal: state machine ────────────────────────────────────────────
 
   private setState(state: AgentState): void {
@@ -217,6 +249,14 @@ export class Agent {
           if (event.type === "text") {
             this.busEmit("agent.text", { runId, text: event.text });
           } else if (event.type === "tool_call_start") {
+            this.busEmitRuntimeEvent({
+              runId,
+              eventKind: "tool",
+              phase: "start",
+              name: event.name,
+              callId: event.callId,
+              args: event.args,
+            });
             this.busEmit("agent.tool_call", {
               runId,
               tool: event.name,
@@ -224,12 +264,38 @@ export class Agent {
               args: event.args,
             });
           } else if (event.type === "tool_call_end") {
+            this.busEmitRuntimeEvent({
+              runId,
+              eventKind: "tool",
+              phase: "end",
+              name: event.name,
+              callId: event.callId,
+              durationMs: event.durationMs,
+              error: event.error,
+              result: event.result,
+            });
             this.busEmit("agent.tool_result", {
               runId,
               tool: event.name,
               callId: event.callId,
               durationMs: event.durationMs,
               error: event.error,
+            });
+          } else if (event.type === "hook") {
+            this.busEmitRuntimeEvent({
+              runId,
+              eventKind: "hook",
+              phase: event.phase,
+              name: event.name,
+              hookEvent: event.hookEvent,
+              outcome: event.outcome,
+            });
+            this.busEmit("agent.hook", {
+              runId,
+              phase: event.phase,
+              name: event.name,
+              hookEvent: event.hookEvent,
+              outcome: event.outcome,
             });
           } else if (event.type === "error") {
             this.busEmit("agent.error", {
@@ -258,4 +324,51 @@ export class Agent {
         this.setState("error");
       });
   }
+
+  private scheduleWorkspaceInterrupt(
+    source: "channel" | "reminder" | "todo",
+    reason: string,
+  ): void {
+    if (!this.config.loop.supports.includes("interruptible") || !this.config.loop.interrupt) return;
+    this.pendingInterruptSource = source;
+    this.pendingInterruptReason = reason;
+    if (this.interruptTimer) clearTimeout(this.interruptTimer);
+
+    this.interruptTimer = setTimeout(() => {
+      this.interruptTimer = null;
+      if (this._state !== "processing") return;
+      const pendingSource = this.pendingInterruptSource ?? source;
+      const pendingReason = this.pendingInterruptReason ?? reason;
+      this.pendingInterruptSource = null;
+      this.pendingInterruptReason = null;
+      void this.config.loop
+        .interrupt!(this.buildWorkspaceInterruptMessage(pendingSource, pendingReason))
+        .catch(() => {});
+    }, 150);
+  }
+
+  private buildWorkspaceInterruptMessage(
+    source: "channel" | "reminder" | "todo",
+    reason: string,
+  ): string {
+    return [
+      "[notification]",
+      `source: ${source}`,
+      `reason: ${reason}`,
+      "workspace_attention:",
+      `  unread_channel_messages: ${this.inbox.unreadCount}`,
+      `  pending_todos: ${this.todoManager.pending.length}`,
+      `  pending_reminders: ${this.reminders.pending.length}`,
+      "guidance:",
+      "  Treat this as notification-center attention.",
+      "  Re-check the relevant app or channel before continuing if it changes your next action.",
+    ].join("\n");
+  }
+}
+
+function classifyInboxNotification(message: InboxMessage): "channel" | "reminder" {
+  if (message.from === "system" && message.content.startsWith("⏰ Reminder timed out:")) {
+    return "reminder";
+  }
+  return "channel";
 }

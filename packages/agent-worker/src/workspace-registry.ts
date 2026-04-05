@@ -932,7 +932,7 @@ async function classifyErrorWithLLM(err: string): Promise<ErrorStrategy | null> 
         }),
       }),
       prompt: `Classify this API/runtime error. If the error contains a retry-after time, extract it.\n\nError: ${err.slice(0, 500)}`,
-      maxTokens: 100,
+      maxOutputTokens: 100,
       abortSignal: abort,
     });
 
@@ -957,19 +957,35 @@ function serializeLoopEvent(event: LoopEvent): Record<string, unknown> {
       return { type: "thinking", text: event.text };
     case "tool_call_start":
       return {
-        type: "tool_call_start",
+        type: "runtime_event",
+        eventKind: "tool",
+        phase: "start",
         name: event.name,
         callId: event.callId,
         args: event.args,
       };
     case "tool_call_end":
       return {
-        type: "tool_call_end",
+        type: "runtime_event",
+        eventKind: "tool",
+        phase: "end",
         name: event.name,
         callId: event.callId,
         result: typeof event.result === "string" ? event.result.slice(0, 2000) : event.result,
         durationMs: event.durationMs,
         error: event.error,
+      };
+    case "hook":
+      return {
+        type: "runtime_event",
+        eventKind: "hook",
+        phase: event.phase,
+        name: event.name,
+        hookEvent: event.hookEvent,
+        output: event.output,
+        stdout: event.stdout,
+        stderr: event.stderr,
+        outcome: event.outcome,
       };
     case "error":
       return { type: "error", error: String(event.error) };

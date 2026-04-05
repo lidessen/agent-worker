@@ -97,7 +97,7 @@ export interface Resource {
 
 // ── Agent status types ─────────────────────────────────────────────────────
 
-export type AgentStatus = "idle" | "running" | "stopped";
+export type AgentStatus = "idle" | "running" | "paused" | "stopped";
 
 export interface AgentStatusEntry {
   name: string;

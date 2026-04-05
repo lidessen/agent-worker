@@ -104,7 +104,13 @@ describe("MemoryManager", () => {
   test("shouldExtract respects config", () => {
     const checkpoint = new MemoryManager({ extractAt: "checkpoint" });
     expect(checkpoint.shouldExtract("checkpoint")).toBe(true);
+    expect(checkpoint.shouldExtract("event")).toBe(false);
     expect(checkpoint.shouldExtract("idle")).toBe(false);
+
+    const event = new MemoryManager({ extractAt: "event" });
+    expect(event.shouldExtract("checkpoint")).toBe(true);
+    expect(event.shouldExtract("event")).toBe(true);
+    expect(event.shouldExtract("idle")).toBe(false);
 
     const idle = new MemoryManager({ extractAt: "idle" });
     expect(idle.shouldExtract("checkpoint")).toBe(false);

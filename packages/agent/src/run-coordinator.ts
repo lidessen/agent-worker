@@ -72,6 +72,7 @@ export class RunCoordinator {
   async executeRun(
     trigger: "next_message" | "next_todo",
     onEvent?: (event: LoopEvent) => void,
+    runLabel = "run",
   ): Promise<{ loopResult: LoopResult; assembled: AssembledPrompt }> {
     const notification = this.buildNotification(trigger);
 
@@ -93,11 +94,117 @@ export class RunCoordinator {
       prompt: notification,
     });
 
+    const liveTurns: Turn[] = [
+      {
+        role: "user",
+        content:
+          assembled.inboxSnapshot && trigger === "next_message"
+            ? `${notification}\n\n${assembled.inboxSnapshot}`
+            : assembled.todoSnapshot && trigger === "next_todo"
+              ? `${notification}\n\n${assembled.todoSnapshot}`
+              : notification,
+      },
+    ];
+    let checkpointCursor = liveTurns.length;
+    let checkpointSeq = 0;
+    let assistantBuffer = "";
+    const pendingToolCalls = new Map<string, { name: string; args?: Record<string, unknown> }>();
+    let checkpointChain = Promise.resolve();
+    let checkpointTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const flushAssistantBuffer = (): void => {
+      const content = assistantBuffer.trim();
+      if (!content) return;
+      liveTurns.push({ role: "assistant", content });
+      assistantBuffer = "";
+    };
+
+    const queueCheckpoint = (): void => {
+      if (!this.deps.memory?.shouldExtract("event")) return;
+      flushAssistantBuffer();
+      const checkpointTurns = liveTurns.slice(checkpointCursor);
+      if (checkpointTurns.length === 0) return;
+      checkpointCursor = liveTurns.length;
+      const source = `${runLabel}:event_${++checkpointSeq}`;
+      checkpointChain = checkpointChain.then(() => this.deps.memory!.extract(checkpointTurns, source));
+    };
+
+    const scheduleCheckpoint = (): void => {
+      if (!this.deps.memory?.shouldExtract("event")) return;
+      if (checkpointTimer) clearTimeout(checkpointTimer);
+      checkpointTimer = setTimeout(() => {
+        checkpointTimer = null;
+        queueCheckpoint();
+      }, 250);
+    };
+
     for await (const event of run) {
+      switch (event.type) {
+        case "text":
+          assistantBuffer += (assistantBuffer ? "\n" : "") + event.text;
+          scheduleCheckpoint();
+          break;
+        case "thinking":
+          assistantBuffer += (assistantBuffer ? "\n" : "") + `[thinking] ${event.text}`;
+          scheduleCheckpoint();
+          break;
+        case "tool_call_start":
+          flushAssistantBuffer();
+          pendingToolCalls.set(event.callId ?? `${liveTurns.length}`, {
+            name: event.name,
+            args: event.args,
+          });
+          break;
+        case "tool_call_end": {
+          flushAssistantBuffer();
+          const callId = event.callId ?? `${liveTurns.length}`;
+          const pending = pendingToolCalls.get(callId);
+          pendingToolCalls.delete(callId);
+          const toolName = pending?.name ?? event.name;
+          const toolContent = [
+            `[tool:${toolName}]`,
+            pending?.args ? `args=${JSON.stringify(pending.args)}` : null,
+            event.result !== undefined ? `result=${JSON.stringify(event.result)}` : null,
+            event.error ? `error=${event.error}` : null,
+          ]
+            .filter((part): part is string => Boolean(part))
+            .join(" ");
+          liveTurns.push({ role: "tool", content: toolContent });
+          scheduleCheckpoint();
+          break;
+        }
+        case "hook": {
+          flushAssistantBuffer();
+          liveTurns.push({
+            role: "tool",
+            content: [
+              `[hook:${event.hookEvent}]`,
+              `phase=${event.phase}`,
+              `name=${event.name}`,
+              event.outcome ? `outcome=${event.outcome}` : null,
+              event.output ? `output=${event.output}` : null,
+            ]
+              .filter((part): part is string => Boolean(part))
+              .join(" "),
+          });
+          scheduleCheckpoint();
+          break;
+        }
+        default:
+          break;
+      }
       onEvent?.(event);
     }
 
     const loopResult = await run.result;
+
+    if (checkpointTimer) {
+      clearTimeout(checkpointTimer);
+      checkpointTimer = null;
+    }
+    flushAssistantBuffer();
+    queueCheckpoint();
+    await checkpointChain;
 
     // Persist content snapshot + notification to history (for memory extraction).
     // The notification alone is generic, but memory recall needs real content.
@@ -188,7 +295,11 @@ export class RunCoordinator {
       callbacks.onRunStart?.({ runNumber: runCount, trigger: decision });
 
       try {
-        const { loopResult, assembled } = await this.executeRun(decision, callbacks.onEvent);
+        const { loopResult, assembled } = await this.executeRun(
+          decision,
+          callbacks.onEvent,
+          `run_${runCount}`,
+        );
 
         callbacks.onContextAssembled?.(assembled);
         callbacks.onRunEnd?.(loopResult);

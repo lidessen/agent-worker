@@ -15,7 +15,7 @@
 
 export type EventLevel = "debug" | "info" | "warn" | "error";
 
-export interface BusEvent {
+export interface BaseBusEvent {
   /** Millisecond timestamp */
   ts: number;
   /** Dot-namespaced type: "agent.run_start", "daemon.started", etc. */
@@ -30,9 +30,38 @@ export interface BusEvent {
   agent?: string;
   /** Workspace name, when applicable */
   workspace?: string;
+}
+
+export interface AgentRuntimeEvent extends BaseBusEvent {
+  type: "agent.runtime_event";
+  source: "agent";
+  eventKind: "tool" | "hook";
+  phase: string;
+  name: string;
+  callId?: string;
+  hookEvent?: string;
+  durationMs?: number;
+  error?: string;
+  outcome?: string;
+  args?: Record<string, unknown>;
+  result?: unknown;
+  [key: string]: unknown;
+}
+
+export interface BusEvent {
+  /** Common event envelope */
+  ts: number;
+  type: string;
+  source: "loop" | "agent" | "workspace" | "daemon";
+  level?: EventLevel;
+  runId?: string;
+  agent?: string;
+  workspace?: string;
   /** Arbitrary payload */
   [key: string]: unknown;
 }
+
+export type KnownBusEvent = BusEvent | AgentRuntimeEvent;
 
 export type EventFilter = (event: BusEvent) => boolean;
 

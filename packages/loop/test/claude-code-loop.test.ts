@@ -1,7 +1,14 @@
 import { test, expect, describe } from "bun:test";
-import { ClaudeCodeLoop } from "../src/loops/claude-code.ts";
+import { ClaudeCodeLoop, buildOptions, mapClaudeMessage } from "../src/loops/claude-code.ts";
 
 describe("ClaudeCodeLoop", () => {
+  const originalOauthToken = process.env.CLAUDE_CODE_OAUTH_TOKEN;
+
+  function restoreOauthToken() {
+    if (originalOauthToken === undefined) delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
+    else process.env.CLAUDE_CODE_OAUTH_TOKEN = originalOauthToken;
+  }
+
   test("starts with idle status", () => {
     const loop = new ClaudeCodeLoop();
     expect(loop.status).toBe("idle");
@@ -45,6 +52,11 @@ describe("ClaudeCodeLoop", () => {
     expect(loop.status).toBe("idle");
   });
 
+  test("advertises hooks capability", () => {
+    const loop = new ClaudeCodeLoop();
+    expect(loop.supports).toContain("hooks");
+  });
+
   test("run returns LoopRun with async iterator and result promise", () => {
     const loop = new ClaudeCodeLoop();
     const run = loop.run("test prompt");
@@ -64,6 +76,36 @@ describe("ClaudeCodeLoop", () => {
   });
 
   describe("preflight", () => {
+    test("accepts CLAUDE_CODE_OAUTH_TOKEN by default", async () => {
+      process.env.CLAUDE_CODE_OAUTH_TOKEN = "oauth-token";
+      const previousAnthropic = process.env.ANTHROPIC_API_KEY;
+      const previousAwsRegion = process.env.AWS_REGION;
+      const previousAwsAccessKey = process.env.AWS_ACCESS_KEY_ID;
+      const previousGoogleCreds = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+      const previousGoogleProject = process.env.GOOGLE_CLOUD_PROJECT;
+      delete process.env.ANTHROPIC_API_KEY;
+      delete process.env.AWS_REGION;
+      delete process.env.AWS_ACCESS_KEY_ID;
+      delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
+      delete process.env.GOOGLE_CLOUD_PROJECT;
+
+      try {
+        await expect(new ClaudeCodeLoop().preflight()).resolves.toEqual({ ok: true });
+      } finally {
+        restoreOauthToken();
+        if (previousAnthropic === undefined) delete process.env.ANTHROPIC_API_KEY;
+        else process.env.ANTHROPIC_API_KEY = previousAnthropic;
+        if (previousAwsRegion === undefined) delete process.env.AWS_REGION;
+        else process.env.AWS_REGION = previousAwsRegion;
+        if (previousAwsAccessKey === undefined) delete process.env.AWS_ACCESS_KEY_ID;
+        else process.env.AWS_ACCESS_KEY_ID = previousAwsAccessKey;
+        if (previousGoogleCreds === undefined) delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
+        else process.env.GOOGLE_APPLICATION_CREDENTIALS = previousGoogleCreds;
+        if (previousGoogleProject === undefined) delete process.env.GOOGLE_CLOUD_PROJECT;
+        else process.env.GOOGLE_CLOUD_PROJECT = previousGoogleProject;
+      }
+    });
+
     test("returns preflight result", async () => {
       const loop = new ClaudeCodeLoop();
       const result = await loop.preflight();
@@ -110,6 +152,75 @@ describe("ClaudeCodeLoop", () => {
   });
 
   describe("options handling", () => {
+    test("passes configured hooks into SDK options", async () => {
+      const loop = new ClaudeCodeLoop();
+      const hook = async () => ({ continue: true });
+      const hooks = {
+        Notification: [{ hooks: [hook] }],
+      };
+
+      loop.setHooks(hooks);
+
+      const options = buildOptions({
+        system: "Be helpful",
+        opts: {},
+        hooks: hooks as any,
+        abortController: new AbortController(),
+      });
+
+      expect(options.hooks).toEqual(hooks);
+    });
+
+    test("maps hook lifecycle system messages into hook events", () => {
+      const toolNames = new Map<string, string>();
+
+      expect(
+        mapClaudeMessage(
+          {
+            type: "system",
+            subtype: "hook_started",
+            hook_name: "workspace-notify",
+            hook_event: "Notification",
+          } as any,
+          toolNames,
+        ).events,
+      ).toEqual([
+        {
+          type: "hook",
+          phase: "started",
+          name: "workspace-notify",
+          hookEvent: "Notification",
+        },
+      ]);
+
+      expect(
+        mapClaudeMessage(
+          {
+            type: "system",
+            subtype: "hook_response",
+            hook_name: "workspace-notify",
+            hook_event: "Notification",
+            output: "done",
+            stdout: "ok",
+            stderr: "",
+            outcome: "success",
+          } as any,
+          toolNames,
+        ).events,
+      ).toEqual([
+        {
+          type: "hook",
+          phase: "response",
+          name: "workspace-notify",
+          hookEvent: "Notification",
+          output: "done",
+          stdout: "ok",
+          stderr: "",
+          outcome: "success",
+        },
+      ]);
+    });
+
     test("builds args with model option", () => {
       const loop = new ClaudeCodeLoop({ model: "sonnet" });
       loop.run("test prompt");

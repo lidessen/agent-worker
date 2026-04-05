@@ -7,9 +7,10 @@ import {
 import { createWorkspace } from "../src/factory.ts";
 import { MemoryStorage } from "../src/context/storage.ts";
 import { renderPromptDocument } from "../src/loop/prompt-ui.tsx";
+import type { PromptSectionNode } from "../src/loop/prompt-ui.tsx";
 
 function renderSectionResult(
-  result: Awaited<ReturnType<typeof workspacePromptSection>>,
+  result: PromptSectionNode | PromptSectionNode[] | null,
 ): string | null {
   if (!result) return null;
   return renderPromptDocument(Array.isArray(result) ? result : [result]);
