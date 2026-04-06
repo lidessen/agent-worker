@@ -108,6 +108,7 @@ export class RunCoordinator {
     let checkpointCursor = liveTurns.length;
     let checkpointSeq = 0;
     let assistantBuffer = "";
+    let fallbackToolCallSeq = 0;
     const pendingToolCalls = new Map<string, { name: string; args?: Record<string, unknown> }>();
     let checkpointChain = Promise.resolve();
     let checkpointTimer: ReturnType<typeof setTimeout> | null = null;
@@ -150,14 +151,14 @@ export class RunCoordinator {
           break;
         case "tool_call_start":
           flushAssistantBuffer();
-          pendingToolCalls.set(event.callId ?? `${liveTurns.length}`, {
+          pendingToolCalls.set(event.callId ?? `fallback_${++fallbackToolCallSeq}`, {
             name: event.name,
             args: event.args,
           });
           break;
         case "tool_call_end": {
           flushAssistantBuffer();
-          const callId = event.callId ?? `${liveTurns.length}`;
+          const callId = event.callId ?? Array.from(pendingToolCalls.keys()).pop() ?? "unknown";
           const pending = pendingToolCalls.get(callId);
           pendingToolCalls.delete(callId);
           const toolName = pending?.name ?? event.name;

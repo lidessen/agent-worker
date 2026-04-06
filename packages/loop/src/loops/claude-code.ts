@@ -178,8 +178,35 @@ export function buildOptions(args: {
       append: system ?? opts.instructions,
     },
     tools: { type: "preset", preset: "claude_code" },
-    extraArgs: opts.extraArgs ? Object.fromEntries(opts.extraArgs.map((arg) => [arg.replace(/^--/, ""), null])) : undefined,
+    extraArgs: opts.extraArgs ? parseClaudeExtraArgs(opts.extraArgs) : undefined,
   };
+}
+
+export function parseClaudeExtraArgs(args: string[]): Record<string, string | null> {
+  const parsed: Record<string, string | null> = {};
+
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index];
+    if (!arg) continue;
+    if (!arg.startsWith("--")) continue;
+
+    const inlineEq = arg.indexOf("=");
+    if (inlineEq > 2) {
+      parsed[arg.slice(2, inlineEq)] = arg.slice(inlineEq + 1);
+      continue;
+    }
+
+    const next = args[index + 1];
+    if (next && !next.startsWith("--")) {
+      parsed[arg.slice(2)] = next;
+      index++;
+      continue;
+    }
+
+    parsed[arg.slice(2)] = null;
+  }
+
+  return parsed;
 }
 
 function resolveClaudeModel(model?: string): string | undefined {
@@ -215,29 +242,37 @@ export function mapClaudeMessage(
       if (
         block.type === "thinking" &&
         typeof block.thinking === "string" &&
-        block.thinking !== streamState.streamedThinking
+        block.thinking.length > streamState.streamedThinking.length
       ) {
-        events.push({ type: "thinking", text: block.thinking });
+        const newThinking = block.thinking.slice(streamState.streamedThinking.length);
+        if (newThinking) {
+          events.push({ type: "thinking", text: newThinking });
+          streamState.streamedThinking = block.thinking;
+        }
       } else if (
         block.type === "text" &&
         typeof block.text === "string" &&
-        block.text !== streamState.streamedText
+        block.text.length > streamState.streamedText.length
       ) {
-        events.push({ type: "text", text: block.text });
+        const newText = block.text.slice(streamState.streamedText.length);
+        if (newText) {
+          events.push({ type: "text", text: newText });
+          streamState.streamedText = block.text;
+        }
       } else if (block.type === "tool_use") {
         const callId = String(block.id ?? "");
         const name = String(block.name ?? "unknown");
-        toolNames.set(callId, name);
-        events.push({
-          type: "tool_call_start",
-          name,
-          callId,
-          args: (block.input as Record<string, unknown> | undefined) ?? {},
-        });
+        if (!toolNames.has(callId)) {
+          toolNames.set(callId, name);
+          events.push({
+            type: "tool_call_start",
+            name,
+            callId,
+            args: (block.input as Record<string, unknown> | undefined) ?? {},
+          });
+        }
       }
     }
-    streamState.streamedText = "";
-    streamState.streamedThinking = "";
   } else if (message.type === "user" && message.parent_tool_use_id && message.tool_use_result !== undefined) {
     events.push({
       type: "tool_call_end",
