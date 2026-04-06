@@ -1,7 +1,7 @@
 /** @jsxImportSource semajsx/dom */
 
+import type { ComponentAPI } from "semajsx";
 import { computed } from "semajsx/signal";
-import { onCleanup } from "semajsx/dom";
 import {
   daemonEvents,
   loadDaemonEvents,
@@ -11,14 +11,14 @@ import {
 } from "../stores/daemon-events.ts";
 import * as styles from "./global-events-view.style.ts";
 
-export function GlobalEventsView() {
+export function GlobalEventsView(_props: Record<string, never>, ctx?: ComponentAPI) {
   let cancelled = false;
 
   loadDaemonEvents().then(() => {
     if (!cancelled) startDaemonEventStream();
   });
 
-  onCleanup(() => {
+  ctx?.onCleanup(() => {
     cancelled = true;
     stopDaemonEventStream();
   });

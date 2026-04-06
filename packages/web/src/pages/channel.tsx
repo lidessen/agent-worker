@@ -1,7 +1,7 @@
 /** @jsxImportSource semajsx/dom */
 
+import type { ComponentAPI } from "semajsx";
 import { computed } from "semajsx/signal";
-import { onCleanup } from "semajsx/dom";
 import { route, navigate } from "../router.ts";
 import {
   channelMessages,
@@ -14,7 +14,7 @@ import { ChannelMessageList } from "../components/channel-message-list.tsx";
 import { ChannelInput } from "../components/channel-input.tsx";
 import * as styles from "./channel.style.ts";
 
-export function ChannelPage() {
+export function ChannelPage(_props: Record<string, never>, ctx?: ComponentAPI) {
   const wsKey = computed(route, (r) =>
     r.page === "channel" ? r.params.key : "",
   );
@@ -56,7 +56,7 @@ export function ChannelPage() {
     initChannel(wsKey.value, ch.value);
   });
 
-  onCleanup(() => {
+  ctx?.onCleanup(() => {
     stopChannelStream();
     unsubRoute?.();
     unsubRoute = null;

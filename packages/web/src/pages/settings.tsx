@@ -1,8 +1,8 @@
 /** @jsxImportSource semajsx/dom */
 
+import type { ComponentAPI } from "semajsx";
 import { Icon, Drama } from "semajsx/icons";
 import { signal, computed } from "semajsx/signal";
-import { onCleanup } from "semajsx/dom";
 import { when } from "semajsx";
 import { WebClient } from "../api/client.ts";
 import {
@@ -118,7 +118,7 @@ function loadConfig(): { baseUrl: string; token: string } {
   return { baseUrl: "http://localhost:7420", token: "" };
 }
 
-export function SettingsPage() {
+export function SettingsPage(_props: Record<string, never>, ctx?: ComponentAPI) {
   const saved = loadConfig();
   let urlInput: HTMLInputElement | null = null;
   let tokenInput: HTMLInputElement | null = null;
@@ -177,7 +177,7 @@ export function SettingsPage() {
       // ignore background refresh failure
     });
   });
-  onCleanup(unsubClient);
+  ctx?.onCleanup(unsubClient);
 
   // Fetch health info if already connected
   if (isConnected.value && client.value) {

@@ -1,7 +1,7 @@
 /** @jsxImportSource semajsx/dom */
 
+import type { ComponentAPI } from "semajsx";
 import { computed } from "semajsx/signal";
-import { onCleanup } from "semajsx/dom";
 import { route, navigate } from "../router.ts";
 import { client } from "../stores/connection.ts";
 import {
@@ -64,7 +64,7 @@ function StreamErrorBanner() {
   });
 }
 
-export function AgentChatPage() {
+export function AgentChatPage(_props: Record<string, never>, ctx?: ComponentAPI) {
   const name = computed(route, (r) =>
     r.page === "agent-chat" ? r.params.name : "",
   );
@@ -137,7 +137,7 @@ export function AgentChatPage() {
     }
   });
 
-  onCleanup(() => {
+  ctx?.onCleanup(() => {
     stopStream();
     stopPolling();
     unsubRoute?.();

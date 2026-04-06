@@ -1,14 +1,14 @@
 /** @jsxImportSource semajsx/dom */
 
+import type { ComponentAPI } from "semajsx";
 import { signal, computed } from "semajsx/signal";
-import { onCleanup } from "semajsx/dom";
 import { route, navigate } from "../router.ts";
 import { client } from "../stores/connection.ts";
 import { DocViewer } from "../components/doc-viewer.tsx";
 import type { WorkspaceInfo, DocInfo } from "../api/types.ts";
 import * as styles from "./workspace.style.ts";
 
-export function WorkspacePage() {
+export function WorkspacePage(_props: Record<string, never>, ctx?: ComponentAPI) {
   const wsKey = computed(route, (r) =>
     r.page === "workspace" ? r.params.key : "",
   );
@@ -59,7 +59,7 @@ export function WorkspacePage() {
     }
   });
 
-  onCleanup(() => {
+  ctx?.onCleanup(() => {
     unsubRoute?.();
     unsubRoute = null;
     unsubClient();
