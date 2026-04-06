@@ -54,19 +54,27 @@ export async function checkClaudeCodeAuth(): Promise<{
   email?: string;
   error?: string;
 }> {
-  const result = await runCliCommand("claude", ["auth", "status"]);
-  if (result.exitCode !== 0) {
-    return { authenticated: false, error: result.stderr || "auth check failed" };
+  if (process.env.CLAUDE_CODE_OAUTH_TOKEN) {
+    return { authenticated: true, email: "oauth-token" };
   }
-  try {
-    const data = JSON.parse(result.stdout) as Record<string, unknown>;
-    if (data.loggedIn) {
-      return { authenticated: true, email: data.email as string | undefined };
-    }
-    return { authenticated: false, error: "Not logged in" };
-  } catch {
-    return { authenticated: false, error: "Failed to parse auth status" };
+
+  if (process.env.ANTHROPIC_API_KEY) {
+    return { authenticated: true, email: "api-key" };
   }
+
+  if (process.env.AWS_REGION && process.env.AWS_ACCESS_KEY_ID) {
+    return { authenticated: true, email: "aws" };
+  }
+
+  if (process.env.GOOGLE_APPLICATION_CREDENTIALS || process.env.GOOGLE_CLOUD_PROJECT) {
+    return { authenticated: true, email: "google" };
+  }
+
+  return {
+    authenticated: false,
+    error:
+      "Claude Agent SDK requires CLAUDE_CODE_OAUTH_TOKEN, ANTHROPIC_API_KEY, AWS creds, or Google ADC.",
+  };
 }
 
 // ── Codex auth ──────────────────────────────────────────────────────────────

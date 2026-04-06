@@ -221,6 +221,81 @@ describe("ClaudeCodeLoop", () => {
       ]);
     });
 
+    test("does not duplicate final assistant text after streamed deltas", () => {
+      const toolNames = new Map<string, string>();
+      const streamState = { streamedText: "", streamedThinking: "" };
+
+      const streamed = mapClaudeMessage(
+        {
+          type: "stream_event",
+          event: {
+            type: "content_block_delta",
+            delta: { type: "text_delta", text: "CLAUDE_A2A_OK" },
+          },
+        } as any,
+        toolNames,
+        streamState,
+      );
+
+      const final = mapClaudeMessage(
+        {
+          type: "assistant",
+          message: {
+            content: [{ type: "text", text: "CLAUDE_A2A_OK" }],
+            usage: { input_tokens: 1, output_tokens: 1 },
+          },
+        } as any,
+        toolNames,
+        streamState,
+      );
+
+      expect(streamed.events).toEqual([{ type: "text", text: "CLAUDE_A2A_OK" }]);
+      expect(final.events).toEqual([]);
+    });
+
+    test("does not duplicate final assistant text after chunked streamed deltas", () => {
+      const toolNames = new Map<string, string>();
+      const streamState = { streamedText: "", streamedThinking: "" };
+
+      mapClaudeMessage(
+        {
+          type: "stream_event",
+          event: {
+            type: "content_block_delta",
+            delta: { type: "text_delta", text: "Hello" },
+          },
+        } as any,
+        toolNames,
+        streamState,
+      );
+
+      mapClaudeMessage(
+        {
+          type: "stream_event",
+          event: {
+            type: "content_block_delta",
+            delta: { type: "text_delta", text: " world" },
+          },
+        } as any,
+        toolNames,
+        streamState,
+      );
+
+      const final = mapClaudeMessage(
+        {
+          type: "assistant",
+          message: {
+            content: [{ type: "text", text: "Hello world" }],
+            usage: { input_tokens: 1, output_tokens: 1 },
+          },
+        } as any,
+        toolNames,
+        streamState,
+      );
+
+      expect(final.events).toEqual([]);
+    });
+
     test("builds args with model option", () => {
       const loop = new ClaudeCodeLoop({ model: "sonnet" });
       loop.run("test prompt");

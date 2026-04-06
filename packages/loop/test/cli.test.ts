@@ -56,15 +56,49 @@ describe("runCliCommand", () => {
 });
 
 describe("checkClaudeCodeAuth", () => {
-  test("returns auth status", async () => {
-    // This may succeed or fail depending on whether claude CLI is installed
-    const result = await checkClaudeCodeAuth();
-    expect(result).toHaveProperty("authenticated");
-    expect(typeof result.authenticated).toBe("boolean");
-    // error is optional, only present when not authenticated
-    if (!result.authenticated) {
-      expect(result.error).toBeDefined();
+  const savedEnv: Record<string, string | undefined> = {};
+  const envKeys = [
+    "CLAUDE_CODE_OAUTH_TOKEN",
+    "ANTHROPIC_API_KEY",
+    "AWS_REGION",
+    "AWS_ACCESS_KEY_ID",
+    "GOOGLE_APPLICATION_CREDENTIALS",
+    "GOOGLE_CLOUD_PROJECT",
+  ];
+
+  beforeEach(() => {
+    for (const key of envKeys) {
+      savedEnv[key] = process.env[key];
+      delete process.env[key];
     }
+  });
+
+  afterEach(() => {
+    for (const key of envKeys) {
+      if (savedEnv[key] !== undefined) {
+        process.env[key] = savedEnv[key];
+      } else {
+        delete process.env[key];
+      }
+    }
+  });
+
+  test("accepts CLAUDE_CODE_OAUTH_TOKEN", async () => {
+    process.env.CLAUDE_CODE_OAUTH_TOKEN = "token";
+    const result = await checkClaudeCodeAuth();
+    expect(result.authenticated).toBe(true);
+  });
+
+  test("accepts provider credentials", async () => {
+    process.env.ANTHROPIC_API_KEY = "sk-test";
+    const result = await checkClaudeCodeAuth();
+    expect(result.authenticated).toBe(true);
+  });
+
+  test("returns auth status", async () => {
+    const result = await checkClaudeCodeAuth();
+    expect(result.authenticated).toBe(false);
+    expect(result.error).toContain("Claude Agent SDK requires");
   });
 });
 

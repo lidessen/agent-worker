@@ -377,6 +377,75 @@ describe("Daemon", () => {
     expect(incBody.entries).toEqual([]);
   });
 
+  test("aggregates streamed text into a single response entry", async () => {
+    const dataDir = tmpDataDir();
+    daemon = new Daemon({ port: 0, mcpPort: 0, dataDir });
+    const info = await daemon.start();
+
+    const loop: AgentLoop = {
+      supports: [],
+      _status: "idle" as LoopStatus,
+      get status(): LoopStatus {
+        return this._status;
+      },
+      run(): LoopRun {
+        this._status = "running";
+        const events: LoopEvent[] = [
+          { type: "text", text: "Hello" },
+          { type: "text", text: " " },
+          { type: "text", text: "world" },
+        ];
+        const result = Promise.resolve().then(() => {
+          this._status = "completed";
+          return {
+            events,
+            usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+            durationMs: 10,
+          } satisfies LoopResult;
+        });
+        return {
+          async *[Symbol.asyncIterator]() {
+            for (const event of events) yield event;
+          },
+          result,
+        };
+      },
+      cancel() {
+        this._status = "cancelled";
+      },
+      setMcpConfig() {},
+    } as AgentLoop & { _status: LoopStatus };
+
+    await daemon.agentRegistry.create({
+      name: "streamy",
+      config: {
+        name: "streamy",
+        instructions: "You are Streamy.",
+        loop,
+        inbox: { debounceMs: 0 },
+      },
+    });
+
+    await fetch(`http://${info.host}:${info.port}/agents/streamy/send`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${info.token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ messages: [{ content: "Hi Streamy" }] }),
+    });
+
+    await Bun.sleep(200);
+
+    const respRes = await fetch(
+      `http://${info.host}:${info.port}/agents/streamy/responses?cursor=0`,
+      { headers: { Authorization: `Bearer ${info.token}` } },
+    );
+    const respBody = (await respRes.json()) as Record<string, unknown>;
+    const textEntries = (respBody.entries as Record<string, unknown>[]).filter(
+      (e) => e.type === "text",
+    );
+    expect(textEntries).toHaveLength(1);
+    expect(textEntries[0]!.text).toBe("Hello world");
+  });
+
   test("reads agent state via /agents/:name/state", async () => {
     const dataDir = tmpDataDir();
     daemon = new Daemon({ port: 0, mcpPort: 0, dataDir });

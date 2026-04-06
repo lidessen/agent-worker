@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { mkdirSync } from "node:fs";
 
-function createMockLoop(response = "Hello!"): AgentLoop {
+function createMockLoop(response: string | string[] = "Hello!"): AgentLoop {
   const mock: AgentLoop & { _status: LoopStatus } = {
     supports: ["directTools"],
     _status: "idle" as LoopStatus,
@@ -16,9 +16,11 @@ function createMockLoop(response = "Hello!"): AgentLoop {
     },
     run(_prompt: string): LoopRun {
       mock._status = "running";
-      const textEvent: LoopEvent = { type: "text", text: response };
+      const textEvents = (Array.isArray(response) ? response : [response]).map(
+        (text): LoopEvent => ({ type: "text", text }),
+      );
       const loopResult: LoopResult = {
-        events: [textEvent],
+        events: textEvents,
         usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
         durationMs: 10,
       };
@@ -28,7 +30,7 @@ function createMockLoop(response = "Hello!"): AgentLoop {
       });
       return {
         async *[Symbol.asyncIterator]() {
-          yield textEvent;
+          for (const event of textEvents) yield event;
         },
         result,
       };
@@ -107,6 +109,27 @@ describe("AwClient", () => {
     expect(result.entries.some((e: any) => e.type === "text" && e.text === "Bob says hi")).toBe(
       true,
     );
+  });
+
+  test("readResponses aggregates streamed text into one response entry", async () => {
+    await setup();
+    await daemon.agentRegistry.create({
+      name: "streamy",
+      config: {
+        name: "streamy",
+        instructions: "be streamy",
+        loop: createMockLoop(["Hello", " ", "world"]),
+        inbox: { debounceMs: 0 },
+      },
+    });
+
+    await client.sendToAgent("streamy", [{ content: "hello" }]);
+    await Bun.sleep(200);
+
+    const result = await client.readResponses("streamy", { cursor: 0 });
+    const textEntries = result.entries.filter((e: any) => e.type === "text");
+    expect(textEntries).toHaveLength(1);
+    expect((textEntries[0] as any).text).toBe("Hello world");
   });
 
   test("getAgentState", async () => {
