@@ -37,6 +37,7 @@ export class ClaudeCodeLoop {
     const channel = createEventChannel<LoopEvent>();
     const allEvents: LoopEvent[] = [];
     const toolNames = new Map<string, string>();
+    const streamState = { streamedText: "", streamedThinking: "" };
     let usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
 
     const emit = (event: LoopEvent) => {
@@ -61,7 +62,7 @@ export class ClaudeCodeLoop {
         this.activeQuery = q;
 
         for await (const message of q) {
-          const mapped = mapClaudeMessage(message, toolNames);
+          const mapped = mapClaudeMessage(message, toolNames, streamState);
           if (mapped.usage) usage = mapped.usage;
           for (const event of mapped.events) emit(event);
         }
@@ -198,6 +199,10 @@ function resolveClaudeModel(model?: string): string | undefined {
 export function mapClaudeMessage(
   message: SDKMessage,
   toolNames: Map<string, string>,
+  streamState: { streamedText: string; streamedThinking: string } = {
+    streamedText: "",
+    streamedThinking: "",
+  },
 ): {
   events: LoopEvent[];
   usage?: { inputTokens: number; outputTokens: number; totalTokens: number };
@@ -207,9 +212,17 @@ export function mapClaudeMessage(
   if (message.type === "assistant") {
     const content = (message.message.content ?? []) as unknown as Array<Record<string, unknown>>;
     for (const block of content) {
-      if (block.type === "thinking" && typeof block.thinking === "string") {
+      if (
+        block.type === "thinking" &&
+        typeof block.thinking === "string" &&
+        block.thinking !== streamState.streamedThinking
+      ) {
         events.push({ type: "thinking", text: block.thinking });
-      } else if (block.type === "text" && typeof block.text === "string") {
+      } else if (
+        block.type === "text" &&
+        typeof block.text === "string" &&
+        block.text !== streamState.streamedText
+      ) {
         events.push({ type: "text", text: block.text });
       } else if (block.type === "tool_use") {
         const callId = String(block.id ?? "");
@@ -223,6 +236,8 @@ export function mapClaudeMessage(
         });
       }
     }
+    streamState.streamedText = "";
+    streamState.streamedThinking = "";
   } else if (message.type === "user" && message.parent_tool_use_id && message.tool_use_result !== undefined) {
     events.push({
       type: "tool_call_end",
@@ -236,8 +251,10 @@ export function mapClaudeMessage(
     if (eventType === "content_block_delta") {
       const delta = (event.delta as Record<string, unknown> | undefined) ?? {};
       if (delta.type === "text_delta" && typeof delta.text === "string") {
+        streamState.streamedText += delta.text;
         events.push({ type: "text", text: delta.text });
       } else if (delta.type === "thinking_delta" && typeof delta.thinking === "string") {
+        streamState.streamedThinking += delta.thinking;
         events.push({ type: "thinking", text: delta.thinking });
       }
     }

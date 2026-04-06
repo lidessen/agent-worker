@@ -23,6 +23,7 @@ export class ManagedAgent {
   private _eventsPath?: string;
   private _inboxPath?: string;
   private _timelinePath?: string;
+  private _currentResponseText = "";
 
   constructor(opts: {
     name: string;
@@ -96,11 +97,16 @@ export class ManagedAgent {
     });
 
     this.agent.on("runStart", (info) => {
+      this._currentResponseText = "";
       this._appendEvent({ type: "run_start", runNumber: info.runNumber, trigger: info.trigger });
       this._appendTimeline({ type: "run_start", runNumber: info.runNumber, trigger: info.trigger });
     });
 
     this.agent.on("runEnd", (result) => {
+      if (this._currentResponseText.trim()) {
+        this._appendResponse({ type: "text", text: this._currentResponseText });
+      }
+      this._currentResponseText = "";
       this._appendEvent({
         type: "run_end",
         durationMs: result.durationMs,
@@ -116,7 +122,7 @@ export class ManagedAgent {
     this.agent.on("event", (event: LoopEvent) => {
       if (event.type === "text") {
         this._appendEvent({ type: "text", text: event.text });
-        this._appendResponse({ type: "text", text: event.text });
+        this._currentResponseText += event.text;
       } else if (event.type === "tool_call_start") {
         this._appendEvent({
           type: "runtime_event",
