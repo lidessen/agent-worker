@@ -396,6 +396,56 @@ describe("RunCoordinator", () => {
     );
   });
 
+  test("processLoop keeps fallback tool ids stable across assistant buffer flushes", async () => {
+    const loop = createEventLoop([
+      {
+        event: { type: "text", text: "Assistant text before tool." },
+      },
+      {
+        event: {
+          type: "tool_call_start",
+          name: "agent_notes",
+          args: { note: "capture this" },
+        },
+      },
+      {
+        event: { type: "text", text: "Assistant text before tool result." },
+      },
+      {
+        event: {
+          type: "tool_call_end",
+          name: "agent_notes",
+          result: { ok: true },
+        },
+      },
+    ]);
+
+    const inbox = new Inbox({}, () => {});
+    const memory = createRecordingMemory();
+    const coordinator = new RunCoordinator({
+      loop,
+      inbox,
+      todos: new TodoManager(),
+      notes: new InMemoryNotesStorage(),
+      contextEngine: new ContextEngine(),
+      memory,
+      reminders: new ReminderManager(),
+      instructions: "Be helpful.",
+      maxRuns: 10,
+    });
+    inbox.push("trigger tool fallback");
+
+    await coordinator.processLoop({});
+
+    const toolTurns = memory.extractCalls
+      .flatMap((call) => call.turns)
+      .filter((turn) => turn.role === "tool");
+    expect(toolTurns.some((turn) => turn.content.includes("args={\"note\":\"capture this\"}"))).toBe(
+      true,
+    );
+    expect(toolTurns.some((turn) => turn.content.includes("result={\"ok\":true}"))).toBe(true);
+  });
+
   test("processLoop returns error when loop throws", async () => {
     const err = new Error("loop failed");
     const resultPromise = new Promise<never>((_, reject) => {

@@ -1,5 +1,10 @@
 import { test, expect, describe } from "bun:test";
-import { ClaudeCodeLoop, buildOptions, mapClaudeMessage } from "../src/loops/claude-code.ts";
+import {
+  ClaudeCodeLoop,
+  buildOptions,
+  mapClaudeMessage,
+  parseClaudeExtraArgs,
+} from "../src/loops/claude-code.ts";
 
 describe("ClaudeCodeLoop", () => {
   const originalOauthToken = process.env.CLAUDE_CODE_OAUTH_TOKEN;
@@ -296,6 +301,36 @@ describe("ClaudeCodeLoop", () => {
       expect(final.events).toEqual([]);
     });
 
+    test("handles cumulative assistant snapshots without re-emitting prior text", () => {
+      const toolNames = new Map<string, string>();
+      const streamState = { streamedText: "", streamedThinking: "" };
+
+      const first = mapClaudeMessage(
+        {
+          type: "assistant",
+          message: {
+            content: [{ type: "text", text: "Hello" }],
+          },
+        } as any,
+        toolNames,
+        streamState,
+      );
+
+      const second = mapClaudeMessage(
+        {
+          type: "assistant",
+          message: {
+            content: [{ type: "text", text: "Hello world" }],
+          },
+        } as any,
+        toolNames,
+        streamState,
+      );
+
+      expect(first.events).toEqual([{ type: "text", text: "Hello" }]);
+      expect(second.events).toEqual([{ type: "text", text: " world" }]);
+    });
+
     test("builds args with model option", () => {
       const loop = new ClaudeCodeLoop({ model: "sonnet" });
       loop.run("test prompt");
@@ -336,6 +371,16 @@ describe("ClaudeCodeLoop", () => {
       const loop = new ClaudeCodeLoop({ extraArgs: ["--verbose", "--debug"] });
       loop.run("test prompt");
       loop.cancel();
+    });
+
+    test("parses extraArgs key-value pairs", () => {
+      expect(parseClaudeExtraArgs(["--max-tokens", "1000", "--verbose", "--model=haiku"])).toEqual(
+        {
+          "max-tokens": "1000",
+          verbose: null,
+          model: "haiku",
+        },
+      );
     });
 
     test("builds args with all options combined", () => {
