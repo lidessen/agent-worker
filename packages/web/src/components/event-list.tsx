@@ -1,9 +1,9 @@
 /** @jsxImportSource semajsx/dom */
 
+import type { ComponentAPI } from "semajsx";
 import { Icon, MessageCircle } from "semajsx/icons";
 import { computed } from "semajsx/signal";
 import type { ReadableSignal } from "semajsx/signal";
-import { onCleanup } from "semajsx/dom";
 import type { DaemonEvent } from "../api/types.ts";
 import { TextBlock } from "./blocks/text-block.tsx";
 import { ToolCallBlock } from "./blocks/tool-call-block.tsx";
@@ -107,8 +107,12 @@ function formatEventTime(ts: number): string {
   }
 }
 
-export function EventList(props: { events: ReadableSignal<DaemonEvent[]>; agentName?: ReadableSignal<string> }) {
+export function EventList(
+  props: { events: ReadableSignal<DaemonEvent[]>; agentName?: ReadableSignal<string> },
+  ctx?: ComponentAPI,
+) {
   let scrollRef: HTMLDivElement | null = null;
+  let scrollListenerTarget: HTMLDivElement | null = null;
   let userScrolledUp = false;
 
   function handleScroll() {
@@ -128,7 +132,13 @@ export function EventList(props: { events: ReadableSignal<DaemonEvent[]>; agentN
     // Defer scroll to after DOM update
     queueMicrotask(scrollToBottom);
   });
-  onCleanup(unsub);
+  ctx?.onCleanup(unsub);
+  ctx?.onCleanup(() => {
+    if (scrollListenerTarget) {
+      scrollListenerTarget.removeEventListener("scroll", handleScroll);
+      scrollListenerTarget = null;
+    }
+  });
 
   const body = computed(props.events, (list) => {
     if (list.length === 0) {
@@ -164,10 +174,14 @@ export function EventList(props: { events: ReadableSignal<DaemonEvent[]>; agentN
     <div
       class={styles.container}
       ref={(el: HTMLDivElement | null) => {
+        if (scrollListenerTarget) {
+          scrollListenerTarget.removeEventListener("scroll", handleScroll);
+          scrollListenerTarget = null;
+        }
         scrollRef = el;
         if (!el) return;
         el.addEventListener("scroll", handleScroll, { passive: true });
-        onCleanup(() => el.removeEventListener("scroll", handleScroll));
+        scrollListenerTarget = el;
       }}
     >
       {body}

@@ -2,7 +2,6 @@
 
 import type { JSXNode } from "semajsx/core";
 import { computed } from "semajsx/signal";
-import { onCleanup } from "semajsx/dom";
 import { Icon, Drama } from "semajsx/icons";
 import { ClaudeIcon, CursorIcon, OpenAIIcon, VercelIcon } from "../brand-icons.tsx";
 import { connectionState } from "../../stores/connection.ts";
@@ -226,20 +225,6 @@ function TabContent(props: { onSelect?: () => void }) {
 // ── Workspace switcher ───────────────────────────────────────────────────
 
 function WorkspaceSwitcher() {
-  // Auto-select first workspace when list loads (if current is still "global" virtual key)
-  const unsub = workspaces.subscribe((wsList) => {
-    if (wsList.length > 0 && currentWorkspace.value === "global") {
-      // Check if "global" actually exists as a real workspace
-      const hasGlobal = wsList.some((ws) => ws.name === "global");
-      if (hasGlobal) {
-        currentWorkspace.value = "global";
-      } else {
-        currentWorkspace.value = wsList[0].name;
-      }
-    }
-  });
-  onCleanup(unsub);
-
   const options = computed(workspaces, (wsList) =>
     wsList.map((ws) => (
       <option value={ws.name}>{ws.label || ws.name}</option>
@@ -259,6 +244,14 @@ function WorkspaceSwitcher() {
     </select>
   );
 }
+
+// Auto-select first workspace when list loads (if current is still "global" virtual key).
+workspaces.subscribe((wsList) => {
+  if (wsList.length > 0 && currentWorkspace.value === "global") {
+    const hasGlobal = wsList.some((ws) => ws.name === "global");
+    currentWorkspace.value = hasGlobal ? "global" : wsList[0]!.name;
+  }
+});
 
 // ── Sidebar ──────────────────────────────────────────────────────────────
 

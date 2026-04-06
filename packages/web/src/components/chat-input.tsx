@@ -1,13 +1,13 @@
 /** @jsxImportSource semajsx/dom */
 
+import type { ComponentAPI } from "semajsx";
 import { Icon, ArrowUp } from "semajsx/icons";
 import { computed, signal } from "semajsx/signal";
 import type { ReadableSignal } from "semajsx/signal";
-import { onCleanup } from "semajsx/dom";
 import { sendMessage } from "../stores/conversation.ts";
 import * as styles from "./chat-input.style.ts";
 
-export function ChatInput(props: { agentName: ReadableSignal<string> }) {
+export function ChatInput(props: { agentName: ReadableSignal<string> }, ctx?: ComponentAPI) {
   let textareaRef: HTMLTextAreaElement | null = null;
   let sendBtnRef: HTMLButtonElement | null = null;
   const draft = signal("");
@@ -43,7 +43,7 @@ export function ChatInput(props: { agentName: ReadableSignal<string> }) {
   }
 
   const unsub = canSend.subscribe(syncSendBtn);
-  onCleanup(unsub);
+  ctx?.onCleanup(unsub);
 
   return (
     <div class={styles.bar}>

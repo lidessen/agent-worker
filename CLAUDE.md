@@ -98,13 +98,13 @@ Event handlers ARE functions (this is correct):
 <button onclick={() => doThing()}>Click</button>
 ```
 
-Cleanup via `onCleanup` (not useEffect/MutationObserver):
+Cleanup via component `ctx.onCleanup` (not useEffect/MutationObserver):
 ```tsx
-import { onCleanup } from "semajsx/dom";
+import type { ComponentAPI } from "semajsx";
 
-function MyComponent() {
+function MyComponent(_props: Record<string, never>, ctx?: ComponentAPI) {
   const controller = new AbortController();
-  onCleanup(() => controller.abort());
+  ctx?.onCleanup(() => controller.abort());
   // ...
 }
 ```
