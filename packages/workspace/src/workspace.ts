@@ -2,6 +2,7 @@ import { join } from "node:path";
 import type {
   WorkspaceConfig,
   WorkspaceRuntime,
+  WorkspaceStateSnapshot,
   ContextProvider,
   EventLog,
   ChannelBridgeInterface,
@@ -37,6 +38,7 @@ export class Workspace implements WorkspaceRuntime {
   private readonly inboxStore: InboxStore;
   private readonly statusStore: StatusStore;
   private readonly bridgeImpl: ChannelBridge;
+  private initialized = false;
 
   /** Agent name → set of joined channels. */
   private agentChannels = new Map<string, Set<string>>();
@@ -98,6 +100,8 @@ export class Workspace implements WorkspaceRuntime {
   }
 
   async init(): Promise<void> {
+    if (this.initialized) return;
+
     // Load status store
     await this.statusStore.load();
 
@@ -108,6 +112,8 @@ export class Workspace implements WorkspaceRuntime {
     for (const agentName of this.agentChannels.keys()) {
       await this.inboxStore.load(agentName);
     }
+
+    this.initialized = true;
   }
 
   async shutdown(): Promise<void> {
@@ -127,8 +133,13 @@ export class Workspace implements WorkspaceRuntime {
     const agentChs = new Set<string>(chs);
     this.agentChannels.set(name, agentChs);
 
-    await this.statusStore.set(name, "idle");
-    await this.inboxStore.markRunStart(name);
+    if (this.initialized) {
+      await this.inboxStore.load(name);
+    }
+
+    if (!this.statusStore.getCached(name)) {
+      await this.statusStore.set(name, "idle");
+    }
   }
 
   /** Whether an agent is registered in this workspace. */
@@ -153,6 +164,49 @@ export class Workspace implements WorkspaceRuntime {
     const base = this._sandboxBaseDir ?? this.storageDir;
     if (!base) return undefined;
     return join(base, "agents", agentName, "sandbox");
+  }
+
+  async snapshotState(opts?: {
+    inboxLimit?: number;
+    timelineLimit?: number;
+    chronicleLimit?: number;
+    queuedLimit?: number;
+  }): Promise<WorkspaceStateSnapshot> {
+    const inboxLimit = opts?.inboxLimit ?? 10;
+    const timelineLimit = opts?.timelineLimit ?? 5;
+    const chronicleLimit = opts?.chronicleLimit ?? 10;
+    const queuedLimit = opts?.queuedLimit ?? 20;
+
+    const documents = await this.contextProvider.documents.list();
+    const chronicle = await this.contextProvider.chronicle.read({ limit: chronicleLimit });
+    const queuedInstructions = this.instructionQueue.listAll().slice(-queuedLimit);
+
+    const agents = await Promise.all(
+      [...this.agentChannels.keys()].map(async (name) => {
+        const status = await this.contextProvider.status.get(name);
+        const inbox = (await this.contextProvider.inbox.inspect(name)).slice(0, inboxLimit);
+        const recentActivity = await this.contextProvider.timeline.read(name, { limit: timelineLimit });
+        return {
+          name,
+          status: status?.status ?? "idle",
+          currentTask: status?.currentTask,
+          channels: [...this.getAgentChannels(name)],
+          inbox,
+          recentActivity,
+        };
+      }),
+    );
+
+    return {
+      name: this.name,
+      tag: this.tag,
+      defaultChannel: this.defaultChannel,
+      channels: this.contextProvider.channels.listChannels(),
+      documents,
+      chronicle,
+      queuedInstructions,
+      agents,
+    };
   }
 
   // ── Internal routing ──────────────────────────────────────────────────

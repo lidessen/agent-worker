@@ -67,11 +67,34 @@ export class RunCoordinator {
     return "[notification] Pending todos require attention.";
   }
 
+  private buildPromptContent(
+    trigger: "next_message" | "next_todo",
+    notification: string,
+    assembled: AssembledPrompt,
+  ): string {
+    if (trigger === "next_message" && assembled.inboxSnapshot) {
+      return [
+        notification,
+        "The inbox preview below is authoritative runtime input. Entries ending with ✓ contain the full message. Respond directly from them unless they are marked truncated or explicitly require repo work.",
+        assembled.inboxSnapshot,
+      ].join("\n\n");
+    }
+    if (trigger === "next_todo" && assembled.todoSnapshot) {
+      return [
+        notification,
+        "The todo snapshot below is authoritative runtime state. Act on it directly unless more context is explicitly required.",
+        assembled.todoSnapshot,
+      ].join("\n\n");
+    }
+    return notification;
+  }
+
   // ── Single run ──────────────────────────────────────────────────────────
 
   async executeRun(
     trigger: "next_message" | "next_todo",
     onEvent?: (event: LoopEvent) => void,
+    runLabel = "run",
   ): Promise<{ loopResult: LoopResult; assembled: AssembledPrompt }> {
     const notification = this.buildNotification(trigger);
 
@@ -87,24 +110,128 @@ export class RunCoordinator {
       name: this.deps.name,
     });
 
+    const promptContent = this.buildPromptContent(trigger, notification, assembled);
+
     // Pass structured input: system (dashboard) + prompt (notification)
     const run = this.deps.loop.run({
       system: assembled.system,
-      prompt: notification,
+      prompt: promptContent,
     });
 
+    const liveTurns: Turn[] = [
+      {
+        role: "user",
+        content: promptContent,
+      },
+    ];
+    let checkpointCursor = liveTurns.length;
+    let checkpointSeq = 0;
+    let assistantBuffer = "";
+    let fallbackToolCallSeq = 0;
+    const pendingToolCalls = new Map<string, { name: string; args?: Record<string, unknown> }>();
+    let checkpointChain = Promise.resolve();
+    let checkpointTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const flushAssistantBuffer = (): void => {
+      const content = assistantBuffer.trim();
+      if (!content) return;
+      liveTurns.push({ role: "assistant", content });
+      assistantBuffer = "";
+    };
+
+    const queueCheckpoint = (): void => {
+      if (!this.deps.memory?.shouldExtract("event")) return;
+      flushAssistantBuffer();
+      const checkpointTurns = liveTurns.slice(checkpointCursor);
+      if (checkpointTurns.length === 0) return;
+      checkpointCursor = liveTurns.length;
+      const source = `${runLabel}:event_${++checkpointSeq}`;
+      checkpointChain = checkpointChain.then(() => this.deps.memory!.extract(checkpointTurns, source));
+    };
+
+    const scheduleCheckpoint = (): void => {
+      if (!this.deps.memory?.shouldExtract("event")) return;
+      if (checkpointTimer) clearTimeout(checkpointTimer);
+      checkpointTimer = setTimeout(() => {
+        checkpointTimer = null;
+        queueCheckpoint();
+      }, 250);
+    };
+
     for await (const event of run) {
+      switch (event.type) {
+        case "text":
+          assistantBuffer += (assistantBuffer ? "\n" : "") + event.text;
+          scheduleCheckpoint();
+          break;
+        case "thinking":
+          assistantBuffer += (assistantBuffer ? "\n" : "") + `[thinking] ${event.text}`;
+          scheduleCheckpoint();
+          break;
+        case "tool_call_start":
+          flushAssistantBuffer();
+          pendingToolCalls.set(event.callId ?? `fallback_${++fallbackToolCallSeq}`, {
+            name: event.name,
+            args: event.args,
+          });
+          break;
+        case "tool_call_end": {
+          flushAssistantBuffer();
+          const callId = event.callId ?? Array.from(pendingToolCalls.keys()).pop() ?? "unknown";
+          const pending = pendingToolCalls.get(callId);
+          pendingToolCalls.delete(callId);
+          const toolName = pending?.name ?? event.name;
+          const toolContent = [
+            `[tool:${toolName}]`,
+            pending?.args ? `args=${JSON.stringify(pending.args)}` : null,
+            event.result !== undefined ? `result=${JSON.stringify(event.result)}` : null,
+            event.error ? `error=${event.error}` : null,
+          ]
+            .filter((part): part is string => Boolean(part))
+            .join(" ");
+          liveTurns.push({ role: "tool", content: toolContent });
+          scheduleCheckpoint();
+          break;
+        }
+        case "hook": {
+          flushAssistantBuffer();
+          liveTurns.push({
+            role: "tool",
+            content: [
+              `[hook:${event.hookEvent}]`,
+              `phase=${event.phase}`,
+              `name=${event.name}`,
+              event.outcome ? `outcome=${event.outcome}` : null,
+              event.output ? `output=${event.output}` : null,
+            ]
+              .filter((part): part is string => Boolean(part))
+              .join(" "),
+          });
+          scheduleCheckpoint();
+          break;
+        }
+        default:
+          break;
+      }
       onEvent?.(event);
     }
 
     const loopResult = await run.result;
+
+    if (checkpointTimer) {
+      clearTimeout(checkpointTimer);
+      checkpointTimer = null;
+    }
+    flushAssistantBuffer();
+    queueCheckpoint();
+    await checkpointChain;
 
     // Persist content snapshot + notification to history (for memory extraction).
     // The notification alone is generic, but memory recall needs real content.
     const EMPTY_SNAPSHOTS = new Set(["📥 Inbox: empty", "No todos."]);
     const snapshot = trigger === "next_message" ? assembled.inboxSnapshot : assembled.todoSnapshot;
     const historyContent =
-      snapshot && !EMPTY_SNAPSHOTS.has(snapshot) ? `${notification}\n\n${snapshot}` : notification;
+      snapshot && !EMPTY_SNAPSHOTS.has(snapshot) ? promptContent : notification;
     this.history.push({ role: "user", content: historyContent });
 
     const assistantText = loopResult.events
@@ -188,7 +315,11 @@ export class RunCoordinator {
       callbacks.onRunStart?.({ runNumber: runCount, trigger: decision });
 
       try {
-        const { loopResult, assembled } = await this.executeRun(decision, callbacks.onEvent);
+        const { loopResult, assembled } = await this.executeRun(
+          decision,
+          callbacks.onEvent,
+          `run_${runCount}`,
+        );
 
         callbacks.onContextAssembled?.(assembled);
         callbacks.onRunEnd?.(loopResult);

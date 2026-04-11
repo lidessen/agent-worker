@@ -4,6 +4,7 @@ import { computed } from "semajsx/signal";
 import type { ChannelMessage } from "../api/types.ts";
 import type { VNode } from "semajsx";
 import { wsAgents } from "../stores/workspace-data.ts";
+import { formatDateTime } from "../utils/time.ts";
 import { ClaudeIcon, CursorIcon, OpenAIIcon, VercelIcon, parsePlatformName } from "./brand-icons.tsx";
 import * as styles from "./channel-message.style.ts";
 
@@ -20,15 +21,6 @@ function runtimeIcon(runtime: string): VNode | null {
       return VercelIcon(iconProps);
     default:
       return null;
-  }
-}
-
-function formatTime(timestamp: string): string {
-  try {
-    const d = new Date(timestamp);
-    return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
-  } catch {
-    return "";
   }
 }
 
@@ -62,7 +54,7 @@ export function ChannelMessageItem(props: { message: ChannelMessage }) {
             {platformSuffix}
           </span>
           {agentBadge}
-          <span class={styles.timestamp}>{formatTime(message.timestamp)}</span>
+          <span class={styles.timestamp}>{formatDateTime(message.timestamp)}</span>
         </div>
         <div class={[styles.message, isUser && styles.messageUser]}>
           <div class={styles.content}>{message.content}</div>

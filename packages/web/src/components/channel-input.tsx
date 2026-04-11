@@ -1,11 +1,11 @@
 /** @jsxImportSource semajsx/dom */
 
+import type { RuntimeComponent } from "semajsx";
 import { Icon, ArrowUp } from "semajsx/icons";
 import { computed, signal } from "semajsx/signal";
-import { onCleanup } from "semajsx/dom";
 import * as styles from "./chat-input.style.ts";
 
-export function ChannelInput(props: { onSend: (text: string) => void }) {
+export const ChannelInput: RuntimeComponent<{ onSend: (text: string) => void }> = (props, ctx) => {
   let textareaRef: HTMLTextAreaElement | null = null;
   let sendBtnRef: HTMLButtonElement | null = null;
   const draft = signal("");
@@ -40,7 +40,7 @@ export function ChannelInput(props: { onSend: (text: string) => void }) {
   }
 
   const unsub = canSend.subscribe(syncSendBtn);
-  onCleanup(unsub);
+  ctx.onCleanup(unsub);
 
   return (
     <div class={styles.bar}>
@@ -54,7 +54,7 @@ export function ChannelInput(props: { onSend: (text: string) => void }) {
             autoResize();
           }}
           onkeydown={handleKeydown}
-          ref={(el: HTMLTextAreaElement) => {
+          ref={(el: HTMLTextAreaElement | null) => {
             textareaRef = el;
           }}
         />
@@ -64,7 +64,7 @@ export function ChannelInput(props: { onSend: (text: string) => void }) {
             class={styles.sendBtn}
             onclick={handleSend}
             type="button"
-            ref={(el: HTMLButtonElement) => {
+            ref={(el: HTMLButtonElement | null) => {
               sendBtnRef = el;
               syncSendBtn();
             }}
@@ -75,4 +75,4 @@ export function ChannelInput(props: { onSend: (text: string) => void }) {
       </div>
     </div>
   );
-}
+};

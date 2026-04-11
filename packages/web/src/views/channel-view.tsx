@@ -1,7 +1,7 @@
 /** @jsxImportSource semajsx/dom */
 
+import type { RuntimeComponent } from "semajsx";
 import { signal, computed } from "semajsx/signal";
-import { onCleanup } from "semajsx/dom";
 import {
   channelMessages,
   loadChannelHistory,
@@ -16,7 +16,7 @@ import { ConfirmDialog } from "../components/confirm-dialog.tsx";
 import { parsePlatformName } from "../components/brand-icons.tsx";
 import * as styles from "./channel-view.style.ts";
 
-export function ChannelView(props: { wsKey: string; channel: string }) {
+export const ChannelView: RuntimeComponent<{ wsKey: string; channel: string }> = (props, ctx) => {
   const parsed = parsePlatformName(props.channel);
   const channelTitle = `# ${parsed.name}`;
   const showClearConfirm = signal(false);
@@ -30,7 +30,7 @@ export function ChannelView(props: { wsKey: string; channel: string }) {
     if (!cancelled) startChannelStream(props.wsKey, props.channel);
   });
 
-  onCleanup(() => {
+  ctx.onCleanup(() => {
     cancelled = true;
     stopChannelStream();
   });
@@ -77,4 +77,4 @@ export function ChannelView(props: { wsKey: string; channel: string }) {
       />
     </div>
   );
-}
+};

@@ -14,7 +14,11 @@ import type { AgentLoop } from "@agent-worker/agent";
 import { WorkspaceOrchestrator, createOrchestrator } from "./orchestrator.ts";
 import { resolveRuntime, discoverCliRuntime, detectAiSdkModel } from "./resolve-runtime.ts";
 import type { EventBus } from "@agent-worker/shared";
-import type { CreateWorkspaceInput, ManagedWorkspaceInfo } from "./types.ts";
+import type {
+  CreateWorkspaceInput,
+  ManagedWorkspaceInfo,
+  WorkspaceOverviewEventType,
+} from "./types.ts";
 import { tool, type ToolSet } from "ai";
 import { z } from "zod";
 import { ManagedWorkspace } from "./managed-workspace.ts";
@@ -148,7 +152,7 @@ export class WorkspaceRegistry {
   }
 
   /** Emit a workspace-scoped event to the bus. */
-  private emitEvent(type: string, data: Record<string, unknown>): void {
+  private emitEvent(type: WorkspaceOverviewEventType, data: Record<string, unknown>): void {
     this._bus?.emit({ type, source: "workspace", ...data });
   }
 
@@ -473,13 +477,6 @@ export class WorkspaceRegistry {
         model: agent.model?.full,
         instruction: instruction.content.slice(0, 200),
       });
-      this.emitEvent("workspace.agent_prompt", {
-        workspace: workspaceKey,
-        agent: agent.name,
-        runId,
-        prompt,
-        level: "debug",
-      });
       try {
         await runner(prompt, instruction, runId);
         this.emitEvent("workspace.agent_run_end", {
@@ -531,12 +528,14 @@ export class WorkspaceRegistry {
                 channel: workspace.defaultChannel,
                 from: "system",
                 content: `@${workspace.lead} Agent @${agent.name} paused (${strategy.reason}). ` +
-                  `Task: ${instruction.content.slice(0, 100)}` +
+              `Task: ${instruction.content.slice(0, 100)}` +
                   (strategy.autoResume ? "" : ". Needs manual resume or config fix."),
               });
             } catch { /* don't fail on notification */ }
           }
         }
+
+        throw err;
       }
     };
   }
@@ -631,23 +630,15 @@ export class WorkspaceRegistry {
         loop.setMcpConfig(mcpConfigPath);
       }
 
-      this.emitEvent("workspace.agent_tools", {
-        workspace: workspaceKey,
-        agent: agent.name,
-        runtime: agent.runtime,
-        model: agent.model?.full,
-        tools: toolNames,
-        level: "debug",
-      });
-
       // Create per-run log file
       const log = runsDir ? createRunLog(runsDir, runId) : undefined;
       log?.write({
         type: "run_start",
         instruction: instruction.content,
-        prompt,
+        promptChars: prompt.length,
         runtime: agent.runtime,
         model: agent.model?.full,
+        toolCount: toolNames.length,
       });
 
       try {
@@ -932,7 +923,7 @@ async function classifyErrorWithLLM(err: string): Promise<ErrorStrategy | null> 
         }),
       }),
       prompt: `Classify this API/runtime error. If the error contains a retry-after time, extract it.\n\nError: ${err.slice(0, 500)}`,
-      maxTokens: 100,
+      maxOutputTokens: 100,
       abortSignal: abort,
     });
 
@@ -957,19 +948,35 @@ function serializeLoopEvent(event: LoopEvent): Record<string, unknown> {
       return { type: "thinking", text: event.text };
     case "tool_call_start":
       return {
-        type: "tool_call_start",
+        type: "runtime_event",
+        eventKind: "tool",
+        phase: "start",
         name: event.name,
         callId: event.callId,
         args: event.args,
       };
     case "tool_call_end":
       return {
-        type: "tool_call_end",
+        type: "runtime_event",
+        eventKind: "tool",
+        phase: "end",
         name: event.name,
         callId: event.callId,
         result: typeof event.result === "string" ? event.result.slice(0, 2000) : event.result,
         durationMs: event.durationMs,
         error: event.error,
+      };
+    case "hook":
+      return {
+        type: "runtime_event",
+        eventKind: "hook",
+        phase: event.phase,
+        name: event.name,
+        hookEvent: event.hookEvent,
+        output: event.output,
+        stdout: event.stdout,
+        stderr: event.stderr,
+        outcome: event.outcome,
       };
     case "error":
       return { type: "error", error: String(event.error) };

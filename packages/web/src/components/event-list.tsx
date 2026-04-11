@@ -1,9 +1,9 @@
 /** @jsxImportSource semajsx/dom */
 
+import type { RuntimeComponent } from "semajsx";
 import { Icon, MessageCircle } from "semajsx/icons";
 import { computed } from "semajsx/signal";
 import type { ReadableSignal } from "semajsx/signal";
-import { onCleanup } from "semajsx/dom";
 import type { DaemonEvent } from "../api/types.ts";
 import { TextBlock } from "./blocks/text-block.tsx";
 import { ToolCallBlock } from "./blocks/tool-call-block.tsx";
@@ -11,6 +11,7 @@ import { RunBlock } from "./blocks/run-block.tsx";
 import { ErrorBlock } from "./blocks/error-block.tsx";
 import { UserMessageBlock } from "./blocks/user-message-block.tsx";
 import { ThinkingBlock } from "./blocks/thinking-block.tsx";
+import { formatDateTime } from "../utils/time.ts";
 import * as styles from "./event-list.style.ts";
 
 function isTextEvent(event: DaemonEvent): boolean {
@@ -96,19 +97,15 @@ function eventLabel(event: DaemonEvent): string {
   return "Event";
 }
 
-function formatEventTime(ts: number): string {
-  try {
-    return new Date(ts).toLocaleTimeString(undefined, {
-      hour: "numeric",
-      minute: "2-digit",
-    });
-  } catch {
-    return "";
-  }
-}
-
-export function EventList(props: { events: ReadableSignal<DaemonEvent[]>; agentName?: ReadableSignal<string> }) {
+export const EventList: RuntimeComponent<{
+  events: ReadableSignal<DaemonEvent[]>;
+  agentName?: ReadableSignal<string>;
+}> = (
+  props: { events: ReadableSignal<DaemonEvent[]>; agentName?: ReadableSignal<string> },
+  ctx,
+)=> {
   let scrollRef: HTMLDivElement | null = null;
+  let scrollListenerTarget: HTMLDivElement | null = null;
   let userScrolledUp = false;
 
   function handleScroll() {
@@ -128,7 +125,13 @@ export function EventList(props: { events: ReadableSignal<DaemonEvent[]>; agentN
     // Defer scroll to after DOM update
     queueMicrotask(scrollToBottom);
   });
-  onCleanup(unsub);
+  ctx.onCleanup(unsub);
+  ctx.onCleanup(() => {
+    if (scrollListenerTarget) {
+      scrollListenerTarget.removeEventListener("scroll", handleScroll);
+      scrollListenerTarget = null;
+    }
+  });
 
   const body = computed(props.events, (list) => {
     if (list.length === 0) {
@@ -152,7 +155,7 @@ export function EventList(props: { events: ReadableSignal<DaemonEvent[]>; agentN
           <div class={styles.itemMeta}>
             <span class={styles.itemDot} />
             <span class={styles.itemLabel}>{eventLabel(event)}</span>
-            <span class={styles.itemTime}>{formatEventTime(event.ts)}</span>
+            <span class={styles.itemTime}>{formatDateTime(event.ts)}</span>
           </div>
           <div class={styles.itemBody}>{body}</div>
         </div>
@@ -164,13 +167,17 @@ export function EventList(props: { events: ReadableSignal<DaemonEvent[]>; agentN
     <div
       class={styles.container}
       ref={(el: HTMLDivElement | null) => {
+        if (scrollListenerTarget) {
+          scrollListenerTarget.removeEventListener("scroll", handleScroll);
+          scrollListenerTarget = null;
+        }
         scrollRef = el;
         if (!el) return;
         el.addEventListener("scroll", handleScroll, { passive: true });
-        onCleanup(() => el.removeEventListener("scroll", handleScroll));
+        scrollListenerTarget = el;
       }}
     >
       {body}
     </div>
   );
-}
+};

@@ -1,7 +1,7 @@
 /** @jsxImportSource semajsx/dom */
 
+import type { RuntimeComponent } from "semajsx";
 import { computed } from "semajsx/signal";
-import { onCleanup } from "semajsx/dom";
 import {
   daemonEvents,
   loadDaemonEvents,
@@ -9,16 +9,17 @@ import {
   stopDaemonEventStream,
   isDaemonStreaming,
 } from "../stores/daemon-events.ts";
+import { formatDateTime } from "../utils/time.ts";
 import * as styles from "./global-events-view.style.ts";
 
-export function GlobalEventsView() {
+export const GlobalEventsView: RuntimeComponent<Record<string, never>> = (_props, ctx) => {
   let cancelled = false;
 
   loadDaemonEvents().then(() => {
     if (!cancelled) startDaemonEventStream();
   });
 
-  onCleanup(() => {
+  ctx.onCleanup(() => {
     cancelled = true;
     stopDaemonEventStream();
   });
@@ -42,7 +43,7 @@ export function GlobalEventsView() {
         {reversed.map((evt) => (
           <div class={styles.eventItem}>
             <span class={styles.eventTime}>
-              {new Date(evt.ts).toLocaleTimeString()}
+              {formatDateTime(evt.ts)}
             </span>
             <span class={styles.eventType}>{evt.type}</span>
             <span class={styles.eventAgent}>
@@ -73,4 +74,4 @@ export function GlobalEventsView() {
       </div>
     </div>
   );
-}
+};

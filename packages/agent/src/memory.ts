@@ -45,9 +45,10 @@ export class InMemoryMemoryStorage implements MemoryStorage {
  */
 export class MemoryManager {
   private storage: MemoryStorage;
-  private extractAt: "checkpoint" | "idle" | "never";
+  private extractAt: "checkpoint" | "event" | "idle" | "never";
   private maxInjected: number;
   private extractMemories?: (turns: Turn[]) => Promise<string[]>;
+  private seenMemoryTexts = new Set<string>();
 
   constructor(config: MemoryConfig) {
     this.storage = config.storage ?? new InMemoryMemoryStorage();
@@ -73,6 +74,9 @@ export class MemoryManager {
     }
 
     for (const text of memories) {
+      const normalized = this.normalizeText(text);
+      if (!normalized || this.seenMemoryTexts.has(normalized)) continue;
+      this.seenMemoryTexts.add(normalized);
       await this.storage.add({
         text,
         source,
@@ -100,8 +104,11 @@ export class MemoryManager {
   }
 
   /** Should extract at this point? */
-  shouldExtract(trigger: "checkpoint" | "idle"): boolean {
+  shouldExtract(trigger: "checkpoint" | "event" | "idle"): boolean {
     if (this.extractAt === "never") return false;
+    if (this.extractAt === "event") {
+      return trigger === "event" || trigger === "checkpoint";
+    }
     return this.extractAt === trigger;
   }
 
@@ -118,5 +125,9 @@ export class MemoryManager {
       }
     }
     return memories.slice(0, 5);
+  }
+
+  private normalizeText(text: string): string {
+    return text.trim().replace(/\s+/g, " ").toLowerCase();
   }
 }

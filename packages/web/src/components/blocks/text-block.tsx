@@ -61,7 +61,8 @@ export function TextBlock(props: { event: DaemonEvent }) {
     return (
       <div
         class={styles.block}
-        ref={(el: HTMLDivElement) => {
+        ref={(el: HTMLDivElement | null) => {
+          if (!el) return;
           el.innerHTML = renderMarkdown(text);
         }}
       />

@@ -1,7 +1,7 @@
 import { test, expect, describe } from "bun:test";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { DaemonEventLog } from "../src/event-log.ts";
 
 function tmpDataDir(): string {
@@ -52,5 +52,25 @@ describe("DaemonEventLog", () => {
     const second = await log.read(first.cursor);
     expect(second.entries).toHaveLength(1);
     expect(second.entries[0]!.type).toBe("agent_created");
+  });
+
+  test("init preserves existing event history", async () => {
+    const dataDir = tmpDataDir();
+    const log1 = new DaemonEventLog(dataDir);
+    await log1.init();
+    log1.append("daemon_started", { port: 3000 });
+
+    const original = readFileSync(log1.path, "utf-8");
+    expect(original).toContain("daemon_started");
+
+    const log2 = new DaemonEventLog(dataDir);
+    await log2.init();
+
+    const afterRestart = readFileSync(log2.path, "utf-8");
+    expect(afterRestart).toBe(original);
+
+    const { entries } = await log2.read(0);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]!.type).toBe("daemon_started");
   });
 });

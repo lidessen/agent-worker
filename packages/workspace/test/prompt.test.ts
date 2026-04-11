@@ -4,6 +4,7 @@ import { MemoryStorage } from "../src/context/storage.ts";
 import { createWorkspace } from "../src/factory.ts";
 import type { InboxEntry } from "../src/types.ts";
 import { renderPromptDocument } from "../src/loop/prompt-ui.tsx";
+import type { PromptSectionNode } from "../src/loop/prompt-ui.tsx";
 
 function makeInboxEntry(overrides: Partial<InboxEntry> = {}): InboxEntry {
   return {
@@ -19,7 +20,7 @@ function makeInboxEntry(overrides: Partial<InboxEntry> = {}): InboxEntry {
 }
 
 function renderSectionResult(
-  result: Awaited<ReturnType<typeof soulSection>>,
+  result: PromptSectionNode | PromptSectionNode[] | null,
 ): string | null {
   if (!result) return null;
   return renderPromptDocument(Array.isArray(result) ? result : [result]);

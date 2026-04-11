@@ -23,6 +23,7 @@ export class ManagedAgent {
   private _eventsPath?: string;
   private _inboxPath?: string;
   private _timelinePath?: string;
+  private _currentResponseText = "";
 
   constructor(opts: {
     name: string;
@@ -96,11 +97,16 @@ export class ManagedAgent {
     });
 
     this.agent.on("runStart", (info) => {
+      this._currentResponseText = "";
       this._appendEvent({ type: "run_start", runNumber: info.runNumber, trigger: info.trigger });
       this._appendTimeline({ type: "run_start", runNumber: info.runNumber, trigger: info.trigger });
     });
 
     this.agent.on("runEnd", (result) => {
+      if (this._currentResponseText.trim()) {
+        this._appendResponse({ type: "text", text: this._currentResponseText });
+      }
+      this._currentResponseText = "";
       this._appendEvent({
         type: "run_end",
         durationMs: result.durationMs,
@@ -116,15 +122,38 @@ export class ManagedAgent {
     this.agent.on("event", (event: LoopEvent) => {
       if (event.type === "text") {
         this._appendEvent({ type: "text", text: event.text });
-        this._appendResponse({ type: "text", text: event.text });
+        this._currentResponseText += event.text;
       } else if (event.type === "tool_call_start") {
-        this._appendEvent({ type: "tool_call_start", name: event.name, args: event.args });
+        this._appendEvent({
+          type: "runtime_event",
+          eventKind: "tool",
+          phase: "start",
+          name: event.name,
+          callId: event.callId,
+          args: event.args,
+        });
       } else if (event.type === "tool_call_end") {
         this._appendEvent({
-          type: "tool_call_end",
+          type: "runtime_event",
+          eventKind: "tool",
+          phase: "end",
           name: event.name,
+          callId: event.callId,
           result: event.result,
           durationMs: event.durationMs,
+          error: event.error,
+        });
+      } else if (event.type === "hook") {
+        this._appendEvent({
+          type: "runtime_event",
+          eventKind: "hook",
+          phase: event.phase,
+          name: event.name,
+          hookEvent: event.hookEvent,
+          output: event.output,
+          stdout: event.stdout,
+          stderr: event.stderr,
+          outcome: event.outcome,
         });
       } else if (event.type === "thinking") {
         this._appendEvent({ type: "thinking", text: event.text });

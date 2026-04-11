@@ -6,7 +6,10 @@ export { Inbox } from "./inbox.ts";
 export { TodoManager } from "./todo.ts";
 export { InMemoryNotesStorage } from "./notes.ts";
 export { SendGuard } from "./send.ts";
-export { ContextEngine } from "./context-engine.ts";
+export {
+  ContextEngine,
+  DefaultContextSourceProvider,
+} from "./context-engine.ts";
 export { MemoryManager, InMemoryMemoryStorage } from "./memory.ts";
 export { ReminderManager } from "./reminder.ts";
 export { RunCoordinator } from "./run-coordinator.ts";
@@ -49,6 +52,12 @@ export type {
   AssembledPrompt,
   ContextConfig,
   ToolKitConfig,
+  RuntimeHooksConfig,
   Message,
   RunInfo,
 } from "./types.ts";
+export type {
+  ContextSources,
+  ContextSnapshot,
+  ContextSourceProvider,
+} from "./context-engine.ts";

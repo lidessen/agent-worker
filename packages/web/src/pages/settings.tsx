@@ -1,8 +1,8 @@
 /** @jsxImportSource semajsx/dom */
 
+import type { RuntimeComponent } from "semajsx";
 import { Icon, Drama } from "semajsx/icons";
 import { signal, computed } from "semajsx/signal";
-import { onCleanup } from "semajsx/dom";
 import { when } from "semajsx";
 import { WebClient } from "../api/client.ts";
 import {
@@ -118,7 +118,7 @@ function loadConfig(): { baseUrl: string; token: string } {
   return { baseUrl: "http://localhost:7420", token: "" };
 }
 
-export function SettingsPage() {
+export const SettingsPage: RuntimeComponent<Record<string, never>> = (_props, ctx) => {
   const saved = loadConfig();
   let urlInput: HTMLInputElement | null = null;
   let tokenInput: HTMLInputElement | null = null;
@@ -177,7 +177,7 @@ export function SettingsPage() {
       // ignore background refresh failure
     });
   });
-  onCleanup(unsubClient);
+  ctx.onCleanup(unsubClient);
 
   // Fetch health info if already connected
   if (isConnected.value && client.value) {
@@ -199,7 +199,9 @@ export function SettingsPage() {
               type="text"
               placeholder="http://localhost:7420"
               value={saved.baseUrl}
-              ref={(el: HTMLInputElement) => { urlInput = el; }}
+              ref={(el: HTMLInputElement | null) => {
+                urlInput = el;
+              }}
             />
           </div>
 
@@ -210,7 +212,9 @@ export function SettingsPage() {
               type="password"
               placeholder="Bearer token"
               value={saved.token}
-              ref={(el: HTMLInputElement) => { tokenInput = el; }}
+              ref={(el: HTMLInputElement | null) => {
+                tokenInput = el;
+              }}
             />
           </div>
 
@@ -265,4 +269,4 @@ export function SettingsPage() {
       </div>
     </div>
   );
-}
+};

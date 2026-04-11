@@ -29,3 +29,6 @@ export async function deleteWorkspace(key: string) {
 client.subscribe((c) => {
   if (c) fetchWorkspaces();
 });
+
+// Handle case where client is already connected when this module loads.
+if (client.value) fetchWorkspaces();

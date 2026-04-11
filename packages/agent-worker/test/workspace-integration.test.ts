@@ -18,6 +18,18 @@ storage: memory
 kickoff: "@alice Hello from kickoff"
 `;
 
+const TASK_YAML = `
+name: task-ws
+agents:
+  alice:
+    runtime: mock
+    instructions: You are Alice.
+channels:
+  - general
+storage: memory
+kickoff: "@alice Finish the task"
+`;
+
 describe("Unified daemon (workspace routes)", () => {
   let daemon: Daemon | null = null;
   let client: AwClient;
@@ -146,6 +158,11 @@ describe("Unified daemon (workspace routes)", () => {
     }
     // Should have workspace.created, workspace.kickoff events
     expect(result.entries.length).toBeGreaterThan(0);
+    const types = result.entries.map((entry) => entry.type);
+    expect(types).toContain("workspace.created");
+    expect(types).toContain("workspace.kickoff");
+    expect(types).not.toContain("workspace.agent_prompt_ready");
+    expect(types).not.toContain("workspace.agent_tools");
   });
 
   test("shutdown via HTTP", async () => {
@@ -157,5 +174,14 @@ describe("Unified daemon (workspace routes)", () => {
     // Workspace should be removed
     const workspaces = await client.listWorkspaces();
     expect(workspaces.find((w) => w.name === "test-ws")).toBeUndefined();
+  });
+
+  test("task workspace wait completes after work drains", async () => {
+    await setup();
+    const wsInfo = await client.createWorkspace(TASK_YAML, { mode: "task" });
+    expect(wsInfo.mode).toBe("task");
+
+    const result = await client.waitWorkspace("task-ws", "5s");
+    expect(result.status).toBe("completed");
   });
 });

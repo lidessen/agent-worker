@@ -3,7 +3,12 @@ import type { Workspace } from "@agent-worker/workspace";
 import type { ResolvedWorkspace } from "@agent-worker/workspace";
 import type { WorkspaceOrchestrator } from "./orchestrator.ts";
 import type { EventBus } from "@agent-worker/shared";
-import type { ManagedWorkspaceInfo, WorkspaceMode, WorkspaceStatus } from "./types.ts";
+import type {
+  ManagedWorkspaceInfo,
+  WorkspaceMode,
+  WorkspaceStatus,
+  WorkspaceOverviewEventType,
+} from "./types.ts";
 
 /**
  * ManagedWorkspace wraps a Workspace + its agent loops with lifecycle management.
@@ -108,9 +113,7 @@ export class ManagedWorkspace {
       from: "user",
       content: this.resolved.kickoff,
     });
-    this._bus?.emit({
-      type: "workspace.kickoff",
-      source: "workspace",
+    this.emitOverviewEvent("workspace.kickoff", {
       workspace: this.key,
       channel,
       content: this.resolved.kickoff.slice(0, 200),
@@ -123,13 +126,28 @@ export class ManagedWorkspace {
   }
 
   /**
-   * Check if all local agents are idle with empty inboxes (task completion).
-   * Returns "completed" if all idle, "failed" if any loop failed fatally, "running" otherwise.
+   * Check if all local agents are idle with no queued or inbox work.
+   * Returns "completed" if drained, "failed" if any loop failed fatally, "running" otherwise.
    */
-  checkCompletion(): WorkspaceStatus {
+  async checkCompletion(): Promise<WorkspaceStatus> {
     if (this.loops.some((l) => l.isFailed)) return "failed";
-    const allStopped = this.loops.every((l) => !l.isRunning);
-    if (!allStopped) return "running";
+
+    const agentNames = new Set(this.resolved.agents.map((a) => a.name));
+    const statuses = await this.workspace.contextProvider.status.getAll();
+    const allIdle = statuses
+      .filter((entry) => agentNames.has(entry.name))
+      .every((entry) => entry.status === "idle");
+    if (!allIdle) return "running";
+
+    const queued = this.workspace.instructionQueue.listAll()
+      .some((instruction) => agentNames.has(instruction.agentName));
+    if (queued) return "running";
+
+    for (const agentName of agentNames) {
+      const inboxEntries = await this.workspace.contextProvider.inbox.inspect(agentName);
+      if (inboxEntries.length > 0) return "running";
+    }
+
     return "completed";
   }
 
@@ -156,11 +174,7 @@ export class ManagedWorkspace {
   complete(status: "completed" | "failed"): void {
     this._status = status;
     this._persistStatus();
-    this._bus?.emit({
-      type: `workspace.${status}`,
-      source: "workspace",
-      workspace: this.key,
-    });
+    this.emitOverviewEvent(`workspace.${status}`, { workspace: this.key });
   }
 
   /** Stop this workspace and all its loops. */
@@ -175,10 +189,13 @@ export class ManagedWorkspace {
       }
     }
     await this.workspace.shutdown();
-    this._bus?.emit({
-      type: "workspace.stopped",
-      source: "workspace",
-      workspace: this.key,
-    });
+    this.emitOverviewEvent("workspace.stopped", { workspace: this.key });
+  }
+
+  private emitOverviewEvent(
+    type: WorkspaceOverviewEventType,
+    data: Record<string, unknown>,
+  ): void {
+    this._bus?.emit({ type, source: "workspace", ...data });
   }
 }

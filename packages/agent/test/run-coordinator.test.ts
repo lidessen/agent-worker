@@ -5,7 +5,7 @@ import { TodoManager } from "../src/todo.ts";
 import { InMemoryNotesStorage } from "../src/notes.ts";
 import { ContextEngine } from "../src/context-engine.ts";
 import { ReminderManager } from "../src/reminder.ts";
-import type { AgentLoop } from "../src/types.ts";
+import type { Turn, AgentLoop } from "../src/types.ts";
 import type { LoopRun, LoopResult, LoopEvent, LoopStatus } from "@agent-worker/loop";
 
 function createMockLoop(
@@ -57,6 +57,103 @@ function createMockLoop(
     setPrepareStep() {},
   };
   return mock;
+}
+
+function createEventLoop(
+  steps: Array<{ event: LoopEvent; delayMs?: number }>,
+  durationMs = 75,
+): AgentLoop & { lastInput: string | { system: string; prompt: string } | null; runCount: number } {
+  const mock: AgentLoop & {
+    lastInput: string | { system: string; prompt: string } | null;
+    runCount: number;
+    _status: LoopStatus;
+  } = {
+    supports: ["directTools"],
+    lastInput: null,
+    runCount: 0,
+    _status: "idle" as LoopStatus,
+
+    get status(): LoopStatus {
+      return mock._status;
+    },
+
+    run(input: string | { system: string; prompt: string }): LoopRun {
+      mock.lastInput = input;
+      mock.runCount++;
+
+      const loopResult: LoopResult = {
+        events: steps.map((step) => step.event),
+        usage: { inputTokens: 20, outputTokens: 10, totalTokens: 30 },
+        durationMs,
+      };
+
+      const result = Promise.resolve().then(() => {
+        mock._status = "completed";
+        return loopResult;
+      });
+
+      return {
+        async *[Symbol.asyncIterator]() {
+          for (const step of steps) {
+            if (step.delayMs) {
+              await new Promise((resolve) => setTimeout(resolve, step.delayMs));
+            }
+            yield step.event;
+          }
+        },
+        result,
+      };
+    },
+
+    cancel() {
+      mock._status = "cancelled";
+    },
+
+    setTools() {},
+    setPrepareStep() {},
+  };
+  return mock;
+}
+
+function createRecordingMemory() {
+  const extractCalls: Array<{ turns: Turn[]; source: string }> = [];
+  const memory = {
+    extractCalls,
+    shouldExtract(trigger: "checkpoint" | "event" | "idle") {
+      return trigger === "checkpoint" || trigger === "event";
+    },
+    async extract(turns: Turn[], source: string) {
+      extractCalls.push({
+        turns: turns.map((turn) => ({ ...turn })),
+        source,
+      });
+    },
+    async formatForPrompt() {
+      return "";
+    },
+    async recall() {
+      return [];
+    },
+    async search() {
+      return [];
+    },
+    storageBackend: {
+      async add() {
+        return "mem_test";
+      },
+      async list() {
+        return [];
+      },
+      async remove() {},
+      async search() {
+        return [];
+      },
+    },
+  };
+
+  return memory as unknown as import("../src/memory.ts").MemoryManager & {
+    extractCalls: Array<{ turns: Turn[]; source: string }>;
+  };
 }
 
 function createCoordinator(loop?: ReturnType<typeof createMockLoop>) {
@@ -151,6 +248,7 @@ describe("RunCoordinator", () => {
     const input = loop.lastInput as { system: string; prompt: string };
     expect(input.system).toContain("[ROLE]");
     expect(input.prompt).toContain("[notification]");
+    expect(input.prompt).toContain("fix the bug");
   });
 
   test("processLoop runs until idle", async () => {
@@ -248,6 +346,105 @@ describe("RunCoordinator", () => {
     });
     expect(result.system).toBeDefined();
     expect(result.system).toContain("Be helpful");
+  });
+
+  test("processLoop extracts memories at event and checkpoint boundaries", async () => {
+    const loop = createEventLoop([
+      {
+        event: { type: "text", text: "First assistant sentence with enough detail." },
+        delayMs: 300,
+      },
+      {
+        event: {
+          type: "tool_call_start",
+          name: "agent_notes",
+          callId: "call_1",
+          args: { note: "capture this" },
+        },
+      },
+      {
+        event: {
+          type: "tool_call_end",
+          name: "agent_notes",
+          callId: "call_1",
+          result: { ok: true },
+        },
+      },
+    ]);
+    const memory = createRecordingMemory();
+    const inbox = new Inbox({}, () => {});
+    const coordinator = new RunCoordinator({
+      loop,
+      inbox,
+      todos: new TodoManager(),
+      notes: new InMemoryNotesStorage(),
+      contextEngine: new ContextEngine(),
+      memory,
+      reminders: new ReminderManager(),
+      instructions: "Be helpful.",
+      maxRuns: 10,
+    });
+    inbox.push("trigger event extraction");
+
+    const outcome = await coordinator.processLoop({});
+
+    expect(outcome).toBe("idle");
+    expect(memory.extractCalls.length).toBeGreaterThanOrEqual(2);
+    expect(memory.extractCalls.some((call) => call.source.startsWith("run_1:event_"))).toBe(true);
+    expect(memory.extractCalls.some((call) => call.source === "run_1")).toBe(true);
+    expect(memory.extractCalls.some((call) => call.turns.some((turn) => turn.role === "tool"))).toBe(
+      true,
+    );
+  });
+
+  test("processLoop keeps fallback tool ids stable across assistant buffer flushes", async () => {
+    const loop = createEventLoop([
+      {
+        event: { type: "text", text: "Assistant text before tool." },
+      },
+      {
+        event: {
+          type: "tool_call_start",
+          name: "agent_notes",
+          args: { note: "capture this" },
+        },
+      },
+      {
+        event: { type: "text", text: "Assistant text before tool result." },
+      },
+      {
+        event: {
+          type: "tool_call_end",
+          name: "agent_notes",
+          result: { ok: true },
+        },
+      },
+    ]);
+
+    const inbox = new Inbox({}, () => {});
+    const memory = createRecordingMemory();
+    const coordinator = new RunCoordinator({
+      loop,
+      inbox,
+      todos: new TodoManager(),
+      notes: new InMemoryNotesStorage(),
+      contextEngine: new ContextEngine(),
+      memory,
+      reminders: new ReminderManager(),
+      instructions: "Be helpful.",
+      maxRuns: 10,
+    });
+    inbox.push("trigger tool fallback");
+
+    await coordinator.processLoop({});
+
+    const toolTurns = memory.extractCalls
+      .flatMap((call) => call.turns)
+      .filter((turn) => turn.role === "tool");
+    expect(toolTurns.some((turn) => turn.content.includes("args={\"note\":\"capture this\"}"))).toBe(
+      true,
+    );
+    expect(toolTurns.some((turn) => turn.content.includes("result={\"ok\":true}"))).toBe(true);
   });
 
   test("processLoop returns error when loop throws", async () => {

@@ -219,4 +219,100 @@ describe("Workspace", () => {
     expect(msgs2).toHaveLength(1);
     expect(msgs2[0]!.content).toBe("msg in pr-456");
   });
+
+  test("reuses persisted status and inbox state on restart", async () => {
+    const storage = new MemoryStorage();
+    const ws1 = await createWorkspace({
+      name: "recoverable",
+      agents: ["alice"],
+      storage,
+    });
+
+    await ws1.contextProvider.status.set("alice", "paused", "waiting for quota");
+    await ws1.contextProvider.send({
+      channel: "general",
+      from: "user",
+      content: "@alice please continue",
+    });
+    await ws1.contextProvider.inbox.markSeen("alice", (await ws1.contextProvider.inbox.peek("alice"))[0]!.messageId);
+    await ws1.shutdown();
+
+    const ws2 = await createWorkspace({
+      name: "recoverable",
+      agents: ["alice"],
+      storage,
+    });
+
+    const aliceStatus = await ws2.contextProvider.status.get("alice");
+    expect(aliceStatus?.status).toBe("paused");
+    expect(aliceStatus?.currentTask).toBe("waiting for quota");
+
+    await ws2.contextProvider.inbox.markRunStart("alice");
+    const inbox = await ws2.contextProvider.inbox.peek("alice");
+    expect(inbox).toHaveLength(1);
+    expect(inbox[0]!.from).toBe("user");
+  });
+
+  test("snapshotState returns a unified workspace view", async () => {
+    await workspace.contextProvider.send({
+      channel: "general",
+      from: "user",
+      content: "@alice inspect this workspace",
+    });
+    await workspace.contextProvider.status.set("alice", "running", "Inspecting state");
+    await workspace.contextProvider.chronicle.append({
+      author: "alice",
+      category: "plan",
+      content: "Collect current workspace state",
+    });
+    workspace.instructionQueue.enqueue({
+      id: "instr-1",
+      agentName: "alice",
+      messageId: "msg-1",
+      channel: "general",
+      content: "Inspect current state",
+      priority: "normal",
+      enqueuedAt: new Date().toISOString(),
+    });
+
+    const snapshot = await workspace.snapshotState();
+
+    expect(snapshot.name).toBe("test-workspace");
+    expect(snapshot.channels).toContain("general");
+    expect(snapshot.queuedInstructions).toHaveLength(1);
+    expect(snapshot.chronicle).toHaveLength(1);
+    expect(snapshot.agents).toHaveLength(2);
+    const alice = snapshot.agents.find((agent) => agent.name === "alice");
+    expect(alice?.status).toBe("running");
+    expect(alice?.currentTask).toBe("Inspecting state");
+    expect(alice?.inbox).toHaveLength(1);
+    expect(alice?.recentActivity).toEqual([]);
+  });
+
+  test("snapshotState includes seen and deferred inbox entries without mutating them", async () => {
+    await workspace.contextProvider.send({
+      channel: "general",
+      from: "user",
+      content: "@alice first task",
+    });
+    await workspace.contextProvider.send({
+      channel: "general",
+      from: "user",
+      content: "@alice second task",
+    });
+
+    const pending = await workspace.contextProvider.inbox.peek("alice");
+    await workspace.contextProvider.inbox.markSeen("alice", pending[0]!.messageId);
+    await workspace.contextProvider.inbox.defer(
+      "alice",
+      pending[1]!.messageId,
+      new Date(Date.now() + 60_000).toISOString(),
+    );
+
+    const snapshot = await workspace.snapshotState();
+    const alice = snapshot.agents.find((agent) => agent.name === "alice");
+
+    expect(alice?.inbox.map((entry) => entry.state)).toEqual(["seen", "deferred"]);
+    expect(await workspace.contextProvider.inbox.peek("alice")).toHaveLength(0);
+  });
 });

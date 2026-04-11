@@ -846,7 +846,7 @@ export class Daemon {
       if (globalWs) {
         const provider = globalWs.workspace.contextProvider;
         const statusEntry = (await provider.status.getAll()).find((s) => s.name === name);
-        const inboxEntries = await provider.inbox.peek(name);
+        const inboxEntries = await provider.inbox.inspect(name);
         const inbox = [];
         for (const entry of inboxEntries) {
           const msg = await provider.channels.getMessage(entry.channel, entry.messageId);
@@ -959,7 +959,7 @@ export class Daemon {
 
     // Poll until completion, failure, or timeout
     while (Date.now() < deadline) {
-      const status = handle.checkCompletion();
+      const status = await handle.checkCompletion();
       if (status !== "running") {
         handle.complete(status);
         const result = {
@@ -1088,7 +1088,7 @@ export class Daemon {
     const handle = resolved;
 
     const inbox = handle.workspace.contextProvider.inbox;
-    const entries = await inbox.peek(agentName);
+    const entries = await inbox.inspect(agentName);
     return Response.json({
       agent: agentName,
       entries: entries.map((e) => ({

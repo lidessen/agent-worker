@@ -3,6 +3,8 @@
 import { Icon, ChevronDown } from "semajsx/icons";
 import { computed } from "semajsx/signal";
 import type { Signal, ReadableSignal } from "semajsx/signal";
+import type { JSXNode } from "semajsx";
+import type { StyleToken } from "semajsx/style";
 import type { AgentState, InboxItem, TodoItem } from "../api/types.ts";
 import { inject } from "semajsx/style";
 import * as styles from "./agent-inspector.style.ts";
@@ -10,7 +12,7 @@ import * as styles from "./agent-inspector.style.ts";
 // Eagerly inject CSS for styles used in classList manipulation
 inject([styles.chevronOpen, styles.sectionBodyHidden]);
 
-const stateClasses: Record<string, string> = {
+const stateClasses: Record<string, StyleToken> = {
   idle: styles.stateIdle,
   running: styles.stateRunning,
   processing: styles.stateProcessing,
@@ -23,20 +25,23 @@ function CollapsibleSection(props: {
   title: string;
   countSuffix?: ReadableSignal<string>;
   defaultOpen?: boolean;
-  children: unknown;
+  children: JSXNode;
 }) {
   let open = props.defaultOpen ?? true;
-  let bodyEl: HTMLElement;
-  let chevronEl: HTMLElement;
+  let bodyEl: HTMLDivElement | null = null;
+  let chevronEl: HTMLSpanElement | null = null;
+  const hiddenClass = styles.sectionBodyHidden.toString();
+  const chevronOpenClass = styles.chevronOpen.toString();
 
   function toggle() {
     open = !open;
+    if (!bodyEl || !chevronEl) return;
     if (open) {
-      bodyEl.classList.remove(styles.sectionBodyHidden);
-      chevronEl.classList.add(styles.chevronOpen);
+      bodyEl.classList.remove(hiddenClass);
+      chevronEl.classList.add(chevronOpenClass);
     } else {
-      bodyEl.classList.add(styles.sectionBodyHidden);
-      chevronEl.classList.remove(styles.chevronOpen);
+      bodyEl.classList.add(hiddenClass);
+      chevronEl.classList.remove(chevronOpenClass);
     }
   }
 
@@ -53,14 +58,18 @@ function CollapsibleSection(props: {
         </span>
         <span
           class={[styles.chevron, open && styles.chevronOpen]}
-          ref={(el: HTMLElement) => { chevronEl = el; }}
+          ref={(el: HTMLSpanElement | null) => {
+            chevronEl = el;
+          }}
         >
           <Icon icon={ChevronDown} size={14} />
         </span>
       </div>
       <div
         class={[styles.sectionBody, !open && styles.sectionBodyHidden]}
-        ref={(el: HTMLElement) => { bodyEl = el; }}
+        ref={(el: HTMLDivElement | null) => {
+          bodyEl = el;
+        }}
       >
         {props.children}
       </div>

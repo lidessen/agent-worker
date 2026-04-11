@@ -1,8 +1,8 @@
 /** @jsxImportSource semajsx/dom */
 
+import type { RuntimeComponent } from "semajsx";
 import { Icon, Drama } from "semajsx/icons";
 import { signal, computed } from "semajsx/signal";
-import { onCleanup } from "semajsx/dom";
 import { client } from "../stores/connection.ts";
 import { agents } from "../stores/agents.ts";
 import { deleteWorkspace } from "../stores/workspaces.ts";
@@ -10,6 +10,7 @@ import { selectAgent, selectChannel, selectGlobalSettings } from "../stores/navi
 import { ClaudeIcon, CursorIcon, OpenAIIcon, VercelIcon } from "../components/brand-icons.tsx";
 import { ConfirmDialog } from "../components/confirm-dialog.tsx";
 import type { WorkspaceInfo, WorkspaceStatus, DaemonEvent } from "../api/types.ts";
+import { formatDateTime } from "../utils/time.ts";
 import * as styles from "./workspace-settings-view.style.ts";
 
 function runtimeIcon(runtime: string) {
@@ -29,7 +30,7 @@ function runtimeIcon(runtime: string) {
   }
 }
 
-export function WorkspaceSettingsView(props: { wsKey: string }) {
+export const WorkspaceSettingsView: RuntimeComponent<{ wsKey: string }> = (props, ctx) => {
   const workspace = signal<WorkspaceInfo | null>(null);
   const channels = signal<string[]>([]);
   const error = signal<string | null>(null);
@@ -68,7 +69,7 @@ export function WorkspaceSettingsView(props: { wsKey: string }) {
     }
   });
 
-  onCleanup(() => {
+  ctx.onCleanup(() => {
     unsubClient();
   });
 
@@ -159,7 +160,7 @@ export function WorkspaceSettingsView(props: { wsKey: string }) {
   const agentCount = computed(workspace, (ws) => ws?.agents.length ?? 0);
   const channelCount = computed(channels, (ch) => ch.length);
   const createdLabel = computed(workspace, (ws) =>
-    ws ? new Date(ws.createdAt).toLocaleString() : "—",
+    ws ? formatDateTime(ws.createdAt) : "—",
   );
 
   return (
@@ -293,7 +294,7 @@ export function WorkspaceSettingsView(props: { wsKey: string }) {
                 {events.map((evt) => (
                   <div class={styles.eventItem}>
                     <span class={styles.eventTime}>
-                      {new Date(evt.ts).toLocaleTimeString()}
+                      {formatDateTime(evt.ts)}
                     </span>
                     <span class={styles.eventType}>{evt.type}</span>
                     <span class={styles.eventDetail}>
@@ -334,4 +335,4 @@ export function WorkspaceSettingsView(props: { wsKey: string }) {
       />
     </div>
   );
-}
+};

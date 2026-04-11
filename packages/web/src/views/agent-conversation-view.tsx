@@ -1,7 +1,7 @@
 /** @jsxImportSource semajsx/dom */
 
+import type { RuntimeComponent } from "semajsx";
 import { signal, computed } from "semajsx/signal";
-import { onCleanup } from "semajsx/dom";
 import { client } from "../stores/connection.ts";
 import {
   fetchAgentState,
@@ -59,7 +59,7 @@ function StreamErrorBanner() {
   });
 }
 
-export function AgentConversationView(props: { name: string }) {
+export const AgentConversationView: RuntimeComponent<{ name: string }> = (props, ctx) => {
   const name = signal(props.name);
 
   const stateText = computed(agentState, (s) => s?.state ?? "unknown");
@@ -103,7 +103,7 @@ export function AgentConversationView(props: { name: string }) {
     }
   });
 
-  onCleanup(() => {
+  ctx.onCleanup(() => {
     stopStream();
     stopPolling();
     unsubClient();
@@ -138,4 +138,4 @@ export function AgentConversationView(props: { name: string }) {
       </div>
     </div>
   );
-}
+};

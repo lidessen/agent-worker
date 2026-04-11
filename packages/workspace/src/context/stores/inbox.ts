@@ -5,6 +5,8 @@ export class InboxStore implements InboxStoreInterface {
   private inboxes = new Map<string, Map<string, InboxEntry>>();
   /** One-shot listeners waiting for new inbox entries per agent. */
   private listeners = new Map<string, Array<() => void>>();
+  /** Agents whose inbox has already been loaded from storage. */
+  private loadedAgents = new Set<string>();
 
   constructor(private readonly storage: StorageBackend) {}
 
@@ -66,6 +68,13 @@ export class InboxStore implements InboxStoreInterface {
     );
   }
 
+  async inspect(agentName: string): Promise<InboxEntry[]> {
+    const inbox = this.getAgentInbox(agentName);
+    return [...inbox.values()]
+      .map((entry) => ({ ...entry }))
+      .sort((a, b) => new Date(a.enqueuedAt).getTime() - new Date(b.enqueuedAt).getTime());
+  }
+
   async ack(agentName: string, messageId: string): Promise<void> {
     const inbox = this.getAgentInbox(agentName);
     inbox.delete(messageId);
@@ -89,13 +98,17 @@ export class InboxStore implements InboxStoreInterface {
 
     if (entry.state === "pending") {
       entry.state = "seen";
+      await this.persistInbox(agentName);
     }
   }
 
   async markRunStart(agentName: string): Promise<void> {
-    // Clear all stale entries from previous runs
     const inbox = this.getAgentInbox(agentName);
-    inbox.clear();
+    for (const entry of inbox.values()) {
+      if (entry.state === "seen") {
+        entry.state = "pending";
+      }
+    }
     await this.persistInbox(agentName);
   }
 
@@ -106,6 +119,8 @@ export class InboxStore implements InboxStoreInterface {
 
   /** Load inbox from storage into memory. */
   async load(agentName: string): Promise<void> {
+    if (this.loadedAgents.has(agentName)) return;
+
     const lines = await this.storage.readLines(this.inboxPath(agentName));
     const inbox = this.getAgentInbox(agentName);
 
@@ -118,6 +133,7 @@ export class InboxStore implements InboxStoreInterface {
         // Skip malformed lines
       }
     }
+    this.loadedAgents.add(agentName);
   }
 
   /** Register a one-shot listener for when a new inbox entry arrives. */

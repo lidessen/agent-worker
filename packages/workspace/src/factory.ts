@@ -9,6 +9,8 @@ import type { PromptSection } from "./loop/prompt.tsx";
 export async function createWorkspace(config: WorkspaceConfig): Promise<Workspace> {
   const workspace = new Workspace(config);
 
+  await workspace.init();
+
   // Register agents
   if (config.agents) {
     for (const agent of config.agents) {
@@ -22,8 +24,6 @@ export async function createWorkspace(config: WorkspaceConfig): Promise<Workspac
       await workspace.bridge.addAdapter(adapter);
     }
   }
-
-  await workspace.init();
   return workspace;
 }
 

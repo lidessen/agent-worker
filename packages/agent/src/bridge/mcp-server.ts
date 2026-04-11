@@ -1,8 +1,10 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { createServer, type Server } from "node:http";
+import type { ToolSet } from "ai";
 import { z } from "zod";
-import { BUILTIN_TOOLS, createToolHandlers, type ToolHandlerDeps } from "../tool-registry.ts";
+import type { ToolHandlerDeps } from "../tool-registry.ts";
+import { createMcpToolDefinitions, type McpToolDefinition } from "./tool-adapter.ts";
 
 export type AgentMcpServerDeps = ToolHandlerDeps;
 
@@ -14,22 +16,16 @@ export type AgentMcpServerDeps = ToolHandlerDeps;
  * generic overloads cause excessively deep type instantiation when given
  * Record<string, ZodTypeAny>.
  */
-function registerToolForDef(
-  server: McpServer,
-  name: string,
-  def: import("../tool-registry.ts").ToolDef,
-  handler: import("../tool-registry.ts").ToolHandler,
-): void {
-  const registered = server.tool(name, def.description, async (extra) => {
+function registerTool(server: McpServer, toolDef: McpToolDefinition): void {
+  const registered = server.tool(toolDef.name, toolDef.description, async (extra) => {
     const args =
       (extra as { params?: { arguments?: Record<string, unknown> } }).params?.arguments ?? {};
-    const text = await handler(args);
-    return { content: [{ type: "text" as const, text }] };
+    return toolDef.handler(args);
   });
   // Attach the input schema so MCP clients can discover tool parameters.
   // Assign via bracket notation to avoid TS2589 deep type instantiation
   // that occurs when TypeScript resolves z.ZodTypeAny against AnySchema.
-  (registered as Record<string, unknown>)["inputSchema"] = buildObjectSchema(def.parameters);
+  (registered as Record<string, unknown>)["inputSchema"] = buildObjectSchema(toolDef.inputSchema);
 }
 
 /** Build a ZodObject from a dynamic parameter record. */
@@ -50,7 +46,10 @@ export class AgentMcpServer {
   private configPath: string | null = null;
   private _port: number | null = null;
 
-  constructor(private deps: AgentMcpServerDeps) {
+  constructor(
+    private deps: AgentMcpServerDeps,
+    private options: { includeBuiltins?: boolean; userTools?: ToolSet } = {},
+  ) {
     this.server = new McpServer({
       name: "agent-worker",
       version: "0.0.1",
@@ -64,14 +63,14 @@ export class AgentMcpServer {
   }
 
   private registerTools(): void {
-    const handlers = createToolHandlers(this.deps);
+    const tools = createMcpToolDefinitions({
+      deps: this.deps,
+      includeBuiltins: this.options.includeBuiltins !== false,
+      userTools: this.options.userTools,
+    });
 
-    for (const [name, def] of Object.entries(BUILTIN_TOOLS)) {
-      if (name === "agent_memory" && !this.deps.memory) continue;
-      const handler = handlers[name];
-      if (!handler) continue;
-
-      registerToolForDef(this.server, name, def, handler);
+    for (const toolDef of tools) {
+      registerTool(this.server, toolDef);
     }
   }
 

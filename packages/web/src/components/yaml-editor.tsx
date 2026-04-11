@@ -1,6 +1,5 @@
 /** @jsxImportSource semajsx/dom */
 
-import { onCleanup } from "semajsx/dom";
 import * as styles from "./yaml-editor.style.ts";
 
 export interface YamlEditorProps {
@@ -55,7 +54,7 @@ export function YamlEditor(props: YamlEditorProps) {
     <div class={styles.wrapper}>
       <div
         class={styles.gutter}
-        ref={(el: HTMLDivElement) => {
+        ref={(el: HTMLDivElement | null) => {
           gutterRef = el;
         }}
       >
@@ -67,8 +66,9 @@ export function YamlEditor(props: YamlEditorProps) {
         oninput={handleInput}
         onkeydown={handleKeydown}
         onscroll={syncScroll}
-        ref={(el: HTMLTextAreaElement) => {
+        ref={(el: HTMLTextAreaElement | null) => {
           textareaRef = el;
+          if (!el) return;
           el.value = props.value;
         }}
       />

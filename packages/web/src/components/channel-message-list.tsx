@@ -1,17 +1,18 @@
 /** @jsxImportSource semajsx/dom */
 
+import type { RuntimeComponent } from "semajsx";
 import { Icon, MessageCircle } from "semajsx/icons";
 import { computed } from "semajsx/signal";
 import type { ReadableSignal } from "semajsx/signal";
-import { onCleanup } from "semajsx/dom";
 import type { ChannelMessage } from "../api/types.ts";
 import { ChannelMessageItem } from "./channel-message.tsx";
 import * as styles from "./event-list.style.ts";
 
-export function ChannelMessageList(props: {
+export const ChannelMessageList: RuntimeComponent<{
   messages: ReadableSignal<ChannelMessage[]>;
-}) {
+}> = (props, ctx) => {
   let scrollRef: HTMLDivElement | null = null;
+  let scrollListenerTarget: HTMLDivElement | null = null;
   let userScrolledUp = false;
 
   function handleScroll() {
@@ -29,7 +30,13 @@ export function ChannelMessageList(props: {
   const unsub = props.messages.subscribe(() => {
     queueMicrotask(scrollToBottom);
   });
-  onCleanup(unsub);
+  ctx.onCleanup(unsub);
+  ctx.onCleanup(() => {
+    if (scrollListenerTarget) {
+      scrollListenerTarget.removeEventListener("scroll", handleScroll);
+      scrollListenerTarget = null;
+    }
+  });
 
   const body = computed(props.messages, (list) => {
     if (list.length === 0) {
@@ -51,13 +58,17 @@ export function ChannelMessageList(props: {
     <div
       class={styles.container}
       ref={(el: HTMLDivElement | null) => {
+        if (scrollListenerTarget) {
+          scrollListenerTarget.removeEventListener("scroll", handleScroll);
+          scrollListenerTarget = null;
+        }
         scrollRef = el;
         if (!el) return;
         el.addEventListener("scroll", handleScroll, { passive: true });
-        onCleanup(() => el.removeEventListener("scroll", handleScroll));
+        scrollListenerTarget = el;
       }}
     >
       {body}
     </div>
   );
-}
+};

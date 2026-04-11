@@ -1,6 +1,6 @@
 /** @jsxImportSource semajsx/dom */
 
-import type { JSXNode } from "semajsx/core";
+import type { JSXNode } from "semajsx";
 import { Icon, Drama } from "semajsx/icons";
 import { ClaudeIcon, CursorIcon, OpenAIIcon, VercelIcon } from "./brand-icons.tsx";
 import type { AgentInfo } from "../api/types.ts";
@@ -56,7 +56,7 @@ export function AgentCard(props: { agent: AgentInfo }) {
   }
 
   return (
-    <div class={styles.card} role="button" tabindex="0" onclick={handleClick}>
+    <div class={styles.card} role="button" tabIndex={0} onclick={handleClick}>
       <span class={styles.name}>{agent.name}</span>
       <div class={styles.statusRow}>
         <div class={styles.badge}>

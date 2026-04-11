@@ -4,6 +4,11 @@ let nextId = 1;
 
 export class TodoManager {
   private items: TodoItem[] = [];
+  private onChange: (() => void) | null = null;
+
+  setOnChange(fn: () => void): void {
+    this.onChange = fn;
+  }
 
   add(text: string): TodoItem {
     const item: TodoItem = {
@@ -12,6 +17,7 @@ export class TodoManager {
       status: "pending",
     };
     this.items.push(item);
+    this.onChange?.();
     return item;
   }
 
@@ -19,11 +25,13 @@ export class TodoManager {
     const item = this.items.find((i) => i.id === id);
     if (!item || item.status === "done") return false;
     item.status = "done";
+    this.onChange?.();
     return true;
   }
 
   clear(): void {
     this.items = [];
+    this.onChange?.();
   }
 
   list(): readonly TodoItem[] {

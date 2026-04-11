@@ -14,6 +14,7 @@ export class Inbox {
 
   /** Optional reminder manager — set via setReminders(). */
   private reminders: ReminderManager | null = null;
+  private onMessage: ((message: InboxMessage) => void) | null = null;
 
   constructor(
     config: InboxConfig = {},
@@ -28,6 +29,10 @@ export class Inbox {
     this.reminders = reminders;
   }
 
+  setOnMessage(fn: (message: InboxMessage) => void): void {
+    this.onMessage = fn;
+  }
+
   /** Push a message into the inbox. Triggers debounced wake if agent is idle. */
   push(input: string | Message): InboxMessage {
     const msg: InboxMessage = {
@@ -39,6 +44,7 @@ export class Inbox {
     };
     this.messages.push(msg);
     this.messageCounter++;
+    this.onMessage?.(msg);
 
     // Fire any pending inbox_wait reminders — message arrived
     if (this.reminders) {

@@ -102,6 +102,10 @@ export class WorkspaceOrchestrator {
     this.running = true;
     this.startedAt = Date.now();
 
+    // A new loop start defines a fresh run epoch: retry any inbox entries that
+    // were seen but never acked by a previous run.
+    await this.config.provider.inbox.markRunStart(this.config.name);
+
     // Check if this agent was paused before restart
     const allStatus = await this.config.provider.status.getAll();
     const prevStatus = allStatus.find((s) => s.name === this.config.name)?.status;
@@ -323,10 +327,16 @@ export class WorkspaceOrchestrator {
         await this.config.provider.inbox.ack(this.config.name, instruction.messageId);
       }
     } catch (err) {
+      if (instruction.messageId) {
+        await this.config.provider.inbox.defer(this.config.name, instruction.messageId);
+      }
       await this.config.eventLog.log(this.config.name, "system", `Instruction failed: ${err}`);
     }
 
-    await this.config.provider.status.set(this.config.name, "idle");
+    const currentStatus = this.config.provider.status.getCached(this.config.name)?.status;
+    if (this.running && !this.paused && currentStatus === "running") {
+      await this.config.provider.status.set(this.config.name, "idle");
+    }
   }
 
   private async buildPrompt(

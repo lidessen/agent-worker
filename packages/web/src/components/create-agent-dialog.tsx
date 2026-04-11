@@ -17,6 +17,7 @@ export function CreateAgentDialog() {
   const error = signal("");
   const loading = signal(false);
   const createBtnLabel = computed(loading, (l) => (l ? "Creating..." : "Create"));
+  const hasError = computed(error, (e) => e.length > 0);
 
   function close() {
     showCreateAgent.value = false;
@@ -105,7 +106,7 @@ export function CreateAgentDialog() {
           />
         </div>
 
-        {when(error, () => (
+        {when(hasError, () => (
           <div class={styles.error}>{error}</div>
         ))}
 
@@ -116,7 +117,7 @@ export function CreateAgentDialog() {
           <button
             class={styles.btnPrimary}
             onclick={handleCreate}
-            disabled={loading}
+            disabled={computed(loading, (l) => l)}
           >
             {createBtnLabel}
           </button>

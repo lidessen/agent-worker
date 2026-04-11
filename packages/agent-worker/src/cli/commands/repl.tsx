@@ -1,6 +1,6 @@
 /** @jsxImportSource semajsx/terminal */
-import { signal } from "semajsx";
-import { render, onCleanup, Static, TextInput } from "semajsx/terminal";
+import { signal, type RuntimeComponent } from "semajsx";
+import { render, Static, TextInput } from "semajsx/terminal";
 import { AwClient, ensureDaemon } from "../../client.ts";
 import { parseTarget } from "../target.ts";
 import { wantsHelp } from "../output.ts";
@@ -28,21 +28,21 @@ function highlightMentions(text: string): string {
   return text.replace(/@[\w-]+/g, (match) => c.yellow(match));
 }
 
-function ReplApp({
-  client,
-  target,
-  from,
-  json,
-  label,
-  onExit,
-}: {
+const ReplApp: RuntimeComponent<{
   client: AwClient;
   target: ReturnType<typeof parseTarget>;
   from: string | undefined;
   json: boolean;
   label: string;
   onExit: () => void;
-}) {
+}> = ({
+  client,
+  target,
+  from,
+  json,
+  label,
+  onExit,
+}, ctx) => {
   const messages = signal<Message[]>([]);
   const input = signal("");
   const activity = signal("");
@@ -55,7 +55,7 @@ function ReplApp({
       spinnerIdx.value = (spinnerIdx.value + 1) % SPINNER.length;
     }
   }, 80);
-  onCleanup(() => clearInterval(spinnerTimer));
+  ctx.onCleanup(() => clearInterval(spinnerTimer));
 
   // ── Status line (dynamic, re-renders) ─────────────────────────────
   const statusLine = () => {
@@ -81,7 +81,7 @@ function ReplApp({
 
   // ── Stream responses & events in background ─────────────────────────
   const controller = new AbortController();
-  onCleanup(() => controller.abort());
+  ctx.onCleanup(() => controller.abort());
 
   const seenIds = new Set<string>();
   const pushMessage = (entry: any) => {
@@ -108,7 +108,7 @@ function ReplApp({
       <TextInput value={input} onSubmit={onSubmit} placeholder="Type a message..." />
     </box>
   );
-}
+};
 
 // ── Message sending ───────────────────────────────────────────────────────
 

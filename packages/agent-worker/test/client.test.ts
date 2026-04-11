@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { mkdirSync } from "node:fs";
 
-function createMockLoop(response = "Hello!"): AgentLoop {
+function createMockLoop(response: string | string[] = "Hello!"): AgentLoop {
   const mock: AgentLoop & { _status: LoopStatus } = {
     supports: ["directTools"],
     _status: "idle" as LoopStatus,
@@ -16,9 +16,11 @@ function createMockLoop(response = "Hello!"): AgentLoop {
     },
     run(_prompt: string): LoopRun {
       mock._status = "running";
-      const textEvent: LoopEvent = { type: "text", text: response };
+      const textEvents = (Array.isArray(response) ? response : [response]).map(
+        (text): LoopEvent => ({ type: "text", text }),
+      );
       const loopResult: LoopResult = {
-        events: [textEvent],
+        events: textEvents,
         usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
         durationMs: 10,
       };
@@ -28,7 +30,7 @@ function createMockLoop(response = "Hello!"): AgentLoop {
       });
       return {
         async *[Symbol.asyncIterator]() {
-          yield textEvent;
+          for (const event of textEvents) yield event;
         },
         result,
       };
@@ -109,6 +111,27 @@ describe("AwClient", () => {
     );
   });
 
+  test("readResponses aggregates streamed text into one response entry", async () => {
+    await setup();
+    await daemon.agentRegistry.create({
+      name: "streamy",
+      config: {
+        name: "streamy",
+        instructions: "be streamy",
+        loop: createMockLoop(["Hello", " ", "world"]),
+        inbox: { debounceMs: 0 },
+      },
+    });
+
+    await client.sendToAgent("streamy", [{ content: "hello" }]);
+    await Bun.sleep(200);
+
+    const result = await client.readResponses("streamy", { cursor: 0 });
+    const textEntries = result.entries.filter((e: any) => e.type === "text");
+    expect(textEntries).toHaveLength(1);
+    expect((textEntries[0] as any).text).toBe("Hello world");
+  });
+
   test("getAgentState", async () => {
     await setup();
     await daemon.agentRegistry.create({
@@ -120,6 +143,87 @@ describe("AwClient", () => {
     expect(state.state).toBeDefined();
     expect(Array.isArray(state.inbox)).toBe(true);
     expect(typeof state.history).toBe("number");
+  });
+
+  test("readAgentEvents returns runtime_event entries for tools", async () => {
+    await setup();
+    const loop: AgentLoop = {
+      supports: [],
+      _status: "idle" as LoopStatus,
+      get status(): LoopStatus {
+        return this._status;
+      },
+      run(): LoopRun {
+        this._status = "running";
+        const events: LoopEvent[] = [
+          {
+            type: "tool_call_start",
+            name: "agent_todo",
+            callId: "call_1",
+            args: { action: "add", text: "Write tests" },
+          },
+          {
+            type: "tool_call_end",
+            name: "agent_todo",
+            callId: "call_1",
+            result: "ok",
+            durationMs: 12,
+          },
+        ];
+        const result = Promise.resolve().then(() => {
+          this._status = "completed";
+          return {
+            events,
+            usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+            durationMs: 10,
+          } satisfies LoopResult;
+        });
+        return {
+          async *[Symbol.asyncIterator]() {
+            for (const event of events) yield event;
+          },
+          result,
+        };
+      },
+      cancel() {
+        this._status = "cancelled";
+      },
+      setMcpConfig() {},
+    } as AgentLoop & { _status: LoopStatus };
+
+    await daemon.agentRegistry.create({
+      name: "runtime-events",
+      config: {
+        name: "runtime-events",
+        instructions: "test",
+        loop,
+        inbox: { debounceMs: 0 },
+      },
+    });
+
+    await client.sendToAgent("runtime-events", [{ content: "go" }]);
+    await Bun.sleep(200);
+
+    const result = await client.readAgentEvents("runtime-events", 0);
+    expect(
+      result.entries.some(
+        (e: any) =>
+          e.type === "runtime_event" &&
+          e.eventKind === "tool" &&
+          e.phase === "start" &&
+          e.name === "agent_todo",
+      ),
+    ).toBe(true);
+    expect(
+      result.entries.some(
+        (e: any) =>
+          e.type === "runtime_event" &&
+          e.eventKind === "tool" &&
+          e.phase === "end" &&
+          e.name === "agent_todo" &&
+          e.callId === "call_1",
+      ),
+    ).toBe(true);
   });
 
   test("removeAgent", async () => {

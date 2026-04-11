@@ -83,8 +83,9 @@ export function DocViewer(props: { wsKey: string; docName: string }) {
       return (
         <textarea
           class={styles.editArea}
-          ref={(el: HTMLTextAreaElement) => {
+          ref={(el: HTMLTextAreaElement | null) => {
             textareaRef = el;
+            if (!el) return;
             el.value = content.value;
           }}
         />
