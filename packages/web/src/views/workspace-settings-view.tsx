@@ -10,6 +10,7 @@ import { selectAgent, selectChannel, selectGlobalSettings } from "../stores/navi
 import { ClaudeIcon, CursorIcon, OpenAIIcon, VercelIcon } from "../components/brand-icons.tsx";
 import { ConfirmDialog } from "../components/confirm-dialog.tsx";
 import type { WorkspaceInfo, WorkspaceStatus, DaemonEvent } from "../api/types.ts";
+import { formatDateTime } from "../utils/time.ts";
 import * as styles from "./workspace-settings-view.style.ts";
 
 function runtimeIcon(runtime: string) {
@@ -159,7 +160,7 @@ export const WorkspaceSettingsView: RuntimeComponent<{ wsKey: string }> = (props
   const agentCount = computed(workspace, (ws) => ws?.agents.length ?? 0);
   const channelCount = computed(channels, (ch) => ch.length);
   const createdLabel = computed(workspace, (ws) =>
-    ws ? new Date(ws.createdAt).toLocaleString() : "—",
+    ws ? formatDateTime(ws.createdAt) : "—",
   );
 
   return (
@@ -293,7 +294,7 @@ export const WorkspaceSettingsView: RuntimeComponent<{ wsKey: string }> = (props
                 {events.map((evt) => (
                   <div class={styles.eventItem}>
                     <span class={styles.eventTime}>
-                      {new Date(evt.ts).toLocaleTimeString()}
+                      {formatDateTime(evt.ts)}
                     </span>
                     <span class={styles.eventType}>{evt.type}</span>
                     <span class={styles.eventDetail}>
