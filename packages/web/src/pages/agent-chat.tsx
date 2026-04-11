@@ -1,6 +1,6 @@
 /** @jsxImportSource semajsx/dom */
 
-import type { ComponentAPI } from "semajsx";
+import type { RuntimeComponent } from "semajsx";
 import { computed } from "semajsx/signal";
 import { route, navigate } from "../router.ts";
 import { client } from "../stores/connection.ts";
@@ -64,7 +64,7 @@ function StreamErrorBanner() {
   });
 }
 
-export function AgentChatPage(_props: Record<string, never>, ctx?: ComponentAPI) {
+export const AgentChatPage: RuntimeComponent<Record<string, never>> = (_props, ctx) => {
   const name = computed(route, (r) =>
     r.page === "agent-chat" ? r.params.name : "",
   );
@@ -83,17 +83,20 @@ export function AgentChatPage(_props: Record<string, never>, ctx?: ComponentAPI)
 
   // Inspector toggle state
   let inspectorVisible = false;
-  let inspectorEl: HTMLElement;
-  let toggleBtnEl: HTMLElement;
+  let inspectorEl: HTMLDivElement | null = null;
+  let toggleBtnEl: HTMLButtonElement | null = null;
+  const inspectorHiddenClass = styles.inspectorColHidden.toString();
+  const inspectorToggleActiveClass = styles.inspectorToggleActive.toString();
 
   function toggleInspector() {
     inspectorVisible = !inspectorVisible;
+    if (!inspectorEl || !toggleBtnEl) return;
     if (inspectorVisible) {
-      inspectorEl.classList.remove(styles.inspectorColHidden);
-      toggleBtnEl.classList.add(styles.inspectorToggleActive);
+      inspectorEl.classList.remove(inspectorHiddenClass);
+      toggleBtnEl.classList.add(inspectorToggleActiveClass);
     } else {
-      inspectorEl.classList.add(styles.inspectorColHidden);
-      toggleBtnEl.classList.remove(styles.inspectorToggleActive);
+      inspectorEl.classList.add(inspectorHiddenClass);
+      toggleBtnEl.classList.remove(inspectorToggleActiveClass);
     }
   }
 
@@ -137,7 +140,7 @@ export function AgentChatPage(_props: Record<string, never>, ctx?: ComponentAPI)
     }
   });
 
-  ctx?.onCleanup(() => {
+  ctx.onCleanup(() => {
     stopStream();
     stopPolling();
     unsubRoute?.();
@@ -162,7 +165,9 @@ export function AgentChatPage(_props: Record<string, never>, ctx?: ComponentAPI)
         <div class={styles.headerSpacer} />
         <button
           class={styles.inspectorToggle}
-          ref={(el: HTMLElement) => { toggleBtnEl = el; }}
+          ref={(el: HTMLButtonElement | null) => {
+            toggleBtnEl = el;
+          }}
           onclick={toggleInspector}
         >
           Inspect
@@ -178,11 +183,13 @@ export function AgentChatPage(_props: Record<string, never>, ctx?: ComponentAPI)
         </div>
         <div
           class={[styles.inspectorCol, styles.inspectorColHidden]}
-          ref={(el: HTMLElement) => { inspectorEl = el; }}
+          ref={(el: HTMLDivElement | null) => {
+            inspectorEl = el;
+          }}
         >
           <AgentInspector agentState={agentState} />
         </div>
       </div>
     </div>
   );
-}
+};

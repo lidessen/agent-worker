@@ -1,6 +1,6 @@
 /** @jsxImportSource semajsx/dom */
 
-import type { JSXNode } from "semajsx/core";
+import type { JSXNode } from "semajsx";
 import { computed } from "semajsx/signal";
 import { Icon, Drama } from "semajsx/icons";
 import { ClaudeIcon, CursorIcon, OpenAIIcon, VercelIcon } from "../brand-icons.tsx";

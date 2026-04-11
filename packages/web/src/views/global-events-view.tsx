@@ -1,6 +1,6 @@
 /** @jsxImportSource semajsx/dom */
 
-import type { ComponentAPI } from "semajsx";
+import type { RuntimeComponent } from "semajsx";
 import { computed } from "semajsx/signal";
 import {
   daemonEvents,
@@ -11,14 +11,14 @@ import {
 } from "../stores/daemon-events.ts";
 import * as styles from "./global-events-view.style.ts";
 
-export function GlobalEventsView(_props: Record<string, never>, ctx?: ComponentAPI) {
+export const GlobalEventsView: RuntimeComponent<Record<string, never>> = (_props, ctx) => {
   let cancelled = false;
 
   loadDaemonEvents().then(() => {
     if (!cancelled) startDaemonEventStream();
   });
 
-  ctx?.onCleanup(() => {
+  ctx.onCleanup(() => {
     cancelled = true;
     stopDaemonEventStream();
   });
@@ -73,4 +73,4 @@ export function GlobalEventsView(_props: Record<string, never>, ctx?: ComponentA
       </div>
     </div>
   );
-}
+};

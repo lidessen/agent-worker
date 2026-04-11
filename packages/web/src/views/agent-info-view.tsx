@@ -1,6 +1,6 @@
 /** @jsxImportSource semajsx/dom */
 
-import type { ComponentAPI } from "semajsx";
+import type { RuntimeComponent } from "semajsx";
 import { Icon, ArrowLeft } from "semajsx/icons";
 import { signal, computed } from "semajsx/signal";
 import {
@@ -16,7 +16,7 @@ import { AgentInspector } from "../components/agent-inspector.tsx";
 import { ConfirmDialog } from "../components/confirm-dialog.tsx";
 import * as styles from "./agent-info-view.style.ts";
 
-export function AgentInfoView(props: { name: string }, ctx?: ComponentAPI) {
+export const AgentInfoView: RuntimeComponent<{ name: string }> = (props, ctx) => {
   const showDeleteAgent = signal(false);
 
   // Fetch agent state and start polling
@@ -29,7 +29,7 @@ export function AgentInfoView(props: { name: string }, ctx?: ComponentAPI) {
     }
   });
 
-  ctx?.onCleanup(() => {
+  ctx.onCleanup(() => {
     stopPolling();
     unsubClient();
   });
@@ -139,4 +139,4 @@ export function AgentInfoView(props: { name: string }, ctx?: ComponentAPI) {
       />
     </div>
   );
-}
+};

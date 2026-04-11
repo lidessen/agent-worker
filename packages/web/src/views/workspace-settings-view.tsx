@@ -1,6 +1,6 @@
 /** @jsxImportSource semajsx/dom */
 
-import type { ComponentAPI } from "semajsx";
+import type { RuntimeComponent } from "semajsx";
 import { Icon, Drama } from "semajsx/icons";
 import { signal, computed } from "semajsx/signal";
 import { client } from "../stores/connection.ts";
@@ -29,7 +29,7 @@ function runtimeIcon(runtime: string) {
   }
 }
 
-export function WorkspaceSettingsView(props: { wsKey: string }, ctx?: ComponentAPI) {
+export const WorkspaceSettingsView: RuntimeComponent<{ wsKey: string }> = (props, ctx) => {
   const workspace = signal<WorkspaceInfo | null>(null);
   const channels = signal<string[]>([]);
   const error = signal<string | null>(null);
@@ -68,7 +68,7 @@ export function WorkspaceSettingsView(props: { wsKey: string }, ctx?: ComponentA
     }
   });
 
-  ctx?.onCleanup(() => {
+  ctx.onCleanup(() => {
     unsubClient();
   });
 
@@ -334,4 +334,4 @@ export function WorkspaceSettingsView(props: { wsKey: string }, ctx?: ComponentA
       />
     </div>
   );
-}
+};
