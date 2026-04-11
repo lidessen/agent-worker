@@ -9,6 +9,7 @@ import {
   stopDaemonEventStream,
   isDaemonStreaming,
 } from "../stores/daemon-events.ts";
+import { formatDateTime } from "../utils/time.ts";
 import * as styles from "./global-events-view.style.ts";
 
 export const GlobalEventsView: RuntimeComponent<Record<string, never>> = (_props, ctx) => {
@@ -42,7 +43,7 @@ export const GlobalEventsView: RuntimeComponent<Record<string, never>> = (_props
         {reversed.map((evt) => (
           <div class={styles.eventItem}>
             <span class={styles.eventTime}>
-              {new Date(evt.ts).toLocaleTimeString()}
+              {formatDateTime(evt.ts)}
             </span>
             <span class={styles.eventType}>{evt.type}</span>
             <span class={styles.eventAgent}>

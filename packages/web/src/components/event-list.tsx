@@ -11,6 +11,7 @@ import { RunBlock } from "./blocks/run-block.tsx";
 import { ErrorBlock } from "./blocks/error-block.tsx";
 import { UserMessageBlock } from "./blocks/user-message-block.tsx";
 import { ThinkingBlock } from "./blocks/thinking-block.tsx";
+import { formatDateTime } from "../utils/time.ts";
 import * as styles from "./event-list.style.ts";
 
 function isTextEvent(event: DaemonEvent): boolean {
@@ -96,17 +97,6 @@ function eventLabel(event: DaemonEvent): string {
   return "Event";
 }
 
-function formatEventTime(ts: number): string {
-  try {
-    return new Date(ts).toLocaleTimeString(undefined, {
-      hour: "numeric",
-      minute: "2-digit",
-    });
-  } catch {
-    return "";
-  }
-}
-
 export const EventList: RuntimeComponent<{
   events: ReadableSignal<DaemonEvent[]>;
   agentName?: ReadableSignal<string>;
@@ -165,7 +155,7 @@ export const EventList: RuntimeComponent<{
           <div class={styles.itemMeta}>
             <span class={styles.itemDot} />
             <span class={styles.itemLabel}>{eventLabel(event)}</span>
-            <span class={styles.itemTime}>{formatEventTime(event.ts)}</span>
+            <span class={styles.itemTime}>{formatDateTime(event.ts)}</span>
           </div>
           <div class={styles.itemBody}>{body}</div>
         </div>
