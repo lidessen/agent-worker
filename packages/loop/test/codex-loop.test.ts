@@ -358,6 +358,124 @@ describe("CodexLoop", () => {
       expect(closeCount).toBe(0);
     });
 
+    test("structured input is sent as thread instructions plus prompt text", async () => {
+      const requestLog: Array<{ method: string; params?: unknown }> = [];
+      let onNotification: ((message: { method: string; params?: unknown }) => void) | null = null;
+
+      class MockJsonRpcClient {
+        constructor(_options: unknown) {}
+
+        start(cb: (message: { method: string; params?: unknown }) => void): void {
+          onNotification = cb;
+        }
+
+        async request(method: string, params?: unknown): Promise<unknown> {
+          requestLog.push({ method, params });
+          if (method === "initialize") {
+            return { userAgent: "test", codexHome: "/tmp", platformFamily: "unix", platformOs: "macos" };
+          }
+          if (method === "thread/start") {
+            return { thread: { id: "thread-structured" } };
+          }
+          if (method === "turn/start") {
+            setTimeout(() => {
+              onNotification?.({
+                method: "turn/completed",
+                params: {
+                  threadId: "thread-structured",
+                  turn: { id: "turn-structured", status: "completed", error: null },
+                },
+              });
+            }, 0);
+            return { turn: { id: "turn-structured" } };
+          }
+          return {};
+        }
+
+        close(): void {}
+      }
+
+      mock.module("../src/utils/jsonrpc-stdio.ts", () => ({
+        JsonRpcStdioClient: MockJsonRpcClient,
+      }));
+
+      const { CodexLoop: MockedCodexLoop } = await import(
+        `../src/loops/codex.ts?structured-input=${Date.now()}`
+      );
+
+      const loop = new MockedCodexLoop();
+      await loop.run({ system: "[ROLE]\nAgent", prompt: "[notification] New messages in inbox." }).result;
+
+      expect(requestLog.find((entry) => entry.method === "thread/start")?.params).toMatchObject({
+        developerInstructions: "[ROLE]\nAgent",
+      });
+      expect(requestLog.find((entry) => entry.method === "turn/start")?.params).toMatchObject({
+        input: [{ type: "text", text: "[notification] New messages in inbox.", text_elements: [] }],
+      });
+    });
+
+    test("changing structured system instructions resumes thread with updated instructions", async () => {
+      const requestLog: Array<{ method: string; params?: unknown }> = [];
+      let onNotification: ((message: { method: string; params?: unknown }) => void) | null = null;
+      let resumed = false;
+
+      class MockJsonRpcClient {
+        constructor(_options: unknown) {}
+
+        start(cb: (message: { method: string; params?: unknown }) => void): void {
+          onNotification = cb;
+        }
+
+        async request(method: string, params?: unknown): Promise<unknown> {
+          requestLog.push({ method, params });
+          if (method === "initialize") {
+            return { userAgent: "test", codexHome: "/tmp", platformFamily: "unix", platformOs: "macos" };
+          }
+          if (method === "thread/start") {
+            return { thread: { id: "thread-reconfigured" } };
+          }
+          if (method === "thread/resume") {
+            resumed = true;
+            return { thread: { id: "thread-reconfigured" } };
+          }
+          if (method === "turn/start") {
+            const turnId = resumed ? "turn-2" : "turn-1";
+            setTimeout(() => {
+              onNotification?.({
+                method: "turn/completed",
+                params: {
+                  threadId: "thread-reconfigured",
+                  turn: { id: turnId, status: "completed", error: null },
+                },
+              });
+            }, 0);
+            return { turn: { id: turnId } };
+          }
+          return {};
+        }
+
+        close(): void {}
+      }
+
+      mock.module("../src/utils/jsonrpc-stdio.ts", () => ({
+        JsonRpcStdioClient: MockJsonRpcClient,
+      }));
+
+      const { CodexLoop: MockedCodexLoop } = await import(
+        `../src/loops/codex.ts?resume-updated-instructions=${Date.now()}`
+      );
+
+      const loop = new MockedCodexLoop();
+      await loop.run({ system: "[ROLE]\nAgent A", prompt: "first" }).result;
+      await loop.run({ system: "[ROLE]\nAgent B", prompt: "second" }).result;
+
+      expect(requestLog.filter((entry) => entry.method === "thread/start")).toHaveLength(1);
+      expect(requestLog.filter((entry) => entry.method === "thread/resume")).toHaveLength(1);
+      expect(requestLog.findLast((entry) => entry.method === "thread/resume")?.params).toMatchObject({
+        developerInstructions: "[ROLE]\nAgent B",
+      });
+    });
+
     test("cancelled turns reject when app-server reports interrupted", async () => {
       const requestLog: Array<{ method: string; params?: unknown }> = [];
       let onNotification: ((message: { method: string; params?: unknown }) => void) | null = null;

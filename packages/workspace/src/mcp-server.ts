@@ -373,7 +373,7 @@ export class WorkspaceMcpHub {
     // ── activity_detail: full trace of a specific run ───────────────────
     server.tool(
       "activity_detail",
-      "Read the detailed JSONL trace of a specific agent run. Requires storageDir to be configured. Returns prompt, tool calls, responses, and timing.",
+      "Read the detailed JSONL trace of a specific agent run. Requires storageDir to be configured. Returns run metadata, tool calls, responses, and timing.",
       { agent: z.string().describe("Agent name"), run_id: z.string().describe("Run ID (UUID)") },
       async ({ agent, run_id }) => {
         if (!this._storageDir) {
@@ -524,7 +524,7 @@ export class WorkspaceMcpHub {
       "Peek at any agent's inbox to see their pending messages. Unlike my_inbox which only shows your own, this can inspect any agent's inbox for debugging.",
       { agent: z.string().describe("Agent name to inspect") },
       async ({ agent }) => {
-        const entries = await provider.inbox.peek(agent);
+        const entries = await provider.inbox.inspect(agent);
         if (entries.length === 0) {
           return { content: [{ type: "text", text: `@${agent} inbox: empty` }] };
         }
@@ -663,7 +663,9 @@ function formatRunEntry(entry: Record<string, unknown>): string {
       const runtime = entry.runtime ?? "?";
       const model = entry.model ? ` (${entry.model})` : "";
       const instr = String(entry.instruction ?? "").slice(0, 120);
-      return `[start] ${runtime}${model}: ${instr}`;
+      const prompt = entry.promptChars ? ` | prompt=${entry.promptChars} chars` : "";
+      const tools = entry.toolCount ? ` | tools=${entry.toolCount}` : "";
+      return `[start] ${runtime}${model}: ${instr}${prompt}${tools}`;
     }
     case "text":
       return `  [text] ${String(entry.text ?? "").slice(0, 500)}`;

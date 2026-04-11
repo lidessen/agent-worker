@@ -9,6 +9,7 @@ const STATUS_FILE = "status.json";
 
 export class StatusStore implements StatusStoreInterface {
   private statuses = new Map<string, AgentStatusEntry>();
+  private loaded = false;
 
   constructor(private readonly storage: StorageBackend) {}
 
@@ -37,7 +38,9 @@ export class StatusStore implements StatusStoreInterface {
 
   /** Load from storage. */
   async load(): Promise<void> {
+    if (this.loaded) return;
     const content = await this.storage.readFile(STATUS_FILE);
+    this.loaded = true;
     if (!content) return;
     try {
       const entries = JSON.parse(content) as AgentStatusEntry[];

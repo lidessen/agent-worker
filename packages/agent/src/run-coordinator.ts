@@ -67,6 +67,28 @@ export class RunCoordinator {
     return "[notification] Pending todos require attention.";
   }
 
+  private buildPromptContent(
+    trigger: "next_message" | "next_todo",
+    notification: string,
+    assembled: AssembledPrompt,
+  ): string {
+    if (trigger === "next_message" && assembled.inboxSnapshot) {
+      return [
+        notification,
+        "The inbox preview below is authoritative runtime input. Entries ending with ✓ contain the full message. Respond directly from them unless they are marked truncated or explicitly require repo work.",
+        assembled.inboxSnapshot,
+      ].join("\n\n");
+    }
+    if (trigger === "next_todo" && assembled.todoSnapshot) {
+      return [
+        notification,
+        "The todo snapshot below is authoritative runtime state. Act on it directly unless more context is explicitly required.",
+        assembled.todoSnapshot,
+      ].join("\n\n");
+    }
+    return notification;
+  }
+
   // ── Single run ──────────────────────────────────────────────────────────
 
   async executeRun(
@@ -88,21 +110,18 @@ export class RunCoordinator {
       name: this.deps.name,
     });
 
+    const promptContent = this.buildPromptContent(trigger, notification, assembled);
+
     // Pass structured input: system (dashboard) + prompt (notification)
     const run = this.deps.loop.run({
       system: assembled.system,
-      prompt: notification,
+      prompt: promptContent,
     });
 
     const liveTurns: Turn[] = [
       {
         role: "user",
-        content:
-          assembled.inboxSnapshot && trigger === "next_message"
-            ? `${notification}\n\n${assembled.inboxSnapshot}`
-            : assembled.todoSnapshot && trigger === "next_todo"
-              ? `${notification}\n\n${assembled.todoSnapshot}`
-              : notification,
+        content: promptContent,
       },
     ];
     let checkpointCursor = liveTurns.length;
@@ -212,7 +231,7 @@ export class RunCoordinator {
     const EMPTY_SNAPSHOTS = new Set(["📥 Inbox: empty", "No todos."]);
     const snapshot = trigger === "next_message" ? assembled.inboxSnapshot : assembled.todoSnapshot;
     const historyContent =
-      snapshot && !EMPTY_SNAPSHOTS.has(snapshot) ? `${notification}\n\n${snapshot}` : notification;
+      snapshot && !EMPTY_SNAPSHOTS.has(snapshot) ? promptContent : notification;
     this.history.push({ role: "user", content: historyContent });
 
     const assistantText = loopResult.events

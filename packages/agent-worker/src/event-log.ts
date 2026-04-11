@@ -1,5 +1,5 @@
-import { join } from "node:path";
-import { appendFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { appendFileSync, mkdirSync, statSync } from "node:fs";
 import { readFrom, parseJsonl } from "@agent-worker/shared";
 import type { DaemonEvent } from "./types.ts";
 
@@ -16,8 +16,9 @@ export class DaemonEventLog {
   }
 
   async init(): Promise<void> {
-    writeFileSync(this.path, "");
-    this.byteOffset = 0;
+    mkdirSync(dirname(this.path), { recursive: true });
+    appendFileSync(this.path, "");
+    this.byteOffset = statSync(this.path).size;
   }
 
   append(type: string, data?: Record<string, unknown>): void {

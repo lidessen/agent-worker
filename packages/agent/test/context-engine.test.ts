@@ -1,5 +1,8 @@
 import { test, expect, describe } from "bun:test";
-import { ContextEngine } from "../src/context-engine.ts";
+import {
+  ContextEngine,
+  type ContextSourceProvider,
+} from "../src/context-engine.ts";
 import { Inbox } from "../src/inbox.ts";
 import { TodoManager } from "../src/todo.ts";
 import { InMemoryNotesStorage } from "../src/notes.ts";
@@ -157,5 +160,30 @@ describe("ContextEngine", () => {
     expect(result.system).toContain("[AWARENESS]");
     expect(result.system).toContain("[INBOX]");
     expect(result.system).toContain("[TODOS]");
+  });
+
+  test("assemble can use a custom context source provider", async () => {
+    const provider: ContextSourceProvider = {
+      async snapshot() {
+        return {
+          roleName: "Planner",
+          roleInstructions: "Use workspace state first.",
+          awareness: "- Prefer explicit state slices",
+          inboxSnapshot: "Inbox replaced",
+          todoSnapshot: "Todo replaced",
+          reminderSnapshot: "Reminder replaced",
+          noteKeys: ["design.md"],
+          memoryQuery: "workspace state",
+        };
+      },
+    };
+    const engine = new ContextEngine({ maxTokens: 8000 }, provider);
+    const result = await engine.assemble(createSources());
+
+    expect(result.system).toContain("Planner");
+    expect(result.system).toContain("Inbox replaced");
+    expect(result.system).toContain("Todo replaced");
+    expect(result.system).toContain("Reminder replaced");
+    expect(result.system).toContain("design.md");
   });
 });
