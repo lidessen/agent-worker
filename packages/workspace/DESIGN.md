@@ -190,10 +190,10 @@ pending → seen (loop picked it up) → acked (removed from inbox)
 
 - `acked` entries are removed immediately
 - `deferred` entries return to `pending` after optional expiry (or on next poll if no expiry)
-- On workspace init, `markRunStart()` clears all stale entries from previous runs
+- `markRunStart()` re-queues `seen` entries back to `pending` at loop start so unfinished work is retried after restart
 
-**Run epoch:** On workspace init, `markRunStart()` clears stale inbox entries from
-previous runs. Only new messages trigger work.
+**Run epoch:** On loop start, `markRunStart()` resets unacked `seen` entries back to
+`pending`. This preserves at-least-once delivery without wiping persisted inbox state.
 
 ### InstructionQueue (Priority Routing)
 
@@ -588,10 +588,9 @@ On `workspace.init()`, before any agent loop starts:
 
 2. For each agent's inbox:
    - Scan inbox entries, collect all messageIds
-   - Scan channel messages since run epoch that @mention this agent
-   - For any channel message missing from inbox → re-enqueue as pending
-   - For any inbox entry whose messageId doesn't exist in channel → remove
-     (should not happen given write order, but defensive)
+   - Persist `seen` state when a loop picks up work
+   - On the next loop start, re-queue all `seen` entries to `pending`
+   - Leave deferred entries intact so their retry timing semantics survive restart
 
 3. Clear all `seen` states → reset to `pending`
    (crash during processing means the task didn't complete;

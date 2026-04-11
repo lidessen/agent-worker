@@ -248,6 +248,7 @@ describe("RunCoordinator", () => {
     const input = loop.lastInput as { system: string; prompt: string };
     expect(input.system).toContain("[ROLE]");
     expect(input.prompt).toContain("[notification]");
+    expect(input.prompt).toContain("fix the bug");
   });
 
   test("processLoop runs until idle", async () => {

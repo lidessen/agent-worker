@@ -27,6 +27,7 @@ export class CodexLoop {
   private threadId: string | null = null;
   private threadReady = false;
   private currentTurn: CodexTurnState | null = null;
+  private pendingDeveloperInstructions: string | null = null;
 
   constructor(private options: CodexLoopOptions = {}) {
     if (options.threadId) {
@@ -43,7 +44,12 @@ export class CodexLoop {
     this._status = "running";
     this.abortController = new AbortController();
 
-    const prompt = typeof input === "string" ? input : `${input.system}\n\n${input.prompt}`;
+    const prompt = typeof input === "string" ? input : input.prompt;
+    const developerInstructions = typeof input === "string" ? null : normalizeInstructions(input.system);
+    if (developerInstructions !== this.pendingDeveloperInstructions) {
+      this.pendingDeveloperInstructions = developerInstructions;
+      this.threadReady = false;
+    }
     const channel = createEventChannel<LoopEvent>();
 
     const emit = (event: LoopEvent) => {
@@ -189,7 +195,7 @@ export class CodexLoop {
         threadId: this.threadId ?? undefined,
         approvalPolicy: this.options.fullAuto ? "never" : "on-request",
         sandbox: this.options.sandbox ?? (this.options.fullAuto ? "workspace-write" : undefined),
-        developerInstructions: this.options.instructions ?? undefined,
+        developerInstructions: this.pendingDeveloperInstructions ?? undefined,
         baseInstructions: this.options.instructions ?? undefined,
         experimentalRawEvents: false,
         persistExtendedHistory: false,
@@ -376,4 +382,9 @@ export function mapCodexItemEnd(item: Record<string, unknown>): LoopEvent | null
     default:
       return null;
   }
+}
+
+function normalizeInstructions(value: string | null | undefined): string | null {
+  const normalized = value?.trim();
+  return normalized ? normalized : null;
 }

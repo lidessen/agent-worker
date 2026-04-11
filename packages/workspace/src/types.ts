@@ -178,6 +178,26 @@ export interface ChannelBridgeInterface {
 
 export type BridgeSubscriber = (message: Message) => void;
 
+export interface WorkspaceAgentSnapshot {
+  name: string;
+  status: AgentStatus;
+  currentTask?: string;
+  channels: string[];
+  inbox: InboxEntry[];
+  recentActivity: TimelineEvent[];
+}
+
+export interface WorkspaceStateSnapshot {
+  name: string;
+  tag?: string;
+  defaultChannel: string;
+  channels: string[];
+  documents: string[];
+  chronicle: ChronicleEntry[];
+  queuedInstructions: Instruction[];
+  agents: WorkspaceAgentSnapshot[];
+}
+
 // ── Workspace runtime interface ────────────────────────────────────────────
 
 export interface WorkspaceRuntime {
@@ -201,6 +221,13 @@ export interface WorkspaceRuntime {
   registerAgent(name: string, channels?: string[]): Promise<void>;
   /** Get the agent's sandbox directory (working directory for bash/files). */
   agentSandboxDir(agentName: string): string | undefined;
+  /** Return a unified snapshot of workspace state for debug/tests. */
+  snapshotState(opts?: {
+    inboxLimit?: number;
+    timelineLimit?: number;
+    chronicleLimit?: number;
+    queuedLimit?: number;
+  }): Promise<WorkspaceStateSnapshot>;
 }
 
 // ── ContextProvider interface ──────────────────────────────────────────────
@@ -237,6 +264,8 @@ export interface ChannelStoreInterface {
 export interface InboxStoreInterface {
   enqueue(agentName: string, entry: InboxEntry): Promise<void>;
   peek(agentName: string): Promise<InboxEntry[]>;
+  /** Inspect inbox state without mutating delivery state or filtering non-runnable entries. */
+  inspect(agentName: string): Promise<InboxEntry[]>;
   ack(agentName: string, messageId: string): Promise<void>;
   defer(agentName: string, messageId: string, until?: string): Promise<void>;
   markSeen(agentName: string, messageId: string): Promise<void>;

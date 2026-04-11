@@ -79,13 +79,43 @@ describe("InboxStore", () => {
     expect(entries).toHaveLength(0);
   });
 
-  test("markRunStart clears all entries", async () => {
+  test("markRunStart requeues seen entries instead of clearing the inbox", async () => {
     await store.enqueue("alice", makeEntry("msg1"));
-    await store.enqueue("alice", makeEntry("msg2"));
+    await store.enqueue("alice", makeEntry("msg2", { state: "deferred" }));
+    await store.markSeen("alice", "msg1");
     await store.markRunStart("alice");
 
     const entries = await store.peek("alice");
-    expect(entries).toHaveLength(0);
+    expect(entries).toHaveLength(2);
+    expect(entries.map((entry) => entry.messageId)).toEqual(["msg1", "msg2"]);
+    expect(entries.every((entry) => entry.state === "pending")).toBe(true);
+  });
+
+  test("markSeen persists so recovery can retry unacked work", async () => {
+    await store.enqueue("alice", makeEntry("msg1"));
+    await store.markSeen("alice", "msg1");
+
+    const recovered = new InboxStore(storage);
+    await recovered.load("alice");
+    await recovered.markRunStart("alice");
+
+    const entries = await recovered.peek("alice");
+    expect(entries).toHaveLength(1);
+    expect(entries[0]!.messageId).toBe("msg1");
+  });
+
+  test("inspect is non-mutating and includes seen/deferred entries", async () => {
+    await store.enqueue("alice", makeEntry("msg1"));
+    await store.enqueue("alice", makeEntry("msg2"));
+    await store.markSeen("alice", "msg1");
+    await store.defer("alice", "msg2", new Date(Date.now() + 60_000).toISOString());
+
+    const snapshot = await store.inspect("alice");
+    expect(snapshot).toHaveLength(2);
+    expect(snapshot.map((entry) => entry.state)).toEqual(["seen", "deferred"]);
+
+    const peeked = await store.peek("alice");
+    expect(peeked).toHaveLength(0);
   });
 
   test("hasEntry checks existence", async () => {

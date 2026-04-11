@@ -155,6 +155,22 @@ export interface RunnerConfig {
 
 // ── Daemon events ─────────────────────────────────────────────────────────
 
+/**
+ * Workspace-scoped events exposed on the daemon bus.
+ * This layer is intentionally limited to high-level operational overview.
+ * Detailed runtime/tool traces belong in workspace timelines and per-run logs.
+ */
+export type WorkspaceOverviewEventType =
+  | "workspace.created"
+  | "workspace.kickoff"
+  | "workspace.stopped"
+  | "workspace.completed"
+  | "workspace.failed"
+  | "workspace.agent_run_start"
+  | "workspace.agent_run_end"
+  | "workspace.agent_text"
+  | "workspace.agent_error";
+
 export interface DaemonEvent {
   ts: number;
   type: string;

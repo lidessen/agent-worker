@@ -120,6 +120,8 @@ export type {
   ChannelAdapter,
   ChannelBridgeInterface,
   BridgeSubscriber,
+  WorkspaceAgentSnapshot,
+  WorkspaceStateSnapshot,
   // Runtime
   WorkspaceRuntime,
   ContextProvider,
