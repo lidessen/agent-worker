@@ -1,13 +1,13 @@
 /** @jsxImportSource semajsx/dom */
 
-import type { ComponentAPI } from "semajsx";
+import type { RuntimeComponent } from "semajsx";
 import { Icon, ArrowUp } from "semajsx/icons";
 import { computed, signal } from "semajsx/signal";
 import type { ReadableSignal } from "semajsx/signal";
 import { sendMessage } from "../stores/conversation.ts";
 import * as styles from "./chat-input.style.ts";
 
-export function ChatInput(props: { agentName: ReadableSignal<string> }, ctx?: ComponentAPI) {
+export const ChatInput: RuntimeComponent<{ agentName: ReadableSignal<string> }> = (props, ctx) => {
   let textareaRef: HTMLTextAreaElement | null = null;
   let sendBtnRef: HTMLButtonElement | null = null;
   const draft = signal("");
@@ -43,7 +43,7 @@ export function ChatInput(props: { agentName: ReadableSignal<string> }, ctx?: Co
   }
 
   const unsub = canSend.subscribe(syncSendBtn);
-  ctx?.onCleanup(unsub);
+  ctx.onCleanup(unsub);
 
   return (
     <div class={styles.bar}>
@@ -57,7 +57,7 @@ export function ChatInput(props: { agentName: ReadableSignal<string> }, ctx?: Co
             autoResize();
           }}
           onkeydown={handleKeydown}
-          ref={(el: HTMLTextAreaElement) => {
+          ref={(el: HTMLTextAreaElement | null) => {
             textareaRef = el;
           }}
         />
@@ -67,7 +67,7 @@ export function ChatInput(props: { agentName: ReadableSignal<string> }, ctx?: Co
             class={styles.sendBtn}
             onclick={handleSend}
             type="button"
-            ref={(el: HTMLButtonElement) => {
+            ref={(el: HTMLButtonElement | null) => {
               sendBtnRef = el;
               syncSendBtn();
             }}
@@ -78,4 +78,4 @@ export function ChatInput(props: { agentName: ReadableSignal<string> }, ctx?: Co
       </div>
     </div>
   );
-}
+};

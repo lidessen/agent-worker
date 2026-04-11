@@ -472,7 +472,8 @@ export function App() {
       {mobileBackBar}
       <div
         class={styles.contentMount}
-        ref={(el: HTMLDivElement) => {
+        ref={(el: HTMLDivElement | null) => {
+          if (!el) return;
           window.__contentArea!.mountEl = el;
           renderContent();
         }}

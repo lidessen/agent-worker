@@ -2,11 +2,11 @@
 
 import { signal, computed } from "semajsx/signal";
 import { when } from "semajsx";
-import type { Signal } from "semajsx/signal";
+import type { WritableSignal } from "semajsx/signal";
 import * as styles from "./confirm-dialog.style.ts";
 
 export function ConfirmDialog(props: {
-  visible: Signal<boolean>;
+  visible: WritableSignal<boolean>;
   title: string;
   message: string;
   confirmLabel?: string;
@@ -15,6 +15,7 @@ export function ConfirmDialog(props: {
 }) {
   const loading = signal(false);
   const error = signal("");
+  const hasError = computed(error, (e) => e.length > 0);
 
   function close() {
     props.visible.value = false;
@@ -52,7 +53,7 @@ export function ConfirmDialog(props: {
         <h2 class={styles.title}>{props.title}</h2>
         <div class={styles.message}>{props.message}</div>
 
-        {when(error, () => (
+        {when(hasError, () => (
           <div class={styles.error}>{error}</div>
         ))}
 
@@ -63,7 +64,7 @@ export function ConfirmDialog(props: {
           <button
             class={btnClass}
             onclick={handleConfirm}
-            disabled={loading}
+            disabled={computed(loading, (l) => l)}
           >
             {btnLabel}
           </button>

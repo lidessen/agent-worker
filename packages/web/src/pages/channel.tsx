@@ -1,6 +1,6 @@
 /** @jsxImportSource semajsx/dom */
 
-import type { ComponentAPI } from "semajsx";
+import type { RuntimeComponent } from "semajsx";
 import { computed } from "semajsx/signal";
 import { route, navigate } from "../router.ts";
 import {
@@ -14,7 +14,7 @@ import { ChannelMessageList } from "../components/channel-message-list.tsx";
 import { ChannelInput } from "../components/channel-input.tsx";
 import * as styles from "./channel.style.ts";
 
-export function ChannelPage(_props: Record<string, never>, ctx?: ComponentAPI) {
+export const ChannelPage: RuntimeComponent<Record<string, never>> = (_props, ctx) => {
   const wsKey = computed(route, (r) =>
     r.page === "channel" ? r.params.key : "",
   );
@@ -56,7 +56,7 @@ export function ChannelPage(_props: Record<string, never>, ctx?: ComponentAPI) {
     initChannel(wsKey.value, ch.value);
   });
 
-  ctx?.onCleanup(() => {
+  ctx.onCleanup(() => {
     stopChannelStream();
     unsubRoute?.();
     unsubRoute = null;
@@ -87,4 +87,4 @@ export function ChannelPage(_props: Record<string, never>, ctx?: ComponentAPI) {
       <ChannelInput onSend={handleSend} />
     </div>
   );
-}
+};

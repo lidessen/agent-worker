@@ -1,6 +1,6 @@
 /** @jsxImportSource semajsx/dom */
 
-import type { ComponentAPI } from "semajsx";
+import type { RuntimeComponent } from "semajsx";
 import { Icon, MessageCircle } from "semajsx/icons";
 import { computed } from "semajsx/signal";
 import type { ReadableSignal } from "semajsx/signal";
@@ -8,9 +8,9 @@ import type { ChannelMessage } from "../api/types.ts";
 import { ChannelMessageItem } from "./channel-message.tsx";
 import * as styles from "./event-list.style.ts";
 
-export function ChannelMessageList(props: {
+export const ChannelMessageList: RuntimeComponent<{
   messages: ReadableSignal<ChannelMessage[]>;
-}, ctx?: ComponentAPI) {
+}> = (props, ctx) => {
   let scrollRef: HTMLDivElement | null = null;
   let scrollListenerTarget: HTMLDivElement | null = null;
   let userScrolledUp = false;
@@ -30,8 +30,8 @@ export function ChannelMessageList(props: {
   const unsub = props.messages.subscribe(() => {
     queueMicrotask(scrollToBottom);
   });
-  ctx?.onCleanup(unsub);
-  ctx?.onCleanup(() => {
+  ctx.onCleanup(unsub);
+  ctx.onCleanup(() => {
     if (scrollListenerTarget) {
       scrollListenerTarget.removeEventListener("scroll", handleScroll);
       scrollListenerTarget = null;
@@ -71,4 +71,4 @@ export function ChannelMessageList(props: {
       {body}
     </div>
   );
-}
+};

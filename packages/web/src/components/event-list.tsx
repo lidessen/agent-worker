@@ -1,6 +1,6 @@
 /** @jsxImportSource semajsx/dom */
 
-import type { ComponentAPI } from "semajsx";
+import type { RuntimeComponent } from "semajsx";
 import { Icon, MessageCircle } from "semajsx/icons";
 import { computed } from "semajsx/signal";
 import type { ReadableSignal } from "semajsx/signal";
@@ -107,10 +107,13 @@ function formatEventTime(ts: number): string {
   }
 }
 
-export function EventList(
+export const EventList: RuntimeComponent<{
+  events: ReadableSignal<DaemonEvent[]>;
+  agentName?: ReadableSignal<string>;
+}> = (
   props: { events: ReadableSignal<DaemonEvent[]>; agentName?: ReadableSignal<string> },
-  ctx?: ComponentAPI,
-) {
+  ctx,
+)=> {
   let scrollRef: HTMLDivElement | null = null;
   let scrollListenerTarget: HTMLDivElement | null = null;
   let userScrolledUp = false;
@@ -132,8 +135,8 @@ export function EventList(
     // Defer scroll to after DOM update
     queueMicrotask(scrollToBottom);
   });
-  ctx?.onCleanup(unsub);
-  ctx?.onCleanup(() => {
+  ctx.onCleanup(unsub);
+  ctx.onCleanup(() => {
     if (scrollListenerTarget) {
       scrollListenerTarget.removeEventListener("scroll", handleScroll);
       scrollListenerTarget = null;
@@ -187,4 +190,4 @@ export function EventList(
       {body}
     </div>
   );
-}
+};

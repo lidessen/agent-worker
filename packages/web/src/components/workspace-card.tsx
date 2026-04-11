@@ -42,7 +42,7 @@ export function WorkspaceCard(props: { workspace: WorkspaceInfo }) {
   ];
 
   return (
-    <div class={styles.card} role="button" tabindex="0" onclick={handleClick}>
+    <div class={styles.card} role="button" tabIndex={0} onclick={handleClick}>
       <div class={styles.headerRow}>
         <span class={styles.name}>{workspace.name}</span>
         {workspace.mode ? (
