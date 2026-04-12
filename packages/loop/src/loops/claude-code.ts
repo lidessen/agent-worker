@@ -19,7 +19,7 @@ import { getPreferredScriptRuntime } from "@agent-worker/shared";
 export type ClaudeCodeModel = "opus" | "sonnet" | "haiku";
 
 export class ClaudeCodeLoop {
-  readonly supports = ["hooks"] as const;
+  readonly supports = ["hooks", "usageStream"] as const;
   private _status: LoopStatus = "idle";
   private abortController: AbortController | null = null;
   private _mcpConfigPath: string | null = null;
@@ -72,7 +72,16 @@ export class ClaudeCodeLoop {
 
         for await (const message of q) {
           const mapped = mapClaudeMessage(message, toolNames, streamState);
-          if (mapped.usage) usage = mapped.usage;
+          if (mapped.usage) {
+            usage = mapped.usage;
+            emit({
+              type: "usage",
+              inputTokens: usage.inputTokens,
+              outputTokens: usage.outputTokens,
+              totalTokens: usage.totalTokens,
+              source: "runtime",
+            });
+          }
           for (const event of mapped.events) emit(event);
         }
 

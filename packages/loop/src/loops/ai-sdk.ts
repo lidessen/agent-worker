@@ -25,7 +25,7 @@ export interface AiSdkLoopOptions {
 }
 
 export class AiSdkLoop {
-  readonly supports = ["directTools", "prepareStep"] as const;
+  readonly supports = ["directTools", "prepareStep", "usageStream"] as const;
   private _status: LoopStatus = "idle";
   private abortController: AbortController | null = null;
   private agent: ToolLoopAgent<never, ToolSet> | null = null;
@@ -111,6 +111,7 @@ export class AiSdkLoop {
       }
 
       const startTime = Date.now();
+      const cumulativeUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
 
       try {
         const streamResult = await this.agent!.stream({
@@ -139,9 +140,28 @@ export class AiSdkLoop {
             });
           },
 
-          onStepFinish: ({ reasoningText, text }) => {
+          onStepFinish: (step) => {
+            const { reasoningText, text } = step as {
+              reasoningText?: string;
+              text?: string;
+            };
             if (reasoningText) emit({ type: "thinking", text: reasoningText });
             if (text) emit({ type: "text", text });
+            const stepUsage = (step as { usage?: { inputTokens?: number; outputTokens?: number } })
+              .usage;
+            if (stepUsage) {
+              cumulativeUsage.inputTokens += stepUsage.inputTokens ?? 0;
+              cumulativeUsage.outputTokens += stepUsage.outputTokens ?? 0;
+              cumulativeUsage.totalTokens =
+                cumulativeUsage.inputTokens + cumulativeUsage.outputTokens;
+              emit({
+                type: "usage",
+                inputTokens: cumulativeUsage.inputTokens,
+                outputTokens: cumulativeUsage.outputTokens,
+                totalTokens: cumulativeUsage.totalTokens,
+                source: "runtime",
+              });
+            }
           },
         });
 
