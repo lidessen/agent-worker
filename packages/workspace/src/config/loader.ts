@@ -3,6 +3,7 @@ import { readFile, access } from "node:fs/promises";
 import { basename, dirname, resolve } from "node:path";
 import { execa } from "execa";
 import type {
+  AgentRole,
   WorkspaceDef,
   ConnectionDef,
   ResolvedWorkspace,
@@ -232,6 +233,9 @@ export async function loadWorkspaceDef(
     // If runtime resolution found a model and agent didn't specify one, use it
     const finalModel = modelSpec ?? (resolution.model ? resolveModel(resolution.model) : undefined);
 
+    // Role: explicit override wins; otherwise lead iff workspace.lead matches.
+    const role: AgentRole = agentDef.role ?? (def.lead === name ? "lead" : "worker");
+
     agents.push({
       name,
       runtime: resolution.runtime,
@@ -241,6 +245,7 @@ export async function loadWorkspaceDef(
       env: mergedEnv,
       mounts: resolvedMounts,
       on_demand: agentDef.on_demand,
+      role,
     });
   }
 

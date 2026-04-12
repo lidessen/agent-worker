@@ -448,6 +448,64 @@ agents:
   });
 });
 
+// ── agent role resolution ─────────────────────────────────────────────────
+
+describe("agent role resolution", () => {
+  test("defaults to worker when workspace.lead is unset", async () => {
+    const result = await loadWorkspaceDef(
+      `
+name: test
+agents:
+  alice:
+    model: x
+  bob:
+    model: y
+`,
+      { skipSetup: true },
+    );
+
+    expect(result.agents.find((a) => a.name === "alice")?.role).toBe("worker");
+    expect(result.agents.find((a) => a.name === "bob")?.role).toBe("worker");
+  });
+
+  test("marks the workspace.lead agent as lead", async () => {
+    const result = await loadWorkspaceDef(
+      `
+name: test
+lead: alice
+agents:
+  alice:
+    model: x
+  bob:
+    model: y
+`,
+      { skipSetup: true },
+    );
+
+    expect(result.agents.find((a) => a.name === "alice")?.role).toBe("lead");
+    expect(result.agents.find((a) => a.name === "bob")?.role).toBe("worker");
+  });
+
+  test("explicit agent.role overrides the workspace.lead inference", async () => {
+    const result = await loadWorkspaceDef(
+      `
+name: test
+lead: alice
+agents:
+  alice:
+    model: x
+  bot:
+    model: y
+    role: observer
+`,
+      { skipSetup: true },
+    );
+
+    expect(result.agents.find((a) => a.name === "alice")?.role).toBe("lead");
+    expect(result.agents.find((a) => a.name === "bot")?.role).toBe("observer");
+  });
+});
+
 // ── toWorkspaceConfig ─────────────────────────────────────────────────────
 
 describe("toWorkspaceConfig", () => {

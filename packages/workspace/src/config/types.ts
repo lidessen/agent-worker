@@ -42,7 +42,29 @@ export interface MountDef {
   readonly?: boolean;
 }
 
-/** Agent definition within a workspace. */
+/**
+ * Role of an agent in the workspace-led hierarchy.
+ *
+ * - `lead` — long-lived workspace coordinator. One per workspace by convention.
+ *   Usually inferred from `workspace.lead` rather than written here.
+ * - `worker` — task-scoped executor. The default for all agents unless
+ *   explicitly overridden. Note: the static `AgentDef` is a worker-capable
+ *   template; actual task-scoped worker instances are materialized at
+ *   runtime as Attempts bound to a (task, agent) pair.
+ * - `observer` — automation / bot / reporter member. Not launched as a
+ *   task-scoped worker. The existing `on_demand: true` flag already covers
+ *   many of these cases; mark explicitly when you want hook / profile
+ *   behavior to diverge.
+ */
+export type AgentRole = "lead" | "worker" | "observer";
+
+/**
+ * Static member definition ("AgentSpec") within a workspace config.
+ *
+ * This is a template — it describes a worker-capable pool member, not a
+ * runtime instance. Runtime task-scoped workers are derived from this spec
+ * at assignment time via the profile resolver + orchestrator.
+ */
 export interface AgentDef {
   /** LLM runtime: "ai-sdk" | "claude-code" | "codex" | "cursor" | "mock". */
   runtime?: string;
@@ -58,6 +80,14 @@ export interface AgentDef {
   mounts?: (string | MountDef)[];
   /** If true, agent loop is not started automatically — only launched when @mentioned. */
   on_demand?: boolean;
+  /**
+   * Explicit role override. If omitted, role is inferred:
+   *   - agents[name] === workspace.lead → "lead"
+   *   - else → "worker"
+   * Set this to "observer" for automation/bot members that should NOT be
+   * derived into task-scoped Attempts.
+   */
+  role?: AgentRole;
 }
 
 /** Setup step: run a shell command, optionally capture output as a variable. */
@@ -140,6 +170,8 @@ export interface ResolvedAgent {
   mounts?: MountDef[];
   /** If true, agent loop is not started automatically — only launched when @mentioned. */
   on_demand?: boolean;
+  /** Resolved role: explicit AgentDef.role wins, else derived from workspace.lead. */
+  role: AgentRole;
 }
 
 /** Result of loading and resolving a workspace definition. */

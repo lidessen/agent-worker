@@ -1,4 +1,5 @@
 export type {
+  AgentRole,
   WorkspaceDef,
   ConnectionDef,
   AgentDef,
