@@ -1,4 +1,4 @@
-import type { ContextProvider } from "../../types.ts";
+import type { ContextProvider, InstructionQueueInterface } from "../../types.ts";
 import type { WorkspaceStateStore } from "../../state/index.ts";
 import { createChannelTools } from "./channel.ts";
 import { createInboxTools } from "./inbox.ts";
@@ -14,6 +14,8 @@ export interface WorkspaceToolsOptions {
   stateStore?: WorkspaceStateStore;
   /** Workspace name — used as the `workspaceId` when creating tasks. */
   workspaceName?: string;
+  /** Instruction queue — enables task_dispatch when present. */
+  instructionQueue?: InstructionQueueInterface;
 }
 
 /** Create all workspace tools for a given agent. */
@@ -30,7 +32,9 @@ export function createWorkspaceTools(
   const resourceTools = createResourceTools(agentName, provider);
   const taskTools =
     options.stateStore && options.workspaceName
-      ? createTaskTools(agentName, options.workspaceName, options.stateStore)
+      ? createTaskTools(agentName, options.workspaceName, options.stateStore, {
+          instructionQueue: options.instructionQueue,
+        })
       : null;
 
   return {
@@ -138,6 +142,8 @@ export function createWorkspaceTools(
             taskTools.artifact_create(args as Parameters<typeof taskTools.artifact_create>[0]),
           artifact_list: (args) =>
             taskTools.artifact_list(args as Parameters<typeof taskTools.artifact_list>[0]),
+          task_dispatch: (args) =>
+            taskTools.task_dispatch(args as Parameters<typeof taskTools.task_dispatch>[0]),
         }
       : {}),
   };

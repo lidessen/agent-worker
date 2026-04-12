@@ -48,7 +48,11 @@ export function createAgentTools(
     runtime.contextProvider,
     channels,
     (name) => (runtime.hasAgent(name) ? runtime.getAgentChannels(name) : undefined),
-    { stateStore: runtime.stateStore, workspaceName: runtime.name },
+    {
+      stateStore: runtime.stateStore,
+      workspaceName: runtime.name,
+      instructionQueue: runtime.instructionQueue,
+    },
   );
   const dirs: AgentDirs = {
     workspaceSandboxDir: runtime.workspaceSandboxDir,

@@ -1,11 +1,19 @@
 import { describe, test, expect } from "bun:test";
 import { createTaskTools } from "../src/context/mcp/task.ts";
 import { InMemoryWorkspaceStateStore } from "../src/state/index.ts";
+import { InstructionQueue } from "../src/loop/priority-queue.ts";
 
 function setup(agentName = "lead") {
   const store = new InMemoryWorkspaceStateStore();
   const tools = createTaskTools(agentName, "test-ws", store);
   return { store, tools };
+}
+
+function setupWithQueue(agentName = "lead") {
+  const store = new InMemoryWorkspaceStateStore();
+  const queue = new InstructionQueue();
+  const tools = createTaskTools(agentName, "test-ws", store, { instructionQueue: queue });
+  return { store, tools, queue };
 }
 
 describe("task_create", () => {
@@ -269,5 +277,74 @@ describe("task_update", () => {
   test("reports missing task on update", async () => {
     const { tools } = setup();
     expect(await tools.task_update({ id: "task_missing", title: "x" })).toContain("not found");
+  });
+});
+
+describe("task_dispatch", () => {
+  test("creates an Attempt, advances the task, and enqueues an instruction", async () => {
+    const { store, tools, queue } = setupWithQueue("lead");
+    const task = await store.createTask({
+      workspaceId: "test-ws",
+      title: "Fix bug",
+      goal: "Make the failing test pass",
+      status: "open",
+      acceptanceCriteria: "CI green",
+    });
+
+    const result = await tools.task_dispatch({ taskId: task.id, worker: "codex" });
+    expect(result).toContain("Dispatched");
+
+    const refreshed = await store.getTask(task.id);
+    expect(refreshed?.status).toBe("in_progress");
+    expect(refreshed?.activeAttemptId).toBeTruthy();
+
+    const attempts = await store.listAttempts(task.id);
+    expect(attempts).toHaveLength(1);
+    expect(attempts[0]!.agentName).toBe("codex");
+    expect(attempts[0]!.role).toBe("worker");
+
+    const enqueued = queue.dequeue("codex");
+    expect(enqueued).not.toBeNull();
+    expect(enqueued?.agentName).toBe("codex");
+    expect(enqueued?.content).toContain("Fix bug");
+    expect(enqueued?.content).toContain("Make the failing test pass");
+    expect(enqueued?.content).toContain("CI green");
+    expect(enqueued?.content).toContain(attempts[0]!.id);
+    expect(enqueued?.channel).toBe("dispatch");
+    expect(enqueued?.priority).toBe("normal");
+  });
+
+  test("is unavailable when no instruction queue is wired", async () => {
+    const { store, tools } = setup();
+    const task = await store.createTask({ workspaceId: "test-ws", title: "t", goal: "g" });
+    const result = await tools.task_dispatch({ taskId: task.id, worker: "codex" });
+    expect(result).toContain("unavailable");
+  });
+
+  test("refuses to dispatch a task that already has an active attempt", async () => {
+    const { store, tools, queue: _queue } = setupWithQueue();
+    const task = await store.createTask({ workspaceId: "test-ws", title: "t", goal: "g" });
+    await tools.task_dispatch({ taskId: task.id, worker: "codex" });
+
+    const second = await tools.task_dispatch({ taskId: task.id, worker: "cursor" });
+    expect(second).toContain("already has an active attempt");
+  });
+
+  test("refuses to dispatch a terminal task", async () => {
+    const { store, tools } = setupWithQueue();
+    const task = await store.createTask({
+      workspaceId: "test-ws",
+      title: "t",
+      goal: "g",
+      status: "completed",
+    });
+    const result = await tools.task_dispatch({ taskId: task.id, worker: "codex" });
+    expect(result).toContain("already completed");
+  });
+
+  test("reports missing task", async () => {
+    const { tools } = setupWithQueue();
+    const result = await tools.task_dispatch({ taskId: "task_missing", worker: "codex" });
+    expect(result).toContain("not found");
   });
 });
