@@ -12,14 +12,21 @@
 ## 最终状态
 
 ```
-850 tests | 0 fail | 1786 expect calls
+867 tests | 0 fail | 1840 expect calls
 oxlint: 0 warnings / 0 errors
 typecheck: clean (web/time.test.ts 的 bun:test 类型错误是 pre-existing)
 ```
 
+31 commits in this /loop session.
+
 完整 commit 列表（session 内，按时间顺序）：
 
 ```
+010eabd fixes from operator complete/abort review
+378a876 agent-worker: operator complete/abort commands for the task ledger
+2106e38 agent-worker: HTTP POST + CLI mutation surface for the task ledger
+a9ea5c1 workspace,orchestrator: lead onCheckpoint auto-injects ledger deltas
+6e005fa docs: final handoff + example workspace config
 aa63d8f fixes from iteration 4 review
 b1a960b agent: implement onCheckpoint hook at run boundaries
 ab89906 web: render the task ledger on the workspace page
@@ -106,14 +113,55 @@ cecc287 loop: stream token usage events from codex
 
 ### 7. 用户可见面
 
-- 守护进程新 HTTP 路由：
-  - `GET /workspaces/:key/tasks[?status=…&ownerLeadId=…]`
-  - `GET /workspaces/:key/tasks/:id`
-  - status 白名单校验，非法值 → 400
-- `AwClient.listWorkspaceTasks` / `getWorkspaceTask`
-- CLI：`aw task ls [--status ... --owner ...]` / `aw task get <id>`
-- Web UI：workspace 详情页新增 Tasks section，按 status 排序（draft → open → in_progress → blocked → completed → aborted → failed），显示 owner / active attempt / artifact 数量
-- Kickoff 自动在 state store 里创建一个 `draft` Task，source kind = "kickoff"
+**守护进程 HTTP 路由（task ledger）：**
+
+读：
+- `GET /workspaces/:key/tasks[?status=…&ownerLeadId=…]`
+- `GET /workspaces/:key/tasks/:id`
+
+写：
+- `POST /workspaces/:key/tasks` — create
+- `POST /workspaces/:key/tasks/:id` — patch
+- `POST /workspaces/:key/tasks/:id/dispatch` — dispatch to worker
+- `POST /workspaces/:key/tasks/:id/complete` — close with completed status
+- `POST /workspaces/:key/tasks/:id/abort` — close with aborted status
+
+所有写路径：status 白名单校验（400）、terminal task 拒绝重复关闭（409）、active attempt 冲突拒绝重复 dispatch（409）。
+
+**Client**：`AwClient.listWorkspaceTasks` / `getWorkspaceTask` / `createWorkspaceTask` / `updateWorkspaceTask` / `dispatchWorkspaceTask` / `completeWorkspaceTask` / `abortWorkspaceTask`
+
+**CLI**：
+```
+aw task ls [@ws] [--status draft,open] [--owner <name>]
+aw task get <id>
+aw task new <title> --goal '...' [--status ...] [--owner ...] [--accept ...]
+aw task update <id> [--status ...] [--title ...] [--goal ...]
+aw task dispatch <id> --to <worker>
+aw task complete <id> [--summary '...']
+aw task abort <id> [--reason '...']
+```
+
+task id 有格式校验（`task_<hex>`），typo 快速失败。所有 subcommand 的位置参数扫描跳过 `@ws` 和 `--flag value` 对，不会被后续 flag 误当成 id。
+
+**Web UI**：workspace 详情页的 Tasks section 按 status 分组（draft → open → in_progress → blocked → completed → aborted → failed），显示 owner / active attempt / artifact 数量。跨 workspace 导航时会重置 tasks 信号，避免 stale 渲染。
+
+**Kickoff**：自动在 state store 里创建一个 `draft` Task，source kind = "kickoff"；如果有 resolved lead agent，把它设为 `ownerLeadId`。
+
+**人机协作完整路径**：一个人类操作员现在可以完全不依赖"聪明的 lead agent" 驱动整个系统：
+```
+aw create workspace.yml
+aw task new "Ship it" --goal "Merge PR 123"
+aw task update task_abc --status open
+aw task dispatch task_abc --to alice
+# ...worker does stuff via MCP tools...
+aw task complete task_abc --summary "Shipped"
+```
+
+Lead agent 不是必须品。它是增强（自动分类 draft、读取 ledger delta、派发决策），不是替代。
+
+### 8. 自动化侧（当 lead 是真实 agent）
+
+如果配置了一个 lead（真实 runtime），`buildLeadHooks(stateStore)` 会挂到 orchestrator，每次 lead run_start 都会自动注入上次 run_start 以来的 task ledger delta — 新任务、状态变化、active attempt 变化、被移除的任务。Lead 不需要每次都调 task_list 就能看到 "发生了什么"。
 
 ## 完整 observability 链路
 
