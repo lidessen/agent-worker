@@ -3,6 +3,7 @@ import type {
   AgentLifecycleHooks,
   AgentState,
   AgentEvents,
+  CheckpointAction,
   ContextThresholds,
   InboxMessage,
   Message,
@@ -325,6 +326,90 @@ export class Agent {
     }
   }
 
+  // ── Checkpoint ────────────────────────────────────────────────────────
+
+  /**
+   * Fire the onCheckpoint hook for a run boundary. Swallows hook throws
+   * (logs to the bus) and routes `inject` actions either through the
+   * loop's interrupt channel (when the run is still alive and the loop
+   * supports it) or by pushing a system message onto the inbox so the
+   * next run picks it up.
+   */
+  private async maybeFireCheckpoint(
+    reason: "run_start" | "run_end" | "event",
+    runId: string,
+  ): Promise<void> {
+    const hook = this.lifecycleHooks.onCheckpoint;
+    if (!hook) return;
+
+    let action: CheckpointAction | void;
+    try {
+      action = await hook({
+        reason,
+        runNumber: this.currentRunNumber,
+      });
+    } catch (err) {
+      this.busEmit("agent.error", {
+        runId,
+        error: `onCheckpoint hook threw: ${err instanceof Error ? err.message : String(err)}`,
+        level: "error",
+      });
+      return;
+    }
+
+    if (!action || action.kind === "noop") return;
+
+    switch (action.kind) {
+      case "inject": {
+        this.busEmit("agent.checkpoint_inject", {
+          runId,
+          reason,
+          runNumber: this.currentRunNumber,
+          preview: action.content.slice(0, 200),
+        });
+
+        const loop = this.config.loop;
+        const supportsInterrupt =
+          reason !== "run_end" &&
+          (loop.supports as readonly string[]).includes("interruptible") &&
+          typeof loop.interrupt === "function";
+
+        if (supportsInterrupt) {
+          try {
+            await loop.interrupt!(action.content);
+          } catch (err) {
+            // Interrupt can race a run that's already winding down. Fall
+            // back to queuing the injection on the inbox so the next run
+            // still sees it.
+            this.busEmit("agent.error", {
+              runId,
+              error: `onCheckpoint inject via interrupt failed: ${
+                err instanceof Error ? err.message : String(err)
+              }`,
+              level: "warn",
+            });
+            this.inbox.push({ content: action.content, from: "system" });
+          }
+        } else {
+          // No interrupt path — queue on the inbox. The next processing
+          // cycle will assemble it alongside any real messages.
+          this.inbox.push({ content: action.content, from: "system" });
+        }
+        return;
+      }
+      default: {
+        // Exhaustiveness guard — future checkpoint actions must be handled.
+        const _exhaustive: never = action;
+        void _exhaustive;
+        this.busEmit("agent.error", {
+          runId,
+          error: `Unhandled CheckpointAction kind: ${(action as { kind: string }).kind}`,
+          level: "error",
+        });
+      }
+    }
+  }
+
   // ── Internal: state machine ────────────────────────────────────────────
 
   private setState(state: AgentState): void {
@@ -359,6 +444,10 @@ export class Agent {
             runNumber: info.runNumber,
             trigger: info.trigger,
           });
+          // Fire checkpoint hook at run_start. We intentionally do not
+          // await — the hook typically only appends context and the run
+          // is already in-flight. Throws are handled internally.
+          void this.maybeFireCheckpoint("run_start", runId);
         },
         onRunEnd: (result) => {
           this.emit("runEnd", result);
@@ -367,6 +456,7 @@ export class Agent {
             tokens: result.usage.totalTokens,
             durationMs: result.durationMs,
           });
+          void this.maybeFireCheckpoint("run_end", runId);
         },
         onEvent: async (event) => {
           this.emit("event", event);
