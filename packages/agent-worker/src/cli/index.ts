@@ -44,6 +44,10 @@ Documents:
   doc write <name> --content  Write document
   doc append <name> --content Append to document
 
+Tasks:
+  task ls [--status ...]      List tasks in the workspace ledger
+  task get <id>               Show a task with its attempts / handoffs / artifacts
+
 Auth:
   auth <provider>             Save API key (anthropic, openai, google, deepseek, ...)
   auth status                 Show provider auth status
@@ -122,6 +126,10 @@ async function main() {
     case "doc": {
       const { doc } = await import("./commands/doc.ts");
       return doc(rest);
+    }
+    case "task": {
+      const { task } = await import("./commands/task.ts");
+      return task(rest);
     }
     case "connect": {
       const { connect } = await import("./commands/connect.ts");
