@@ -163,6 +163,7 @@ export interface RunnerConfig {
 export type WorkspaceOverviewEventType =
   | "workspace.created"
   | "workspace.kickoff"
+  | "workspace.kickoff_task_failed"
   | "workspace.stopped"
   | "workspace.completed"
   | "workspace.failed"

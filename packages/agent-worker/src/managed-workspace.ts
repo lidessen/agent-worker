@@ -111,15 +111,48 @@ export class ManagedWorkspace {
   async kickoff(): Promise<void> {
     if (!this.resolved.kickoff) return;
     const channel = this.resolved.def.default_channel ?? "general";
+    const content = this.resolved.kickoff;
+
+    // Phase 2c: materialise the kickoff as a draft Task so the lead can
+    // pick it up from the task ledger rather than re-parsing the channel
+    // message. The channel send still runs so the existing intake flow
+    // keeps working during the migration.
+    const lead = this.resolved.agents.find((a) => a.role === "lead")?.name;
+    try {
+      await this.workspace.stateStore.createTask({
+        workspaceId: this.workspace.name,
+        title: content.split("\n")[0]?.slice(0, 120) ?? "Kickoff",
+        goal: content,
+        status: "draft",
+        ownerLeadId: lead,
+        sourceRefs: [
+          {
+            kind: "kickoff",
+            ref: channel,
+            excerpt: content.slice(0, 200),
+            ts: Date.now(),
+          },
+        ],
+      });
+    } catch (err) {
+      // Kickoff must not fail because of state store plumbing. Swallow and
+      // emit a diagnostic event — the channel send below still carries the
+      // work forward.
+      this.emitOverviewEvent("workspace.kickoff_task_failed", {
+        workspace: this.key,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+
     await this.workspace.contextProvider.send({
       channel,
       from: "user",
-      content: this.resolved.kickoff,
+      content,
     });
     this.emitOverviewEvent("workspace.kickoff", {
       workspace: this.key,
       channel,
-      content: this.resolved.kickoff.slice(0, 200),
+      content: content.slice(0, 200),
     });
   }
 
