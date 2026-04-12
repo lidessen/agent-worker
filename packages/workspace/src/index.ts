@@ -70,6 +70,7 @@ export {
   runSetupSteps,
 } from "./config/index.ts";
 export type {
+  AgentRole,
   WorkspaceDef,
   ConnectionDef,
   AgentDef,
@@ -83,6 +84,27 @@ export type {
   ToWorkspaceConfigOptions,
   RuntimeResolver,
 } from "./config/index.ts";
+
+// ── Kernel state (Task / Attempt / Handoff / Artifact) ────────────────────
+export { InMemoryWorkspaceStateStore } from "./state/index.ts";
+export type {
+  SourceRef,
+  TaskStatus,
+  Task,
+  CreateTaskInput,
+  TaskPatch,
+  AttemptStatus,
+  Attempt,
+  CreateAttemptInput,
+  AttemptPatch,
+  HandoffKind,
+  Handoff,
+  CreateHandoffInput,
+  Artifact,
+  CreateArtifactInput,
+  WorkspaceStateStore,
+  TaskFilter,
+} from "./state/index.ts";
 
 // ── Adapters ──────────────────────────────────────────────────────────────
 export { TelegramAdapter, runTelegramAuth } from "./adapters/telegram.ts";
