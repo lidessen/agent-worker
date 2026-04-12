@@ -30,6 +30,13 @@ const c = classes([
   "modeTag",
   "errorBanner",
   "emptyStateText",
+  "taskList",
+  "taskItem",
+  "taskHeader",
+  "taskTitle",
+  "taskStatusBadge",
+  "taskMeta",
+  "taskGoal",
 ] as const);
 
 export const page = rule`${c.page} {
@@ -241,4 +248,55 @@ export const docItemName = rule`${c.docItemName} {
 export const docItemActions = rule`${c.docItemActions} {
   font-size: ${tokens.fontSizes.xs};
   color: ${tokens.colors.textDim};
+}`;
+
+export const taskList = rule`${c.taskList} {
+  display: flex;
+  flex-direction: column;
+  gap: ${tokens.space.sm};
+}`;
+
+export const taskItem = rule`${c.taskItem} {
+  display: flex;
+  flex-direction: column;
+  gap: ${tokens.space.xs};
+  padding: ${tokens.space.sm} ${tokens.space.md};
+  background: ${tokens.colors.surface};
+  border: 1px solid ${tokens.colors.border};
+  border-radius: ${tokens.radii.sm};
+}`;
+
+export const taskHeader = rule`${c.taskHeader} {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: ${tokens.space.sm};
+}`;
+
+export const taskTitle = rule`${c.taskTitle} {
+  font-size: ${tokens.fontSizes.sm};
+  font-weight: ${tokens.fontWeights.semibold};
+  color: ${tokens.colors.text};
+}`;
+
+export const taskStatusBadge = rule`${c.taskStatusBadge} {
+  font-size: ${tokens.fontSizes.xs};
+  color: ${tokens.colors.textDim};
+  background: ${tokens.colors.surfaceHover};
+  padding: 2px ${tokens.space.sm};
+  border-radius: ${tokens.radii.pill};
+  font-family: ${tokens.fonts.mono};
+}`;
+
+export const taskMeta = rule`${c.taskMeta} {
+  font-size: ${tokens.fontSizes.xs};
+  color: ${tokens.colors.textMuted};
+  display: flex;
+  gap: ${tokens.space.md};
+}`;
+
+export const taskGoal = rule`${c.taskGoal} {
+  font-size: ${tokens.fontSizes.sm};
+  color: ${tokens.colors.textMuted};
+  white-space: pre-wrap;
 }`;

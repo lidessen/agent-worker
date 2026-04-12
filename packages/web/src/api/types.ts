@@ -102,6 +102,79 @@ export interface WorkspaceInboxEntry {
   enqueuedAt: number;
 }
 
+// ── Task ledger (workspace-led hierarchical state) ────────────────────────
+
+export type TaskStatus =
+  | "draft"
+  | "open"
+  | "in_progress"
+  | "blocked"
+  | "completed"
+  | "aborted"
+  | "failed";
+
+export interface TaskSummary {
+  id: string;
+  workspaceId: string;
+  title: string;
+  goal: string;
+  status: TaskStatus;
+  priority?: number;
+  ownerLeadId?: string;
+  activeAttemptId?: string;
+  acceptanceCriteria?: string;
+  artifactRefs: string[];
+  sourceRefs: Array<{ kind: string; ref?: string; excerpt?: string; ts: number }>;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface AttemptSummary {
+  id: string;
+  taskId: string;
+  agentName: string;
+  role: "lead" | "worker" | "observer";
+  status: "running" | "completed" | "failed" | "cancelled" | "handed_off";
+  startedAt: number;
+  endedAt?: number;
+  resultSummary?: string;
+  runtimeType?: string;
+  sessionId?: string;
+}
+
+export interface HandoffSummary {
+  id: string;
+  taskId: string;
+  fromAttemptId: string;
+  toAttemptId?: string;
+  createdAt: number;
+  createdBy: string;
+  kind: "progress" | "blocked" | "completed" | "aborted";
+  summary: string;
+  completed: string[];
+  pending: string[];
+  blockers: string[];
+  nextSteps: string[];
+  artifactRefs: string[];
+}
+
+export interface ArtifactSummary {
+  id: string;
+  taskId: string;
+  kind: string;
+  title: string;
+  ref: string;
+  createdByAttemptId: string;
+  createdAt: number;
+}
+
+export interface TaskDetail {
+  task: TaskSummary;
+  attempts: AttemptSummary[];
+  handoffs: HandoffSummary[];
+  artifacts: ArtifactSummary[];
+}
+
 // ── Runtime configuration (for HTTP-created agents) ──────────────────────
 
 export type RuntimeType = "ai-sdk" | "claude-code" | "codex" | "cursor" | "mock";
