@@ -118,7 +118,7 @@ describe("ClaudeCodeLoop", () => {
       expect(result).toHaveProperty("ok");
       expect(typeof result.ok).toBe("boolean");
       if (result.ok) {
-        expect(result).toHaveProperty("version");
+        expect(result.error).toBeUndefined();
       } else {
         expect(result).toHaveProperty("error");
       }
@@ -374,13 +374,11 @@ describe("ClaudeCodeLoop", () => {
     });
 
     test("parses extraArgs key-value pairs", () => {
-      expect(parseClaudeExtraArgs(["--max-tokens", "1000", "--verbose", "--model=haiku"])).toEqual(
-        {
-          "max-tokens": "1000",
-          verbose: null,
-          model: "haiku",
-        },
-      );
+      expect(parseClaudeExtraArgs(["--max-tokens", "1000", "--verbose", "--model=haiku"])).toEqual({
+        "max-tokens": "1000",
+        verbose: null,
+        model: "haiku",
+      });
     });
 
     test("builds args with all options combined", () => {

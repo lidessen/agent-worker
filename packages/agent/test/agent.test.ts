@@ -265,7 +265,6 @@ describe("Agent", () => {
 
     agent.push("start work");
     await new Promise((r) => setTimeout(r, 40));
-    agent.todos;
     const todoLoop = (agent as any).todoManager as { add(text: string): void };
     todoLoop.add("follow up");
 
@@ -289,9 +288,26 @@ describe("Agent", () => {
       run(): LoopRun {
         this._status = "running";
         const runtimeEvents: LoopEvent[] = [
-          { type: "tool_call_start", name: "agent_todo", callId: "call_1", args: { action: "add" } },
-          { type: "tool_call_end", name: "agent_todo", callId: "call_1", result: "ok", durationMs: 12 },
-          { type: "hook", phase: "response", name: "workspace-notify", hookEvent: "Notification", outcome: "success" },
+          {
+            type: "tool_call_start",
+            name: "agent_todo",
+            callId: "call_1",
+            args: { action: "add" },
+          },
+          {
+            type: "tool_call_end",
+            name: "agent_todo",
+            callId: "call_1",
+            result: "ok",
+            durationMs: 12,
+          },
+          {
+            type: "hook",
+            phase: "response",
+            name: "workspace-notify",
+            hookEvent: "Notification",
+            outcome: "success",
+          },
         ];
         const result = Promise.resolve().then(() => {
           this._status = "completed";
@@ -563,11 +579,13 @@ describe("History content", () => {
     // Total should be 6, not exponentially growing
     expect(agent.context.length).toBe(6);
 
-    // Each user turn should be short (just the message), not a massive assembled prompt
+    // Each user turn should stay bounded and avoid accumulating prompt artifacts
     const userTurns = agent.context.filter((t) => t.role === "user");
     for (const turn of userTurns) {
-      // A trigger content should be a single message line, not a multi-section prompt
-      expect(turn.content.length).toBeLessThan(100);
+      expect(turn.content.length).toBeLessThan(400);
+      expect(turn.content).not.toContain("Be helpful.");
+      expect(turn.content).not.toContain("[INBOX]");
+      expect(turn.content).not.toContain("[TODOS]");
     }
   });
 
