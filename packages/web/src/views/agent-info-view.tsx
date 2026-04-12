@@ -72,10 +72,7 @@ export const AgentInfoView: RuntimeComponent<{ name: string }> = (props, ctx) =>
   return (
     <div class={styles.container}>
       <div class={styles.header}>
-        <button
-          class={styles.backLink}
-          onclick={() => selectAgent(props.name)}
-        >
+        <button class={styles.backLink} onclick={() => selectAgent(props.name)}>
           <Icon icon={ArrowLeft} size={16} />
         </button>
         <span class={styles.agentName}>{props.name}</span>
@@ -110,12 +107,8 @@ export const AgentInfoView: RuntimeComponent<{ name: string }> = (props, ctx) =>
         <div class={styles.section}>
           <span class={styles.sectionTitle}>Actions</span>
           <div class={styles.actionBar}>
-            <button class={[styles.actionBtn, styles.actionBtnDanger]}>
-              Stop
-            </button>
-            <button class={styles.actionBtn}>
-              Restart
-            </button>
+            <button class={[styles.actionBtn, styles.actionBtnDanger]}>Stop</button>
+            <button class={styles.actionBtn}>Restart</button>
             <button
               class={[styles.actionBtn, styles.actionBtnDanger]}
               onclick={() => (showDeleteAgent.value = true)}

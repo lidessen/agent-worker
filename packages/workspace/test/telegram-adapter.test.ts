@@ -233,7 +233,9 @@ describe("TelegramAdapter", () => {
     adapter = new TelegramAdapter({
       botToken: "test-token",
       chatId: 123,
-      pauseAll: async () => { paused = true; },
+      pauseAll: async () => {
+        paused = true;
+      },
     });
     const bridge = createMockBridge();
     await adapter.start(bridge);
@@ -260,7 +262,9 @@ describe("TelegramAdapter", () => {
     adapter = new TelegramAdapter({
       botToken: "test-token",
       chatId: 123,
-      pauseAgent: async (name) => { pausedName = name; },
+      pauseAgent: async (name) => {
+        pausedName = name;
+      },
     });
     const bridge = createMockBridge();
     await adapter.start(bridge);
@@ -286,7 +290,9 @@ describe("TelegramAdapter", () => {
     adapter = new TelegramAdapter({
       botToken: "test-token",
       chatId: 123,
-      resumeAll: async () => { resumed = true; },
+      resumeAll: async () => {
+        resumed = true;
+      },
     });
     const bridge = createMockBridge();
     await adapter.start(bridge);
@@ -312,7 +318,9 @@ describe("TelegramAdapter", () => {
     adapter = new TelegramAdapter({
       botToken: "test-token",
       chatId: 123,
-      resumeAgent: async (name) => { resumedName = name; },
+      resumeAgent: async (name) => {
+        resumedName = name;
+      },
     });
     const bridge = createMockBridge();
     await adapter.start(bridge);
@@ -357,7 +365,9 @@ describe("TelegramAdapter", () => {
     adapter = new TelegramAdapter({
       botToken: "test-token",
       chatId: 123,
-      pauseAgent: async () => { throw new Error("Agent not found"); },
+      pauseAgent: async () => {
+        throw new Error("Agent not found");
+      },
     });
     const bridge = createMockBridge();
     await adapter.start(bridge);

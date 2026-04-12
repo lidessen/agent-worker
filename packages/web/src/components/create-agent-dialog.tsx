@@ -87,7 +87,9 @@ export function CreateAgentDialog() {
               runtime.value = (e.target as HTMLSelectElement).value as RuntimeType;
             }}
           >
-            <option value="ai-sdk" selected>ai-sdk</option>
+            <option value="ai-sdk" selected>
+              ai-sdk
+            </option>
             <option value="claude-code">claude-code</option>
             <option value="codex">codex</option>
             <option value="cursor">cursor</option>

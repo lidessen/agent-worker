@@ -47,11 +47,7 @@ export function WorkspaceCard(props: { workspace: WorkspaceInfo }) {
         <span class={styles.name}>{workspace.name}</span>
         {workspace.mode ? (
           <span
-            class={
-              workspace.mode === "service"
-                ? styles.modeBadgeService
-                : styles.modeBadgeTask
-            }
+            class={workspace.mode === "service" ? styles.modeBadgeService : styles.modeBadgeTask}
           >
             {modeLabels[workspace.mode] ?? workspace.mode}
           </span>

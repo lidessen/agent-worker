@@ -108,7 +108,6 @@ export const platformSuffix = rule`${c.platformSuffix} {
   opacity: 0.9;
 }`;
 
-
 export const timestamp = rule`${c.timestamp} {
   font-size: ${tokens.fontSizes.xs};
   color: ${tokens.colors.textDim};

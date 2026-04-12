@@ -98,7 +98,9 @@ export function CreateWorkspaceDialog() {
               mode.value = (e.target as HTMLSelectElement).value;
             }}
           >
-            <option value="service" selected>service</option>
+            <option value="service" selected>
+              service
+            </option>
             <option value="task">task</option>
           </select>
         </div>

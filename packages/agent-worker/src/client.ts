@@ -448,7 +448,9 @@ async function spawnDaemon(dataDir: string, extraArgs?: string[]): Promise<Daemo
   const dataDirArgs = dataDir !== defaultDataDir() ? ["--data-dir", dataDir] : [];
   const runtimeArgs = [
     ...process.execArgv,
-    cliEntry, "daemon", "start",
+    cliEntry,
+    "daemon",
+    "start",
     ...dataDirArgs,
     ...(extraArgs ?? []),
   ];

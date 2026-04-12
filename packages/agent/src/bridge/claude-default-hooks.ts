@@ -89,7 +89,9 @@ function formatStopReminder(args: {
   reminders: ReminderManager;
 }): string {
   const hasAttention =
-    args.inbox.unreadCount > 0 || args.todos.pending.length > 0 || args.reminders.pending.length > 0;
+    args.inbox.unreadCount > 0 ||
+    args.todos.pending.length > 0 ||
+    args.reminders.pending.length > 0;
 
   if (!hasAttention) {
     return "If you are done, stop normally. If not, explicitly state the next action before ending.";

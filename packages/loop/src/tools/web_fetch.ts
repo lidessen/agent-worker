@@ -206,12 +206,7 @@ function validatePublicUrl(urlStr: string): string | null {
   const ipv4Match = hostname.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
   if (ipv4Match) {
     const [, a, b] = ipv4Match.map(Number);
-    if (
-      a === 10 ||
-      (a === 172 && b! >= 16 && b! <= 31) ||
-      (a === 192 && b === 168) ||
-      a === 0
-    ) {
+    if (a === 10 || (a === 172 && b! >= 16 && b! <= 31) || (a === 192 && b === 168) || a === 0) {
       return "Error: Fetching private network addresses is not allowed.";
     }
   }

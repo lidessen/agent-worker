@@ -4,14 +4,14 @@
   "bin": {
     "aw": "./src/cli/index.ts"
   },
-  "scripts": {
-    "build": "bun build ./src/index.ts --outdir ./dist --target node",
-    "test": "bun test"
-  },
   "type": "module",
   "module": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "bun build ./src/index.ts --outdir ./dist --target node",
+    "test": "bun test"
   },
   "dependencies": {
     "@agent-worker/agent": "workspace:*",
