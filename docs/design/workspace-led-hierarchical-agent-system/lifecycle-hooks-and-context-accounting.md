@@ -228,9 +228,39 @@ Lead 是 "Agent bound to workspace"，没有 attempt。它的 hooks close over `
 - 多轮 run 的消费者应取 last / max，不要 sum
 - 这个语义需要在 `LoopEvent.usage` 的 doc comment 中明确
 
+## 已闭合的决策（后续实现用）
+
+### TaskDraft 不作为独立对象
+
+`TaskDraft` 不是独立的一等对象。替代方案：`Task` 自身的生命周期就包含 `draft` 状态。
+
+状态集（最小版本）：
+
+- `draft` — 原始输入刚被 lead 接到，尚未确认
+- `open` — lead 已确认为真正工作项
+- `in_progress` — 有活跃 attempt
+- `blocked` — 活跃 attempt 汇报阻塞
+- `completed` — 成功完成并有最终 handoff
+- `aborted` — 被 lead 或用户主动撤销
+- `failed` — 所有 attempts 失败，lead 判定无法继续
+
+转换规则第一版极简：
+
+- 所有输入（用户消息 / channel 消息 / kickoff / telegram）进入 lead 后都直接创建 `draft`
+- Lead 可以：确认（`draft → open`）、合并多个 draft、撤销（`draft → aborted`）
+- 没有"自动接纳"策略 — 第一版必须显式走 lead 的 intake 分支
+- Merge / split 不是 draft 专属特性，是 Task 层面的操作，后续再设计
+
+**Why:** 避免早期引入两套相似对象（Task / TaskDraft）带来的同步复杂度。Task 的 status 字段天然可以承载 draft 状态。
+
+**How to apply:** Phase 1 kernel 对象定义 `Task` 时就把 `draft` 纳入 status union。Phase 2 的 lead intake path 使用 `createTask({ status: "draft" })` 作为统一入口。
+
+### Observer / automation role 已落地
+
+Phase 0 已经把 `AgentRole` 扩展为 `"lead" | "worker" | "observer"`。Observer 的语义：不会被 orchestrator 派生成 task-scoped Attempt，即使 workspace 有活跃任务。dogfood bot 之类的角色显式写 `role: observer`。
+
 ## 仍然未决
 
-- `TaskDraft` 是否为一等对象、draft 状态机（`docs/handoffs` 中的未决点 3）
-- Observer / automation role（例如 dogfood bot）的定位 — 当前最小角色集只覆盖 `lead / worker`，observer 是下一阶段要补的（未决点 2）
 - Cursor usage estimation 的细节留到后续
 - context window 自动发现与配置覆盖的具体实现顺序
+- `Attempt` 与 per-run `Agent` 实例的对应关系在实际实现时可能还会暴露新的边界条件
