@@ -20,6 +20,8 @@ export const WorkspacePage: RuntimeComponent<Record<string, never>> = (_props, c
 
   let currentKey = "";
   let unsubRoute: (() => void) | null = null;
+  let eventStreamController: AbortController | null = null;
+  let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 
   async function loadWorkspace(key: string, force = false) {
     if (!key) return;
@@ -29,6 +31,9 @@ export const WorkspacePage: RuntimeComponent<Record<string, never>> = (_props, c
     // Reset list signals so a fast navigation doesn't leave stale rows
     // from the previous workspace visible while the new fetch is in flight.
     tasks.value = [];
+    // Tear down any event stream bound to the previous workspace.
+    eventStreamController?.abort();
+    eventStreamController = null;
 
     const c = client.value;
     if (!c) return;
@@ -48,10 +53,57 @@ export const WorkspacePage: RuntimeComponent<Record<string, never>> = (_props, c
       channels.value = ch;
       docs.value = docList;
       tasks.value = taskList;
+
+      // Subscribe to the workspace event stream and refresh tasks whenever
+      // a workspace.task_changed event lands. Debounce so a burst of
+      // changes (dispatch + status transition + handoff) only triggers
+      // one refetch.
+      subscribeForTaskUpdates(key);
     } catch (err) {
       console.error(`Failed to load workspace ${key}:`, err);
       error.value = err instanceof Error ? err.message : String(err);
     }
+  }
+
+  function subscribeForTaskUpdates(key: string) {
+    const c = client.value;
+    if (!c) return;
+    const controller = new AbortController();
+    eventStreamController = controller;
+
+    const scheduleRefresh = () => {
+      if (refreshTimer) clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(async () => {
+        refreshTimer = null;
+        if (currentKey !== key) return;
+        const liveClient = client.value;
+        if (!liveClient) return;
+        try {
+          const fresh = await liveClient.listWorkspaceTasks(key);
+          // Guard against stale arrivals after navigation away.
+          if (currentKey === key) tasks.value = fresh;
+        } catch (err) {
+          console.warn(`Task refresh failed for ${key}:`, err);
+        }
+      }, 100);
+    };
+
+    void (async () => {
+      try {
+        for await (const event of c.streamWorkspaceEvents(key, { signal: controller.signal })) {
+          if (controller.signal.aborted) return;
+          if ((event as { type?: string }).type === "workspace.task_changed") {
+            scheduleRefresh();
+          }
+        }
+      } catch (err) {
+        // AbortError on teardown is expected; everything else is a warning.
+        const name = (err as { name?: string })?.name;
+        if (name !== "AbortError") {
+          console.warn(`Workspace event stream for ${key} ended:`, err);
+        }
+      }
+    })();
   }
 
   loadWorkspace(wsKey.value);
@@ -71,6 +123,12 @@ export const WorkspacePage: RuntimeComponent<Record<string, never>> = (_props, c
     unsubRoute?.();
     unsubRoute = null;
     unsubClient();
+    eventStreamController?.abort();
+    eventStreamController = null;
+    if (refreshTimer) {
+      clearTimeout(refreshTimer);
+      refreshTimer = null;
+    }
     currentKey = "";
   });
 

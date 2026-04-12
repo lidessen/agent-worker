@@ -1304,6 +1304,21 @@ export class Daemon {
     return Response.json({ task, attempts, handoffs, artifacts });
   }
 
+  /** Emit a live update notification for observers (web UI, CLI polling, etc). */
+  private emitTaskChanged(
+    workspaceKey: string,
+    action: "created" | "updated" | "dispatched" | "completed" | "aborted",
+    taskId: string,
+  ): void {
+    this._bus.emit({
+      type: "workspace.task_changed",
+      source: "workspace",
+      workspace: workspaceKey,
+      action,
+      taskId,
+    });
+  }
+
   private async handleCreateTask(key: string, req: Request): Promise<Response> {
     const resolved = this.resolveWorkspace(key);
     if (resolved instanceof Response) return resolved;
@@ -1352,6 +1367,7 @@ export class Daemon {
         },
       ],
     });
+    this.emitTaskChanged(handle.key, "created", task.id);
     return Response.json({ task });
   }
 
@@ -1394,6 +1410,7 @@ export class Daemon {
     if (body.acceptanceCriteria !== undefined) patch.acceptanceCriteria = body.acceptanceCriteria;
 
     const task = await store.updateTask(taskId, patch);
+    this.emitTaskChanged(handle.key, "updated", task.id);
     return Response.json({ task });
   }
 
@@ -1475,6 +1492,7 @@ export class Daemon {
       enqueuedAt: new Date().toISOString(),
     });
 
+    this.emitTaskChanged(handle.key, "dispatched", task.id);
     return Response.json({ task: await store.getTask(task.id), attempt });
   }
 
@@ -1575,6 +1593,7 @@ export class Daemon {
     }
 
     await store.updateTask(task.id, { status: kind });
+    this.emitTaskChanged(handle.key, kind, task.id);
 
     const [refreshedTask, attempts, handoffs] = await Promise.all([
       store.getTask(task.id),
