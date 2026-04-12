@@ -108,6 +108,134 @@ describe("task_get", () => {
   });
 });
 
+describe("attempt lifecycle", () => {
+  test("attempt_create wires itself as active and advances the task to in_progress", async () => {
+    const { store, tools } = setup("worker-a");
+    const task = await store.createTask({
+      workspaceId: "test-ws",
+      title: "Fix bug",
+      goal: "g",
+      status: "open",
+    });
+
+    const result = await tools.attempt_create({ taskId: task.id });
+    expect(result).toContain("[running]");
+
+    const refreshed = await store.getTask(task.id);
+    expect(refreshed?.status).toBe("in_progress");
+    expect(refreshed?.activeAttemptId).toBeTruthy();
+  });
+
+  test("attempt_update(completed) clears the task's activeAttemptId and stamps endedAt", async () => {
+    const { store, tools } = setup("worker-a");
+    const task = await store.createTask({
+      workspaceId: "test-ws",
+      title: "Fix",
+      goal: "g",
+      status: "open",
+    });
+    await tools.attempt_create({ taskId: task.id });
+    const taskAfterCreate = await store.getTask(task.id);
+    const attemptId = taskAfterCreate!.activeAttemptId!;
+
+    const update = await tools.attempt_update({
+      id: attemptId,
+      status: "completed",
+      resultSummary: "all green",
+    });
+    expect(update).toContain("[completed]");
+
+    const refreshed = await store.getTask(task.id);
+    expect(refreshed?.activeAttemptId).toBeUndefined();
+
+    const attempt = await store.getAttempt(attemptId);
+    expect(attempt?.status).toBe("completed");
+    expect(attempt?.endedAt).toBeGreaterThan(0);
+    expect(attempt?.resultSummary).toBe("all green");
+  });
+
+  test("attempt_list returns attempts for a task", async () => {
+    const { store, tools } = setup("worker-a");
+    const task = await store.createTask({ workspaceId: "test-ws", title: "t", goal: "g" });
+    await tools.attempt_create({ taskId: task.id });
+    await tools.attempt_create({ taskId: task.id, agentName: "worker-b" });
+
+    const result = await tools.attempt_list({ taskId: task.id });
+    expect(result).toContain("Attempts (2)");
+  });
+
+  test("attempt_create rejects invalid role", async () => {
+    const { store, tools } = setup();
+    const task = await store.createTask({ workspaceId: "test-ws", title: "t", goal: "g" });
+    const result = await tools.attempt_create({
+      taskId: task.id,
+      role: "boss" as unknown as "worker",
+    });
+    expect(result).toContain("invalid role");
+  });
+});
+
+describe("handoff_create + handoff_list", () => {
+  test("records and lists structured handoffs for a task", async () => {
+    const { store, tools } = setup("worker-a");
+    const task = await store.createTask({ workspaceId: "test-ws", title: "t", goal: "g" });
+    await tools.attempt_create({ taskId: task.id });
+    const t = await store.getTask(task.id);
+    const attemptId = t!.activeAttemptId!;
+
+    const create = await tools.handoff_create({
+      taskId: task.id,
+      fromAttemptId: attemptId,
+      kind: "progress",
+      summary: "halfway",
+      completed: ["step 1"],
+      pending: ["step 2"],
+    });
+    expect(create).toContain("recorded");
+    expect(create).toContain("progress");
+
+    const list = await tools.handoff_list({ taskId: task.id });
+    expect(list).toContain("halfway");
+    expect(list).toContain("step 1");
+  });
+
+  test("handoff_create rejects invalid kind", async () => {
+    const { tools } = setup();
+    const result = await tools.handoff_create({
+      taskId: "task_nope",
+      fromAttemptId: "att_nope",
+      kind: "garbage" as unknown as "progress",
+      summary: "x",
+    });
+    expect(result).toContain("invalid handoff kind");
+  });
+});
+
+describe("artifact_create + artifact_list", () => {
+  test("registers an artifact and mirrors it into the task's artifactRefs", async () => {
+    const { store, tools } = setup("worker-a");
+    const task = await store.createTask({ workspaceId: "test-ws", title: "t", goal: "g" });
+    await tools.attempt_create({ taskId: task.id });
+    const t = await store.getTask(task.id);
+    const attemptId = t!.activeAttemptId!;
+
+    const result = await tools.artifact_create({
+      taskId: task.id,
+      createdByAttemptId: attemptId,
+      kind: "file",
+      title: "diff.patch",
+      ref: "file:/tmp/diff.patch",
+    });
+    expect(result).toContain("registered");
+
+    const refreshed = await store.getTask(task.id);
+    expect(refreshed?.artifactRefs).toHaveLength(1);
+
+    const list = await tools.artifact_list({ taskId: task.id });
+    expect(list).toContain("diff.patch");
+  });
+});
+
 describe("task_update", () => {
   test("updates status and returns the new state", async () => {
     const { store, tools } = setup();
