@@ -16,7 +16,7 @@
 
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { appendJsonl, readFrom, parseJsonl } from "@agent-worker/shared";
+import { appendJsonl, readFrom } from "@agent-worker/shared";
 import type {
   Artifact,
   Attempt,
@@ -89,16 +89,45 @@ export class FileWorkspaceStateStore implements WorkspaceStateStore {
     for (const a of attempts) this.attempts.set(a.id, a);
     for (const h of handoffs) this.handoffs.set(h.id, h);
     for (const a of artifacts) this.artifacts.set(a.id, a);
+
+    // Reconcile artifacts into their owning tasks' artifactRefs. Writing the
+    // artifact row and the task row is two separate appendFileSync calls, so
+    // a crash between them can leave artifacts.jsonl with an entry that
+    // tasks.jsonl doesn't yet mirror. Patch the in-memory task so callers
+    // see a consistent view; the artifact rows are authoritative.
+    for (const artifact of this.artifacts.values()) {
+      const task = this.tasks.get(artifact.taskId);
+      if (!task) continue;
+      if (!task.artifactRefs.includes(artifact.id)) {
+        this.tasks.set(task.id, {
+          ...task,
+          artifactRefs: [...task.artifactRefs, artifact.id],
+        });
+      }
+    }
   }
 
   private async readSnapshots<T extends { id: string }>(path: string): Promise<T[]> {
     const { data } = await readFrom(path, 0);
     if (!data) return [];
-    // JSONL lines are { ts, ...snapshot }. Strip the ts wrapper and keep the
-    // latest snapshot per id via a trailing Map.
-    const entries = parseJsonl<{ ts: number } & T>(data);
+    // A crash during appendFileSync can leave the final line torn (partial
+    // JSON or no trailing newline). Parse each line defensively so one bad
+    // tail doesn't poison the whole replay and render the store unusable.
+    const lines = data.split("\n").filter(Boolean);
     const latest = new Map<string, T>();
-    for (const entry of entries) {
+    for (const line of lines) {
+      let entry: { ts?: number } & T;
+      try {
+        entry = JSON.parse(line) as { ts?: number } & T;
+      } catch {
+        // Swallow malformed lines. If this is the last line in the file, the
+        // next successful append will extend past it with a clean newline.
+        continue;
+      }
+      // Skip rows that don't look like snapshots (no id).
+      if (!entry || typeof entry !== "object" || !("id" in entry) || typeof entry.id !== "string") {
+        continue;
+      }
       const { ts: _ts, ...rest } = entry;
       const snapshot = rest as unknown as T;
       latest.set(snapshot.id, snapshot);

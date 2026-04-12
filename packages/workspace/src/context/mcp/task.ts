@@ -202,6 +202,23 @@ export function createTaskTools(
   store: WorkspaceStateStore,
   deps: TaskToolsDeps = {},
 ): TaskTools {
+  // Serialise mutations that read a task's active-attempt state and then
+  // write to it. The check-then-act sequence happens across async `await`
+  // boundaries, so two concurrent dispatches on the same task can both pass
+  // the "no active attempt" guard and then both install their own attempts.
+  // A per-task lock prevents that interleave within a single process.
+  const inFlightTasks = new Set<string>();
+  async function withTaskLock<T>(taskId: string, fn: () => Promise<T>): Promise<T | string> {
+    if (inFlightTasks.has(taskId)) {
+      return `Error: task ${taskId} has another active-attempt mutation in flight — retry in a moment.`;
+    }
+    inFlightTasks.add(taskId);
+    try {
+      return await fn();
+    } finally {
+      inFlightTasks.delete(taskId);
+    }
+  }
   return {
     async task_create(args): Promise<string> {
       const title = (args.title ?? "").trim();
@@ -298,33 +315,35 @@ export function createTaskTools(
       const role: AgentRole = args.role ?? "worker";
       if (!isAgentRole(role)) return `Error: invalid role "${args.role}".`;
 
-      try {
-        const attempt = await store.createAttempt({
-          taskId: args.taskId,
-          agentName: args.agentName ?? agentName,
-          role,
-          inputHandoffId: args.inputHandoffId,
-          runtimeType: args.runtimeType,
-          sessionId: args.sessionId,
-          cwd: args.cwd,
-          worktreePath: args.worktreePath,
-        });
-
-        // If the task has no active attempt yet, wire this one as the active
-        // attempt and advance its status to in_progress. Workers commonly
-        // call attempt_create right after lead opens a task.
-        const task = await store.getTask(args.taskId);
-        if (task && !task.activeAttemptId) {
-          await store.updateTask(args.taskId, {
-            activeAttemptId: attempt.id,
-            status: task.status === "open" || task.status === "draft" ? "in_progress" : task.status,
+      const result = await withTaskLock(args.taskId, async () => {
+        try {
+          const attempt = await store.createAttempt({
+            taskId: args.taskId,
+            agentName: args.agentName ?? agentName,
+            role,
+            inputHandoffId: args.inputHandoffId,
+            runtimeType: args.runtimeType,
+            sessionId: args.sessionId,
+            cwd: args.cwd,
+            worktreePath: args.worktreePath,
           });
-        }
 
-        return `Attempt ${attempt.id} started on task ${attempt.taskId} [${attempt.status}]`;
-      } catch (err) {
-        return `Error: ${err instanceof Error ? err.message : String(err)}`;
-      }
+          // Wire as active only when the task has no active attempt.
+          const task = await store.getTask(args.taskId);
+          if (task && !task.activeAttemptId) {
+            await store.updateTask(args.taskId, {
+              activeAttemptId: attempt.id,
+              status:
+                task.status === "open" || task.status === "draft" ? "in_progress" : task.status,
+            });
+          }
+
+          return `Attempt ${attempt.id} started on task ${attempt.taskId} [${attempt.status}]`;
+        } catch (err) {
+          return `Error: ${err instanceof Error ? err.message : String(err)}`;
+        }
+      });
+      return typeof result === "string" ? result : String(result);
     },
 
     async attempt_list(args): Promise<string> {
@@ -355,7 +374,16 @@ export function createTaskTools(
       if (args.outputHandoffId !== undefined) patch.outputHandoffId = args.outputHandoffId;
       if (args.sessionId !== undefined) patch.sessionId = args.sessionId;
       if (args.lastHeartbeatAt !== undefined) patch.lastHeartbeatAt = args.lastHeartbeatAt;
-      if (args.status === "completed" || args.status === "failed" || args.status === "cancelled") {
+      // All four of these are logically terminal for the current attempt —
+      // `handed_off` means the attempt relinquished control, even though the
+      // task continues. Stamp endedAt and clear activeAttemptId for all of
+      // them so a follow-up dispatch isn't blocked by a stale reference.
+      if (
+        args.status === "completed" ||
+        args.status === "failed" ||
+        args.status === "cancelled" ||
+        args.status === "handed_off"
+      ) {
         patch.endedAt = Date.now();
       }
 
@@ -449,45 +477,47 @@ export function createTaskTools(
         return "Error: 'taskId' and 'worker' are required.";
       }
 
-      const task = await store.getTask(args.taskId);
-      if (!task) return `Error: task ${args.taskId} not found.`;
-      if (task.status === "completed" || task.status === "aborted" || task.status === "failed") {
-        return `Error: task ${task.id} is already ${task.status}.`;
-      }
-      if (task.activeAttemptId) {
-        return `Error: task ${task.id} already has an active attempt (${task.activeAttemptId}). Cancel or complete it before dispatching again.`;
-      }
+      const result = await withTaskLock(args.taskId, async () => {
+        const task = await store.getTask(args.taskId);
+        if (!task) return `Error: task ${args.taskId} not found.`;
+        if (task.status === "completed" || task.status === "aborted" || task.status === "failed") {
+          return `Error: task ${task.id} is already ${task.status}.`;
+        }
+        if (task.activeAttemptId) {
+          return `Error: task ${task.id} already has an active attempt (${task.activeAttemptId}). Cancel or complete it before dispatching again.`;
+        }
 
-      let attempt: Attempt;
-      try {
-        attempt = await store.createAttempt({
-          taskId: task.id,
-          agentName: args.worker,
-          role: "worker",
+        let attempt: Attempt;
+        try {
+          attempt = await store.createAttempt({
+            taskId: task.id,
+            agentName: args.worker,
+            role: "worker",
+          });
+        } catch (err) {
+          return `Error creating attempt: ${err instanceof Error ? err.message : String(err)}`;
+        }
+
+        await store.updateTask(task.id, {
+          activeAttemptId: attempt.id,
+          status: task.status === "draft" || task.status === "open" ? "in_progress" : task.status,
         });
-      } catch (err) {
-        return `Error creating attempt: ${err instanceof Error ? err.message : String(err)}`;
-      }
 
-      // Wire the new attempt as active and advance the task to in_progress.
-      await store.updateTask(task.id, {
-        activeAttemptId: attempt.id,
-        status: task.status === "draft" || task.status === "open" ? "in_progress" : task.status,
+        const priority: Priority = args.priority ?? "normal";
+        const instruction = {
+          id: nanoid(),
+          agentName: args.worker,
+          messageId: `dispatch:${attempt.id}`,
+          channel: "dispatch",
+          content: formatDispatchInstruction(task, attempt, agentName),
+          priority,
+          enqueuedAt: new Date().toISOString(),
+        };
+        deps.instructionQueue!.enqueue(instruction);
+
+        return `Dispatched task ${task.id} to @${args.worker} as attempt ${attempt.id}`;
       });
-
-      const priority: Priority = args.priority ?? "normal";
-      const instruction = {
-        id: nanoid(),
-        agentName: args.worker,
-        messageId: `dispatch:${attempt.id}`,
-        channel: "dispatch",
-        content: formatDispatchInstruction(task, attempt, agentName),
-        priority,
-        enqueuedAt: new Date().toISOString(),
-      };
-      deps.instructionQueue.enqueue(instruction);
-
-      return `Dispatched task ${task.id} to @${args.worker} as attempt ${attempt.id}`;
+      return typeof result === "string" ? result : String(result);
     },
   };
 }

@@ -69,9 +69,14 @@ export const workspacePromptSection: PromptSection = async (ctx) => {
         <>
           <line>You are a task-scoped worker</line>
           <item>
-            When you receive a dispatch instruction, it already carries a task id and attempt id.
-            Start work immediately — don&apos;t create your own Attempt unless you are acting
-            without a dispatch.
+            When you receive a dispatch instruction, it already carries a task id and an attempt id.
+            Start work immediately — do NOT call `attempt_create` when acting on a dispatch; use the
+            ids from the instruction body.
+          </item>
+          <item>
+            When you finish, call `attempt_update` with `id=&lt;attempt id from the dispatch&gt;`
+            and the terminal status (`completed` | `failed` | `cancelled` | `handed_off`). Never
+            call `attempt_create` to "close" an attempt.
           </item>
           <item>
             Record structured progress with `handoff_create kind=progress` during long work,
@@ -80,10 +85,6 @@ export const workspacePromptSection: PromptSection = async (ctx) => {
           <item>
             Register concrete outputs (files, commits, URLs) with `artifact_create` so the lead can
             review and mark the task complete.
-          </item>
-          <item>
-            Call `attempt_update status=completed` (or `failed` / `cancelled`) when you finish so
-            the lead knows the attempt is terminal.
           </item>
           <br />
         </>
