@@ -43,8 +43,9 @@ export function createAgentTools(
   runtime: Workspace,
 ): { tools: WorkspaceToolSet; promptSections: PromptSection[]; dirs: AgentDirs } {
   const channels = runtime.getAgentChannels(agentName);
-  const tools = createWorkspaceTools(agentName, runtime.contextProvider, channels,
-    (name) => runtime.hasAgent(name) ? runtime.getAgentChannels(name) : undefined);
+  const tools = createWorkspaceTools(agentName, runtime.contextProvider, channels, (name) =>
+    runtime.hasAgent(name) ? runtime.getAgentChannels(name) : undefined,
+  );
   const dirs: AgentDirs = {
     workspaceSandboxDir: runtime.workspaceSandboxDir,
     sandboxDir: runtime.agentSandboxDir(agentName),

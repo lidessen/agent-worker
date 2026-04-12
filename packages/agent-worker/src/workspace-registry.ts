@@ -1,4 +1,4 @@
-import { join, dirname, basename } from "node:path";
+import { join, dirname } from "node:path";
 import { mkdirSync, appendFileSync, symlinkSync, existsSync } from "node:fs";
 import { readFile as readFileAsync, writeFile as writeFileAsync } from "node:fs/promises";
 import {
@@ -67,7 +67,10 @@ export class WorkspaceRegistry {
   /** Serialize access to the manifest file. */
   private withManifestLock<T>(fn: () => Promise<T>): Promise<T> {
     const next = this._manifestLock.then(fn);
-    this._manifestLock = next.then(() => {}, () => {});
+    this._manifestLock = next.then(
+      () => {},
+      () => {},
+    );
     return next;
   }
 
@@ -202,10 +205,18 @@ export class WorkspaceRegistry {
     };
     const connections = await resolveConnections(resolved.def.connections, {
       getAgents,
-      pauseAll: async () => { for (const l of loopsRef) await l.pause(); },
-      resumeAll: async () => { for (const l of loopsRef) await l.resume(); },
-      pauseAgent: async (name) => { await findLoop(name).pause(); },
-      resumeAgent: async (name) => { await findLoop(name).resume(); },
+      pauseAll: async () => {
+        for (const l of loopsRef) await l.pause();
+      },
+      resumeAll: async () => {
+        for (const l of loopsRef) await l.resume();
+      },
+      pauseAgent: async (name) => {
+        await findLoop(name).pause();
+      },
+      resumeAgent: async (name) => {
+        await findLoop(name).resume();
+      },
     });
     const config = toWorkspaceConfig(resolved, {
       storageDir: globalDir,
@@ -255,7 +266,13 @@ export class WorkspaceRegistry {
         onDemand: agent.on_demand ?? false,
         // Arrow function defers orch access until invocation (after assignment)
         onInstruction: (prompt, instruction) =>
-          this.createInstructionHandler("global", agent, workspace, runner, orch)(prompt, instruction),
+          this.createInstructionHandler(
+            "global",
+            agent,
+            workspace,
+            runner,
+            orch,
+          )(prompt, instruction),
       });
       loops.push(orch);
     }
@@ -313,12 +330,25 @@ export class WorkspaceRegistry {
     };
     const connections = await resolveConnections(resolved.def.connections, {
       getAgents,
-      pauseAll: async () => { for (const l of loopsRef) await l.pause(); },
-      resumeAll: async () => { for (const l of loopsRef) await l.resume(); },
-      pauseAgent: async (name) => { await findLoop(name).pause(); },
-      resumeAgent: async (name) => { await findLoop(name).resume(); },
+      pauseAll: async () => {
+        for (const l of loopsRef) await l.pause();
+      },
+      resumeAll: async () => {
+        for (const l of loopsRef) await l.resume();
+      },
+      pauseAgent: async (name) => {
+        await findLoop(name).pause();
+      },
+      resumeAgent: async (name) => {
+        await findLoop(name).resume();
+      },
     });
-    const config = toWorkspaceConfig(resolved, { tag: input.tag, storageDir, connections, sandboxBaseDir });
+    const config = toWorkspaceConfig(resolved, {
+      tag: input.tag,
+      storageDir,
+      connections,
+      sandboxBaseDir,
+    });
     const workspace = await createWorkspace(config);
     workspaceRef = workspace;
 
@@ -464,7 +494,11 @@ export class WorkspaceRegistry {
     workspaceKey: string,
     agent: ResolvedAgent,
     workspace: Workspace,
-    runner: (prompt: string, instruction: import("@agent-worker/workspace").Instruction, runId: string) => Promise<void>,
+    runner: (
+      prompt: string,
+      instruction: import("@agent-worker/workspace").Instruction,
+      runId: string,
+    ) => Promise<void>,
     orch: WorkspaceOrchestrator,
   ): (prompt: string, instruction: import("@agent-worker/workspace").Instruction) => Promise<void> {
     return async (prompt, instruction) => {
@@ -496,7 +530,7 @@ export class WorkspaceRegistry {
         });
 
         // Classify error → decide recovery strategy
-        const strategy = classifyError(errStr) ?? await classifyErrorWithLLM(errStr);
+        const strategy = classifyError(errStr) ?? (await classifyErrorWithLLM(errStr));
         if (strategy?.fatal) {
           // Non-recoverable: stop the loop permanently and notify lead.
           await orch.fail(strategy.reason);
@@ -505,11 +539,14 @@ export class WorkspaceRegistry {
               await workspace.contextProvider.send({
                 channel: workspace.defaultChannel,
                 from: "system",
-                content: `@${workspace.lead} Agent @${agent.name} stopped (fatal: ${strategy.reason}). ` +
+                content:
+                  `@${workspace.lead} Agent @${agent.name} stopped (fatal: ${strategy.reason}). ` +
                   `Fix the configuration and restart the workspace.\n` +
                   `Error: ${errStr.slice(0, 200)}`,
               });
-            } catch { /* don't fail on notification */ }
+            } catch {
+              /* don't fail on notification */
+            }
           }
         } else if (strategy?.pause) {
           if (strategy.autoResume) {
@@ -518,20 +555,26 @@ export class WorkspaceRegistry {
             await orch.pause();
           }
           await workspace.eventLog.log(
-            agent.name, "system",
+            agent.name,
+            "system",
             `Auto-paused (${strategy.category}): ${strategy.reason}. ` +
-              (strategy.autoResume ? "Will auto-resume after cooldown." : "Manual resume required."),
+              (strategy.autoResume
+                ? "Will auto-resume after cooldown."
+                : "Manual resume required."),
           );
           if (workspace.lead && workspace.lead !== agent.name) {
             try {
               await workspace.contextProvider.send({
                 channel: workspace.defaultChannel,
                 from: "system",
-                content: `@${workspace.lead} Agent @${agent.name} paused (${strategy.reason}). ` +
-              `Task: ${instruction.content.slice(0, 100)}` +
+                content:
+                  `@${workspace.lead} Agent @${agent.name} paused (${strategy.reason}). ` +
+                  `Task: ${instruction.content.slice(0, 100)}` +
                   (strategy.autoResume ? "" : ". Needs manual resume or config fix."),
               });
-            } catch { /* don't fail on notification */ }
+            } catch {
+              /* don't fail on notification */
+            }
           }
         }
 
@@ -772,7 +815,13 @@ import type { LoopEvent } from "@agent-worker/loop";
 
 // ── Error classification ─────────────────────────────────────────────────
 
-type ErrorCategory = "rate_limit" | "quota_exhausted" | "auth" | "server_error" | "transient" | "fatal";
+type ErrorCategory =
+  | "rate_limit"
+  | "quota_exhausted"
+  | "auth"
+  | "server_error"
+  | "transient"
+  | "fatal";
 
 interface ErrorStrategy {
   category: ErrorCategory;
@@ -800,12 +849,22 @@ const ERROR_RULES: Array<{ patterns: RegExp[]; strategy: Omit<ErrorStrategy, "re
   },
   {
     patterns: [/usage limit/i, /quota exceeded/i],
-    strategy: { category: "quota_exhausted", pause: true, autoResume: true, reason: "quota exhausted" },
+    strategy: {
+      category: "quota_exhausted",
+      pause: true,
+      autoResume: true,
+      reason: "quota exhausted",
+    },
   },
   {
     // Billing/credits — account-level, won't self-resolve
     patterns: [/billing/i, /insufficient.*credits/i, /payment/i, /subscription/i],
-    strategy: { category: "quota_exhausted", pause: true, autoResume: false, reason: "billing/credits issue" },
+    strategy: {
+      category: "quota_exhausted",
+      pause: true,
+      autoResume: false,
+      reason: "billing/credits issue",
+    },
   },
   {
     patterns: [/authentication required/i, /unauthorized/i, /api.key/i, /invalid.*token/i, /401/],
@@ -825,7 +884,13 @@ const ERROR_RULES: Array<{ patterns: RegExp[]; strategy: Omit<ErrorStrategy, "re
       /command not found/i,
       /ENOENT.*which/i,
     ],
-    strategy: { category: "fatal", pause: false, autoResume: false, fatal: true, reason: "environment/config error" },
+    strategy: {
+      category: "fatal",
+      pause: false,
+      autoResume: false,
+      fatal: true,
+      reason: "environment/config error",
+    },
   },
 ];
 
@@ -836,7 +901,9 @@ const ERROR_RULES: Array<{ patterns: RegExp[]; strategy: Omit<ErrorStrategy, "re
  */
 function parseRetryAfter(err: string): number | undefined {
   // "retry after 60" / "try again in 60 seconds" / "wait 30s" / "reset in 5 minutes"
-  const m = err.match(/(?:retry.?after|retry in|try again in|wait|reset in|cooldown:?)\s*(\d+)\s*(s|sec|seconds?|m|min|minutes?|h|hours?|ms)?/i);
+  const m = err.match(
+    /(?:retry.?after|retry in|try again in|wait|reset in|cooldown:?)\s*(\d+)\s*(s|sec|seconds?|m|min|minutes?|h|hours?|ms)?/i,
+  );
   if (!m) {
     // Retry-After HTTP header value (plain seconds)
     const h = err.match(/retry-after:\s*(\d+)/i);
@@ -899,7 +966,9 @@ async function classifyErrorWithLLM(err: string): Promise<ErrorStrategy | null> 
         try {
           model = await resolveProvider(provider, modelId);
           break;
-        } catch { continue; }
+        } catch {
+          continue;
+        }
       }
       if (!model) return null;
     } else {
@@ -918,7 +987,10 @@ async function classifyErrorWithLLM(err: string): Promise<ErrorStrategy | null> 
         schema: z.object({
           category: z.enum(["rate_limit", "quota_exhausted", "auth", "server_error", "transient"]),
           autoResume: z.boolean().describe("true if temporary and will resolve on its own"),
-          retryAfterMs: z.number().optional().describe("suggested wait time in milliseconds, extracted from error if available"),
+          retryAfterMs: z
+            .number()
+            .optional()
+            .describe("suggested wait time in milliseconds, extracted from error if available"),
           reason: z.string().describe("short human-readable reason, max 10 words"),
         }),
       }),

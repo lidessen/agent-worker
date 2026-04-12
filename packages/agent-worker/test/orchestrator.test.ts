@@ -70,9 +70,7 @@ describe("WorkspaceOrchestrator pause/resume", () => {
     await orch.pause();
 
     const events = await workspace.contextProvider.timeline.read("alice");
-    const pauseEvent = events.find(
-      (e) => e.kind === "system" && e.content.includes("paused"),
-    );
+    const pauseEvent = events.find((e) => e.kind === "system" && e.content.includes("paused"));
     expect(pauseEvent).toBeDefined();
   });
 
@@ -81,9 +79,7 @@ describe("WorkspaceOrchestrator pause/resume", () => {
     await orch.resume();
 
     const events = await workspace.contextProvider.timeline.read("alice");
-    const resumeEvent = events.find(
-      (e) => e.kind === "system" && e.content.includes("resumed"),
-    );
+    const resumeEvent = events.find((e) => e.kind === "system" && e.content.includes("resumed"));
     expect(resumeEvent).toBeDefined();
   });
 

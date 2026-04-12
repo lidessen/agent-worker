@@ -66,14 +66,12 @@ describe("HostSandbox", () => {
 
   test("writeFiles rejects paths outside sandbox boundary", async () => {
     const outsidePath = join(tmpdir(), "outside-sandbox.txt");
-    await expect(
-      sandbox.writeFiles([{ path: outsidePath, content: "nope" }]),
-    ).rejects.toThrow("outside sandbox boundary");
+    await expect(sandbox.writeFiles([{ path: outsidePath, content: "nope" }])).rejects.toThrow(
+      "outside sandbox boundary",
+    );
   });
 
   test("readFile rejects paths outside sandbox boundary", async () => {
-    await expect(sandbox.readFile("/etc/passwd")).rejects.toThrow(
-      "outside sandbox boundary",
-    );
+    await expect(sandbox.readFile("/etc/passwd")).rejects.toThrow("outside sandbox boundary");
   });
 });

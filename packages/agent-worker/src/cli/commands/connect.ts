@@ -10,7 +10,7 @@
  * and referenced in workspace YAML via the `name` field on ConnectionDef.
  */
 
-import { readFile, readdir, unlink, stat } from "node:fs/promises";
+import { readFile, readdir, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { createInterface } from "node:readline/promises";
@@ -37,14 +37,18 @@ async function loadConnection(platform: string, name?: string): Promise<Connecti
   try {
     const raw = await readFile(join(CONNECTIONS_DIR, platform, `${name}.json`), "utf-8");
     return { ...JSON.parse(raw), _name: name };
-  } catch { /* not found */ }
+  } catch {
+    /* not found */
+  }
 
   // Legacy fallback: connections/telegram.json
   if (name === platform) {
     try {
       const raw = await readFile(join(CONNECTIONS_DIR, `${platform}.json`), "utf-8");
       return { ...JSON.parse(raw), _name: platform };
-    } catch { /* not found */ }
+    } catch {
+      /* not found */
+    }
   }
 
   return null;
@@ -56,14 +60,18 @@ async function removeConnection(platform: string, name?: string): Promise<boolea
   try {
     await unlink(join(CONNECTIONS_DIR, platform, `${name}.json`));
     return true;
-  } catch { /* not found */ }
+  } catch {
+    /* not found */
+  }
 
   // Legacy fallback
   if (name === platform) {
     try {
       await unlink(join(CONNECTIONS_DIR, `${platform}.json`));
       return true;
-    } catch { /* not found */ }
+    } catch {
+      /* not found */
+    }
   }
 
   return false;
@@ -83,7 +91,9 @@ async function listConnections(): Promise<Connection[]> {
           const raw = await readFile(join(CONNECTIONS_DIR, entry.name), "utf-8");
           const legacyName = entry.name.replace(/\.json$/, "");
           conns.push({ ...JSON.parse(raw), _name: legacyName });
-        } catch { /* skip corrupt */ }
+        } catch {
+          /* skip corrupt */
+        }
       } else if (entry.isDirectory()) {
         // Named dir: telegram/dev-bot.json
         try {
@@ -94,12 +104,18 @@ async function listConnections(): Promise<Connection[]> {
               const raw = await readFile(join(CONNECTIONS_DIR, entry.name, f), "utf-8");
               const name = f.replace(/\.json$/, "");
               conns.push({ ...JSON.parse(raw), _name: name });
-            } catch { /* skip corrupt */ }
+            } catch {
+              /* skip corrupt */
+            }
           }
-        } catch { /* skip */ }
+        } catch {
+          /* skip */
+        }
       }
     }
-  } catch { /* dir doesn't exist */ }
+  } catch {
+    /* dir doesn't exist */
+  }
   return conns;
 }
 

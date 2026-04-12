@@ -1,8 +1,5 @@
 import { test, expect, describe } from "bun:test";
-import {
-  ContextEngine,
-  type ContextSourceProvider,
-} from "../src/context-engine.ts";
+import { ContextEngine, type ContextSourceProvider } from "../src/context-engine.ts";
 import { Inbox } from "../src/inbox.ts";
 import { TodoManager } from "../src/todo.ts";
 import { InMemoryNotesStorage } from "../src/notes.ts";

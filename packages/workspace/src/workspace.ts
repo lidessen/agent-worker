@@ -185,7 +185,9 @@ export class Workspace implements WorkspaceRuntime {
       [...this.agentChannels.keys()].map(async (name) => {
         const status = await this.contextProvider.status.get(name);
         const inbox = (await this.contextProvider.inbox.inspect(name)).slice(0, inboxLimit);
-        const recentActivity = await this.contextProvider.timeline.read(name, { limit: timelineLimit });
+        const recentActivity = await this.contextProvider.timeline.read(name, {
+          limit: timelineLimit,
+        });
         return {
           name,
           status: status?.status ?? "idle",

@@ -146,7 +146,9 @@ export class RunCoordinator {
       if (checkpointTurns.length === 0) return;
       checkpointCursor = liveTurns.length;
       const source = `${runLabel}:event_${++checkpointSeq}`;
-      checkpointChain = checkpointChain.then(() => this.deps.memory!.extract(checkpointTurns, source));
+      checkpointChain = checkpointChain.then(() =>
+        this.deps.memory!.extract(checkpointTurns, source),
+      );
     };
 
     const scheduleCheckpoint = (): void => {
