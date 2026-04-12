@@ -49,11 +49,7 @@ function isRunEvent(event: DaemonEvent): boolean {
 
 function isErrorEvent(event: DaemonEvent): boolean {
   const t = event.type;
-  return (
-    t === "error" ||
-    t === "workspace.agent_error" ||
-    t.includes("error")
-  );
+  return t === "error" || t === "workspace.agent_error" || t.includes("error");
 }
 
 function isUserMessage(event: DaemonEvent): boolean {
@@ -67,11 +63,7 @@ function isThinkingEvent(event: DaemonEvent): boolean {
 function isSkippedEvent(event: DaemonEvent): boolean {
   // Events that are informational / not rendered
   const t = event.type;
-  return (
-    t === "context_assembled" ||
-    t === "send" ||
-    t === "unknown"
-  );
+  return t === "context_assembled" || t === "send" || t === "unknown";
 }
 
 function renderEvent(event: DaemonEvent) {
@@ -103,7 +95,7 @@ export const EventList: RuntimeComponent<{
 }> = (
   props: { events: ReadableSignal<DaemonEvent[]>; agentName?: ReadableSignal<string> },
   ctx,
-)=> {
+) => {
   let scrollRef: HTMLDivElement | null = null;
   let scrollListenerTarget: HTMLDivElement | null = null;
   let userScrolledUp = false;
@@ -139,7 +131,9 @@ export const EventList: RuntimeComponent<{
       return (
         <div class={styles.empty}>
           <div class={styles.emptyContent}>
-            <div class={styles.emptyIcon}><Icon icon={MessageCircle} size={32} /></div>
+            <div class={styles.emptyIcon}>
+              <Icon icon={MessageCircle} size={32} />
+            </div>
             <div class={styles.emptyText}>
               Send a message to start interacting with {agentLabel}
             </div>

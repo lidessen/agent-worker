@@ -1,66 +1,68 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Agent Worker</title>
-  <style>
-    :root {
-      color-scheme: light;
-    }
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Agent Worker</title>
+    <style>
+      :root {
+        color-scheme: light;
+      }
 
-    html, body, #app {
-      height: 100%;
-    }
+      html,
+      body,
+      #app {
+        height: 100%;
+      }
 
-    * {
-      box-sizing: border-box;
-    }
+      * {
+        box-sizing: border-box;
+      }
 
-    body {
-      margin: 0;
-      background: var(--colors-background);
-      color: var(--colors-text);
-      font-family: var(--fonts-base);
-    }
+      body {
+        margin: 0;
+        background: var(--colors-background);
+        color: var(--colors-text);
+        font-family: var(--fonts-base);
+      }
 
-    ::selection {
-      background: var(--colors-selectionBg);
-      color: var(--colors-selectionText);
-    }
+      ::selection {
+        background: var(--colors-selectionBg);
+        color: var(--colors-selectionText);
+      }
 
-    * {
-      scrollbar-width: thin;
-      scrollbar-color: var(--colors-scrollbarThumb) transparent;
-    }
+      * {
+        scrollbar-width: thin;
+        scrollbar-color: var(--colors-scrollbarThumb) transparent;
+      }
 
-    *::-webkit-scrollbar {
-      width: 10px;
-      height: 10px;
-    }
+      *::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+      }
 
-    *::-webkit-scrollbar-track {
-      background: transparent;
-    }
+      *::-webkit-scrollbar-track {
+        background: transparent;
+      }
 
-    *::-webkit-scrollbar-thumb {
-      background: var(--colors-scrollbarThumb);
-      border-radius: 999px;
-      border: 2px solid transparent;
-      background-clip: padding-box;
-    }
+      *::-webkit-scrollbar-thumb {
+        background: var(--colors-scrollbarThumb);
+        border-radius: 999px;
+        border: 2px solid transparent;
+        background-clip: padding-box;
+      }
 
-    select,
-    input,
-    textarea,
-    button {
-      -webkit-appearance: none;
-      appearance: none;
-    }
-  </style>
-</head>
-<body>
-  <div id="app"></div>
-  <script type="module" src="./main.tsx"></script>
-</body>
+      select,
+      input,
+      textarea,
+      button {
+        -webkit-appearance: none;
+        appearance: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="./main.tsx"></script>
+  </body>
 </html>

@@ -1,7 +1,7 @@
 /** @jsxImportSource semajsx/dom */
 
 import type { RuntimeComponent } from "semajsx";
-import { signal, computed } from "semajsx/signal";
+import { signal } from "semajsx/signal";
 import {
   channelMessages,
   loadChannelHistory,
@@ -50,10 +50,7 @@ export const ChannelView: RuntimeComponent<{ wsKey: string; channel: string }> =
           <span class={styles.wsLabel}>{props.wsKey}</span>
         </div>
         <div class={styles.headerActions}>
-          <button
-            class={styles.clearBtn}
-            onclick={() => (showClearConfirm.value = true)}
-          >
+          <button class={styles.clearBtn} onclick={() => (showClearConfirm.value = true)}>
             Clear
           </button>
         </div>

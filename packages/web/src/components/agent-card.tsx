@@ -63,9 +63,7 @@ export function AgentCard(props: { agent: AgentInfo }) {
           <span class={badgeDotClass} />
           {agent.state}
         </div>
-        {agent.createdAt ? (
-          <span class={styles.timeText}>{timeAgo(agent.createdAt)}</span>
-        ) : null}
+        {agent.createdAt ? <span class={styles.timeText}>{timeAgo(agent.createdAt)}</span> : null}
       </div>
       <div class={styles.meta}>
         <span class={styles.runtimeBadge}>

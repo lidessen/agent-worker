@@ -373,7 +373,19 @@ export const loopDotRunning = rule`${c.loopDotRunning} { background: ${tokens.co
 
 /* ── Danger Zone ────────────────────────────────────────────────────── */
 
-const d = classes(["dangerSection", "dangerBtn", "loopList", "loopItem", "loopDot", "loopName", "eventList", "eventItem", "eventTime", "eventType", "eventDetail"] as const);
+const d = classes([
+  "dangerSection",
+  "dangerBtn",
+  "loopList",
+  "loopItem",
+  "loopDot",
+  "loopName",
+  "eventList",
+  "eventItem",
+  "eventTime",
+  "eventType",
+  "eventDetail",
+] as const);
 
 export const dangerSection = rule`${d.dangerSection} {
   display: flex;

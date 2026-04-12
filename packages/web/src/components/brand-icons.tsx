@@ -16,11 +16,7 @@ interface BrandIconProps {
   style?: string;
 }
 
-function createBrandSvg(
-  viewBox: string,
-  pathD: string,
-  props: BrandIconProps,
-): SVGSVGElement {
+function createBrandSvg(viewBox: string, pathD: string, props: BrandIconProps): SVGSVGElement {
   const size = String(props.size ?? 16);
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
@@ -94,14 +90,17 @@ export function DiscordIcon(props: BrandIconProps = {}): VNode {
 }
 
 /** Platform config: icon factory + official brand color */
-export const platformConfig: Record<string, {
-  icon: ((props?: BrandIconProps) => VNode) | null;
-  color: string;      // official brand color
-  bgAlpha: string;    // low-opacity version for label background
-}> = {
-  telegram:  { icon: TelegramIcon,  color: "#26A5E4", bgAlpha: "rgba(38, 165, 228, 0.18)" },
-  slack:     { icon: SlackIcon,     color: "#E01E5A", bgAlpha: "rgba(224, 30, 90, 0.18)" },
-  discord:   { icon: DiscordIcon,   color: "#5865F2", bgAlpha: "rgba(88, 101, 242, 0.18)" },
+export const platformConfig: Record<
+  string,
+  {
+    icon: ((props?: BrandIconProps) => VNode) | null;
+    color: string; // official brand color
+    bgAlpha: string; // low-opacity version for label background
+  }
+> = {
+  telegram: { icon: TelegramIcon, color: "#26A5E4", bgAlpha: "rgba(38, 165, 228, 0.18)" },
+  slack: { icon: SlackIcon, color: "#E01E5A", bgAlpha: "rgba(224, 30, 90, 0.18)" },
+  discord: { icon: DiscordIcon, color: "#5865F2", bgAlpha: "rgba(88, 101, 242, 0.18)" },
 };
 
 export interface ParsedPlatform {

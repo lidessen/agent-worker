@@ -26,9 +26,7 @@ export const GlobalEventsView: RuntimeComponent<Record<string, never>> = (_props
 
   const eventCount = computed(daemonEvents, (list) => String(list.length));
 
-  const streamBadge = computed(isDaemonStreaming, (streaming) =>
-    streaming ? "live" : "paused",
-  );
+  const streamBadge = computed(isDaemonStreaming, (streaming) => (streaming ? "live" : "paused"));
 
   const eventListContent = computed(daemonEvents, (events) => {
     if (events.length === 0) {
@@ -42,13 +40,9 @@ export const GlobalEventsView: RuntimeComponent<Record<string, never>> = (_props
       <div class={styles.eventList}>
         {reversed.map((evt) => (
           <div class={styles.eventItem}>
-            <span class={styles.eventTime}>
-              {formatDateTime(evt.ts)}
-            </span>
+            <span class={styles.eventTime}>{formatDateTime(evt.ts)}</span>
             <span class={styles.eventType}>{evt.type}</span>
-            <span class={styles.eventAgent}>
-              {evt.agent ? String(evt.agent) : ""}
-            </span>
+            <span class={styles.eventAgent}>{evt.agent ? String(evt.agent) : ""}</span>
             <span class={styles.eventDetail}>
               {evt.workspace ? `@${String(evt.workspace)}` : ""}
               {evt.message ? ` ${String(evt.message)}` : ""}
@@ -69,9 +63,7 @@ export const GlobalEventsView: RuntimeComponent<Record<string, never>> = (_props
         </div>
       </div>
 
-      <div class={styles.content}>
-        {eventListContent}
-      </div>
+      <div class={styles.content}>{eventListContent}</div>
     </div>
   );
 };

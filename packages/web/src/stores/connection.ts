@@ -1,9 +1,9 @@
 import { signal } from "semajsx/signal";
 import { WebClient } from "../api/client.ts";
 
-export const connectionState = signal<
-  "disconnected" | "connecting" | "connected" | "error"
->("disconnected");
+export const connectionState = signal<"disconnected" | "connecting" | "connected" | "error">(
+  "disconnected",
+);
 
 export const client = signal<WebClient | null>(null);
 

@@ -4,12 +4,7 @@ import type { RuntimeComponent } from "semajsx";
 import { computed } from "semajsx/signal";
 import { route, navigate } from "../router.ts";
 import { client } from "../stores/connection.ts";
-import {
-  fetchAgentState,
-  agentState,
-  startPolling,
-  stopPolling,
-} from "../stores/agents.ts";
+import { fetchAgentState, agentState, startPolling, stopPolling } from "../stores/agents.ts";
 import {
   events,
   loadHistory,
@@ -65,9 +60,7 @@ function StreamErrorBanner() {
 }
 
 export const AgentChatPage: RuntimeComponent<Record<string, never>> = (_props, ctx) => {
-  const name = computed(route, (r) =>
-    r.page === "agent-chat" ? r.params.name : "",
-  );
+  const name = computed(route, (r) => (r.page === "agent-chat" ? r.params.name : ""));
 
   const stateText = computed(agentState, (s) => s?.state ?? "unknown");
   const badgeDotClass = computed(stateText, (state) => [
