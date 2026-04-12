@@ -43,10 +43,10 @@ export const ChannelMessageList: RuntimeComponent<{
       return (
         <div class={styles.empty}>
           <div class={styles.emptyContent}>
-            <div class={styles.emptyIcon}><Icon icon={MessageCircle} size={32} /></div>
-            <div class={styles.emptyText}>
-              Start the thread with the first channel message.
+            <div class={styles.emptyIcon}>
+              <Icon icon={MessageCircle} size={32} />
             </div>
+            <div class={styles.emptyText}>Start the thread with the first channel message.</div>
           </div>
         </div>
       );

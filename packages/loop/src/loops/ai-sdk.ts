@@ -49,8 +49,7 @@ export class AiSdkLoop {
 
   /** Initialize bash tools and create the underlying ToolLoopAgent. Called automatically by run(). */
   async init(): Promise<void> {
-    const { model, instructions, tools: userTools = {}, bashToolOptions } =
-      this.options;
+    const { model, instructions, tools: userTools = {}, bashToolOptions } = this.options;
 
     this.bashToolkit = await createBashTool(bashToolOptions ?? {});
     const builtinTools: ToolSet = this.bashToolkit.tools as unknown as ToolSet;
@@ -227,7 +226,8 @@ export class AiSdkLoop {
     if (!provider) {
       return {
         ok: false,
-        error: "Unknown provider — model string should be 'provider:model' (e.g. 'anthropic:model-name')",
+        error:
+          "Unknown provider — model string should be 'provider:model' (e.g. 'anthropic:model-name')",
       };
     }
 

@@ -94,7 +94,10 @@ export async function sendChannelMessage(wsKey: string, ch: string, text: string
   channelMessages.update((prev) => [...prev, localMsg]);
 
   const c = client.value;
-  if (!c) { isChannelSending.value = false; return; }
+  if (!c) {
+    isChannelSending.value = false;
+    return;
+  }
   try {
     await c.sendToWorkspace(wsKey, text, { channel: ch });
   } catch (err) {

@@ -54,7 +54,7 @@ export async function status(args: string[]): Promise<void> {
         console.log(`  @${key}  ${status} ${mode}  [${agentList}]`);
       }
     }
-  } catch (err) {
+  } catch {
     // Daemon info exists but can't connect — likely stale
     console.log(`Daemon:      unreachable (http://${info.host}:${info.port})`);
     console.log(`  Last PID:  ${info.pid}`);
