@@ -1,5 +1,5 @@
 import { test, expect, describe, beforeEach, afterEach } from "bun:test";
-import { createWorkspace, MemoryStorage } from "@agent-worker/workspace";
+import { createWorkspace, MemoryStorage, createTaskTools } from "@agent-worker/workspace";
 import type { Workspace } from "@agent-worker/workspace";
 import { createOrchestrator, WorkspaceOrchestrator } from "../src/orchestrator.ts";
 
@@ -220,6 +220,85 @@ describe("WorkspaceOrchestrator pause/resume", () => {
     expect(followUp?.agentName).toBe("alice");
     expect(followUp?.channel).toBe("system");
     expect(dispatches).toBe(1);
+  });
+
+  test("end-to-end: lead dispatches → orchestrator delivers → worker closes", async () => {
+    await orch.stop();
+
+    const leadTools = createTaskTools("lead", workspace.name, workspace.stateStore, {
+      instructionQueue: workspace.instructionQueue,
+    });
+    const workerTools = createTaskTools("alice", workspace.name, workspace.stateStore);
+
+    // Start a worker orchestrator whose onInstruction simulates a worker
+    // that reads the dispatched instruction, parses out the attempt id,
+    // records a completed handoff, and closes the attempt. No smart
+    // runtime — just deterministic tool calls driven by the test harness.
+    orch = createOrchestrator({
+      name: "alice",
+      provider: workspace.contextProvider,
+      queue: workspace.instructionQueue,
+      eventLog: workspace.eventLog,
+      pollInterval: 20,
+      onInstruction: async (_prompt, instruction) => {
+        // Dispatched instructions arrive on the synthetic "dispatch" channel
+        // and carry "Attempt id: att_<hex>" in their content.
+        if (instruction.channel !== "dispatch") return;
+        const attemptMatch = instruction.content.match(/Attempt id: (att_[a-f0-9]+)/);
+        const taskMatch = instruction.content.match(/task \[(task_[a-f0-9]+)\]/);
+        if (!attemptMatch || !taskMatch) return;
+        const attemptId = attemptMatch[1]!;
+        const taskId = taskMatch[1]!;
+        await workerTools.handoff_create({
+          taskId,
+          fromAttemptId: attemptId,
+          kind: "completed",
+          summary: "Worker finished via e2e test",
+          completed: ["the whole thing"],
+        });
+        await workerTools.attempt_update({ id: attemptId, status: "completed" });
+      },
+    });
+
+    // Lead flow: create task, open it, dispatch to alice.
+    const createResult = await leadTools.task_create({
+      title: "E2E task",
+      goal: "Drive the full orchestrator path",
+    });
+    const taskIdMatch = createResult.match(/(task_[a-f0-9]+)/);
+    expect(taskIdMatch).not.toBeNull();
+    const taskId = taskIdMatch![1]!;
+
+    await leadTools.task_update({ id: taskId, status: "open" });
+    await leadTools.task_dispatch({ taskId, worker: "alice" });
+
+    // Start the worker orchestrator and wait for the dispatched instruction
+    // to be delivered, processed, and the attempt to close.
+    await orch.start();
+
+    for (let i = 0; i < 40; i++) {
+      const task = await workspace.stateStore.getTask(taskId);
+      if (!task?.activeAttemptId) break;
+      await Bun.sleep(25);
+    }
+
+    const finalTask = await workspace.stateStore.getTask(taskId);
+    expect(finalTask?.activeAttemptId).toBeUndefined();
+
+    const attempts = await workspace.stateStore.listAttempts(taskId);
+    expect(attempts).toHaveLength(1);
+    expect(attempts[0]?.status).toBe("completed");
+
+    const handoffs = await workspace.stateStore.listHandoffs(taskId);
+    expect(handoffs).toHaveLength(1);
+    expect(handoffs[0]?.kind).toBe("completed");
+    expect(handoffs[0]?.summary).toContain("e2e test");
+
+    // Lead manually marks the task completed — normally this would happen
+    // automatically or via the lead's own tool call in a follow-up run.
+    await leadTools.task_update({ id: taskId, status: "completed" });
+    const closedTask = await workspace.stateStore.getTask(taskId);
+    expect(closedTask?.status).toBe("completed");
   });
 
   test("start requeues seen inbox entries from a previous run", async () => {
