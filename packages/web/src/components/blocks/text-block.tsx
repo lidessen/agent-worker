@@ -14,10 +14,7 @@ inject([styles.codeBlock, styles.code, styles.blockquote]);
  */
 function renderMarkdown(text: string): string {
   // Escape HTML entities first
-  let html = text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+  let html = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
   // Fenced code blocks: ```lang\ncode\n```
   html = html.replace(
@@ -39,10 +36,7 @@ function renderMarkdown(text: string): string {
   html = html.replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, "<em>$1</em>");
 
   // Blockquotes: > text (at start of line)
-  html = html.replace(
-    /^&gt; (.+)$/gm,
-    `<div class="${styles.blockquote}">$1</div>`,
-  );
+  html = html.replace(/^&gt; (.+)$/gm, `<div class="${styles.blockquote}">$1</div>`);
 
   return html;
 }

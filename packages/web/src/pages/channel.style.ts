@@ -1,14 +1,7 @@
 import { classes, rule } from "semajsx/style";
 import { tokens } from "../theme/tokens.ts";
 
-const c = classes([
-  "page",
-  "header",
-  "backBtn",
-  "headerInfo",
-  "channelName",
-  "wsLabel",
-] as const);
+const c = classes(["page", "header", "backBtn", "headerInfo", "channelName", "wsLabel"] as const);
 
 export const page = rule`${c.page} {
   display: flex;

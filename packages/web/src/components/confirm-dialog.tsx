@@ -39,13 +39,9 @@ export function ConfirmDialog(props: {
     }
   }
 
-  const btnLabel = computed(loading, (l) =>
-    l ? "..." : (props.confirmLabel ?? "Confirm"),
-  );
+  const btnLabel = computed(loading, (l) => (l ? "..." : (props.confirmLabel ?? "Confirm")));
 
-  const btnClass = props.danger
-    ? [styles.btnConfirm, styles.btnConfirmDanger]
-    : styles.btnConfirm;
+  const btnClass = props.danger ? [styles.btnConfirm, styles.btnConfirmDanger] : styles.btnConfirm;
 
   return when(props.visible, () => (
     <div class={styles.overlay} onclick={handleOverlayClick}>
@@ -61,11 +57,7 @@ export function ConfirmDialog(props: {
           <button class={styles.btnCancel} onclick={close}>
             Cancel
           </button>
-          <button
-            class={btnClass}
-            onclick={handleConfirm}
-            disabled={computed(loading, (l) => l)}
-          >
+          <button class={btnClass} onclick={handleConfirm} disabled={computed(loading, (l) => l)}>
             {btnLabel}
           </button>
         </div>

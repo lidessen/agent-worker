@@ -15,11 +15,9 @@ function formatDuration(ms: number): string {
 
 export function RunBlock(props: { event: DaemonEvent }) {
   const { event } = props;
-  const isStart =
-    event.type === "workspace.agent_run_start" ||
-    event.type === "run_start";
+  const isStart = event.type === "workspace.agent_run_start" || event.type === "run_start";
 
-  const durationMs = event.durationMs as number ?? event.duration as number | undefined;
+  const durationMs = (event.durationMs as number) ?? (event.duration as number | undefined);
   const tokenCount = event.tokens as number | undefined;
   const inputTokens = event.inputTokens as number | undefined;
   const outputTokens = event.outputTokens as number | undefined;
@@ -28,17 +26,21 @@ export function RunBlock(props: { event: DaemonEvent }) {
 
   return (
     <div class={styles.block}>
-      <span class={styles.label}>
-        {isStart ? "Run started" : "Run completed"}
-      </span>
+      <span class={styles.label}>{isStart ? "Run started" : "Run completed"}</span>
       <span class={styles.divider} />
       {!isStart && durationMs !== undefined ? (
         <span class={styles.detail}>{formatDuration(durationMs)}</span>
       ) : null}
       {!isStart && hasTokenBreakdown ? (
         <span class={[styles.detail, styles.detailInline]}>
-          <span class={styles.detailIcon}><Icon icon={ArrowUp} size={12} /></span>{inputTokens}
-          <span class={styles.detailIcon}><Icon icon={ArrowDown} size={12} /></span>{outputTokens}
+          <span class={styles.detailIcon}>
+            <Icon icon={ArrowUp} size={12} />
+          </span>
+          {inputTokens}
+          <span class={styles.detailIcon}>
+            <Icon icon={ArrowDown} size={12} />
+          </span>
+          {outputTokens}
         </span>
       ) : !isStart && tokenCount !== undefined ? (
         <span class={styles.detail}>{tokenCount} tokens</span>

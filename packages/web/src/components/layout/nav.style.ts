@@ -1,7 +1,16 @@
 import { classes, rule } from "semajsx/style";
 import { tokens } from "../../theme/tokens.ts";
 
-const c = classes(["nav", "links", "link", "linkActive", "dot", "dotConnected", "dotConnecting", "dotError"] as const);
+const c = classes([
+  "nav",
+  "links",
+  "link",
+  "linkActive",
+  "dot",
+  "dotConnected",
+  "dotConnecting",
+  "dotError",
+] as const);
 
 export const nav = rule`${c.nav} {
   display: flex;

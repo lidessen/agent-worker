@@ -48,28 +48,19 @@ export class WebClient {
     return this.request(`/agents/${encodeURIComponent(name)}/state`);
   }
 
-  async sendToAgent(
-    name: string,
-    messages: Array<{ content: string }>,
-  ): Promise<void> {
+  async sendToAgent(name: string, messages: Array<{ content: string }>): Promise<void> {
     await this.request(`/agents/${encodeURIComponent(name)}/send`, {
       method: "POST",
       body: JSON.stringify({ messages }),
     });
   }
 
-  async readResponses(
-    name: string,
-    cursor?: number,
-  ): Promise<CursorResult<DaemonEvent>> {
+  async readResponses(name: string, cursor?: number): Promise<CursorResult<DaemonEvent>> {
     const q = cursor !== undefined ? `?cursor=${cursor}` : "";
     return this.request(`/agents/${encodeURIComponent(name)}/responses${q}`);
   }
 
-  async readAgentEvents(
-    name: string,
-    cursor?: number,
-  ): Promise<CursorResult<DaemonEvent>> {
+  async readAgentEvents(name: string, cursor?: number): Promise<CursorResult<DaemonEvent>> {
     const q = cursor !== undefined ? `?cursor=${cursor}` : "";
     return this.request(`/agents/${encodeURIComponent(name)}/events${q}`);
   }
@@ -135,10 +126,7 @@ export class WebClient {
     });
   }
 
-  async createAgent(opts: {
-    name: string;
-    runtime: RuntimeConfig;
-  }): Promise<AgentInfo> {
+  async createAgent(opts: { name: string; runtime: RuntimeConfig }): Promise<AgentInfo> {
     return this.request("/agents", {
       method: "POST",
       body: JSON.stringify(opts),
@@ -213,17 +201,17 @@ export class WebClient {
   }
 
   async writeDoc(key: string, name: string, content: string): Promise<void> {
-    await this.request(
-      `/workspaces/${encodeURIComponent(key)}/docs/${encodeURIComponent(name)}`,
-      { method: "PUT", body: JSON.stringify({ content }) },
-    );
+    await this.request(`/workspaces/${encodeURIComponent(key)}/docs/${encodeURIComponent(name)}`, {
+      method: "PUT",
+      body: JSON.stringify({ content }),
+    });
   }
 
   async appendDoc(key: string, name: string, content: string): Promise<void> {
-    await this.request(
-      `/workspaces/${encodeURIComponent(key)}/docs/${encodeURIComponent(name)}`,
-      { method: "PATCH", body: JSON.stringify({ content }) },
-    );
+    await this.request(`/workspaces/${encodeURIComponent(key)}/docs/${encodeURIComponent(name)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ content }),
+    });
   }
 
   // ── Workspace Status & Events ──────────────────────────────────────
@@ -239,10 +227,7 @@ export class WebClient {
     return res.entries ?? [];
   }
 
-  async readWorkspaceEvents(
-    key: string,
-    cursor?: number,
-  ): Promise<CursorResult<DaemonEvent>> {
+  async readWorkspaceEvents(key: string, cursor?: number): Promise<CursorResult<DaemonEvent>> {
     const q = cursor !== undefined ? `?cursor=${cursor}` : "";
     return this.request(`/workspaces/${encodeURIComponent(key)}/events${q}`);
   }
@@ -267,9 +252,10 @@ export class WebClient {
     return this.request(`/events${q}`);
   }
 
-  async *streamDaemonEvents(
-    opts?: { cursor?: number; signal?: AbortSignal },
-  ): AsyncGenerator<DaemonEvent> {
+  async *streamDaemonEvents(opts?: {
+    cursor?: number;
+    signal?: AbortSignal;
+  }): AsyncGenerator<DaemonEvent> {
     const params = new URLSearchParams();
     if (opts?.cursor !== undefined) params.set("cursor", String(opts.cursor));
     const q = params.toString() ? `?${params}` : "";
@@ -308,10 +294,7 @@ export class WebClient {
    * Yields one parsed object per `data: ...\n\n` frame.
    * Handles abort gracefully (catches abort error and returns).
    */
-  private async *sseStream<T>(
-    path: string,
-    signal?: AbortSignal,
-  ): AsyncGenerator<T> {
+  private async *sseStream<T>(path: string, signal?: AbortSignal): AsyncGenerator<T> {
     const headers: Record<string, string> = {};
     if (this.token) headers["Authorization"] = `Bearer ${this.token}`;
     const res = await fetch(`${this.baseUrl}${path}`, { headers, signal });

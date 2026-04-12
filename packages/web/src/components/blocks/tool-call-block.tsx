@@ -19,9 +19,8 @@ export function ToolCallBlock(props: { event: DaemonEvent }) {
   const args = event.args ?? event.input;
   const result = event.result ?? event.output;
   const error = event.error as string | undefined;
-  const durationMs = event.duration as number ?? event.durationMs as number | undefined;
+  const durationMs = (event.duration as number) ?? (event.durationMs as number | undefined);
   const hasResult = result !== undefined || error !== undefined;
-  const isPending = !hasResult;
 
   const dotClass = error
     ? [styles.statusDot, styles.statusDotError]
@@ -37,17 +36,17 @@ export function ToolCallBlock(props: { event: DaemonEvent }) {
     resultExpanded.value = !resultExpanded.value;
   }
 
-  const toggleIcon = computed(expanded, (ex) =>
-    <Icon icon={ex ? ChevronDown : ChevronRight} size={12} />,
-  );
-  const resultToggleLabel = computed(resultExpanded, (re) =>
+  const toggleIcon = computed(expanded, (ex) => (
+    <Icon icon={ex ? ChevronDown : ChevronRight} size={12} />
+  ));
+  const resultToggleLabel = computed(resultExpanded, (re) => (
     <span class={styles.resultToggleLabel}>
       <span class={styles.resultToggleIcon}>
         <Icon icon={re ? ChevronDown : ChevronRight} size={12} />
       </span>
       result
-    </span>,
-  );
+    </span>
+  ));
 
   const argsBlock = computed(expanded, (ex) => {
     if (!ex || !args) return null;
@@ -62,9 +61,7 @@ export function ToolCallBlock(props: { event: DaemonEvent }) {
     if (!re) return null;
     return (
       <pre class={styles.result}>
-        {typeof result === "string"
-          ? result
-          : JSON.stringify(result, null, 2)}
+        {typeof result === "string" ? result : JSON.stringify(result, null, 2)}
       </pre>
     );
   });
@@ -72,7 +69,9 @@ export function ToolCallBlock(props: { event: DaemonEvent }) {
   return (
     <div class={styles.block}>
       <div class={styles.header} onclick={toggleExpand}>
-        <span class={styles.toolIcon}><Icon icon={Wrench} size={14} /></span>
+        <span class={styles.toolIcon}>
+          <Icon icon={Wrench} size={14} />
+        </span>
         <span class={dotClass} />
         <span class={styles.toolName}>{toolName}</span>
         {durationMs !== undefined ? (
@@ -84,9 +83,7 @@ export function ToolCallBlock(props: { event: DaemonEvent }) {
       {argsBlock}
 
       {error ? (
-        <pre class={[styles.result, styles.resultError]}>
-          {error}
-        </pre>
+        <pre class={[styles.result, styles.resultError]}>{error}</pre>
       ) : hasResult ? (
         <div class={styles.resultSection}>
           <button class={styles.resultToggle} onclick={toggleResult}>

@@ -9,9 +9,7 @@ import type { WorkspaceInfo, DocInfo } from "../api/types.ts";
 import * as styles from "./workspace.style.ts";
 
 export const WorkspacePage: RuntimeComponent<Record<string, never>> = (_props, ctx) => {
-  const wsKey = computed(route, (r) =>
-    r.page === "workspace" ? r.params.key : "",
-  );
+  const wsKey = computed(route, (r) => (r.page === "workspace" ? r.params.key : ""));
 
   const workspace = signal<WorkspaceInfo | null>(null);
   const channels = signal<string[]>([]);
@@ -135,13 +133,9 @@ export const WorkspacePage: RuntimeComponent<Record<string, never>> = (_props, c
           <div>
             <div class={styles.docItem} onclick={() => toggleDoc(doc.name)}>
               <span class={styles.docItemName}>{doc.name}</span>
-              <span class={styles.docItemActions}>
-                {exp === doc.name ? "collapse" : "expand"}
-              </span>
+              <span class={styles.docItemActions}>{exp === doc.name ? "collapse" : "expand"}</span>
             </div>
-            {exp === doc.name ? (
-              <DocViewer wsKey={wk} docName={doc.name} />
-            ) : null}
+            {exp === doc.name ? <DocViewer wsKey={wk} docName={doc.name} /> : null}
           </div>
         ))}
       </div>

@@ -13,12 +13,10 @@ export function ThinkingBlock(props: { event: DaemonEvent }) {
     expanded.value = !expanded.value;
   }
 
-  const toggleIcon = computed(expanded, (ex) =>
-    <Icon icon={ex ? ChevronDown : ChevronRight} size={12} />,
-  );
-  const body = computed(expanded, (ex) =>
-    ex ? <div class={styles.content}>{text}</div> : null,
-  );
+  const toggleIcon = computed(expanded, (ex) => (
+    <Icon icon={ex ? ChevronDown : ChevronRight} size={12} />
+  ));
+  const body = computed(expanded, (ex) => (ex ? <div class={styles.content}>{text}</div> : null));
 
   return (
     <div class={styles.block}>

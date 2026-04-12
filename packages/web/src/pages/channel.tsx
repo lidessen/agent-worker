@@ -15,12 +15,8 @@ import { ChannelInput } from "../components/channel-input.tsx";
 import * as styles from "./channel.style.ts";
 
 export const ChannelPage: RuntimeComponent<Record<string, never>> = (_props, ctx) => {
-  const wsKey = computed(route, (r) =>
-    r.page === "channel" ? r.params.key : "",
-  );
-  const ch = computed(route, (r) =>
-    r.page === "channel" ? r.params.ch : "",
-  );
+  const wsKey = computed(route, (r) => (r.page === "channel" ? r.params.key : ""));
+  const ch = computed(route, (r) => (r.page === "channel" ? r.params.ch : ""));
   const channelTitle = computed(ch, (c) => `# ${c}`);
 
   let currentWs = "";
@@ -71,10 +67,7 @@ export const ChannelPage: RuntimeComponent<Record<string, never>> = (_props, ctx
   return (
     <div class={styles.page}>
       <div class={styles.header}>
-        <button
-          class={styles.backBtn}
-          onclick={() => navigate(`/workspaces/${wsKey.value}`)}
-        >
+        <button class={styles.backBtn} onclick={() => navigate(`/workspaces/${wsKey.value}`)}>
           Back
         </button>
         <div class={styles.headerInfo}>

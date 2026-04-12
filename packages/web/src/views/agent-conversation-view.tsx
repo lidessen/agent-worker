@@ -3,12 +3,7 @@
 import type { RuntimeComponent } from "semajsx";
 import { signal, computed } from "semajsx/signal";
 import { client } from "../stores/connection.ts";
-import {
-  fetchAgentState,
-  agentState,
-  startPolling,
-  stopPolling,
-} from "../stores/agents.ts";
+import { fetchAgentState, agentState, startPolling, stopPolling } from "../stores/agents.ts";
 import {
   events,
   loadHistory,
@@ -28,7 +23,10 @@ function SendErrorBar() {
 
   let dismissTimer: ReturnType<typeof setTimeout> | null = null;
   const el = computed(visible, (show) => {
-    if (dismissTimer) { clearTimeout(dismissTimer); dismissTimer = null; }
+    if (dismissTimer) {
+      clearTimeout(dismissTimer);
+      dismissTimer = null;
+    }
     if (!show) return null;
     dismissTimer = setTimeout(() => {
       sendError.value = null;
@@ -39,7 +37,10 @@ function SendErrorBar() {
         <button
           class={styles.sendErrorDismiss}
           onclick={() => {
-            if (dismissTimer) { clearTimeout(dismissTimer); dismissTimer = null; }
+            if (dismissTimer) {
+              clearTimeout(dismissTimer);
+              dismissTimer = null;
+            }
             sendError.value = null;
           }}
         >
@@ -114,19 +115,14 @@ export const AgentConversationView: RuntimeComponent<{ name: string }> = (props,
     <div class={styles.container}>
       <div class={styles.header}>
         <div class={styles.headerInfo}>
-          <span
-            class={styles.agentName}
-            onclick={() => showAgentInfo(props.name)}
-          >
+          <span class={styles.agentName} onclick={() => showAgentInfo(props.name)}>
             {props.name}
           </span>
           <div class={styles.badge}>
             <span class={badgeDotClass} />
             {stateText}
           </div>
-          {computed(wsLabel, (ws) =>
-            ws ? <span class={styles.wsLabel}>{ws}</span> : null,
-          )}
+          {computed(wsLabel, (ws) => (ws ? <span class={styles.wsLabel}>{ws}</span> : null))}
         </div>
       </div>
 

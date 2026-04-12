@@ -1,14 +1,7 @@
 import { classes, rule, inject } from "semajsx/style";
 import { tokens } from "../theme/tokens.ts";
 
-const c = classes([
-  "bar",
-  "composer",
-  "textarea",
-  "footer",
-  "shortcut",
-  "sendBtn",
-] as const);
+const c = classes(["bar", "composer", "textarea", "footer", "shortcut", "sendBtn"] as const);
 
 export const bar = rule`${c.bar} {
   padding: ${tokens.space.sm} ${tokens.space.xl} ${tokens.space.lg};

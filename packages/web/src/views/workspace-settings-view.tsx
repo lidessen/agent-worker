@@ -38,7 +38,7 @@ export const WorkspaceSettingsView: RuntimeComponent<{ wsKey: string }> = (props
   const wsStatus = signal<WorkspaceStatus | null>(null);
   const wsEvents = signal<DaemonEvent[]>([]);
 
-  async function loadWorkspace(force = false) {
+  async function loadWorkspace() {
     const c = client.value;
     if (!c) return;
     error.value = null;
@@ -65,7 +65,7 @@ export const WorkspaceSettingsView: RuntimeComponent<{ wsKey: string }> = (props
   // Retry loading when client connects
   const unsubClient = client.subscribe((c) => {
     if (c && !workspace.value) {
-      loadWorkspace(true);
+      loadWorkspace();
     }
   });
 
@@ -97,16 +97,14 @@ export const WorkspaceSettingsView: RuntimeComponent<{ wsKey: string }> = (props
   const agentsSection = computed([workspace, agents], (ws, allAgents) => {
     const agentNames = ws?.agents ?? [];
     if (agentNames.length === 0) {
-      return (
-        <div class={styles.emptyStateText}>No agents</div>
-      );
+      return <div class={styles.emptyStateText}>No agents</div>;
     }
 
     const agentMap = new Map(allAgents.map((agent) => [agent.name, agent]));
 
     return (
       <div class={styles.agentList}>
-        {agentNames.map((name) => (
+        {agentNames.map((name) =>
           (() => {
             const agent = agentMap.get(name);
             const dotClass = [
@@ -120,21 +118,16 @@ export const WorkspaceSettingsView: RuntimeComponent<{ wsKey: string }> = (props
                     : styles.agentDotIdle,
             ];
             return (
-              <div
-                class={styles.agentItem}
-                onclick={() => selectAgent(name)}
-              >
+              <div class={styles.agentItem} onclick={() => selectAgent(name)}>
                 <div class={styles.agentLabel}>
-                  <span class={styles.agentRuntimeIcon}>
-                    {runtimeIcon(agent?.runtime ?? "")}
-                  </span>
+                  <span class={styles.agentRuntimeIcon}>{runtimeIcon(agent?.runtime ?? "")}</span>
                   <span>{name}</span>
                 </div>
                 <span class={dotClass} />
               </div>
             );
-          })()
-        ))}
+          })(),
+        )}
       </div>
     );
   });
@@ -146,10 +139,7 @@ export const WorkspaceSettingsView: RuntimeComponent<{ wsKey: string }> = (props
     return (
       <div class={styles.channelList}>
         {ch.map((name) => (
-          <div
-            class={styles.channelItem}
-            onclick={() => selectChannel(props.wsKey, name)}
-          >
+          <div class={styles.channelItem} onclick={() => selectChannel(props.wsKey, name)}>
             # {name}
           </div>
         ))}
@@ -159,9 +149,7 @@ export const WorkspaceSettingsView: RuntimeComponent<{ wsKey: string }> = (props
 
   const agentCount = computed(workspace, (ws) => ws?.agents.length ?? 0);
   const channelCount = computed(channels, (ch) => ch.length);
-  const createdLabel = computed(workspace, (ws) =>
-    ws ? formatDateTime(ws.createdAt) : "—",
-  );
+  const createdLabel = computed(workspace, (ws) => (ws ? formatDateTime(ws.createdAt) : "—"));
 
   return (
     <div class={styles.container}>
@@ -184,8 +172,8 @@ export const WorkspaceSettingsView: RuntimeComponent<{ wsKey: string }> = (props
             <span class={styles.heroEyebrow}>Workspace</span>
             <span class={styles.heroTitle}>{wsNameDisplay}</span>
             <span class={styles.heroText}>
-              Review active agents, jump into channels, and inspect workspace configuration
-              from one place.
+              Review active agents, jump into channels, and inspect workspace configuration from one
+              place.
             </span>
           </div>
           <div class={styles.statGrid}>
@@ -238,18 +226,18 @@ export const WorkspaceSettingsView: RuntimeComponent<{ wsKey: string }> = (props
             </div>
             {computed(modeLabel, (mode) =>
               mode ? (
-              <div class={styles.configRow}>
-                <span class={styles.configLabel}>Mode</span>
-                <span class={styles.configValue}>{mode}</span>
-              </div>
+                <div class={styles.configRow}>
+                  <span class={styles.configLabel}>Mode</span>
+                  <span class={styles.configValue}>{mode}</span>
+                </div>
               ) : null,
             )}
             {computed(wsStatus, (st) =>
               st?.tag ? (
-              <div class={styles.configRow}>
-                <span class={styles.configLabel}>Tag</span>
-                <span class={styles.configValue}>{st.tag}</span>
-              </div>
+                <div class={styles.configRow}>
+                  <span class={styles.configLabel}>Tag</span>
+                  <span class={styles.configValue}>{st.tag}</span>
+                </div>
               ) : null,
             )}
             <div class={styles.configRow}>
@@ -272,7 +260,12 @@ export const WorkspaceSettingsView: RuntimeComponent<{ wsKey: string }> = (props
               <div class={styles.loopList}>
                 {loops.map((loop) => (
                   <div class={styles.loopItem}>
-                    <span class={[styles.loopDot, loop.running ? styles.loopDotRunning : styles.loopDotIdle]} />
+                    <span
+                      class={[
+                        styles.loopDot,
+                        loop.running ? styles.loopDotRunning : styles.loopDotIdle,
+                      ]}
+                    />
                     <span class={styles.loopName}>{loop.name}</span>
                   </div>
                 ))}
@@ -293,9 +286,7 @@ export const WorkspaceSettingsView: RuntimeComponent<{ wsKey: string }> = (props
               <div class={styles.eventList}>
                 {events.map((evt) => (
                   <div class={styles.eventItem}>
-                    <span class={styles.eventTime}>
-                      {formatDateTime(evt.ts)}
-                    </span>
+                    <span class={styles.eventTime}>{formatDateTime(evt.ts)}</span>
                     <span class={styles.eventType}>{evt.type}</span>
                     <span class={styles.eventDetail}>
                       {evt.agent ? String(evt.agent) : ""}
@@ -313,10 +304,7 @@ export const WorkspaceSettingsView: RuntimeComponent<{ wsKey: string }> = (props
           <div class={styles.sectionHeader}>
             <span class={styles.sectionTitle}>Danger Zone</span>
           </div>
-          <button
-            class={styles.dangerBtn}
-            onclick={() => (showDeleteWs.value = true)}
-          >
+          <button class={styles.dangerBtn} onclick={() => (showDeleteWs.value = true)}>
             Delete Workspace
           </button>
         </div>

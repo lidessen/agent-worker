@@ -60,22 +60,14 @@ export function DocViewer(props: { wsKey: string; docName: string }) {
   const saveButton = computed([isEditing, isSaving], (ed) => {
     if (!ed) return null;
     return (
-      <button
-        class={styles.toolbarBtn}
-        onclick={handleSave}
-        disabled={isSaving}
-      >
+      <button class={styles.toolbarBtn} onclick={handleSave} disabled={isSaving}>
         {saveBtnLabel}
       </button>
     );
   });
 
   const errorBanner = computed(error, (e) =>
-    e ? (
-      <div class={styles.errorBanner}>
-        {e}
-      </div>
-    ) : null,
+    e ? <div class={styles.errorBanner}>{e}</div> : null,
   );
 
   const mainContent = computed(isEditing, (ed) => {

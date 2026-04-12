@@ -5,7 +5,13 @@ import type { ChannelMessage } from "../api/types.ts";
 import type { VNode } from "semajsx";
 import { wsAgents } from "../stores/workspace-data.ts";
 import { formatDateTime } from "../utils/time.ts";
-import { ClaudeIcon, CursorIcon, OpenAIIcon, VercelIcon, parsePlatformName } from "./brand-icons.tsx";
+import {
+  ClaudeIcon,
+  CursorIcon,
+  OpenAIIcon,
+  VercelIcon,
+  parsePlatformName,
+} from "./brand-icons.tsx";
 import * as styles from "./channel-message.style.ts";
 
 function runtimeIcon(runtime: string): VNode | null {
@@ -30,9 +36,9 @@ export function ChannelMessageItem(props: { message: ChannelMessage }) {
   const parsed = parsePlatformName(message.from);
 
   // Platform suffix: "@telegram" in brand color
-  const platformSuffix = parsed.platform
-    ? <span class={styles.platformSuffix}>@{parsed.platform}</span>
-    : null;
+  const platformSuffix = parsed.platform ? (
+    <span class={styles.platformSuffix}>@{parsed.platform}</span>
+  ) : null;
 
   // Reactive: re-derives agent runtime badge when wsAgents updates
   const agentBadge = computed(wsAgents, (agents) => {
@@ -48,9 +54,7 @@ export function ChannelMessageItem(props: { message: ChannelMessage }) {
       <div class={styles.messageBlock}>
         <div class={styles.senderRow}>
           <span class={styles.sender}>
-            <span class={styles.senderLabel}>
-              {parsed.name}
-            </span>
+            <span class={styles.senderLabel}>{parsed.name}</span>
             {platformSuffix}
           </span>
           {agentBadge}

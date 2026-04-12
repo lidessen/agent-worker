@@ -50,11 +50,7 @@ function CollapsibleSection(props: {
       <div class={styles.sectionHeader} onclick={toggle}>
         <span>
           {props.title}
-          {props.countSuffix ? (
-            <span class={styles.countSuffix}>
-              {props.countSuffix}
-            </span>
-          ) : null}
+          {props.countSuffix ? <span class={styles.countSuffix}>{props.countSuffix}</span> : null}
         </span>
         <span
           class={[styles.chevron, open && styles.chevronOpen]}
@@ -119,10 +115,11 @@ export function AgentInspector(props: { agentState: Signal<AgentState | null> })
   const todoCount = computed(todos, (items) => items.length);
   const inboxSuffix = computed(inboxCount, (n) => (n > 0 ? ` (${n})` : ""));
   const todoSuffix = computed(todoCount, (n) => (n > 0 ? ` (${n})` : ""));
-  const stateDotClass = computed(stateText, (s) => [styles.stateDot, stateClasses[s] ?? styles.stateIdle]);
-  const taskSuffix = computed(state, (s) =>
-    s?.currentTask ? ` — ${s.currentTask}` : "",
-  );
+  const stateDotClass = computed(stateText, (s) => [
+    styles.stateDot,
+    stateClasses[s] ?? styles.stateIdle,
+  ]);
+  const taskSuffix = computed(state, (s) => (s?.currentTask ? ` — ${s.currentTask}` : ""));
 
   const inboxBody = computed(inbox, (items) => {
     if (items.length === 0) {

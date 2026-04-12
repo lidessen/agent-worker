@@ -9,10 +9,7 @@ import {
   CreateWorkspaceDialog,
   showCreateWorkspace,
 } from "../components/create-workspace-dialog.tsx";
-import {
-  CreateAgentDialog,
-  showCreateAgent,
-} from "../components/create-agent-dialog.tsx";
+import { CreateAgentDialog, showCreateAgent } from "../components/create-agent-dialog.tsx";
 import * as styles from "./dashboard.style.ts";
 
 export function DashboardPage() {

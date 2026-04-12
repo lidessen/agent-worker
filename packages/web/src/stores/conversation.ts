@@ -103,17 +103,17 @@ export async function sendMessage(agentName: string, text: string) {
   events.update((prev) => [...prev, localEvent]);
 
   const c = client.value;
-  if (!c) { isSending.value = false; return; }
+  if (!c) {
+    isSending.value = false;
+    return;
+  }
   try {
     await c.sendToAgent(agentName, [{ content: text }]);
   } catch (err) {
     console.error(`Failed to send message to ${agentName}:`, err);
     // Remove the optimistic user event
-    events.update((prev) =>
-      prev.filter((e) => e !== localEvent),
-    );
-    sendError.value =
-      err instanceof Error ? err.message : "Failed to send message";
+    events.update((prev) => prev.filter((e) => e !== localEvent));
+    sendError.value = err instanceof Error ? err.message : "Failed to send message";
   } finally {
     isSending.value = false;
   }

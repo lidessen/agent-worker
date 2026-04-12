@@ -37,9 +37,7 @@ import { GlobalSettingsView } from "./views/global-settings-view.tsx";
 import { GlobalEventsView } from "./views/global-events-view.tsx";
 import { CreateDocDialog } from "./components/create-doc-dialog.tsx";
 
-const mobileQuery = typeof window !== "undefined"
-  ? window.matchMedia("(max-width: 900px)")
-  : null;
+const mobileQuery = typeof window !== "undefined" ? window.matchMedia("(max-width: 900px)") : null;
 const isMobileViewport = signal(mobileQuery?.matches ?? false);
 
 if (mobileQuery) {
@@ -88,7 +86,8 @@ function MobileHome() {
   const workspaceName = computed([wsInfo, currentWorkspace], (info, key) => info?.name ?? key);
   const selectedWorkspace = computed(currentWorkspace, (ws) => ws);
   const workspaceOptions = computed(workspaces, (list) =>
-    list.map((ws) => <option value={ws.name}>{ws.name}</option>));
+    list.map((ws) => <option value={ws.name}>{ws.name}</option>),
+  );
   const channelCount = computed(wsChannels, (list) => list.length);
   const agentCount = computed(wsAgents, (list) => list.length);
   const docCount = computed(wsDocs, (list) => list.length);
@@ -98,99 +97,83 @@ function MobileHome() {
       ? [styles.mobileResourceButton, styles.resourceRow, styles.resourceRowSelected]
       : [styles.mobileResourceButton, styles.resourceRow];
 
-  const resourceList = computed([sidebarTab, wsChannels, wsAgents, wsDocs], (tab, channels, agents, docs) => {
-    if (tab === "channels") {
-      if (channels.length === 0) {
-        return <div class={styles.mobileResourceEmpty}>No channels</div>;
+  const resourceList = computed(
+    [sidebarTab, wsChannels, wsAgents, wsDocs],
+    (tab, channels, agents, docs) => {
+      if (tab === "channels") {
+        if (channels.length === 0) {
+          return <div class={styles.mobileResourceEmpty}>No channels</div>;
+        }
+        return channels.map((channel) => {
+          const parsed = parsePlatformName(channel);
+          const isSelected =
+            selectedItem.value?.kind === "channel" &&
+            selectedItem.value.channel === channel &&
+            selectedItem.value.wsKey === currentWorkspace.value;
+          return (
+            <button
+              class={resourceButtonClass(isSelected)}
+              onclick={() => selectChannel(currentWorkspace.value, channel)}
+            >
+              <span class={styles.mobileResourceIcon}>
+                {parsed.icon ? parsed.icon({ size: 13 }) : "#"}
+              </span>
+              <span class={styles.mobileResourceBody}>
+                <span class={styles.mobileResourceTitle}>{parsed.name}</span>
+                <span class={styles.mobileResourceMeta}>Channel</span>
+              </span>
+            </button>
+          );
+        });
       }
-      return channels.map((channel) => {
-        const parsed = parsePlatformName(channel);
-        const isSelected = selectedItem.value?.kind === "channel"
-          && selectedItem.value.channel === channel
-          && selectedItem.value.wsKey === currentWorkspace.value;
+
+      if (tab === "agents") {
+        if (agents.length === 0) {
+          return <div class={styles.mobileResourceEmpty}>No agents</div>;
+        }
+        return agents.map((agent) => {
+          const isSelected =
+            selectedItem.value?.kind === "agent" && selectedItem.value.name === agent.name;
+          return (
+            <button class={resourceButtonClass(isSelected)} onclick={() => selectAgent(agent.name)}>
+              <span class={styles.mobileResourceIcon}>{runtimeIcon(agent.runtime)}</span>
+              <span class={styles.mobileResourceBody}>
+                <span class={styles.mobileResourceTitle}>{agent.name}</span>
+                <span class={styles.mobileResourceMeta}>{agent.runtime}</span>
+              </span>
+            </button>
+          );
+        });
+      }
+
+      if (docs.length === 0) {
+        return <div class={styles.mobileResourceEmpty}>No docs</div>;
+      }
+      return docs.map((doc) => {
+        const isSelected =
+          selectedItem.value?.kind === "doc" &&
+          selectedItem.value.docName === doc.name &&
+          selectedItem.value.wsKey === currentWorkspace.value;
         return (
           <button
             class={resourceButtonClass(isSelected)}
-            onclick={() => selectChannel(currentWorkspace.value, channel)}
+            onclick={() => selectDoc(currentWorkspace.value, doc.name)}
           >
-            <span class={styles.mobileResourceIcon}>
-              {parsed.icon ? parsed.icon({ size: 13 }) : "#"}
-            </span>
+            <span class={styles.mobileResourceIcon}>•</span>
             <span class={styles.mobileResourceBody}>
-              <span class={styles.mobileResourceTitle}>
-                {parsed.name}
-              </span>
-              <span class={styles.mobileResourceMeta}>
-                Channel
-              </span>
+              <span class={styles.mobileResourceTitle}>{doc.name}</span>
+              <span class={styles.mobileResourceMeta}>Document</span>
             </span>
           </button>
         );
       });
-    }
-
-    if (tab === "agents") {
-      if (agents.length === 0) {
-        return <div class={styles.mobileResourceEmpty}>No agents</div>;
-      }
-      return agents.map((agent) => {
-        const isSelected = selectedItem.value?.kind === "agent"
-          && selectedItem.value.name === agent.name;
-        return (
-          <button
-            class={resourceButtonClass(isSelected)}
-            onclick={() => selectAgent(agent.name)}
-          >
-            <span class={styles.mobileResourceIcon}>
-              {runtimeIcon(agent.runtime)}
-            </span>
-            <span class={styles.mobileResourceBody}>
-              <span class={styles.mobileResourceTitle}>
-                {agent.name}
-              </span>
-              <span class={styles.mobileResourceMeta}>
-                {agent.runtime}
-              </span>
-            </span>
-          </button>
-        );
-      });
-    }
-
-    if (docs.length === 0) {
-      return <div class={styles.mobileResourceEmpty}>No docs</div>;
-    }
-    return docs.map((doc) => {
-      const isSelected = selectedItem.value?.kind === "doc"
-        && selectedItem.value.docName === doc.name
-        && selectedItem.value.wsKey === currentWorkspace.value;
-      return (
-        <button
-          class={resourceButtonClass(isSelected)}
-          onclick={() => selectDoc(currentWorkspace.value, doc.name)}
-        >
-          <span class={styles.mobileResourceIcon}>
-            •
-          </span>
-          <span class={styles.mobileResourceBody}>
-            <span class={styles.mobileResourceTitle}>
-              {doc.name}
-            </span>
-            <span class={styles.mobileResourceMeta}>
-              Document
-            </span>
-          </span>
-        </button>
-      );
-    });
-  });
+    },
+  );
 
   return (
     <div class={styles.mobileHome}>
       <div class={styles.mobileIntro}>
-        <div class={styles.mobileTitle}>
-          {workspaceName}
-        </div>
+        <div class={styles.mobileTitle}>{workspaceName}</div>
         <div class={styles.mobileSubtitle}>
           Browse channels, agents, and docs from one mobile home screen.
         </div>
@@ -214,12 +197,8 @@ function MobileHome() {
           { label: "Docs", value: docCount },
         ].map((item) => (
           <div class={styles.mobileStatCard}>
-            <span class={styles.mobileStatLabel}>
-              {item.label}
-            </span>
-            <span class={styles.mobileStatValue}>
-              {item.value}
-            </span>
+            <span class={styles.mobileStatLabel}>{item.label}</span>
+            <span class={styles.mobileStatValue}>{item.value}</span>
           </div>
         ))}
       </div>
@@ -232,7 +211,8 @@ function MobileHome() {
         ].map((tab) => (
           <button
             class={computed(activeTab, (current) =>
-              current === tab.key ? [styles.mobileTab, styles.mobileTabActive] : styles.mobileTab)}
+              current === tab.key ? [styles.mobileTab, styles.mobileTabActive] : styles.mobileTab,
+            )}
             onclick={() => {
               sidebarTab.value = tab.key as typeof sidebarTab.value;
             }}
@@ -242,9 +222,7 @@ function MobileHome() {
         ))}
       </div>
 
-      <div class={styles.mobileResourceList}>
-        {resourceList}
-      </div>
+      <div class={styles.mobileResourceList}>{resourceList}</div>
 
       <div class={styles.mobileFooterActions}>
         <button
@@ -253,16 +231,10 @@ function MobileHome() {
         >
           Workspace
         </button>
-        <button
-          class={styles.mobileFooterButton}
-          onclick={() => selectGlobalEvents()}
-        >
+        <button class={styles.mobileFooterButton} onclick={() => selectGlobalEvents()}>
           Event Log
         </button>
-        <button
-          class={styles.mobileFooterButton}
-          onclick={() => selectGlobalSettings()}
-        >
+        <button class={styles.mobileFooterButton} onclick={() => selectGlobalSettings()}>
           Settings
         </button>
       </div>
@@ -284,15 +256,11 @@ function EmptyState() {
         <div class={styles.emptyLogo}>
           <VercelIcon size={24} />
         </div>
-        <div class={styles.emptyTitle}>
-          Workspace overview
-        </div>
-        <div class={styles.emptyWorkspace}>
-          {workspaceName}
-        </div>
+        <div class={styles.emptyTitle}>Workspace overview</div>
+        <div class={styles.emptyWorkspace}>{workspaceName}</div>
         <div class={styles.emptyDescription}>
-          Select a channel, agent, or document from the sidebar to inspect the workspace,
-          review conversations, and coordinate agent activity.
+          Select a channel, agent, or document from the sidebar to inspect the workspace, review
+          conversations, and coordinate agent activity.
         </div>
       </div>
 
@@ -304,12 +272,8 @@ function EmptyState() {
             { label: "Docs", value: docCount },
           ].map((item) => (
             <div class={styles.emptyStatCard}>
-              <span class={styles.emptyStatLabel}>
-                {item.label}
-              </span>
-              <span class={styles.emptyStatValue}>
-                {item.value}
-              </span>
+              <span class={styles.emptyStatLabel}>{item.label}</span>
+              <span class={styles.emptyStatValue}>{item.value}</span>
             </div>
           ))}
         </div>
@@ -366,13 +330,20 @@ window.__contentArea = {
 function itemKey(item: SelectedItem | null): string {
   if (!item) return "__empty__";
   switch (item.kind) {
-    case "channel": return `ch:${item.wsKey}:${item.channel}`;
-    case "agent": return `agent:${item.name}`;
-    case "agent-info": return `agent-info:${item.name}`;
-    case "doc": return `doc:${item.wsKey}:${item.docName}`;
-    case "workspace-settings": return `ws-settings:${item.wsKey}`;
-    case "global-settings": return "global-settings";
-    case "global-events": return "global-events";
+    case "channel":
+      return `ch:${item.wsKey}:${item.channel}`;
+    case "agent":
+      return `agent:${item.name}`;
+    case "agent-info":
+      return `agent-info:${item.name}`;
+    case "doc":
+      return `doc:${item.wsKey}:${item.docName}`;
+    case "workspace-settings":
+      return `ws-settings:${item.wsKey}`;
+    case "global-settings":
+      return "global-settings";
+    case "global-events":
+      return "global-events";
   }
 }
 
@@ -405,11 +376,7 @@ function renderContent() {
   const t1 = performance.now();
 
   // Render new view
-  const vnode = item
-    ? createView(item)
-    : isMobileViewport.value
-      ? <MobileHome />
-      : <EmptyState />;
+  const vnode = item ? createView(item) : isMobileViewport.value ? <MobileHome /> : <EmptyState />;
   const t2 = performance.now();
 
   const result = render(vnode, el);
@@ -417,7 +384,7 @@ function renderContent() {
 
   state.currentUnmount = result.unmount;
 
-  const msg = `[renderContent] key=${key} unmount=${(t1-t0).toFixed(0)}ms createView=${(t2-t1).toFixed(0)}ms render=${(t3-t2).toFixed(0)}ms total=${(t3-t0).toFixed(0)}ms`;
+  const msg = `[renderContent] key=${key} unmount=${(t1 - t0).toFixed(0)}ms createView=${(t2 - t1).toFixed(0)}ms render=${(t3 - t2).toFixed(0)}ms total=${(t3 - t0).toFixed(0)}ms`;
   console.log(msg);
   // Write timing to a data attribute for testing
   (window as any).__lastRenderTiming = msg;
@@ -460,9 +427,7 @@ export function App() {
         >
           Back
         </button>
-        <span class={styles.mobileBackTitle}>
-          {selectedLabel(item)}
-        </span>
+        <span class={styles.mobileBackTitle}>{selectedLabel(item)}</span>
       </div>
     );
   });
