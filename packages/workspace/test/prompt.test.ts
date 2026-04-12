@@ -196,6 +196,45 @@ describe("taskLedgerSection", () => {
     expect(result).toBeNull();
   });
 
+  test("workspacePromptSection shows ledger workflow to the lead when state store is wired", async () => {
+    const { workspacePromptSection } = await import("../src/context/mcp/prompts.tsx");
+    const { InMemoryWorkspaceStateStore } = await import("../src/state/index.ts");
+    const workspace = await createWorkspace({
+      name: "test",
+      agents: [],
+      storage: new MemoryStorage(),
+      lead: "lead",
+    });
+    const store = new InMemoryWorkspaceStateStore();
+
+    const leadResult = await workspacePromptSection({
+      agentName: "lead",
+      provider: workspace.contextProvider,
+      inboxEntries: [],
+      stateStore: store,
+      role: "lead",
+      workspaceName: "test",
+    });
+    const leadText = renderSectionResult(leadResult);
+    expect(leadText).toContain("Task ledger workflow");
+    expect(leadText).toContain("task_create");
+    expect(leadText).toContain("task_dispatch");
+
+    const workerResult = await workspacePromptSection({
+      agentName: "worker",
+      provider: workspace.contextProvider,
+      inboxEntries: [],
+      stateStore: store,
+      role: "worker",
+      workspaceName: "test",
+    });
+    const workerText = renderSectionResult(workerResult);
+    expect(workerText).not.toContain("Task ledger workflow");
+    expect(workerText).toContain("task-scoped worker");
+    expect(workerText).toContain("handoff_create");
+    expect(workerText).toContain("attempt_update");
+  });
+
   test("groups active tasks by status with counts in the header", async () => {
     const { taskLedgerSection } = await import("../src/context/mcp/prompts.tsx");
     const { InMemoryWorkspaceStateStore } = await import("../src/state/index.ts");

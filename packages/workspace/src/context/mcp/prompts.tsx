@@ -17,7 +17,9 @@ export const workspacePromptSection: PromptSection = async (ctx) => {
   const members = await ctx.provider.status.getAll();
   const teammates = members.filter((m) => m.name !== ctx.agentName);
   const channels = ctx.provider.channels.listChannels();
-  const isLead = ctx.provider.lead === ctx.agentName;
+  const isLead = ctx.role === "lead" || ctx.provider.lead === ctx.agentName;
+  const isWorker = ctx.role === "worker";
+  const ledgerAvailable = Boolean(ctx.stateStore);
   return (
     <section title="Workspace">
       <raw>
@@ -36,6 +38,53 @@ export const workspacePromptSection: PromptSection = async (ctx) => {
           </item>
           <item>You have access to debug tools and can see all channels.</item>
           <item>Coordinate the team, review work, and report back to the user.</item>
+          <br />
+          {ledgerAvailable && (
+            <>
+              <line>Task ledger workflow</line>
+              <item>
+                Use `task_create` to capture a new work item (default status: draft). If a new user
+                request arrives, create a draft task for it before doing anything else.
+              </item>
+              <item>
+                Use `task_update status=open` to confirm a draft, then `task_dispatch worker=@name`
+                to hand it to a worker. Dispatch creates the Attempt, advances the task to
+                in_progress, and enqueues the assignment on the worker&apos;s queue.
+              </item>
+              <item>
+                Use `task_list` to see active work. The Task Ledger section below shows the same
+                view rendered at prompt assembly time.
+              </item>
+              <item>
+                When a worker reports back via handoff, review the handoff, decide the next step,
+                and update the task status (`task_update status=completed` for acceptance,
+                `status=blocked` to wait, `status=failed` to abort).
+              </item>
+              <br />
+            </>
+          )}
+        </>
+      )}
+      {isWorker && ledgerAvailable && (
+        <>
+          <line>You are a task-scoped worker</line>
+          <item>
+            When you receive a dispatch instruction, it already carries a task id and attempt id.
+            Start work immediately — don&apos;t create your own Attempt unless you are acting
+            without a dispatch.
+          </item>
+          <item>
+            Record structured progress with `handoff_create kind=progress` during long work,
+            `kind=blocked` when stuck, and `kind=completed` at the end.
+          </item>
+          <item>
+            Register concrete outputs (files, commits, URLs) with `artifact_create` so the lead can
+            review and mark the task complete.
+          </item>
+          <item>
+            Call `attempt_update status=completed` (or `failed` / `cancelled`) when you finish so
+            the lead knows the attempt is terminal.
+          </item>
           <br />
         </>
       )}
