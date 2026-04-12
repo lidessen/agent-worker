@@ -5,13 +5,10 @@ import { Icon, Drama } from "semajsx/icons";
 import { signal, computed } from "semajsx/signal";
 import { when } from "semajsx";
 import { WebClient } from "../api/client.ts";
-import {
-  connectionState,
-  client,
-  connect,
-} from "../stores/connection.ts";
+import { connectionState, client, connect } from "../stores/connection.ts";
 import type { HealthInfo, RuntimeHealth } from "../api/types.ts";
 import { ClaudeIcon, CursorIcon, OpenAIIcon, VercelIcon } from "../components/brand-icons.tsx";
+import { formatDurationMs } from "../utils/time.ts";
 import * as styles from "./settings.style.ts";
 
 const KNOWN_RUNTIMES = ["ai-sdk", "claude-code", "codex", "cursor", "mock"] as const;
@@ -22,9 +19,7 @@ const healthInfo = signal<HealthInfo | null>(null);
 
 const isConnected = computed(connectionState, (s) => s === "connected");
 
-const testButtonLabel = computed(testing, (t) =>
-  t ? "Testing..." : "Test Connection",
-);
+const testButtonLabel = computed(testing, (t) => (t ? "Testing..." : "Test Connection"));
 
 const hostDisplay = computed(connectionState, () => loadConfig().baseUrl);
 
@@ -90,7 +85,7 @@ const healthRows = computed(healthInfo, (info) => {
   return [
     <div class={styles.infoRow}>
       <span class={styles.infoLabel}>Uptime</span>
-      <span class={styles.infoValue}>{formatUptimeStatic(info.uptime)}</span>
+      <span class={styles.infoValue}>{formatDurationMs(info.uptime)}</span>
     </div>,
     <div class={styles.infoRow}>
       <span class={styles.infoLabel}>Agents</span>
@@ -103,18 +98,14 @@ const healthRows = computed(healthInfo, (info) => {
   ];
 });
 
-function formatUptimeStatic(seconds: number): string {
-  if (seconds < 60) return `${Math.round(seconds)}s`;
-  if (seconds < 3600) return `${Math.round(seconds / 60)}m`;
-  return `${Math.round(seconds / 3600)}h ${Math.round((seconds % 3600) / 60)}m`;
-}
-
 // Load saved config
 function loadConfig(): { baseUrl: string; token: string } {
   try {
     const raw = localStorage.getItem("aw:config");
     if (raw) return JSON.parse(raw);
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   return { baseUrl: "http://localhost:7420", token: "" };
 }
 
@@ -139,7 +130,10 @@ export const SettingsPage: RuntimeComponent<Record<string, never>> = (_props, ct
       const tmp = new WebClient(baseUrl, token);
       const info = await tmp.health();
       healthInfo.value = info;
-      testResult.value = { ok: true, message: `Connected — ${info.agents} agents, ${info.workspaces} workspaces` };
+      testResult.value = {
+        ok: true,
+        message: `Connected — ${info.agents} agents, ${info.workspaces} workspaces`,
+      };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       testResult.value = { ok: false, message: msg };
@@ -171,19 +165,26 @@ export const SettingsPage: RuntimeComponent<Record<string, never>> = (_props, ct
 
   const unsubClient = client.subscribe((c) => {
     if (!c) return;
-    c.health().then((info) => {
-      healthInfo.value = info;
-    }).catch(() => {
-      // ignore background refresh failure
-    });
+    c.health()
+      .then((info) => {
+        healthInfo.value = info;
+      })
+      .catch(() => {
+        // ignore background refresh failure
+      });
   });
   ctx.onCleanup(unsubClient);
 
   // Fetch health info if already connected
   if (isConnected.value && client.value) {
-    client.value.health().then((info) => {
-      healthInfo.value = info;
-    }).catch(() => { /* ignore */ });
+    client.value
+      .health()
+      .then((info) => {
+        healthInfo.value = info;
+      })
+      .catch(() => {
+        /* ignore */
+      });
   }
 
   return (
@@ -219,17 +220,10 @@ export const SettingsPage: RuntimeComponent<Record<string, never>> = (_props, ct
           </div>
 
           <div class={styles.actions}>
-            <button
-              class={styles.btn}
-              onclick={handleTest}
-              disabled={testing}
-            >
+            <button class={styles.btn} onclick={handleTest} disabled={testing}>
               {testButtonLabel}
             </button>
-            <button
-              class={[styles.btn, styles.btnPrimary]}
-              onclick={handleSave}
-            >
+            <button class={[styles.btn, styles.btnPrimary]} onclick={handleSave}>
               Save
             </button>
           </div>
@@ -249,9 +243,7 @@ export const SettingsPage: RuntimeComponent<Record<string, never>> = (_props, ct
               </div>
               <div class={styles.infoRow}>
                 <span class={styles.infoLabel}>Status</span>
-                <span class={[styles.statusPill, styles.statusPillSuccess]}>
-                  {connectionState}
-                </span>
+                <span class={[styles.statusPill, styles.statusPillSuccess]}>{connectionState}</span>
               </div>
               {healthRows}
             </div>
@@ -262,9 +254,7 @@ export const SettingsPage: RuntimeComponent<Record<string, never>> = (_props, ct
       <div class={styles.section}>
         <span class={styles.sectionTitle}>Runtimes</span>
         <div class={styles.sectionContent}>
-          <div class={styles.info}>
-            {runtimeRows}
-          </div>
+          <div class={styles.info}>{runtimeRows}</div>
         </div>
       </div>
     </div>
