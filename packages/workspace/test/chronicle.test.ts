@@ -10,9 +10,17 @@ function createStore() {
 test("append and read entries in order", async () => {
   const store = createStore();
 
-  const e1 = await store.append({ author: "alice", category: "decision", content: "Use JSONL format" });
+  const e1 = await store.append({
+    author: "alice",
+    category: "decision",
+    content: "Use JSONL format",
+  });
   const e2 = await store.append({ author: "bob", category: "plan", content: "Implement phase 1" });
-  const e3 = await store.append({ author: "alice", category: "milestone", content: "Phase 1 complete" });
+  const e3 = await store.append({
+    author: "alice",
+    category: "milestone",
+    content: "Phase 1 complete",
+  });
 
   expect(e1.id).toBeTruthy();
   expect(e1.timestamp).toBeTruthy();

@@ -4,7 +4,9 @@ import type { ContextProvider, InboxEntry } from "../types.ts";
 import { renderPromptDocument } from "./prompt-ui.tsx";
 import type { PromptSectionNode } from "./prompt-ui.tsx";
 
-export type PromptSection = (ctx: PromptContext) => Promise<PromptSectionNode | PromptSectionNode[] | null>;
+export type PromptSection = (
+  ctx: PromptContext,
+) => Promise<PromptSectionNode | PromptSectionNode[] | null>;
 
 export interface PromptContext {
   agentName: string;

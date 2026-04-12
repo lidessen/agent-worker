@@ -23,7 +23,9 @@ export function createWorkspaceTools(
   return {
     // Channel tools
     channel_send: (args) =>
-      channelTools.channel_send(args as Parameters<typeof channelTools.channel_send>[0] & { force?: boolean }),
+      channelTools.channel_send(
+        args as Parameters<typeof channelTools.channel_send>[0] & { force?: boolean },
+      ),
     channel_read: (args) =>
       channelTools.channel_read(args as Parameters<typeof channelTools.channel_read>[0]),
     channel_list: () => channelTools.channel_list(),
@@ -268,7 +270,8 @@ export const WORKSPACE_TOOL_DEFS = {
     required: ["category", "content"],
   },
   chronicle_read: {
-    description: "Read entries from the team chronicle, optionally filtered by category or limited to recent entries.",
+    description:
+      "Read entries from the team chronicle, optionally filtered by category or limited to recent entries.",
     parameters: {
       limit: { type: "number", description: "Max entries to return (most recent)" },
       category: { type: "string", description: "Filter by category" },

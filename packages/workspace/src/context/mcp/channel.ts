@@ -46,7 +46,10 @@ export function createChannelTools(
         if (othersMessages.length > 0) {
           const preview = othersMessages
             .slice(-5) // Show at most 5 recent messages
-            .map((m) => `  @${m.from}: ${m.content.slice(0, 200)}${m.content.length > 200 ? "..." : ""}`)
+            .map(
+              (m) =>
+                `  @${m.from}: ${m.content.slice(0, 200)}${m.content.length > 200 ? "..." : ""}`,
+            )
             .join("\n");
           return (
             `⚠ ${othersMessages.length} new message(s) in #${channel} since you last read it:\n` +
@@ -121,7 +124,10 @@ export function createChannelTools(
         const header = `<msg:${m.id}> ${time} @${m.from}`;
         // Indent multiline content for visual separation
         const body = m.content.includes("\n")
-          ? m.content.split("\n").map((l) => l ? `  ${l}` : "").join("\n")
+          ? m.content
+              .split("\n")
+              .map((l) => (l ? `  ${l}` : ""))
+              .join("\n")
           : `  ${m.content}`;
         return `${header}\n${body}`;
       });

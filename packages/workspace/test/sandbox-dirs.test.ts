@@ -1,9 +1,6 @@
 import { test, expect, describe } from "bun:test";
 import { assemblePrompt } from "../src/loop/prompt.tsx";
-import {
-  workspacePromptSection,
-  WORKSPACE_PROMPT_SECTIONS,
-} from "../src/context/mcp/prompts.tsx";
+import { workspacePromptSection, WORKSPACE_PROMPT_SECTIONS } from "../src/context/mcp/prompts.tsx";
 import { createWorkspace } from "../src/factory.ts";
 import { MemoryStorage } from "../src/context/storage.ts";
 import { renderPromptDocument } from "../src/loop/prompt-ui.tsx";

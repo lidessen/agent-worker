@@ -1,11 +1,10 @@
-#!/usr/bin/env bun
 /**
  * Stdio MCP server entry point for workspace tools.
  *
  * Launched as a subprocess by CLI agents (claude-code, codex, cursor).
  * Connects to the daemon HTTP API to proxy workspace tool calls.
  *
- * Usage: bun stdio-entry.ts <daemon-url> <token> <workspace> <agent>
+ * Usage: <runtime> stdio-entry.ts <daemon-url> <token> <workspace> <agent>
  */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
