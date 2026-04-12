@@ -10,6 +10,8 @@ import type {
   WorkspaceStateStore,
 } from "../../state/index.ts";
 import type { AgentRole } from "../../config/types.ts";
+import type { InstructionQueueInterface, Priority } from "../../types.ts";
+import { nanoid } from "../../utils.ts";
 
 /**
  * Lead-side task management tools. These expose the workspace kernel state
@@ -90,6 +92,8 @@ export interface TaskTools {
     version?: number;
   }): Promise<string>;
   artifact_list(args: { taskId: string }): Promise<string>;
+
+  task_dispatch(args: { taskId: string; worker: string; priority?: Priority }): Promise<string>;
 }
 
 const ALLOWED_STATUS = new Set<TaskStatus>([
@@ -187,10 +191,16 @@ function formatTask(task: Task): string {
   return lines.join("\n");
 }
 
+export interface TaskToolsDeps {
+  /** Optional instruction queue — required only to enable task_dispatch. */
+  instructionQueue?: InstructionQueueInterface;
+}
+
 export function createTaskTools(
   agentName: string,
   workspaceName: string,
   store: WorkspaceStateStore,
+  deps: TaskToolsDeps = {},
 ): TaskTools {
   return {
     async task_create(args): Promise<string> {
@@ -428,7 +438,76 @@ export function createTaskTools(
       if (artifacts.length === 0) return `No artifacts for task ${args.taskId}.`;
       return `Artifacts (${artifacts.length}):\n${artifacts.map(formatArtifact).join("\n")}`;
     },
+
+    // ── Dispatch: lead hands a task to a worker ────────────────────────
+
+    async task_dispatch(args): Promise<string> {
+      if (!deps.instructionQueue) {
+        return "Error: task_dispatch unavailable — this workspace has no instruction queue.";
+      }
+      if (!args.taskId || !args.worker) {
+        return "Error: 'taskId' and 'worker' are required.";
+      }
+
+      const task = await store.getTask(args.taskId);
+      if (!task) return `Error: task ${args.taskId} not found.`;
+      if (task.status === "completed" || task.status === "aborted" || task.status === "failed") {
+        return `Error: task ${task.id} is already ${task.status}.`;
+      }
+      if (task.activeAttemptId) {
+        return `Error: task ${task.id} already has an active attempt (${task.activeAttemptId}). Cancel or complete it before dispatching again.`;
+      }
+
+      let attempt: Attempt;
+      try {
+        attempt = await store.createAttempt({
+          taskId: task.id,
+          agentName: args.worker,
+          role: "worker",
+        });
+      } catch (err) {
+        return `Error creating attempt: ${err instanceof Error ? err.message : String(err)}`;
+      }
+
+      // Wire the new attempt as active and advance the task to in_progress.
+      await store.updateTask(task.id, {
+        activeAttemptId: attempt.id,
+        status: task.status === "draft" || task.status === "open" ? "in_progress" : task.status,
+      });
+
+      const priority: Priority = args.priority ?? "normal";
+      const instruction = {
+        id: nanoid(),
+        agentName: args.worker,
+        messageId: `dispatch:${attempt.id}`,
+        channel: "dispatch",
+        content: formatDispatchInstruction(task, attempt, agentName),
+        priority,
+        enqueuedAt: new Date().toISOString(),
+      };
+      deps.instructionQueue.enqueue(instruction);
+
+      return `Dispatched task ${task.id} to @${args.worker} as attempt ${attempt.id}`;
+    },
   };
+}
+
+function formatDispatchInstruction(task: Task, attempt: Attempt, from: string): string {
+  const lines = [
+    `You have been assigned task [${task.id}] by @${from}.`,
+    "",
+    `**Title:** ${task.title}`,
+    `**Goal:** ${task.goal}`,
+  ];
+  if (task.acceptanceCriteria) {
+    lines.push(`**Acceptance criteria:** ${task.acceptanceCriteria}`);
+  }
+  lines.push(
+    "",
+    `Attempt id: ${attempt.id}. When finished, call attempt_update with the terminal status ` +
+      `and handoff_create with a structured summary. Register concrete outputs via artifact_create.`,
+  );
+  return lines.join("\n");
 }
 
 export const TASK_TOOL_DEFS = {
@@ -584,5 +663,20 @@ export const TASK_TOOL_DEFS = {
       taskId: { type: "string", description: "Task id" },
     },
     required: ["taskId"],
+  },
+  task_dispatch: {
+    description:
+      "Hand a task to a worker: creates an Attempt, advances the task to in_progress, and " +
+      "enqueues an instruction on the worker's queue. Only available when the workspace has " +
+      "an instruction queue (i.e. on live Workspace runtimes, not bare test harnesses).",
+    parameters: {
+      taskId: { type: "string", description: "Task id to dispatch" },
+      worker: { type: "string", description: "Agent name to assign" },
+      priority: {
+        type: "string",
+        description: "Instruction priority: immediate | normal | background (default: normal)",
+      },
+    },
+    required: ["taskId", "worker"],
   },
 } as const;
