@@ -1,11 +1,19 @@
 import type { ContextProvider } from "../../types.ts";
+import type { WorkspaceStateStore } from "../../state/index.ts";
 import { createChannelTools } from "./channel.ts";
 import { createInboxTools } from "./inbox.ts";
 import { createTeamTools } from "./team.ts";
 import { createResourceTools } from "./resource.ts";
+import { createTaskTools, TASK_TOOL_DEFS } from "./task.ts";
 
 export interface WorkspaceToolSet {
   [name: string]: (args: Record<string, unknown>) => Promise<string>;
+}
+
+export interface WorkspaceToolsOptions {
+  stateStore?: WorkspaceStateStore;
+  /** Workspace name — used as the `workspaceId` when creating tasks. */
+  workspaceName?: string;
 }
 
 /** Create all workspace tools for a given agent. */
@@ -14,11 +22,16 @@ export function createWorkspaceTools(
   provider: ContextProvider,
   agentChannels: Set<string>,
   lookupAgentChannels?: (name: string) => Set<string> | undefined,
+  options: WorkspaceToolsOptions = {},
 ): WorkspaceToolSet {
   const channelTools = createChannelTools(agentName, provider, agentChannels, lookupAgentChannels);
   const inboxTools = createInboxTools(agentName, provider);
   const teamTools = createTeamTools(agentName, provider);
   const resourceTools = createResourceTools(agentName, provider);
+  const taskTools =
+    options.stateStore && options.workspaceName
+      ? createTaskTools(agentName, options.workspaceName, options.stateStore)
+      : null;
 
   return {
     // Channel tools
@@ -98,6 +111,19 @@ export function createWorkspaceTools(
         .map((e) => `[${e.timestamp}] ${e.category} (@${e.author}): ${e.content}`)
         .join("\n");
     },
+
+    // Task ledger tools (Phase 2b — only present when a state store is wired)
+    ...(taskTools
+      ? {
+          task_create: (args) =>
+            taskTools.task_create(args as Parameters<typeof taskTools.task_create>[0]),
+          task_list: (args) =>
+            taskTools.task_list(args as Parameters<typeof taskTools.task_list>[0]),
+          task_get: (args) => taskTools.task_get(args as Parameters<typeof taskTools.task_get>[0]),
+          task_update: (args) =>
+            taskTools.task_update(args as Parameters<typeof taskTools.task_update>[0]),
+        }
+      : {}),
   };
 }
 
@@ -278,4 +304,5 @@ export const WORKSPACE_TOOL_DEFS = {
     },
     required: [],
   },
+  ...TASK_TOOL_DEFS,
 } as const;
