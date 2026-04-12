@@ -30,7 +30,8 @@ export interface RunCoordinatorDeps {
 export interface ProcessingCallbacks {
   onRunStart?: (info: RunInfo) => void;
   onRunEnd?: (result: LoopResult) => void;
-  onEvent?: (event: LoopEvent) => void;
+  /** Called for every loop event. May be async; executeRun awaits it so hooks can race the stream. */
+  onEvent?: (event: LoopEvent) => void | Promise<void>;
   onContextAssembled?: (prompt: AssembledPrompt) => void;
   /** Return true to abort the loop (e.g. agent stopped). */
   shouldStop?: () => boolean;
@@ -93,7 +94,7 @@ export class RunCoordinator {
 
   async executeRun(
     trigger: "next_message" | "next_todo",
-    onEvent?: (event: LoopEvent) => void,
+    onEvent?: (event: LoopEvent) => void | Promise<void>,
     runLabel = "run",
   ): Promise<{ loopResult: LoopResult; assembled: AssembledPrompt }> {
     const notification = this.buildNotification(trigger);
@@ -215,7 +216,7 @@ export class RunCoordinator {
         default:
           break;
       }
-      onEvent?.(event);
+      await onEvent?.(event);
     }
 
     const loopResult = await run.result;

@@ -179,6 +179,75 @@ export interface RuntimeHooksConfig {
   hooks?: Record<string, unknown>;
 }
 
+// ── Agent lifecycle hooks ──────────────────────────────────────────────────
+
+/** Cumulative usage snapshot taken from a LoopEvent.usage event. */
+export interface UsageSnapshot {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  contextWindow?: number;
+  usedRatio?: number;
+  source: "runtime" | "estimate";
+}
+
+export type PressureLevel = "soft" | "hard";
+
+/**
+ * Thresholds used to decide when to fire onContextPressure. Absolute token
+ * limits always apply when set. Ratio limits apply only when the runtime
+ * reports contextWindow on the usage event. If both are set, whichever
+ * triggers first wins.
+ */
+export interface ContextThresholds {
+  /** Absolute total-token threshold for the "soft" pressure level. */
+  softTokens?: number;
+  /** Absolute total-token threshold for the "hard" pressure level. */
+  hardTokens?: number;
+  /** Ratio threshold (0..1) for the "soft" pressure level. Default 0.70. */
+  softRatio?: number;
+  /** Ratio threshold (0..1) for the "hard" pressure level. Default 0.90. */
+  hardRatio?: number;
+}
+
+export interface PressureContext {
+  level: PressureLevel;
+  usage: UsageSnapshot;
+  runNumber: number;
+}
+
+/**
+ * Action returned by onContextPressure.
+ *
+ * - `continue` — ignore and keep running
+ * - `end` — gracefully stop after the current run completes (handoff summary optional)
+ *
+ * A future `compact` action will support cancel+restart-with-rolled-up context.
+ */
+export type PressureAction = { kind: "continue" } | { kind: "end"; summary?: string };
+
+export interface CheckpointContext {
+  reason: "run_start" | "run_end" | "event";
+  runNumber: number;
+}
+
+export type CheckpointAction = { kind: "noop" } | { kind: "inject"; content: string };
+
+/**
+ * Agent-level lifecycle hooks. Implementations typically close over task /
+ * workspace state at assignment time. Fires are routed through the Agent,
+ * not the loop — they are orthogonal to `runtimeHooks` (which are Claude
+ * Code SDK hooks passed into the CLI runtime).
+ */
+export interface AgentLifecycleHooks {
+  /** Fires when the runtime-reported usage crosses a configured threshold. */
+  onContextPressure?: (ctx: PressureContext) => Promise<PressureAction> | PressureAction;
+  /** Fires at run boundaries and on relevant events. Reserved for a follow-up PR. */
+  onCheckpoint?: (
+    ctx: CheckpointContext,
+  ) => Promise<CheckpointAction | void> | CheckpointAction | void;
+}
+
 // ── Agent config ───────────────────────────────────────────────────────────
 
 export interface AgentConfig {
@@ -204,6 +273,10 @@ export interface AgentConfig {
   memory?: MemoryConfig;
   /** Shared event bus. When provided, Agent emits structured BusEvents directly. */
   bus?: import("@agent-worker/shared").EventBus;
+  /** Agent-level lifecycle hooks (onContextPressure, onCheckpoint). */
+  hooks?: AgentLifecycleHooks;
+  /** Thresholds used by onContextPressure. Default softRatio=0.70, hardRatio=0.90. */
+  contextThresholds?: ContextThresholds;
 }
 
 // ── Message input ──────────────────────────────────────────────────────────

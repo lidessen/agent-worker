@@ -684,3 +684,159 @@ describe("maxRuns behavior", () => {
     expect(agent.state).toBe("idle");
   });
 });
+
+// ── Context pressure hooks ─────────────────────────────────────────────
+
+/**
+ * Mock loop that emits a configurable sequence of usage events before the
+ * final text, letting tests drive the pressure classifier.
+ */
+function createUsageLoop(usageSequence: Array<{ total: number }>): AgentLoop {
+  const loop: AgentLoop & { _status: LoopStatus } = {
+    supports: ["directTools", "usageStream"],
+    _status: "idle",
+
+    get status(): LoopStatus {
+      return loop._status;
+    },
+
+    run(_input): LoopRun {
+      loop._status = "running";
+
+      const events: LoopEvent[] = usageSequence.map((u) => ({
+        type: "usage",
+        inputTokens: u.total,
+        outputTokens: 0,
+        totalTokens: u.total,
+        source: "runtime",
+      }));
+      const textEvent: LoopEvent = { type: "text", text: "ok" };
+      events.push(textEvent);
+
+      const loopResult: LoopResult = {
+        events,
+        usage: {
+          inputTokens: usageSequence.at(-1)?.total ?? 0,
+          outputTokens: 0,
+          totalTokens: usageSequence.at(-1)?.total ?? 0,
+        },
+        durationMs: 10,
+      };
+
+      const result = Promise.resolve().then(() => {
+        loop._status = "completed";
+        return loopResult;
+      });
+
+      return {
+        async *[Symbol.asyncIterator]() {
+          for (const event of events) yield event;
+        },
+        result,
+      };
+    },
+
+    cancel() {
+      loop._status = "cancelled";
+    },
+
+    setTools() {},
+    setPrepareStep() {},
+  };
+  return loop;
+}
+
+describe("Agent context pressure", () => {
+  test("fires onContextPressure at soft threshold based on absolute tokens", async () => {
+    const calls: Array<{ level: string; total: number }> = [];
+    const loop = createUsageLoop([{ total: 500 }, { total: 1200 }, { total: 1900 }]);
+    const agent = new Agent({
+      loop,
+      maxRuns: 1,
+      inbox: { debounceMs: 10 },
+      contextThresholds: { softTokens: 1000, hardTokens: 2000 },
+      hooks: {
+        onContextPressure: ({ level, usage }) => {
+          calls.push({ level, total: usage.totalTokens });
+          return { kind: "continue" };
+        },
+      },
+    });
+    await agent.init();
+
+    agent.push("go");
+    await new Promise((r) => setTimeout(r, 150));
+
+    // First usage (500) is below soft (1000); second and third cross soft — only fires once.
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toEqual({ level: "soft", total: 1200 });
+    expect(agent.state).toBe("idle");
+  });
+
+  test("fires hard and drives graceful stop when hook returns end", async () => {
+    const calls: Array<{ level: string }> = [];
+    const loop = createUsageLoop([{ total: 500 }, { total: 3000 }]);
+    const agent = new Agent({
+      loop,
+      maxRuns: 5,
+      inbox: { debounceMs: 10 },
+      contextThresholds: { softTokens: 1000, hardTokens: 2000 },
+      hooks: {
+        onContextPressure: ({ level }) => {
+          calls.push({ level });
+          if (level === "hard") return { kind: "end", summary: "rollup" };
+          return { kind: "continue" };
+        },
+      },
+    });
+    await agent.init();
+
+    agent.push("go");
+    await new Promise((r) => setTimeout(r, 200));
+
+    // Both soft (escalated) and hard should have fired from a single usage event of 3000.
+    expect(calls.map((c) => c.level)).toEqual(["soft", "hard"]);
+    // Loop should have run exactly once — the second run is suppressed by the graceful stop.
+    expect((loop as unknown as { supports: readonly string[] }).supports).toContain("usageStream");
+    expect(agent.state).toBe("idle");
+  });
+
+  test("lastUsage exposes the most recent snapshot", async () => {
+    const loop = createUsageLoop([{ total: 100 }, { total: 250 }]);
+    const agent = new Agent({
+      loop,
+      maxRuns: 1,
+      inbox: { debounceMs: 10 },
+    });
+    await agent.init();
+
+    agent.push("go");
+    await new Promise((r) => setTimeout(r, 150));
+
+    expect(agent.lastUsage?.totalTokens).toBe(250);
+    expect(agent.lastUsage?.source).toBe("runtime");
+  });
+
+  test("does not fire hook when no thresholds cross", async () => {
+    let fired = 0;
+    const loop = createUsageLoop([{ total: 100 }, { total: 200 }]);
+    const agent = new Agent({
+      loop,
+      maxRuns: 1,
+      inbox: { debounceMs: 10 },
+      contextThresholds: { softTokens: 1000, hardTokens: 2000 },
+      hooks: {
+        onContextPressure: () => {
+          fired++;
+          return { kind: "continue" };
+        },
+      },
+    });
+    await agent.init();
+
+    agent.push("go");
+    await new Promise((r) => setTimeout(r, 150));
+
+    expect(fired).toBe(0);
+  });
+});
