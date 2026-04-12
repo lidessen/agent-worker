@@ -193,6 +193,14 @@ describe("Unified daemon (workspace routes)", () => {
     expect(open.tasks).toEqual([]);
   });
 
+  test("listWorkspaceTasks rejects unknown status values with 400", async () => {
+    await setup();
+    await client.createWorkspace(CHAT_YAML);
+
+    // Hit the raw endpoint since the client passes through any string.
+    await expect(client.listWorkspaceTasks("test-ws", { status: "garbage" })).rejects.toThrow();
+  });
+
   test("reads workspace events", async () => {
     await setup();
     await client.createWorkspace(CHAT_YAML);

@@ -1233,12 +1233,30 @@ export class Daemon {
     const store = handle.workspace.stateStore;
     // `status` accepts a comma-separated filter: ?status=draft,open,in_progress
     const statusParam = url.searchParams.get("status");
-    const statusFilter = statusParam
-      ? (statusParam
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean) as TaskStatus[])
-      : undefined;
+    let statusFilter: TaskStatus[] | undefined;
+    if (statusParam) {
+      const requested = statusParam
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const valid = new Set<TaskStatus>([
+        "draft",
+        "open",
+        "in_progress",
+        "blocked",
+        "completed",
+        "aborted",
+        "failed",
+      ]);
+      const unknown = requested.filter((s) => !valid.has(s as TaskStatus));
+      if (unknown.length > 0) {
+        return Response.json(
+          { error: `Unknown status values: ${unknown.join(", ")}` },
+          { status: 400 },
+        );
+      }
+      statusFilter = requested as TaskStatus[];
+    }
     const ownerLeadId = url.searchParams.get("ownerLeadId") ?? undefined;
     const tasks = await store.listTasks({
       ...(statusFilter ? { status: statusFilter } : {}),
