@@ -378,6 +378,101 @@ describe("task_dispatch", () => {
     expect(queue.dequeue(other)).toBeNull();
   });
 
+  test("walks the full lifecycle: intake → dispatch → worker handoff → completed", async () => {
+    const store = new InMemoryWorkspaceStateStore();
+    const queue = new InstructionQueue();
+    const leadTools = createTaskTools("lead", "test-ws", store, { instructionQueue: queue });
+    const workerTools = createTaskTools("codex", "test-ws", store, { instructionQueue: queue });
+
+    // 1. Lead intakes a new request as a draft task.
+    const createResult = await leadTools.task_create({
+      title: "Wire auth middleware",
+      goal: "Protect /api/admin with the new JWT check",
+      source: { kind: "user", ref: "msg-42", excerpt: "Please add auth." },
+      acceptanceCriteria: "All admin endpoints return 401 without a token.",
+    });
+    expect(createResult).toContain("created [draft]");
+
+    const drafts = await store.listTasks({ status: ["draft"] });
+    expect(drafts).toHaveLength(1);
+    const task = drafts[0]!;
+
+    // 2. Lead confirms the draft by advancing to open.
+    const confirm = await leadTools.task_update({ id: task.id, status: "open" });
+    expect(confirm).toContain("[open]");
+
+    // 3. Lead dispatches to a worker. This creates the Attempt, advances the
+    //    task to in_progress, and enqueues an instruction.
+    const dispatch = await leadTools.task_dispatch({ taskId: task.id, worker: "codex" });
+    expect(dispatch).toContain("Dispatched");
+
+    const afterDispatch = await store.getTask(task.id);
+    expect(afterDispatch?.status).toBe("in_progress");
+    expect(afterDispatch?.activeAttemptId).toBeTruthy();
+
+    const instruction = queue.dequeue("codex");
+    expect(instruction).not.toBeNull();
+    expect(instruction?.content).toContain("Wire auth middleware");
+    expect(instruction?.content).toContain("All admin endpoints return 401");
+
+    // Parse the attempt id out of the instruction body so the "worker" can
+    // act on exactly what the dispatch told it to use.
+    const attemptIdMatch = instruction!.content.match(/Attempt id: (att_[a-f0-9]+)/);
+    expect(attemptIdMatch).not.toBeNull();
+    const attemptId = attemptIdMatch![1]!;
+
+    // 4. Worker registers an artifact and records a progress handoff.
+    const artifact = await workerTools.artifact_create({
+      taskId: task.id,
+      createdByAttemptId: attemptId,
+      kind: "file",
+      title: "auth.ts",
+      ref: "file:/repo/src/auth.ts",
+    });
+    expect(artifact).toContain("registered");
+
+    const handoff = await workerTools.handoff_create({
+      taskId: task.id,
+      fromAttemptId: attemptId,
+      kind: "completed",
+      summary: "Implemented middleware with unit tests",
+      completed: ["JWT verification", "401 on missing token", "integration test"],
+      artifactRefs: [artifact.match(/art_[a-f0-9]+/)![0]],
+      touchedPaths: ["src/auth.ts", "test/auth.test.ts"],
+    });
+    expect(handoff).toContain("recorded");
+
+    // 5. Worker closes the attempt. This clears activeAttemptId automatically.
+    const close = await workerTools.attempt_update({
+      id: attemptId,
+      status: "completed",
+      resultSummary: "Shipped",
+    });
+    expect(close).toContain("[completed]");
+
+    const beforeClose = await store.getTask(task.id);
+    expect(beforeClose?.activeAttemptId).toBeUndefined();
+
+    // 6. Lead reviews and marks the task completed.
+    const finish = await leadTools.task_update({ id: task.id, status: "completed" });
+    expect(finish).toContain("[completed]");
+
+    const final = await store.getTask(task.id);
+    expect(final?.status).toBe("completed");
+    expect(final?.artifactRefs).toHaveLength(1);
+
+    // Handoff + attempt + artifact should all be discoverable from the task.
+    const handoffs = await store.listHandoffs(task.id);
+    expect(handoffs).toHaveLength(1);
+    expect(handoffs[0]!.kind).toBe("completed");
+    expect(handoffs[0]!.summary).toContain("middleware");
+
+    const attempts = await store.listAttempts(task.id);
+    expect(attempts).toHaveLength(1);
+    expect(attempts[0]!.status).toBe("completed");
+    expect(attempts[0]!.endedAt).toBeGreaterThan(0);
+  });
+
   test("handed_off status clears activeAttemptId and unblocks re-dispatch", async () => {
     const { store, tools } = setupWithQueue();
     const task = await store.createTask({ workspaceId: "test-ws", title: "t", goal: "g" });
