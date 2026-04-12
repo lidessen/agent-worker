@@ -297,14 +297,30 @@ export class Agent {
         continue;
       }
 
-      if (action.kind === "end") {
-        this.pendingGracefulStop = true;
-        this.busEmit("agent.graceful_stop_requested", {
-          runId,
-          reason: "context_pressure",
-          level,
-          summary: action.summary,
-        });
+      switch (action.kind) {
+        case "continue":
+          break;
+        case "end":
+          this.pendingGracefulStop = true;
+          this.busEmit("agent.graceful_stop_requested", {
+            runId,
+            reason: "context_pressure",
+            level,
+            summary: action.summary,
+          });
+          break;
+        default: {
+          // Exhaustiveness guard: forces future PressureAction variants
+          // (e.g. "compact") to be handled explicitly instead of silently
+          // falling through as "continue".
+          const _exhaustive: never = action;
+          void _exhaustive;
+          this.busEmit("agent.error", {
+            runId,
+            error: `Unhandled PressureAction kind: ${(action as { kind: string }).kind}`,
+            level: "error",
+          });
+        }
       }
     }
   }

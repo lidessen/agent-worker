@@ -817,6 +817,29 @@ describe("Agent context pressure", () => {
     expect(agent.lastUsage?.source).toBe("runtime");
   });
 
+  test("treats a throwing onContextPressure hook as continue and keeps running", async () => {
+    const loop = createUsageLoop([{ total: 1500 }]);
+    const agent = new Agent({
+      loop,
+      maxRuns: 1,
+      inbox: { debounceMs: 10 },
+      contextThresholds: { softTokens: 1000, hardTokens: 2000 },
+      hooks: {
+        onContextPressure: () => {
+          throw new Error("boom");
+        },
+      },
+    });
+    await agent.init();
+
+    agent.push("go");
+    await new Promise((r) => setTimeout(r, 150));
+
+    // Agent should have reached idle, not error — throwing hook is swallowed.
+    expect(agent.state).toBe("idle");
+    expect(agent.lastUsage?.totalTokens).toBe(1500);
+  });
+
   test("does not fire hook when no thresholds cross", async () => {
     let fired = 0;
     const loop = createUsageLoop([{ total: 100 }, { total: 200 }]);

@@ -258,14 +258,27 @@ export class CodexLoop {
         const params = message.params as {
           turnId?: string;
           tokenUsage?: {
+            /** Running total for the whole turn. Preferred when present. */
+            cumulative?: {
+              inputTokens?: number;
+              outputTokens?: number;
+              totalTokens?: number;
+            };
+            /** Most recent API call's incremental usage. Fallback. */
             last?: { inputTokens?: number; outputTokens?: number; totalTokens?: number };
           };
         };
-        if (params.turnId !== turn.turnId || !params.tokenUsage?.last) return;
+        if (params.turnId !== turn.turnId) return;
+        // Prefer the cumulative field if the server provides it — "last" is the
+        // incremental delta for the most recent API call and is not safe to
+        // take-as-latest across multi-step turns. Fall back to "last" for
+        // older app-server builds that only expose it.
+        const snapshot = params.tokenUsage?.cumulative ?? params.tokenUsage?.last;
+        if (!snapshot) return;
         turn.usage = {
-          inputTokens: params.tokenUsage.last.inputTokens ?? 0,
-          outputTokens: params.tokenUsage.last.outputTokens ?? 0,
-          totalTokens: params.tokenUsage.last.totalTokens ?? 0,
+          inputTokens: snapshot.inputTokens ?? 0,
+          outputTokens: snapshot.outputTokens ?? 0,
+          totalTokens: snapshot.totalTokens ?? 0,
         };
         turn.emit({
           type: "usage",
