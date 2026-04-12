@@ -234,7 +234,10 @@ describe("Workspace", () => {
       from: "user",
       content: "@alice please continue",
     });
-    await ws1.contextProvider.inbox.markSeen("alice", (await ws1.contextProvider.inbox.peek("alice"))[0]!.messageId);
+    await ws1.contextProvider.inbox.markSeen(
+      "alice",
+      (await ws1.contextProvider.inbox.peek("alice"))[0]!.messageId,
+    );
     await ws1.shutdown();
 
     const ws2 = await createWorkspace({

@@ -50,8 +50,6 @@ describe("workspace_info exposes shared sandbox path", () => {
   });
 
   test("agent sandbox dir is scoped to agent name", () => {
-    expect(workspace.agentSandboxDir("alice")).toBe(
-      join(tmpDir, "agents", "alice", "sandbox"),
-    );
+    expect(workspace.agentSandboxDir("alice")).toBe(join(tmpDir, "agents", "alice", "sandbox"));
   });
 });

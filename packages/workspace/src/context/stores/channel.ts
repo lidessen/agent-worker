@@ -48,7 +48,10 @@ export class ChannelStore implements ChannelStoreInterface {
     return message;
   }
 
-  async read(channel: string, opts?: { since?: string; sinceId?: string; limit?: number }): Promise<Message[]> {
+  async read(
+    channel: string,
+    opts?: { since?: string; sinceId?: string; limit?: number },
+  ): Promise<Message[]> {
     const lines = await this.storage.readLines(this.channelPath(channel));
     let messages = lines.map((line) => JSON.parse(line) as Message);
 

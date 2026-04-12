@@ -56,8 +56,8 @@ export interface QueueConfig {
   normalQuota?: number;
   maxBackgroundWait?: number;
   maxPreemptions?: number;
-  backgroundTtl?: number;   // ms, default 5 * 60 * 1000
-  maxSize?: number;          // default 200
+  backgroundTtl?: number; // ms, default 5 * 60 * 1000
+  maxSize?: number; // default 200
 }
 
 // ── Chronicle types ───────────────────────────────────────────────────────
@@ -251,7 +251,10 @@ export interface ContextProvider {
 
 export interface ChannelStoreInterface {
   append(channel: string, message: Omit<Message, "id" | "timestamp">): Promise<Message>;
-  read(channel: string, opts?: { since?: string; sinceId?: string; limit?: number }): Promise<Message[]>;
+  read(
+    channel: string,
+    opts?: { since?: string; sinceId?: string; limit?: number },
+  ): Promise<Message[]>;
   getMessage(channel: string, messageId: string): Promise<Message | null>;
   listChannels(): string[];
   createChannel(name: string): void;
