@@ -17,6 +17,8 @@ import type {
   RuntimeConfig,
   WorkspaceStatus,
   WorkspaceInboxEntry,
+  TaskSummary,
+  TaskDetail,
 } from "./types.ts";
 
 export class WebClient {
@@ -191,6 +193,26 @@ export class WebClient {
       `/workspaces/${encodeURIComponent(key)}/docs`,
     );
     return res.docs;
+  }
+
+  async listWorkspaceTasks(
+    key: string,
+    opts?: { status?: string; ownerLeadId?: string },
+  ): Promise<TaskSummary[]> {
+    const params = new URLSearchParams();
+    if (opts?.status) params.set("status", opts.status);
+    if (opts?.ownerLeadId) params.set("ownerLeadId", opts.ownerLeadId);
+    const qs = params.toString();
+    const res = await this.request<{ tasks: TaskSummary[] }>(
+      `/workspaces/${encodeURIComponent(key)}/tasks${qs ? `?${qs}` : ""}`,
+    );
+    return res.tasks;
+  }
+
+  async getWorkspaceTask(key: string, taskId: string): Promise<TaskDetail> {
+    return this.request<TaskDetail>(
+      `/workspaces/${encodeURIComponent(key)}/tasks/${encodeURIComponent(taskId)}`,
+    );
   }
 
   async readDoc(key: string, name: string): Promise<string> {
