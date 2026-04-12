@@ -87,6 +87,8 @@ export type {
 
 // ── Kernel state (Task / Attempt / Handoff / Artifact) ────────────────────
 export { InMemoryWorkspaceStateStore, FileWorkspaceStateStore } from "./state/index.ts";
+export { buildLeadHooks } from "./loop/lead-hooks.ts";
+export type { BuildLeadHooksOptions } from "./loop/lead-hooks.ts";
 export type {
   SourceRef,
   TaskStatus,
