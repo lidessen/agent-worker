@@ -1,0 +1,91 @@
+# Example workspace configuration for the workspace-led hierarchical
+# agent system. Shows how the new AgentRole resolution + task ledger
+# fits into a familiar `lead: <name>` + `agents:` map.
+#
+# Relevant commits / design docs:
+#   - docs/design/workspace-led-hierarchical-agent-system/
+#     README.md
+#     interaction-model.md
+#     state-and-context-model.md
+#     profiles-and-policies.md
+#     lifecycle-hooks-and-context-accounting.md
+#
+# To run:
+#   aw create docs/design/workspace-led-hierarchical-agent-system/example-workspace.yml
+#   aw task ls @hierarchical-demo
+#   aw task get <id> @hierarchical-demo
+#
+# Once running:
+#   1. Kickoff auto-creates a `draft` Task owned by the lead.
+#   2. The lead prompt guidance tells maintainer-lead to advance the
+#      draft to `open` and then `task_dispatch` it to a worker.
+#   3. Workers read the attempt id out of their dispatch instruction
+#      and drive the task to `completed` via artifact_create /
+#      handoff_create / attempt_update.
+#   4. The CLI / Web UI / HTTP API surface the ledger live.
+
+name: hierarchical-demo
+label: Workspace-led hierarchical demo
+storage: file
+
+# Exactly one lead. Role inference: agents[name] === workspace.lead → "lead",
+# everything else → "worker" unless role is explicitly overridden.
+lead: maintainer
+
+channels:
+  - general
+  - design
+  - review
+
+default_channel: general
+
+kickoff: |
+  @maintainer The user wants a new /api/admin/audit endpoint that returns
+  the last 50 audit log entries for the current team. Please capture this
+  as a task, confirm it by opening the draft, and dispatch it to whichever
+  worker is most suited.
+
+agents:
+  # ── Lead ──────────────────────────────────────────────────────────────
+  maintainer:
+    runtime: codex
+    instructions: |
+      You are the maintainer-lead for this workspace. You own the task
+      ledger. Every incoming user message becomes a draft task before you
+      act on it. Advance drafts to open only after you understand the
+      request; dispatch them to workers via task_dispatch. When a worker
+      reports completed via handoff, review the artifacts and close the
+      task with task_update status=completed.
+
+  # ── Worker-capable pool ───────────────────────────────────────────────
+  implementer:
+    runtime: claude-code
+    instructions: |
+      You are an implementer. When the maintainer dispatches a task to you
+      via an instruction in channel "dispatch", it carries a task id and
+      an attempt id. Reuse that attempt id — never call attempt_create.
+      When you finish, register outputs with artifact_create, record a
+      handoff with kind=completed, then call attempt_update with the same
+      id and status=completed.
+
+  reviewer:
+    runtime: claude-code
+    instructions: |
+      You are a reviewer. Same contract as the implementer, but you
+      usually receive tasks tagged for review (acceptance checks, code
+      review). When the handoff shows blockers you cannot resolve, call
+      attempt_update status=handed_off and let the maintainer decide the
+      next step.
+
+  # ── Automation / observer member ──────────────────────────────────────
+  #
+  # `role: observer` keeps this member out of the worker pool that the
+  # orchestrator may derive task-scoped Attempts from. Useful for
+  # telegram bridges, status reporters, notification bots, etc.
+  bot:
+    runtime: mock
+    role: observer
+    on_demand: true
+    instructions: |
+      You are a notification bot. You do not accept task dispatches.
+      Only respond when @-mentioned in #general.
