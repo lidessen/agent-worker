@@ -16,5 +16,6 @@ export type {
 } from "./types.ts";
 
 export { InMemoryWorkspaceStateStore } from "./store.ts";
+export { FileWorkspaceStateStore } from "./file-store.ts";
 
 export type { WorkspaceStateStore, TaskFilter } from "./store.ts";
