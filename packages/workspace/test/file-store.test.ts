@@ -142,4 +142,61 @@ describe("FileWorkspaceStateStore", () => {
       second.createAttempt({ taskId: "task_missing", agentName: "codex", role: "worker" }),
     ).rejects.toThrow("task not found");
   });
+
+  test("replay reconciles artifacts whose task mirror never got the second write", async () => {
+    const { appendFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+
+    const first = new FileWorkspaceStateStore(dir);
+    await first.ready;
+    const task = await first.createTask({ workspaceId: "w1", title: "t", goal: "g" });
+    const attempt = await first.createAttempt({
+      taskId: task.id,
+      agentName: "codex",
+      role: "worker",
+    });
+
+    // Simulate a crash that lost the task-mirror write: manually append an
+    // artifact row to artifacts.jsonl without the corresponding updated task
+    // snapshot. Replay should still reconcile it.
+    const artifactId = "art_orphaned123";
+    appendFileSync(
+      join(dir, "artifacts.jsonl"),
+      JSON.stringify({
+        ts: Date.now(),
+        id: artifactId,
+        taskId: task.id,
+        kind: "file",
+        title: "orphan.txt",
+        ref: "file:/tmp/orphan.txt",
+        createdByAttemptId: attempt.id,
+        createdAt: Date.now(),
+      }) + "\n",
+    );
+
+    const second = new FileWorkspaceStateStore(dir);
+    await second.ready;
+    const refreshed = await second.getTask(task.id);
+    expect(refreshed?.artifactRefs).toContain(artifactId);
+    const artifacts = await second.listArtifacts(task.id);
+    expect(artifacts.map((a) => a.id)).toContain(artifactId);
+  });
+
+  test("replay survives a torn/malformed trailing line", async () => {
+    const { appendFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+
+    const first = new FileWorkspaceStateStore(dir);
+    await first.ready;
+    const task = await first.createTask({ workspaceId: "w1", title: "survive", goal: "g" });
+
+    // Simulate a crash that wrote half a JSON line to tasks.jsonl.
+    appendFileSync(join(dir, "tasks.jsonl"), '{"ts": 123, "id": "task_broken', "utf8");
+
+    // Replay should swallow the malformed tail and still see the original task.
+    const second = new FileWorkspaceStateStore(dir);
+    await second.ready;
+    const replayed = await second.getTask(task.id);
+    expect(replayed?.title).toBe("survive");
+  });
 });

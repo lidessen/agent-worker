@@ -347,4 +347,56 @@ describe("task_dispatch", () => {
     const result = await tools.task_dispatch({ taskId: "task_missing", worker: "codex" });
     expect(result).toContain("not found");
   });
+
+  test("serialises concurrent dispatches on the same task", async () => {
+    const { store, tools, queue } = setupWithQueue();
+    const task = await store.createTask({ workspaceId: "test-ws", title: "t", goal: "g" });
+
+    const [first, second] = await Promise.all([
+      tools.task_dispatch({ taskId: task.id, worker: "codex" }),
+      tools.task_dispatch({ taskId: task.id, worker: "cursor" }),
+    ]);
+
+    // Exactly one dispatch should have succeeded; the other must report
+    // either the in-flight lock or the active-attempt guard.
+    const successes = [first, second].filter((r) => r.startsWith("Dispatched"));
+    const failures = [first, second].filter((r) => !r.startsWith("Dispatched"));
+    expect(successes).toHaveLength(1);
+    expect(failures[0]).toMatch(/in flight|already has an active attempt/);
+
+    // Only one attempt should exist, and the task should reference it.
+    const attempts = await store.listAttempts(task.id);
+    expect(attempts).toHaveLength(1);
+    const refreshed = await store.getTask(task.id);
+    expect(refreshed?.activeAttemptId).toBe(attempts[0]!.id);
+
+    // Exactly one instruction should have been enqueued for the winning worker.
+    const winner = attempts[0]!.agentName;
+    const instruction = queue.dequeue(winner);
+    expect(instruction).not.toBeNull();
+    const other = winner === "codex" ? "cursor" : "codex";
+    expect(queue.dequeue(other)).toBeNull();
+  });
+
+  test("handed_off status clears activeAttemptId and unblocks re-dispatch", async () => {
+    const { store, tools } = setupWithQueue();
+    const task = await store.createTask({ workspaceId: "test-ws", title: "t", goal: "g" });
+    await tools.task_dispatch({ taskId: task.id, worker: "codex" });
+
+    const attempts = await store.listAttempts(task.id);
+    const attemptId = attempts[0]!.id;
+
+    const update = await tools.attempt_update({ id: attemptId, status: "handed_off" });
+    expect(update).toContain("[handed_off]");
+
+    const afterHandoff = await store.getTask(task.id);
+    expect(afterHandoff?.activeAttemptId).toBeUndefined();
+
+    // Now the lead can hand the task to someone else.
+    const redispatch = await tools.task_dispatch({ taskId: task.id, worker: "cursor" });
+    expect(redispatch).toContain("Dispatched");
+
+    const allAttempts = await store.listAttempts(task.id);
+    expect(allAttempts).toHaveLength(2);
+  });
 });
