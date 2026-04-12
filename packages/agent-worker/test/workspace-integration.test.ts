@@ -266,6 +266,103 @@ describe("Unified daemon (workspace routes)", () => {
     ).rejects.toThrow();
   });
 
+  test("completeWorkspaceTask finalizes the active attempt and records a handoff", async () => {
+    await setup();
+    await client.createWorkspace(CHAT_YAML);
+
+    const created = await client.createWorkspaceTask("test-ws", {
+      title: "Wire audit log",
+      goal: "Log user-driven admin actions",
+    });
+    const taskId = (created.task as { id: string }).id;
+
+    await client.updateWorkspaceTask("test-ws", taskId, { status: "open" });
+    const dispatched = await client.dispatchWorkspaceTask("test-ws", taskId, {
+      worker: "alice",
+    });
+    const attemptId = (dispatched.attempt as { id: string }).id;
+
+    const closed = await client.completeWorkspaceTask("test-ws", taskId, {
+      summary: "Shipped audit log with tests",
+    });
+
+    const t = closed.task as { status: string; activeAttemptId?: string };
+    expect(t.status).toBe("completed");
+    expect(t.activeAttemptId).toBeUndefined();
+
+    const attempts = closed.attempts as Array<{ id: string; status: string; endedAt?: number }>;
+    const closedAttempt = attempts.find((a) => a.id === attemptId);
+    expect(closedAttempt?.status).toBe("completed");
+    expect(closedAttempt?.endedAt).toBeGreaterThan(0);
+
+    const handoffs = closed.handoffs as Array<{
+      kind: string;
+      summary: string;
+      createdBy: string;
+    }>;
+    const handoff = handoffs.find((h) => h.kind === "completed");
+    expect(handoff).toBeDefined();
+    expect(handoff?.summary).toBe("Shipped audit log with tests");
+    expect(handoff?.createdBy).toBe("user");
+  });
+
+  test("abortWorkspaceTask cancels the active attempt and records an aborted handoff", async () => {
+    await setup();
+    await client.createWorkspace(CHAT_YAML);
+
+    const created = await client.createWorkspaceTask("test-ws", {
+      title: "Obsolete request",
+      goal: "Will be canceled",
+    });
+    const taskId = (created.task as { id: string }).id;
+    await client.updateWorkspaceTask("test-ws", taskId, { status: "open" });
+    await client.dispatchWorkspaceTask("test-ws", taskId, { worker: "alice" });
+
+    const closed = await client.abortWorkspaceTask("test-ws", taskId, {
+      reason: "Requirements changed",
+    });
+    expect((closed.task as { status: string }).status).toBe("aborted");
+
+    const attempts = closed.attempts as Array<{ status: string }>;
+    expect(attempts[0]?.status).toBe("cancelled");
+
+    const handoffs = closed.handoffs as Array<{ kind: string; summary: string }>;
+    const handoff = handoffs.find((h) => h.kind === "aborted");
+    expect(handoff).toBeDefined();
+    expect(handoff?.summary).toBe("Requirements changed");
+  });
+
+  test("completeWorkspaceTask works even without an active attempt", async () => {
+    await setup();
+    await client.createWorkspace(CHAT_YAML);
+
+    const created = await client.createWorkspaceTask("test-ws", {
+      title: "Quick note",
+      goal: "Just a reminder",
+    });
+    const taskId = (created.task as { id: string }).id;
+
+    // Skip dispatch entirely — directly complete a draft task.
+    const closed = await client.completeWorkspaceTask("test-ws", taskId);
+    expect((closed.task as { status: string }).status).toBe("completed");
+    // No attempts means no handoff is written — that's deliberate.
+    expect(closed.handoffs).toEqual([]);
+  });
+
+  test("closing an already-terminal task returns 409", async () => {
+    await setup();
+    await client.createWorkspace(CHAT_YAML);
+
+    const created = await client.createWorkspaceTask("test-ws", {
+      title: "Done",
+      goal: "g",
+    });
+    const taskId = (created.task as { id: string }).id;
+    await client.completeWorkspaceTask("test-ws", taskId);
+
+    await expect(client.completeWorkspaceTask("test-ws", taskId)).rejects.toThrow();
+  });
+
   test("reads workspace events", async () => {
     await setup();
     await client.createWorkspace(CHAT_YAML);
