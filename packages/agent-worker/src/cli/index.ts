@@ -45,8 +45,11 @@ Documents:
   doc append <name> --content Append to document
 
 Tasks:
-  task ls [--status ...]      List tasks in the workspace ledger
-  task get <id>               Show a task with its attempts / handoffs / artifacts
+  task ls [--status ...]           List tasks in the workspace ledger
+  task get <id>                    Show a task with its attempts / handoffs / artifacts
+  task new <title> --goal '...'    Create a new task (default status: draft)
+  task update <id> --status open   Patch status / title / goal / owner / acceptance
+  task dispatch <id> --to <worker> Hand a task to a worker
 
 Auth:
   auth <provider>             Save API key (anthropic, openai, google, deepseek, ...)

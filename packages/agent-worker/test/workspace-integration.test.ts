@@ -201,6 +201,71 @@ describe("Unified daemon (workspace routes)", () => {
     await expect(client.listWorkspaceTasks("test-ws", { status: "garbage" })).rejects.toThrow();
   });
 
+  test("create, update, and dispatch a task through HTTP POST endpoints", async () => {
+    await setup();
+    await client.createWorkspace(CHAT_YAML);
+
+    const created = await client.createWorkspaceTask("test-ws", {
+      title: "Wire auth middleware",
+      goal: "Protect /api/admin with the new JWT check",
+      acceptanceCriteria: "All admin endpoints return 401 without a token",
+    });
+    const task = created.task as { id: string; status: string; title: string };
+    expect(task.status).toBe("draft");
+    expect(task.title).toBe("Wire auth middleware");
+
+    const updated = await client.updateWorkspaceTask("test-ws", task.id, {
+      status: "open",
+    });
+    expect((updated.task as { status: string }).status).toBe("open");
+
+    const dispatched = await client.dispatchWorkspaceTask("test-ws", task.id, {
+      worker: "alice",
+    });
+    const taskAfter = dispatched.task as { status: string; activeAttemptId?: string };
+    const attempt = dispatched.attempt as { id: string; agentName: string };
+    expect(taskAfter.status).toBe("in_progress");
+    expect(taskAfter.activeAttemptId).toBe(attempt.id);
+    expect(attempt.agentName).toBe("alice");
+
+    // getWorkspaceTask should now show the attempt alongside the task.
+    const detail = await client.getWorkspaceTask("test-ws", task.id);
+    expect(detail.attempts).toHaveLength(1);
+    const loaded = detail.attempts[0] as { id: string; status: string };
+    expect(loaded.id).toBe(attempt.id);
+    expect(loaded.status).toBe("running");
+  });
+
+  test("dispatching a task that already has an active attempt fails with 409", async () => {
+    await setup();
+    await client.createWorkspace(CHAT_YAML);
+
+    const created = await client.createWorkspaceTask("test-ws", {
+      title: "t",
+      goal: "g",
+    });
+    const taskId = (created.task as { id: string }).id;
+    await client.updateWorkspaceTask("test-ws", taskId, { status: "open" });
+    await client.dispatchWorkspaceTask("test-ws", taskId, { worker: "alice" });
+
+    await expect(
+      client.dispatchWorkspaceTask("test-ws", taskId, { worker: "bob" }),
+    ).rejects.toThrow();
+  });
+
+  test("createWorkspaceTask rejects an invalid status with 400", async () => {
+    await setup();
+    await client.createWorkspace(CHAT_YAML);
+
+    await expect(
+      client.createWorkspaceTask("test-ws", {
+        title: "t",
+        goal: "g",
+        status: "nope",
+      }),
+    ).rejects.toThrow();
+  });
+
   test("reads workspace events", async () => {
     await setup();
     await client.createWorkspace(CHAT_YAML);

@@ -2,11 +2,10 @@ import { ensureDaemon } from "../../client.ts";
 import { wantsHelp } from "../output.ts";
 
 /**
- * `aw task <ls|get> [...args]` — read-only view of the workspace task ledger.
- *
- * Mutation (create, update, dispatch) stays in the agent-facing MCP tools
- * for now; exposing it to the CLI invites confusion over who owns the
- * ledger. Keep the CLI strictly observational.
+ * `aw task <ls|get|new|update|dispatch>` — operator surface for the
+ * workspace task ledger. Read paths (ls, get) are strictly observational.
+ * Mutation paths (new, update, dispatch) let a human drive the system
+ * without needing an agent in the loop.
  */
 export async function task(args: string[]): Promise<void> {
   if (wantsHelp(args)) {
@@ -15,7 +14,8 @@ export async function task(args: string[]): Promise<void> {
   }
 
   const sub = args[0];
-  if (!sub || !["ls", "get"].includes(sub)) {
+  const validSubs = ["ls", "get", "new", "update", "dispatch"];
+  if (!sub || !validSubs.includes(sub)) {
     printUsage();
     process.exit(1);
   }
@@ -101,6 +101,66 @@ export async function task(args: string[]): Promise<void> {
         }
         break;
       }
+      case "new": {
+        // First positional after "new" that isn't a flag / workspace → title.
+        const title = args.slice(1).find((a) => !a.startsWith("--") && !a.startsWith("@"));
+        const goal = getFlag(args, "--goal");
+        if (!title || !goal) {
+          console.error(
+            "Usage: aw task new <title> --goal '...' [@workspace] [--status ...] [--owner ...]",
+          );
+          process.exit(1);
+        }
+        const result = await client.createWorkspaceTask(workspace, {
+          title,
+          goal,
+          status: getFlag(args, "--status"),
+          ownerLeadId: getFlag(args, "--owner"),
+          acceptanceCriteria: getFlag(args, "--accept"),
+          sourceKind: "cli",
+        });
+        const t = result.task as { id: string; status: string };
+        console.log(`Created task ${t.id} [${t.status}]: ${title}`);
+        break;
+      }
+      case "update": {
+        const id = args.slice(1).find((a) => !a.startsWith("--") && !a.startsWith("@"));
+        if (!id) {
+          console.error(
+            "Usage: aw task update <id> [@workspace] [--status ...] [--title ...] [--goal ...]",
+          );
+          process.exit(1);
+        }
+        const patch = {
+          status: getFlag(args, "--status"),
+          title: getFlag(args, "--title"),
+          goal: getFlag(args, "--goal"),
+          ownerLeadId: getFlag(args, "--owner"),
+          acceptanceCriteria: getFlag(args, "--accept"),
+        };
+        const hasAny = Object.values(patch).some((v) => v !== undefined);
+        if (!hasAny) {
+          console.error("Provide at least one of --status/--title/--goal/--owner/--accept");
+          process.exit(1);
+        }
+        const result = await client.updateWorkspaceTask(workspace, id, patch);
+        const t = result.task as { id: string; status: string; title: string };
+        console.log(`Updated task ${t.id} [${t.status}]: ${t.title}`);
+        break;
+      }
+      case "dispatch": {
+        const id = args.slice(1).find((a) => !a.startsWith("--") && !a.startsWith("@"));
+        const worker = getFlag(args, "--to") ?? getFlag(args, "--worker");
+        if (!id || !worker) {
+          console.error("Usage: aw task dispatch <id> --to <worker> [@workspace]");
+          process.exit(1);
+        }
+        const result = await client.dispatchWorkspaceTask(workspace, id, { worker });
+        const t = result.task as { id: string; status: string };
+        const att = result.attempt as { id: string };
+        console.log(`Dispatched task ${t.id} [${t.status}] to @${worker} as attempt ${att.id}`);
+        break;
+      }
     }
   } catch (err) {
     console.error(err instanceof Error ? err.message : String(err));
@@ -110,10 +170,13 @@ export async function task(args: string[]): Promise<void> {
 
 function printUsage(): void {
   console.log(
-    `Usage: aw task <ls|get> [options]
+    `Usage: aw task <ls|get|new|update|dispatch> [options]
 
   aw task ls [@workspace] [--status draft,open] [--owner <name>]
-  aw task get <id> [@workspace]`,
+  aw task get <id> [@workspace]
+  aw task new <title> --goal '...' [@workspace] [--status ...] [--owner ...] [--accept ...]
+  aw task update <id> [@workspace] [--status ...] [--title ...] [--goal ...] [--owner ...]
+  aw task dispatch <id> --to <worker> [@workspace]`,
   );
 }
 
