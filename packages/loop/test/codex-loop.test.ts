@@ -108,7 +108,6 @@ describe("CodexLoop", () => {
       loop.cancel();
       expect(loop.status).toBe("cancelled");
     });
-
   });
 
   describe("options handling", () => {
@@ -231,7 +230,12 @@ describe("CodexLoop", () => {
         async request(method: string, params?: unknown): Promise<unknown> {
           requestLog.push({ method, params });
           if (method === "initialize") {
-            return { userAgent: "test", codexHome: "/tmp", platformFamily: "unix", platformOs: "macos" };
+            return {
+              userAgent: "test",
+              codexHome: "/tmp",
+              platformFamily: "unix",
+              platformOs: "macos",
+            };
           }
           if (method === "thread/resume") {
             return { thread: { id: "thread-preset" } };
@@ -288,10 +292,11 @@ describe("CodexLoop", () => {
       const result = await run.result;
 
       expect(
-        result.events.some((event: { type: string; text?: string }) => event.type === "text" && event.text === "Hello"),
-      ).toBe(
-        true,
-      );
+        result.events.some(
+          (event: { type: string; text?: string }) =>
+            event.type === "text" && event.text === "Hello",
+        ),
+      ).toBe(true);
       expect(requestLog.filter((entry) => entry.method === "thread/resume")).toHaveLength(1);
       expect(requestLog.filter((entry) => entry.method === "thread/start")).toHaveLength(0);
     });
@@ -312,7 +317,12 @@ describe("CodexLoop", () => {
         async request(method: string, params?: unknown): Promise<unknown> {
           requestLog.push({ method, params });
           if (method === "initialize") {
-            return { userAgent: "test", codexHome: "/tmp", platformFamily: "unix", platformOs: "macos" };
+            return {
+              userAgent: "test",
+              codexHome: "/tmp",
+              platformFamily: "unix",
+              platformOs: "macos",
+            };
           }
           if (method === "thread/start") {
             return { thread: { id: "thread-reuse" } };
@@ -372,7 +382,12 @@ describe("CodexLoop", () => {
         async request(method: string, params?: unknown): Promise<unknown> {
           requestLog.push({ method, params });
           if (method === "initialize") {
-            return { userAgent: "test", codexHome: "/tmp", platformFamily: "unix", platformOs: "macos" };
+            return {
+              userAgent: "test",
+              codexHome: "/tmp",
+              platformFamily: "unix",
+              platformOs: "macos",
+            };
           }
           if (method === "thread/start") {
             return { thread: { id: "thread-structured" } };
@@ -404,7 +419,8 @@ describe("CodexLoop", () => {
       );
 
       const loop = new MockedCodexLoop();
-      await loop.run({ system: "[ROLE]\nAgent", prompt: "[notification] New messages in inbox." }).result;
+      await loop.run({ system: "[ROLE]\nAgent", prompt: "[notification] New messages in inbox." })
+        .result;
 
       expect(requestLog.find((entry) => entry.method === "thread/start")?.params).toMatchObject({
         developerInstructions: "[ROLE]\nAgent",
@@ -429,7 +445,12 @@ describe("CodexLoop", () => {
         async request(method: string, params?: unknown): Promise<unknown> {
           requestLog.push({ method, params });
           if (method === "initialize") {
-            return { userAgent: "test", codexHome: "/tmp", platformFamily: "unix", platformOs: "macos" };
+            return {
+              userAgent: "test",
+              codexHome: "/tmp",
+              platformFamily: "unix",
+              platformOs: "macos",
+            };
           }
           if (method === "thread/start") {
             return { thread: { id: "thread-reconfigured" } };
@@ -471,7 +492,9 @@ describe("CodexLoop", () => {
 
       expect(requestLog.filter((entry) => entry.method === "thread/start")).toHaveLength(1);
       expect(requestLog.filter((entry) => entry.method === "thread/resume")).toHaveLength(1);
-      expect(requestLog.findLast((entry) => entry.method === "thread/resume")?.params).toMatchObject({
+      expect(
+        requestLog.findLast((entry) => entry.method === "thread/resume")?.params,
+      ).toMatchObject({
         developerInstructions: "[ROLE]\nAgent B",
       });
     });
@@ -490,7 +513,12 @@ describe("CodexLoop", () => {
         async request(method: string, params?: unknown): Promise<unknown> {
           requestLog.push({ method, params });
           if (method === "initialize") {
-            return { userAgent: "test", codexHome: "/tmp", platformFamily: "unix", platformOs: "macos" };
+            return {
+              userAgent: "test",
+              codexHome: "/tmp",
+              platformFamily: "unix",
+              platformOs: "macos",
+            };
           }
           if (method === "thread/start") {
             return { thread: { id: "thread-cancel" } };
@@ -552,7 +580,12 @@ describe("CodexLoop", () => {
         async request(method: string, params?: unknown): Promise<unknown> {
           requestLog.push({ method, params });
           if (method === "initialize") {
-            return { userAgent: "test", codexHome: "/tmp", platformFamily: "unix", platformOs: "macos" };
+            return {
+              userAgent: "test",
+              codexHome: "/tmp",
+              platformFamily: "unix",
+              platformOs: "macos",
+            };
           }
           if (method === "thread/start") {
             return { thread: { id: "thread-steer" } };
