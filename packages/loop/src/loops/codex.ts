@@ -1,4 +1,10 @@
-import type { CodexLoopOptions, LoopEvent, LoopRun, LoopStatus, PreflightResult } from "../types.ts";
+import type {
+  CodexLoopOptions,
+  LoopEvent,
+  LoopRun,
+  LoopStatus,
+  PreflightResult,
+} from "../types.ts";
 import { createEventChannel } from "../types.ts";
 import { checkCliAvailability, checkCodexAuth } from "../utils/cli.ts";
 import { JsonRpcStdioClient, type JsonRpcNotification } from "../utils/jsonrpc-stdio.ts";
@@ -13,7 +19,11 @@ interface CodexTurnState {
     totalTokens: number;
   };
   startedAt: number;
-  resolve: (value: { events: LoopEvent[]; usage: CodexTurnState["usage"]; durationMs: number }) => void;
+  resolve: (value: {
+    events: LoopEvent[];
+    usage: CodexTurnState["usage"];
+    durationMs: number;
+  }) => void;
   reject: (err: Error) => void;
   emit: (event: LoopEvent) => void;
 }
@@ -45,7 +55,8 @@ export class CodexLoop {
     this.abortController = new AbortController();
 
     const prompt = typeof input === "string" ? input : input.prompt;
-    const developerInstructions = typeof input === "string" ? null : normalizeInstructions(input.system);
+    const developerInstructions =
+      typeof input === "string" ? null : normalizeInstructions(input.system);
     if (developerInstructions !== this.pendingDeveloperInstructions) {
       this.pendingDeveloperInstructions = developerInstructions;
       this.threadReady = false;
@@ -60,16 +71,18 @@ export class CodexLoop {
     const result = (async () => {
       try {
         await this.ensureThread();
-        const turn = await new Promise<{ events: LoopEvent[]; usage: CodexTurnState["usage"]; durationMs: number }>(
-          async (resolve, reject) => {
-            try {
-              const response = (await this.client!.request<{ turn: { id: string } }>("turn/start", {
-                threadId: this.threadId,
-                input: [{ type: "text", text: prompt, text_elements: [] }],
-                cwd: this.options.cwd,
-                model: this.options.model ?? undefined,
-              })) as { turn: { id: string } };
-
+        const turn = await new Promise<{
+          events: LoopEvent[];
+          usage: CodexTurnState["usage"];
+          durationMs: number;
+        }>((resolve, reject) => {
+          void this.client!.request<{ turn: { id: string } }>("turn/start", {
+            threadId: this.threadId,
+            input: [{ type: "text", text: prompt, text_elements: [] }],
+            cwd: this.options.cwd,
+            model: this.options.model ?? undefined,
+          })
+            .then((response) => {
               this.currentTurn = {
                 turnId: response.turn.id,
                 events: [],
@@ -82,11 +95,11 @@ export class CodexLoop {
               if (this.abortController?.signal.aborted) {
                 this.interruptCurrentTurn();
               }
-            } catch (err) {
+            })
+            .catch((err) => {
               reject(err instanceof Error ? err : new Error(String(err)));
-            }
-          },
-        );
+            });
+        });
 
         if (this._status === "running") this._status = "completed";
         channel.end();
@@ -369,7 +382,8 @@ export function mapCodexItemEnd(item: Record<string, unknown>): LoopEvent | null
         callId: String(item.id ?? ""),
         result: item.aggregatedOutput ?? "",
         durationMs: typeof item.durationMs === "number" ? item.durationMs : undefined,
-        error: item.status === "failed" ? `command failed (${item.exitCode ?? "unknown"})` : undefined,
+        error:
+          item.status === "failed" ? `command failed (${item.exitCode ?? "unknown"})` : undefined,
       };
     case "fileChange":
       return {
