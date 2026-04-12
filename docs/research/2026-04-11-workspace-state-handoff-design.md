@@ -264,6 +264,7 @@ Headline:
 当前 PR review 已完成代码扫描，发现 3 个高风险点，尚未验证回归测试。
 
 What Changed:
+
 - 阅读了 X/Y/Z 文件
 - 生成了风险清单
 - 没有修改代码
@@ -272,11 +273,13 @@ Current State:
 问题已定位到认证流程和 workspace inbox routing 的边界，但还未完成复现验证。
 
 Next Actions:
+
 1. 复现 issue A
 2. 跑相关测试
 3. 判断是 prompt 层问题还是 routing 层问题
 
 Blockers:
+
 - 缺少复现输入
 - 当前测试夹具不完整
 ```

@@ -27,14 +27,14 @@ Inspired by open-source community patterns: maintainer + contributors + bot.
 
 Assignment based on model benchmarks + usage budget.
 
-| Agent | Runtime | Model | Budget | Domain | Rationale |
-|-------|---------|-------|--------|--------|-----------|
-| `maintainer` | claude-code | Opus 4.6 | $100/mo | Architecture, review, critical code | GPQA 91.3% deep reasoning |
-| `kimi-code` | ai-sdk | K2.5 | coding plan | **Workhorse**: web UI, semajsx, frontend, refactor | Strongest frontend, good debug/refactor |
-| `minimax` | ai-sdk | M2.7 | coding plan | **Workhorse**: workspace, agent, shared, e2e | 97% skill adherence, agent infra |
-| `codex` | codex | GPT-5.4 | $20/mo | CLI, daemon, terminal tasks (sparingly) | Terminal-Bench SOTA, but tightest budget |
-| `cursor` | cursor | auto | — | Trivial fixes (backup) | Fast but unstable |
-| `bot` | ai-sdk | deepseek | API, very cheap | Chronicle, retrospective reports | Cheap & stable |
+| Agent        | Runtime     | Model    | Budget          | Domain                                             | Rationale                                |
+| ------------ | ----------- | -------- | --------------- | -------------------------------------------------- | ---------------------------------------- |
+| `maintainer` | claude-code | Opus 4.6 | $100/mo         | Architecture, review, critical code                | GPQA 91.3% deep reasoning                |
+| `kimi-code`  | ai-sdk      | K2.5     | coding plan     | **Workhorse**: web UI, semajsx, frontend, refactor | Strongest frontend, good debug/refactor  |
+| `minimax`    | ai-sdk      | M2.7     | coding plan     | **Workhorse**: workspace, agent, shared, e2e       | 97% skill adherence, agent infra         |
+| `codex`      | codex       | GPT-5.4  | $20/mo          | CLI, daemon, terminal tasks (sparingly)            | Terminal-Bench SOTA, but tightest budget |
+| `cursor`     | cursor      | auto     | —               | Trivial fixes (backup)                             | Fast but unstable                        |
+| `bot`        | ai-sdk      | deepseek | API, very cheap | Chronicle, retrospective reports                   | Cheap & stable                           |
 
 ### Budget strategy
 
@@ -68,11 +68,11 @@ Trivial fixes                        → cursor       [backup]
 
 ## Channels
 
-| Channel | Purpose |
-|---------|---------|
-| `#general` | Requirements, task assignment, coordination |
-| `#dev` | Technical discussion, completion reports, blockers |
-| `#review` | Maintainer's review feedback |
+| Channel    | Purpose                                            |
+| ---------- | -------------------------------------------------- |
+| `#general` | Requirements, task assignment, coordination        |
+| `#dev`     | Technical discussion, completion reports, blockers |
+| `#review`  | Maintainer's review feedback                       |
 
 3 channels is enough. More creates coordination overhead.
 
@@ -118,6 +118,7 @@ maintainer writes ADR (problem → solution → impact)
 ## Tech debt
 
 **Detection:**
+
 - maintainer finds during review
 - contributors find during implementation
 - bot summarizes during retrospective
@@ -129,21 +130,22 @@ maintainer writes ADR (problem → solution → impact)
 ## Quality gates
 
 Before merge:
+
 1. `bun test` passes
 2. `oxlint` clean
 3. `tsgo --build` no new type errors
 4. maintainer approves
 
-For major changes:
-5. Web UI Lighthouse not regressed
-6. No new circular dependencies
+For major changes: 5. Web UI Lighthouse not regressed 6. No new circular dependencies
 
 ## Storage
 
 **Git tracked (project knowledge, .agent-workspace/):**
+
 - `documents/` — team docs
 - `chronicle/` — historian records
 - `workspace.yml`, `DESIGN.md`
 
 **Gitignored (runtime state):**
+
 - `channels/`, `agents/`, `status.json`, `resources/`

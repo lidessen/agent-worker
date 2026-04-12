@@ -208,14 +208,14 @@ Hermes 的核心 loop 仍然是 `AIAgent` conversation loop。
 
 ## 四、三者对比
 
-| 维度 | 当前项目 | Claude Code 2.1.88 | Hermes Agent |
-|---|---|---|---|
-| 核心重心 | workspace + orchestrator | session harness | conversation loop + persistent layers |
-| loop 策略 | 复用外部成熟 loop | 自有成熟 runtime | 自有 AIAgent loop |
-| 长期状态中心 | workspace stores + event log + chronicle | session transcript + `~/.claude` | session DB + memory + skills + context files |
-| 外部接入方式 | MCP-first | MCP + hooks + plugins | MCP + gateway + ACP |
-| 交接模型 | 还不够显式 | session resume / subagents | session lineage + delegate summaries |
-| 与你的目标距离 | 最近 | 中等 | 中等偏近 |
+| 维度           | 当前项目                                 | Claude Code 2.1.88               | Hermes Agent                                 |
+| -------------- | ---------------------------------------- | -------------------------------- | -------------------------------------------- |
+| 核心重心       | workspace + orchestrator                 | session harness                  | conversation loop + persistent layers        |
+| loop 策略      | 复用外部成熟 loop                        | 自有成熟 runtime                 | 自有 AIAgent loop                            |
+| 长期状态中心   | workspace stores + event log + chronicle | session transcript + `~/.claude` | session DB + memory + skills + context files |
+| 外部接入方式   | MCP-first                                | MCP + hooks + plugins            | MCP + gateway + ACP                          |
+| 交接模型       | 还不够显式                               | session resume / subagents       | session lineage + delegate summaries         |
+| 与你的目标距离 | 最近                                     | 中等                             | 中等偏近                                     |
 
 ## 五、对本项目的直接建议
 

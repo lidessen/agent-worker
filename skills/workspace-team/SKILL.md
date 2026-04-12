@@ -23,12 +23,12 @@ and oversight.
 Division of labor isn't arbitrary. Chinese bureaucratic history reveals that effective
 organizations naturally separate into four functions:
 
-| Function | Origin | Role | Agent |
-|----------|--------|------|-------|
-| 谋 (plan) | 中书省 | Draft strategies, evaluate architecture | codex |
-| 断 (decide) | 门下省 | Review, approve, coordinate | claude-code |
-| 行 (execute) | 尚书省 | Implement through specialization | cursor, kimi-code, minimax |
-| 监 (observe) | 史官/御史台 | Watch, record, surface patterns | deepseek |
+| Function     | Origin      | Role                                    | Agent                      |
+| ------------ | ----------- | --------------------------------------- | -------------------------- |
+| 谋 (plan)    | 中书省      | Draft strategies, evaluate architecture | codex                      |
+| 断 (decide)  | 门下省      | Review, approve, coordinate             | claude-code                |
+| 行 (execute) | 尚书省      | Implement through specialization        | cursor, kimi-code, minimax |
+| 监 (observe) | 史官/御史台 | Watch, record, surface patterns         | deepseek                   |
 
 The key insight: these functions must be separated because combining them creates conflicts.
 A planner who also executes will cut corners on planning. A reviewer who also plans will
@@ -90,15 +90,15 @@ The team uses shared documents (via `team_doc_*` tools) for persistent state:
 
 ### Delegation Matrix
 
-| Task Type | Primary | Fallback |
-|-----------|---------|----------|
-| Architecture planning | codex | claude-code |
-| Multi-file feature | cursor | kimi-code |
-| Single module / algorithm | kimi-code | cursor |
-| Research / analysis | minimax | codex |
-| Documentation | minimax | codex |
-| Code review | codex | claude-code |
-| Quick prototype | cursor | — |
+| Task Type                 | Primary   | Fallback    |
+| ------------------------- | --------- | ----------- |
+| Architecture planning     | codex     | claude-code |
+| Multi-file feature        | cursor    | kimi-code   |
+| Single module / algorithm | kimi-code | cursor      |
+| Research / analysis       | minimax   | codex       |
+| Documentation             | minimax   | codex       |
+| Code review               | codex     | claude-code |
+| Quick prototype           | cursor    | —           |
 
 ## Operations Guide
 
@@ -135,6 +135,7 @@ team_doc_read("chronicle")
 ```
 
 Look for:
+
 - `insight:` entries — patterns deepseek has identified
 - `correction:` entries — where the team changed course (learn from these)
 - `pattern:` entries — recurring themes
@@ -147,6 +148,7 @@ Common adjustments to `_global.yml`:
 Assign it a clear 尚书 specialty — don't create generalists that overlap with existing roles.
 
 **Change the observer**: Swap deepseek for another low-cost model. The observer must:
+
 - Use `no_action("observing")` for all inbox messages
 - Write only to the chronicle via `team_doc_append`
 - Never send channel messages
@@ -157,11 +159,12 @@ If too quiet, loosen — e.g., "suggest improvements whenever you see code that 
 cleaner, even if it works."
 
 **Add channels**: For larger projects, split communication:
+
 ```yaml
 channels:
-  - general      # coordination and announcements
-  - planning     # codex shares plans here
-  - execution    # executors report progress here
+  - general # coordination and announcements
+  - planning # codex shares plans here
+  - execution # executors report progress here
 ```
 
 ## Principles
