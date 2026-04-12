@@ -51,6 +51,16 @@ import { createLoopFromConfig } from "./loop-factory.ts";
 import { writeDaemonInfo, removeDaemonInfo, generateToken, defaultDataDir } from "./discovery.ts";
 import { WorkspaceMcpHub } from "@agent-worker/workspace";
 import type { TaskStatus } from "@agent-worker/workspace";
+
+const TASK_STATUS_VALUES = new Set<TaskStatus>([
+  "draft",
+  "open",
+  "in_progress",
+  "blocked",
+  "completed",
+  "aborted",
+  "failed",
+]);
 import { detectAiSdkModel, resolveRuntime } from "./resolve-runtime.ts";
 import { checkCliAvailability, checkClaudeCodeAuth, checkCodexAuth } from "@agent-worker/loop";
 import { Hono } from "hono";
@@ -394,9 +404,19 @@ export class Daemon {
         if (sub === "/tasks" && method === "GET") {
           return await this.handleWorkspaceTasks(key, url);
         }
+        if (sub === "/tasks" && method === "POST") {
+          return await this.handleCreateTask(key, req);
+        }
         const taskMatch = sub.match(/^\/tasks\/([^/]+)$/);
-        if (taskMatch && method === "GET") {
-          return await this.handleWorkspaceTask(key, decodeURIComponent(taskMatch[1]!));
+        if (taskMatch) {
+          const taskId = decodeURIComponent(taskMatch[1]!);
+          if (method === "GET") return await this.handleWorkspaceTask(key, taskId);
+          if (method === "POST") return await this.handleUpdateTask(key, taskId, req);
+        }
+        const dispatchMatch = sub.match(/^\/tasks\/([^/]+)\/dispatch$/);
+        if (dispatchMatch && method === "POST") {
+          const taskId = decodeURIComponent(dispatchMatch[1]!);
+          return await this.handleDispatchTask(key, taskId, req);
         }
 
         // Inbox route: /workspaces/:key/inbox/:agent
@@ -1239,16 +1259,7 @@ export class Daemon {
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean);
-      const valid = new Set<TaskStatus>([
-        "draft",
-        "open",
-        "in_progress",
-        "blocked",
-        "completed",
-        "aborted",
-        "failed",
-      ]);
-      const unknown = requested.filter((s) => !valid.has(s as TaskStatus));
+      const unknown = requested.filter((s) => !TASK_STATUS_VALUES.has(s as TaskStatus));
       if (unknown.length > 0) {
         return Response.json(
           { error: `Unknown status values: ${unknown.join(", ")}` },
@@ -1281,6 +1292,180 @@ export class Daemon {
       store.listArtifacts(taskId),
     ]);
     return Response.json({ task, attempts, handoffs, artifacts });
+  }
+
+  private async handleCreateTask(key: string, req: Request): Promise<Response> {
+    const resolved = this.resolveWorkspace(key);
+    if (resolved instanceof Response) return resolved;
+    const handle = resolved;
+    const store = handle.workspace.stateStore;
+
+    type CreateBody = {
+      title?: string;
+      goal?: string;
+      status?: TaskStatus;
+      priority?: number;
+      ownerLeadId?: string;
+      acceptanceCriteria?: string;
+      sourceKind?: string;
+      sourceRef?: string;
+    };
+    let body: CreateBody;
+    try {
+      body = (await req.json()) as CreateBody;
+    } catch {
+      return Response.json({ error: "Invalid JSON body" }, { status: 400 });
+    }
+
+    const title = (body.title ?? "").trim();
+    const goal = (body.goal ?? "").trim();
+    if (!title || !goal) {
+      return Response.json({ error: "'title' and 'goal' are required" }, { status: 400 });
+    }
+    if (body.status && !TASK_STATUS_VALUES.has(body.status)) {
+      return Response.json({ error: `Invalid status: ${body.status}` }, { status: 400 });
+    }
+
+    const task = await store.createTask({
+      workspaceId: handle.workspace.name,
+      title,
+      goal,
+      status: body.status,
+      priority: body.priority,
+      ownerLeadId: body.ownerLeadId,
+      acceptanceCriteria: body.acceptanceCriteria,
+      sourceRefs: [
+        {
+          kind: body.sourceKind ?? "user",
+          ref: body.sourceRef,
+          ts: Date.now(),
+        },
+      ],
+    });
+    return Response.json({ task });
+  }
+
+  private async handleUpdateTask(key: string, taskId: string, req: Request): Promise<Response> {
+    const resolved = this.resolveWorkspace(key);
+    if (resolved instanceof Response) return resolved;
+    const handle = resolved;
+    const store = handle.workspace.stateStore;
+
+    const existing = await store.getTask(taskId);
+    if (!existing) {
+      return Response.json({ error: `Task ${taskId} not found` }, { status: 404 });
+    }
+
+    type UpdateBody = {
+      title?: string;
+      goal?: string;
+      status?: TaskStatus;
+      priority?: number;
+      ownerLeadId?: string;
+      acceptanceCriteria?: string;
+    };
+    let body: UpdateBody;
+    try {
+      body = (await req.json()) as UpdateBody;
+    } catch {
+      return Response.json({ error: "Invalid JSON body" }, { status: 400 });
+    }
+
+    if (body.status && !TASK_STATUS_VALUES.has(body.status)) {
+      return Response.json({ error: `Invalid status: ${body.status}` }, { status: 400 });
+    }
+
+    const patch: Parameters<typeof store.updateTask>[1] = {};
+    if (body.title !== undefined) patch.title = body.title.trim();
+    if (body.goal !== undefined) patch.goal = body.goal.trim();
+    if (body.status !== undefined) patch.status = body.status;
+    if (body.priority !== undefined) patch.priority = body.priority;
+    if (body.ownerLeadId !== undefined) patch.ownerLeadId = body.ownerLeadId;
+    if (body.acceptanceCriteria !== undefined) patch.acceptanceCriteria = body.acceptanceCriteria;
+
+    const task = await store.updateTask(taskId, patch);
+    return Response.json({ task });
+  }
+
+  private async handleDispatchTask(key: string, taskId: string, req: Request): Promise<Response> {
+    const resolved = this.resolveWorkspace(key);
+    if (resolved instanceof Response) return resolved;
+    const handle = resolved;
+    const store = handle.workspace.stateStore;
+
+    type DispatchBody = { worker?: string; priority?: "immediate" | "normal" | "background" };
+    let body: DispatchBody;
+    try {
+      body = (await req.json()) as DispatchBody;
+    } catch {
+      return Response.json({ error: "Invalid JSON body" }, { status: 400 });
+    }
+
+    const worker = (body.worker ?? "").trim();
+    if (!worker) {
+      return Response.json({ error: "'worker' is required" }, { status: 400 });
+    }
+
+    const task = await store.getTask(taskId);
+    if (!task) {
+      return Response.json({ error: `Task ${taskId} not found` }, { status: 404 });
+    }
+    if (task.status === "completed" || task.status === "aborted" || task.status === "failed") {
+      return Response.json({ error: `Task ${taskId} is already ${task.status}` }, { status: 409 });
+    }
+    if (task.activeAttemptId) {
+      return Response.json(
+        {
+          error: `Task ${taskId} already has an active attempt: ${task.activeAttemptId}`,
+        },
+        { status: 409 },
+      );
+    }
+
+    let attempt;
+    try {
+      attempt = await store.createAttempt({
+        taskId: task.id,
+        agentName: worker,
+        role: "worker",
+      });
+    } catch (err) {
+      return Response.json(
+        { error: err instanceof Error ? err.message : String(err) },
+        { status: 400 },
+      );
+    }
+
+    await store.updateTask(task.id, {
+      activeAttemptId: attempt.id,
+      status: task.status === "draft" || task.status === "open" ? "in_progress" : task.status,
+    });
+
+    const { nanoid: makeId } = await import("@agent-worker/workspace");
+    const priority = body.priority ?? "normal";
+    const content = [
+      `You have been assigned task [${task.id}] by the user via HTTP dispatch.`,
+      "",
+      `**Title:** ${task.title}`,
+      `**Goal:** ${task.goal}`,
+      task.acceptanceCriteria ? `**Acceptance criteria:** ${task.acceptanceCriteria}` : null,
+      "",
+      `Attempt id: ${attempt.id}. When finished, call attempt_update with the terminal status ` +
+        `and handoff_create with a structured summary. Register concrete outputs via artifact_create.`,
+    ]
+      .filter((line): line is string => line !== null)
+      .join("\n");
+    handle.workspace.instructionQueue.enqueue({
+      id: makeId(),
+      agentName: worker,
+      messageId: `http-dispatch:${attempt.id}`,
+      channel: "dispatch",
+      content,
+      priority,
+      enqueuedAt: new Date().toISOString(),
+    });
+
+    return Response.json({ task: await store.getTask(task.id), attempt });
   }
 
   private handleWorkspaceEventsStream(key: string, url: URL): Response {

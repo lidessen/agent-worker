@@ -404,6 +404,66 @@ export class AwClient {
     );
   }
 
+  /** Create a new task in the workspace ledger. */
+  async createWorkspaceTask(
+    key: string,
+    body: {
+      title: string;
+      goal: string;
+      status?: string;
+      priority?: number;
+      ownerLeadId?: string;
+      acceptanceCriteria?: string;
+      sourceKind?: string;
+      sourceRef?: string;
+    },
+  ): Promise<{ task: Record<string, unknown> }> {
+    return this.request(`/workspaces/${encodeURIComponent(key)}/tasks`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  }
+
+  /** Patch an existing task (title / goal / status / priority / owner / acceptance). */
+  async updateWorkspaceTask(
+    key: string,
+    taskId: string,
+    body: {
+      title?: string;
+      goal?: string;
+      status?: string;
+      priority?: number;
+      ownerLeadId?: string;
+      acceptanceCriteria?: string;
+    },
+  ): Promise<{ task: Record<string, unknown> }> {
+    return this.request(
+      `/workspaces/${encodeURIComponent(key)}/tasks/${encodeURIComponent(taskId)}`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      },
+    );
+  }
+
+  /** Dispatch a task to a worker — creates an Attempt and enqueues the assignment. */
+  async dispatchWorkspaceTask(
+    key: string,
+    taskId: string,
+    body: { worker: string; priority?: "immediate" | "normal" | "background" },
+  ): Promise<{ task: Record<string, unknown>; attempt: Record<string, unknown> }> {
+    return this.request(
+      `/workspaces/${encodeURIComponent(key)}/tasks/${encodeURIComponent(taskId)}/dispatch`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      },
+    );
+  }
+
   // ── Documents ───────────────────────────────────────────────────────
 
   async listDocs(workspace: string): Promise<DocInfo[]> {
