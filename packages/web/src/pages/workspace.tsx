@@ -26,6 +26,9 @@ export const WorkspacePage: RuntimeComponent<Record<string, never>> = (_props, c
     if (key === currentKey && !force) return;
     currentKey = key;
     error.value = null;
+    // Reset list signals so a fast navigation doesn't leave stale rows
+    // from the previous workspace visible while the new fetch is in flight.
+    tasks.value = [];
 
     const c = client.value;
     if (!c) return;

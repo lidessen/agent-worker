@@ -52,8 +52,11 @@ export async function task(args: string[]): Promise<void> {
         break;
       }
       case "get": {
-        const id = args[1];
-        if (!id || id.startsWith("@") || id.startsWith("--")) {
+        // Pick the first positional argument after "get" that is neither a
+        // workspace token (@...) nor a flag (--...) as the task id. This
+        // matches the `ls` command's flexible argument scanning.
+        const id = args.slice(1).find((a) => !a.startsWith("@") && !a.startsWith("--"));
+        if (!id) {
           console.error("Usage: aw task get <id> [@workspace]");
           process.exit(1);
         }
@@ -123,5 +126,10 @@ function extractWorkspace(args: string[]): string | undefined {
 
 function getFlag(args: string[], flag: string): string | undefined {
   const idx = args.indexOf(flag);
-  return idx >= 0 ? args[idx + 1] : undefined;
+  if (idx < 0) return undefined;
+  const value = args[idx + 1];
+  // Guard against the next arg being another flag: `aw task ls --status --owner foo`
+  // used to silently pass "--owner" as the status value.
+  if (!value || value.startsWith("--") || value.startsWith("@")) return undefined;
+  return value;
 }
