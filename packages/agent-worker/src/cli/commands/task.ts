@@ -52,12 +52,16 @@ export async function task(args: string[]): Promise<void> {
         break;
       }
       case "get": {
-        // Pick the first positional argument after "get" that is neither a
-        // workspace token (@...) nor a flag (--...) as the task id. This
-        // matches the `ls` command's flexible argument scanning.
-        const id = args.slice(1).find((a) => !a.startsWith("@") && !a.startsWith("--"));
+        const id = findTaskId(args);
         if (!id) {
           console.error("Usage: aw task get <id> [@workspace]");
+          process.exit(1);
+        }
+        if (!looksLikeTaskId(id)) {
+          console.error(
+            `Error: '${id}' does not look like a task id (expected task_<hex>). ` +
+              "Use 'aw task ls' to see valid ids.",
+          );
           process.exit(1);
         }
         const detail = await client.getWorkspaceTask(workspace, id);
@@ -124,11 +128,15 @@ export async function task(args: string[]): Promise<void> {
         break;
       }
       case "update": {
-        const id = args.slice(1).find((a) => !a.startsWith("--") && !a.startsWith("@"));
+        const id = findTaskId(args);
         if (!id) {
           console.error(
             "Usage: aw task update <id> [@workspace] [--status ...] [--title ...] [--goal ...]",
           );
+          process.exit(1);
+        }
+        if (!looksLikeTaskId(id)) {
+          console.error(`Error: '${id}' does not look like a task id (expected task_<hex>).`);
           process.exit(1);
         }
         const patch = {
@@ -149,10 +157,14 @@ export async function task(args: string[]): Promise<void> {
         break;
       }
       case "dispatch": {
-        const id = args.slice(1).find((a) => !a.startsWith("--") && !a.startsWith("@"));
+        const id = findTaskId(args);
         const worker = getFlag(args, "--to") ?? getFlag(args, "--worker");
         if (!id || !worker) {
           console.error("Usage: aw task dispatch <id> --to <worker> [@workspace]");
+          process.exit(1);
+        }
+        if (!looksLikeTaskId(id)) {
+          console.error(`Error: '${id}' does not look like a task id (expected task_<hex>).`);
           process.exit(1);
         }
         const result = await client.dispatchWorkspaceTask(workspace, id, { worker });
@@ -162,9 +174,13 @@ export async function task(args: string[]): Promise<void> {
         break;
       }
       case "complete": {
-        const id = args.slice(1).find((a) => !a.startsWith("--") && !a.startsWith("@"));
+        const id = findTaskId(args);
         if (!id) {
           console.error("Usage: aw task complete <id> [@workspace] [--summary '...']");
+          process.exit(1);
+        }
+        if (!looksLikeTaskId(id)) {
+          console.error(`Error: '${id}' does not look like a task id (expected task_<hex>).`);
           process.exit(1);
         }
         const summary = getFlag(args, "--summary");
@@ -174,9 +190,13 @@ export async function task(args: string[]): Promise<void> {
         break;
       }
       case "abort": {
-        const id = args.slice(1).find((a) => !a.startsWith("--") && !a.startsWith("@"));
+        const id = findTaskId(args);
         if (!id) {
           console.error("Usage: aw task abort <id> [@workspace] [--reason '...']");
+          process.exit(1);
+        }
+        if (!looksLikeTaskId(id)) {
+          console.error(`Error: '${id}' does not look like a task id (expected task_<hex>).`);
           process.exit(1);
         }
         const reason = getFlag(args, "--reason");
@@ -221,4 +241,37 @@ function getFlag(args: string[], flag: string): string | undefined {
   // used to silently pass "--owner" as the status value.
   if (!value || value.startsWith("--") || value.startsWith("@")) return undefined;
   return value;
+}
+
+/**
+ * Find the first positional task id in the args. Skips --flag tokens and
+ * @workspace tokens, and also skips any token that immediately follows a
+ * known flag (because that token is the flag's value).
+ *
+ * Also validates that the candidate looks like a real task id prefix so
+ * the user gets a clear error on typos like `aw task complete --summary 'x'`
+ * (which would otherwise silently treat "x" as the id and return a 404).
+ */
+function findTaskId(args: string[]): string | undefined {
+  // Any token that *follows* a flag is that flag's value, not the id.
+  const valueIndices = new Set<number>();
+  for (let i = 1; i < args.length; i++) {
+    if (args[i]!.startsWith("--")) {
+      valueIndices.add(i + 1);
+    }
+  }
+  for (let i = 1; i < args.length; i++) {
+    if (valueIndices.has(i)) continue;
+    const a = args[i]!;
+    if (a.startsWith("--") || a.startsWith("@")) continue;
+    return a;
+  }
+  return undefined;
+}
+
+function looksLikeTaskId(id: string): boolean {
+  // Store ids use a `task_<hex>` prefix. Accept either that exact shape or
+  // anything containing an underscore followed by hex as a rough sanity
+  // check so operator errors fail fast.
+  return /^task_[0-9a-f]{6,}$/i.test(id);
 }

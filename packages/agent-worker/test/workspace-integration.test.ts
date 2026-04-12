@@ -316,20 +316,32 @@ describe("Unified daemon (workspace routes)", () => {
     });
     const taskId = (created.task as { id: string }).id;
     await client.updateWorkspaceTask("test-ws", taskId, { status: "open" });
-    await client.dispatchWorkspaceTask("test-ws", taskId, { worker: "alice" });
+    const dispatched = await client.dispatchWorkspaceTask("test-ws", taskId, {
+      worker: "alice",
+    });
+    const attemptId = (dispatched.attempt as { id: string }).id;
 
     const closed = await client.abortWorkspaceTask("test-ws", taskId, {
       reason: "Requirements changed",
     });
     expect((closed.task as { status: string }).status).toBe("aborted");
 
-    const attempts = closed.attempts as Array<{ status: string }>;
-    expect(attempts[0]?.status).toBe("cancelled");
+    // Assert by attempt id rather than position — ordering is not
+    // guaranteed by the store interface and may differ once we have
+    // multiple historical attempts per task.
+    const attempts = closed.attempts as Array<{ id: string; status: string }>;
+    const ours = attempts.find((a) => a.id === attemptId);
+    expect(ours?.status).toBe("cancelled");
 
-    const handoffs = closed.handoffs as Array<{ kind: string; summary: string }>;
+    const handoffs = closed.handoffs as Array<{
+      kind: string;
+      summary: string;
+      fromAttemptId: string;
+    }>;
     const handoff = handoffs.find((h) => h.kind === "aborted");
     expect(handoff).toBeDefined();
     expect(handoff?.summary).toBe("Requirements changed");
+    expect(handoff?.fromAttemptId).toBe(attemptId);
   });
 
   test("completeWorkspaceTask works even without an active attempt", async () => {
