@@ -14,6 +14,8 @@ import type {
   EventLog,
   Priority,
   PromptSection,
+  WorkspaceStateStore,
+  AgentRole,
 } from "@agent-worker/workspace";
 import { assemblePrompt, BASE_SECTIONS, nanoid } from "@agent-worker/workspace";
 
@@ -35,6 +37,12 @@ export interface OrchestratorConfig {
   workspaceSandboxDir?: string;
   /** Whether this agent is on_demand (started only via @mention, not at startup). */
   onDemand?: boolean;
+  /** Kernel state store — exposed to the lead prompt section. */
+  stateStore?: WorkspaceStateStore;
+  /** Resolved role used by prompt sections (e.g. to show the task ledger to the lead). */
+  role?: AgentRole;
+  /** Workspace name — passed into PromptContext as workspaceName. */
+  workspaceName?: string;
 }
 
 /**
@@ -363,6 +371,9 @@ export class WorkspaceOrchestrator {
       currentChannel: instruction?.channel || undefined,
       sandboxDir: this.config.sandboxDir,
       workspaceSandboxDir: this.config.workspaceSandboxDir,
+      stateStore: this.config.stateStore,
+      role: this.config.role,
+      workspaceName: this.config.workspaceName,
     });
   }
 

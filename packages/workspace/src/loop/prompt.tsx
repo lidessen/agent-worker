@@ -1,6 +1,7 @@
 /** @jsxImportSource semajsx/prompt */
 
 import type { ContextProvider, InboxEntry } from "../types.ts";
+import type { WorkspaceStateStore } from "../state/index.ts";
 import { renderPromptDocument } from "./prompt-ui.tsx";
 import type { PromptSectionNode } from "./prompt-ui.tsx";
 
@@ -24,6 +25,15 @@ export interface PromptContext {
   sandboxDir?: string;
   /** Shared workspace sandbox directory (visible to all agents). */
   workspaceSandboxDir?: string;
+  /** Kernel state store — task ledger visible to the lead. Undefined in legacy callers. */
+  stateStore?: WorkspaceStateStore;
+  /**
+   * Agent's resolved role. The lead prompt section uses this to show the
+   * task ledger; workers see only the conversation view.
+   */
+  role?: "lead" | "worker" | "observer";
+  /** Workspace name — used as workspaceId when showing task ledger. */
+  workspaceName?: string;
 }
 
 /** Agent's custom instructions (from YAML config). */

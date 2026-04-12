@@ -264,6 +264,9 @@ export class WorkspaceRegistry {
         sandboxDir: dirs.sandboxDir,
         workspaceSandboxDir: dirs.workspaceSandboxDir,
         onDemand: agent.on_demand ?? false,
+        stateStore: workspace.stateStore,
+        role: agent.role,
+        workspaceName: workspace.name,
         // Arrow function defers orch access until invocation (after assignment)
         onInstruction: (prompt, instruction) =>
           this.createInstructionHandler(
@@ -415,6 +418,9 @@ export class WorkspaceRegistry {
         sandboxDir: dirs.sandboxDir,
         workspaceSandboxDir: dirs.workspaceSandboxDir,
         onDemand: agent.on_demand ?? false,
+        stateStore: workspace.stateStore,
+        role: agent.role,
+        workspaceName: workspace.name,
         onInstruction: (prompt, instruction) =>
           this.createInstructionHandler(key, agent, workspace, runner, orch)(prompt, instruction),
       });
