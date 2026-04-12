@@ -27,7 +27,8 @@ export class ManagedWorkspace {
   private _status: WorkspaceStatus = "running";
   private _statusPath?: string;
   private _onDemandAgents: Set<string>;
-  private _mentionListener: ((msg: import("@agent-worker/workspace").Message) => void) | null = null;
+  private _mentionListener: ((msg: import("@agent-worker/workspace").Message) => void) | null =
+    null;
 
   constructor(opts: {
     workspace: Workspace;
@@ -95,7 +96,9 @@ export class ManagedWorkspace {
           if (this._onDemandAgents.has(mention)) {
             const loop = this.loops.find((l) => l.name === mention);
             if (loop && !loop.isRunning) {
-              loop.start().catch(() => {/* best effort */});
+              loop.start().catch(() => {
+                /* best effort */
+              });
             }
           }
         }
@@ -139,7 +142,8 @@ export class ManagedWorkspace {
       .every((entry) => entry.status === "idle");
     if (!allIdle) return "running";
 
-    const queued = this.workspace.instructionQueue.listAll()
+    const queued = this.workspace.instructionQueue
+      .listAll()
       .some((instruction) => agentNames.has(instruction.agentName));
     if (queued) return "running";
 
@@ -192,10 +196,7 @@ export class ManagedWorkspace {
     this.emitOverviewEvent("workspace.stopped", { workspace: this.key });
   }
 
-  private emitOverviewEvent(
-    type: WorkspaceOverviewEventType,
-    data: Record<string, unknown>,
-  ): void {
+  private emitOverviewEvent(type: WorkspaceOverviewEventType, data: Record<string, unknown>): void {
     this._bus?.emit({ type, source: "workspace", ...data });
   }
 }

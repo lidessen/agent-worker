@@ -35,14 +35,7 @@ const ReplApp: RuntimeComponent<{
   json: boolean;
   label: string;
   onExit: () => void;
-}> = ({
-  client,
-  target,
-  from,
-  json,
-  label,
-  onExit,
-}, ctx) => {
+}> = ({ client, target, from, json, label, onExit }, ctx) => {
   const messages = signal<Message[]>([]);
   const input = signal("");
   const activity = signal("");

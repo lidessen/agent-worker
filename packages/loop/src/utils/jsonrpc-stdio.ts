@@ -81,7 +81,9 @@ export class JsonRpcStdioClient {
       const reason =
         code === 0
           ? new Error("JSON-RPC process exited")
-          : new Error(`JSON-RPC process exited with code ${code ?? "null"} signal ${signal ?? "null"}`);
+          : new Error(
+              `JSON-RPC process exited with code ${code ?? "null"} signal ${signal ?? "null"}`,
+            );
       this.rejectAll(reason);
     });
   }
@@ -135,7 +137,9 @@ export class JsonRpcStdioClient {
       if (!pending) return;
       this.pending.delete(parsed.id);
       if (parsed.error) {
-        pending.reject(new Error(parsed.error.message ?? `JSON-RPC error ${parsed.error.code ?? ""}`));
+        pending.reject(
+          new Error(parsed.error.message ?? `JSON-RPC error ${parsed.error.code ?? ""}`),
+        );
       } else {
         pending.resolve(parsed.result);
       }

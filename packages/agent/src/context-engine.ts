@@ -59,8 +59,12 @@ export class DefaultContextSourceProvider implements ContextSourceProvider {
       case "next_message":
         rules.push("- New messages arrived — read and respond to your inbox");
         rules.push("- Prioritize unread messages");
-        rules.push("- If the inbox preview already shows the full message, respond directly without extra tool calls");
-        rules.push("- Do not inspect the repository or workspace just to verify inbox/workspace mechanics");
+        rules.push(
+          "- If the inbox preview already shows the full message, respond directly without extra tool calls",
+        );
+        rules.push(
+          "- Do not inspect the repository or workspace just to verify inbox/workspace mechanics",
+        );
         break;
       case "next_todo":
         rules.push("- No new messages — continue working on pending todos");
@@ -75,7 +79,9 @@ export class DefaultContextSourceProvider implements ContextSourceProvider {
     }
 
     rules.push("- Only visible content is guaranteed");
-    rules.push("- Use tools only when visible context is insufficient or the task explicitly requires them");
+    rules.push(
+      "- Use tools only when visible context is insufficient or the task explicitly requires them",
+    );
 
     return rules.join("\n");
   }

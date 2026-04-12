@@ -99,10 +99,7 @@ export async function discoverCliRuntime(): Promise<RuntimeResolution | null> {
 /**
  * Resolve runtime and model for an agent definition.
  */
-export async function resolveRuntime(
-  runtime?: string,
-  model?: string,
-): Promise<RuntimeResolution> {
+export async function resolveRuntime(runtime?: string, model?: string): Promise<RuntimeResolution> {
   if (runtime === "auto") runtime = undefined;
 
   // Case 1: model specified, runtime omitted → ai-sdk

@@ -310,14 +310,18 @@ async function loadSavedConnection(
   try {
     const raw = await readFile(join(baseDir, platform, `${name}.json`), "utf-8");
     return JSON.parse(raw);
-  } catch { /* not found */ }
+  } catch {
+    /* not found */
+  }
 
   // Fall back to legacy flat path: connections/telegram.json
   if (name === platform) {
     try {
       const raw = await readFile(join(baseDir, `${platform}.json`), "utf-8");
       return JSON.parse(raw);
-    } catch { /* not found */ }
+    } catch {
+      /* not found */
+    }
   }
 
   return null;
@@ -399,8 +403,16 @@ export async function resolveConnections(
           throw new Error("TELEGRAM_CHAT_ID env var must be a numeric value");
         }
         const chatId = cfg.chat_id ?? parsedChatId ?? saved?.chat_id;
-        const source = cfg.bot_token ? "config" : envToken ? "env" : saved ? `saved(${def.name ?? "telegram"})` : "unknown";
-        console.error(`[connection] telegram${def.name ? `(${def.name})` : ""}: resolved from ${source}`);
+        const source = cfg.bot_token
+          ? "config"
+          : envToken
+            ? "env"
+            : saved
+              ? `saved(${def.name ?? "telegram"})`
+              : "unknown";
+        console.error(
+          `[connection] telegram${def.name ? `(${def.name})` : ""}: resolved from ${source}`,
+        );
         adapters.push(
           new TelegramAdapter({
             botToken,

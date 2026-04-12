@@ -111,7 +111,11 @@ export class WorkspaceOrchestrator {
     const prevStatus = allStatus.find((s) => s.name === this.config.name)?.status;
     if (prevStatus === "paused") {
       this.paused = true;
-      await this.config.eventLog.log(this.config.name, "system", "Agent loop started (paused — was paused before restart)");
+      await this.config.eventLog.log(
+        this.config.name,
+        "system",
+        "Agent loop started (paused — was paused before restart)",
+      );
     } else {
       await this.config.provider.status.set(this.config.name, "running");
       await this.config.eventLog.log(this.config.name, "system", "Agent loop started");
@@ -144,7 +148,8 @@ export class WorkspaceOrchestrator {
     const mins = Math.round(delay / 60_000);
     await this.config.provider.status.set(this.config.name, "paused", `auto-resume in ~${mins}m`);
     await this.config.eventLog.log(
-      this.config.name, "system",
+      this.config.name,
+      "system",
       `Agent loop paused (auto-resume in ${mins}m)`,
     );
   }
@@ -190,7 +195,11 @@ export class WorkspaceOrchestrator {
     this.wakeResolve?.();
 
     await this.config.provider.status.set(this.config.name, "stopped", `fatal: ${reason}`);
-    await this.config.eventLog.log(this.config.name, "system", `Agent loop failed (fatal): ${reason}`);
+    await this.config.eventLog.log(
+      this.config.name,
+      "system",
+      `Agent loop failed (fatal): ${reason}`,
+    );
   }
 
   /** Wake the loop immediately (interrupt poll wait). */

@@ -117,7 +117,9 @@ export class TelegramAdapter implements ChannelAdapter {
     this.bridge = bridge;
     this.running = true;
 
-    console.error(`[telegram] adapter started (channel: ${this.channel}, chatId: ${this.chatId ?? "any"})`);
+    console.error(
+      `[telegram] adapter started (channel: ${this.channel}, chatId: ${this.chatId ?? "any"})`,
+    );
 
     // Register/update bot commands on every start (ensures new commands are available)
     this.api("setMyCommands", { commands: BOT_COMMANDS }).catch(() => {});
@@ -343,7 +345,10 @@ export class TelegramAdapter implements ChannelAdapter {
         await this.api("sendMessage", { chat_id: chatId, text: `Paused @${agentName}.` });
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
-        await this.api("sendMessage", { chat_id: chatId, text: `Failed to pause @${agentName}: ${msg}` });
+        await this.api("sendMessage", {
+          chat_id: chatId,
+          text: `Failed to pause @${agentName}: ${msg}`,
+        });
       }
     } else {
       if (!this.pauseAll) {
@@ -371,7 +376,10 @@ export class TelegramAdapter implements ChannelAdapter {
         await this.api("sendMessage", { chat_id: chatId, text: `Resumed @${agentName}.` });
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
-        await this.api("sendMessage", { chat_id: chatId, text: `Failed to resume @${agentName}: ${msg}` });
+        await this.api("sendMessage", {
+          chat_id: chatId,
+          text: `Failed to resume @${agentName}: ${msg}`,
+        });
       }
     } else {
       if (!this.resumeAll) {

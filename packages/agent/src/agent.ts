@@ -341,9 +341,9 @@ export class Agent {
       const pendingReason = this.pendingInterruptReason ?? reason;
       this.pendingInterruptSource = null;
       this.pendingInterruptReason = null;
-      void this.config.loop
-        .interrupt!(this.buildWorkspaceInterruptMessage(pendingSource, pendingReason))
-        .catch(() => {});
+      void this.config.loop.interrupt!(
+        this.buildWorkspaceInterruptMessage(pendingSource, pendingReason),
+      ).catch(() => {});
     }, 150);
   }
 

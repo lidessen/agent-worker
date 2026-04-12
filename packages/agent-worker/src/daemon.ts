@@ -51,11 +51,7 @@ import { createLoopFromConfig } from "./loop-factory.ts";
 import { writeDaemonInfo, removeDaemonInfo, generateToken, defaultDataDir } from "./discovery.ts";
 import { WorkspaceMcpHub } from "@agent-worker/workspace";
 import { detectAiSdkModel, resolveRuntime } from "./resolve-runtime.ts";
-import {
-  checkCliAvailability,
-  checkClaudeCodeAuth,
-  checkCodexAuth,
-} from "@agent-worker/loop";
+import { checkCliAvailability, checkClaudeCodeAuth, checkCodexAuth } from "@agent-worker/loop";
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
 import type { HttpBindings } from "@hono/node-server";
@@ -101,10 +97,7 @@ export class Daemon {
   constructor(config: DaemonConfig = {}) {
     const dataDir = config.dataDir ?? defaultDataDir();
     // Default webDistDir: from daemon.ts (packages/agent-worker/src/) → up 3 to packages/ → web/dist
-    const defaultWebDist = resolve(
-      fileURLToPath(import.meta.url),
-      "..", "..", "..", "web", "dist",
-    );
+    const defaultWebDist = resolve(fileURLToPath(import.meta.url), "..", "..", "..", "web", "dist");
     this.config = {
       port: config.port ?? 7420,
       host: config.host ?? "0.0.0.0",
@@ -141,10 +134,7 @@ export class Daemon {
     // Start HTTP server first so we know the port
     const app = new Hono<{ Bindings: HttpBindings }>();
     app.all("*", async (c) => {
-      const response = await this.handleRequest(
-        c.req.raw,
-        c.env.incoming.socket.remoteAddress,
-      );
+      const response = await this.handleRequest(c.req.raw, c.env.incoming.socket.remoteAddress);
       return response;
     });
     const actualPort = await new Promise<number>((resolve) => {
@@ -313,7 +303,8 @@ export class Daemon {
       path === "/health" ||
       path === "/shutdown";
     if (isApiPath && path !== "/health") {
-      const trustedRemote = isLoopbackAddress(remoteAddress) ||
+      const trustedRemote =
+        isLoopbackAddress(remoteAddress) ||
         (this.config.trustTailscale && isTailscaleAddress(remoteAddress));
       if (!trustedRemote) {
         const authHeader = req.headers.get("authorization");
@@ -358,7 +349,8 @@ export class Daemon {
         if (sub === "/responses/stream" && method === "GET")
           return this.handleAgentResponsesStream(name, url);
         if (sub === "/events" && method === "GET") return await this.handleAgentEvents(name, url);
-        if (sub === "/events/stream" && method === "GET") return this.handleAgentEventsStream(name, url);
+        if (sub === "/events/stream" && method === "GET")
+          return this.handleAgentEventsStream(name, url);
         if (sub === "/state" && method === "GET") return this.handleAgentState(name);
       }
 
@@ -458,9 +450,7 @@ export class Daemon {
     const claudeAuth = claudeInstalled.available
       ? await checkClaudeCodeAuth()
       : { authenticated: false };
-    const codexAuth = codexInstalled.available
-      ? await checkCodexAuth()
-      : { authenticated: false };
+    const codexAuth = codexInstalled.available ? await checkCodexAuth() : { authenticated: false };
     const aiSdkModel = detectAiSdkModel();
 
     return Response.json({
@@ -1150,7 +1140,13 @@ export class Daemon {
 
     const channels = handle.workspace.contextProvider.channels;
 
-    const formatMsg = (msg: { id: string; from: string; content: string; timestamp: string; to?: string }) => ({
+    const formatMsg = (msg: {
+      id: string;
+      from: string;
+      content: string;
+      timestamp: string;
+      to?: string;
+    }) => ({
       ts: new Date(msg.timestamp).getTime(),
       type: "message",
       channel: ch,
@@ -1420,10 +1416,7 @@ export class Daemon {
     if (indexServed) return indexServed;
 
     // Web UI not built
-    return Response.json(
-      { error: "Web UI not found. Run the web build first." },
-      { status: 404 },
-    );
+    return Response.json({ error: "Web UI not found. Run the web build first." }, { status: 404 });
   }
 
   private async tryServeFile(filePath: string): Promise<Response | null> {

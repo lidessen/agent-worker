@@ -13,7 +13,7 @@ export function createClaudeSdkMcpBridge(args: {
   includeBuiltins: boolean;
   userTools?: ToolSet;
 }): ClaudeSdkMcpBridge {
-  const tools: SdkMcpToolDefinition[] = createMcpToolDefinitions(args).map((tool) => ({
+  const tools: SdkMcpToolDefinition<any>[] = createMcpToolDefinitions(args).map((tool) => ({
     name: tool.name,
     description: tool.description,
     inputSchema: tool.inputSchema,

@@ -24,17 +24,11 @@ export interface HostSandboxOptions {
  * Check that `target` is inside `cwd` or one of `allowedPaths`.
  * All paths are resolved to absolute before comparison.
  */
-function assertPathAllowed(
-  target: string,
-  cwd: string,
-  allowedPaths: string[],
-): void {
+function assertPathAllowed(target: string, cwd: string, allowedPaths: string[]): void {
   const abs = resolve(target);
   const roots = [resolve(cwd), ...allowedPaths.map((p) => resolve(p))];
   if (roots.some((root) => abs === root || abs.startsWith(root + "/"))) return;
-  throw new Error(
-    `Path "${target}" is outside sandbox boundary (cwd: ${cwd})`,
-  );
+  throw new Error(`Path "${target}" is outside sandbox boundary (cwd: ${cwd})`);
 }
 
 export function createHostSandbox(options: HostSandboxOptions): Sandbox {
@@ -65,17 +59,13 @@ export function createHostSandbox(options: HostSandboxOptions): Sandbox {
       return readFile(path, "utf-8");
     },
 
-    async writeFiles(
-      files: Array<{ path: string; content: string | Buffer }>,
-    ): Promise<void> {
+    async writeFiles(files: Array<{ path: string; content: string | Buffer }>): Promise<void> {
       for (const file of files) {
         assertPathAllowed(file.path, cwd, allowedPaths);
         await mkdir(dirname(file.path), { recursive: true });
         await writeFile(
           file.path,
-          typeof file.content === "string"
-            ? file.content
-            : Buffer.from(file.content),
+          typeof file.content === "string" ? file.content : Buffer.from(file.content),
         );
       }
     },
