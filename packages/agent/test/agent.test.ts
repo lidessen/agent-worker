@@ -861,6 +861,79 @@ describe("Agent context pressure", () => {
     expect(agent.lastUsage?.totalTokens).toBe(1500);
   });
 
+  test("fires onCheckpoint at run_start and run_end", async () => {
+    const calls: Array<{ reason: string; runNumber: number }> = [];
+    const loop = createMockLoop("ok");
+    const agent = new Agent({
+      loop,
+      maxRuns: 1,
+      inbox: { debounceMs: 10 },
+      hooks: {
+        onCheckpoint: ({ reason, runNumber }) => {
+          calls.push({ reason, runNumber });
+          return { kind: "noop" };
+        },
+      },
+    });
+    await agent.init();
+
+    agent.push("go");
+    await waitForSettle(agent);
+
+    // A single run produces exactly one start + one end call.
+    expect(calls).toEqual([
+      { reason: "run_start", runNumber: 1 },
+      { reason: "run_end", runNumber: 1 },
+    ]);
+  });
+
+  test("onCheckpoint inject routes to inbox at run_end", async () => {
+    const loop = createMockLoop("ok");
+    const agent = new Agent({
+      loop,
+      maxRuns: 1,
+      inbox: { debounceMs: 10 },
+      hooks: {
+        onCheckpoint: ({ reason }) => {
+          if (reason === "run_end") {
+            return { kind: "inject", content: "Follow-up fact from hook" };
+          }
+          return { kind: "noop" };
+        },
+      },
+    });
+    await agent.init();
+
+    agent.push("go");
+    await waitForSettle(agent);
+
+    // The injected message should have landed in the inbox as a system push.
+    const inboxEntries = agent.inboxMessages;
+    const injected = inboxEntries.find((m) => m.content.includes("Follow-up fact from hook"));
+    expect(injected).toBeDefined();
+    expect(injected?.from).toBe("system");
+  });
+
+  test("treats a throwing onCheckpoint hook as noop and keeps running", async () => {
+    const loop = createMockLoop("ok");
+    const agent = new Agent({
+      loop,
+      maxRuns: 1,
+      inbox: { debounceMs: 10 },
+      hooks: {
+        onCheckpoint: () => {
+          throw new Error("boom");
+        },
+      },
+    });
+    await agent.init();
+
+    agent.push("go");
+    await waitForSettle(agent);
+
+    expect(agent.state).toBe("idle");
+  });
+
   test("does not fire hook when no thresholds cross", async () => {
     let fired = 0;
     const loop = createUsageLoop([{ total: 100 }, { total: 200 }]);
