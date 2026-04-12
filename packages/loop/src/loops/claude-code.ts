@@ -4,10 +4,17 @@ import {
   type SDKMessage,
   type SDKResultMessage,
 } from "@anthropic-ai/claude-agent-sdk";
-import type { ClaudeCodeLoopOptions, LoopEvent, LoopRun, LoopStatus, PreflightResult } from "../types.ts";
+import type {
+  ClaudeCodeLoopOptions,
+  LoopEvent,
+  LoopRun,
+  LoopStatus,
+  PreflightResult,
+} from "../types.ts";
 import { createEventChannel } from "../types.ts";
 import { buildClaudeMcpServers } from "../utils/mcp-config.ts";
 import type { ClaudeHooks } from "../utils/claude-sdk.ts";
+import { getPreferredScriptRuntime } from "@agent-worker/shared";
 
 export type ClaudeCodeModel = "opus" | "sonnet" | "haiku";
 
@@ -32,7 +39,9 @@ export class ClaudeCodeLoop {
     this.abortController = new AbortController();
 
     const { system, prompt } =
-      typeof input === "string" ? { system: undefined as string | undefined, prompt: input } : input;
+      typeof input === "string"
+        ? { system: undefined as string | undefined, prompt: input }
+        : input;
 
     const channel = createEventChannel<LoopEvent>();
     const allEvents: LoopEvent[] = [];
@@ -153,6 +162,7 @@ export function buildOptions(args: {
   abortController: AbortController;
 }): ClaudeAgentOptions {
   const { system, opts, mcpConfigPath, mcpServers, hooks, abortController } = args;
+  const scriptRuntime = getPreferredScriptRuntime();
 
   return {
     abortController,
@@ -166,7 +176,7 @@ export function buildOptions(args: {
     includePartialMessages: true,
     includeHookEvents: false,
     maxTurns: 12,
-    executable: "bun",
+    executable: scriptRuntime === "bun" ? "bun" : "node",
     mcpServers:
       (mcpServers as Record<string, any> | null | undefined) ??
       (mcpConfigPath ? (buildClaudeMcpServers(mcpConfigPath) as Record<string, any>) : undefined),
@@ -273,7 +283,11 @@ export function mapClaudeMessage(
         }
       }
     }
-  } else if (message.type === "user" && message.parent_tool_use_id && message.tool_use_result !== undefined) {
+  } else if (
+    message.type === "user" &&
+    message.parent_tool_use_id &&
+    message.tool_use_result !== undefined
+  ) {
     events.push({
       type: "tool_call_end",
       name: toolNames.get(message.parent_tool_use_id) ?? "unknown",
