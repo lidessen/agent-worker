@@ -1523,17 +1523,35 @@ export class Daemon {
       (kind === "completed" ? "Closed by user via HTTP" : "Aborted by user via HTTP");
 
     // If there is an active attempt, finalize it first so the handoff
-    // references a real fromAttemptId.
+    // references a real fromAttemptId. Only stamp the attempt if it is
+    // still running — a race where the agent self-reported via MCP in
+    // between getTask() and getAttempt() should not overwrite the agent's
+    // own terminal status / resultSummary.
+    //
+    // NOTE: this sequence (updateAttempt → clear activeAttemptId →
+    // createHandoff → updateTask) is not transactional. A crash between
+    // steps can leave inconsistent state — specifically between steps 1
+    // and 2 leaves an orphaned active-attempt pointer that would block a
+    // subsequent dispatch. Accepted gap for early development; see
+    // docs/handoffs/2026-04-13-loop-session-final.md (remaining work #5).
     let fromAttemptId: string | undefined;
     if (task.activeAttemptId) {
-      fromAttemptId = task.activeAttemptId;
-      await store.updateAttempt(fromAttemptId, {
-        status: kind === "completed" ? "completed" : "cancelled",
-        resultSummary: summary,
-        endedAt: Date.now(),
-      });
-      // Clear the activeAttemptId so the next snapshot is consistent.
-      await store.updateTask(task.id, { activeAttemptId: undefined });
+      const currentAttempt = await store.getAttempt(task.activeAttemptId);
+      if (currentAttempt && currentAttempt.status === "running") {
+        fromAttemptId = currentAttempt.id;
+        await store.updateAttempt(fromAttemptId, {
+          status: kind === "completed" ? "completed" : "cancelled",
+          resultSummary: summary,
+          endedAt: Date.now(),
+        });
+        // Clear the activeAttemptId so the next snapshot is consistent.
+        await store.updateTask(task.id, { activeAttemptId: undefined });
+      } else if (currentAttempt) {
+        // Attempt already terminal — record it as the handoff source but
+        // don't re-stamp anything. Also clear the orphaned pointer.
+        fromAttemptId = currentAttempt.id;
+        await store.updateTask(task.id, { activeAttemptId: undefined });
+      }
     }
 
     if (fromAttemptId) {
