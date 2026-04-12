@@ -493,7 +493,9 @@ describe("RunCoordinator", () => {
 
     const events: unknown[] = [];
     await coordinator.processLoop({
-      onEvent: (e) => events.push(e),
+      onEvent: (e) => {
+        events.push(e);
+      },
     });
 
     expect(events.length).toBeGreaterThan(0);

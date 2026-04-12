@@ -1,12 +1,17 @@
 import type {
   AgentConfig,
+  AgentLifecycleHooks,
   AgentState,
   AgentEvents,
+  ContextThresholds,
   InboxMessage,
   Message,
   NotesStorage,
+  PressureAction,
+  PressureLevel,
   TodoItem,
   Turn,
+  UsageSnapshot,
 } from "./types.ts";
 import type { AgentRuntimeEvent, EventBus } from "@agent-worker/shared";
 import { Inbox } from "./inbox.ts";
@@ -47,10 +52,24 @@ export class Agent {
   private pendingInterruptSource: "channel" | "reminder" | "todo" | null = null;
   private pendingInterruptReason: string | null = null;
 
+  private readonly lifecycleHooks: AgentLifecycleHooks;
+  private readonly contextThresholds: Required<Pick<ContextThresholds, "softRatio" | "hardRatio">> &
+    ContextThresholds;
+  private pendingGracefulStop = false;
+  private pressureFiredThisRun = new Set<PressureLevel>();
+  private currentRunNumber = 0;
+  private _lastUsage: UsageSnapshot | null = null;
+
   constructor(config: AgentConfig) {
     this.config = config;
     this.bus = config.bus;
     this.agentName = config.name ?? "agent";
+    this.lifecycleHooks = config.hooks ?? {};
+    this.contextThresholds = {
+      softRatio: 0.7,
+      hardRatio: 0.9,
+      ...config.contextThresholds,
+    };
 
     // Subsystems
     this.inbox = new Inbox(config.inbox, () => this.onWake());
@@ -164,6 +183,11 @@ export class Agent {
     return this.notesStorage;
   }
 
+  /** Most recent usage snapshot reported by the loop, if any. */
+  get lastUsage(): UsageSnapshot | null {
+    return this._lastUsage;
+  }
+
   // ── Events ─────────────────────────────────────────────────────────────
 
   on<K extends EventName>(event: K, fn: EventHandler<K>): void {
@@ -203,6 +227,88 @@ export class Agent {
     });
   }
 
+  // ── Context pressure ───────────────────────────────────────────────────
+
+  private classifyPressure(usage: UsageSnapshot): PressureLevel | null {
+    const { softTokens, hardTokens, softRatio, hardRatio } = this.contextThresholds;
+    if (hardTokens != null && usage.totalTokens >= hardTokens) return "hard";
+    if (
+      hardRatio != null &&
+      usage.usedRatio != null &&
+      usage.usedRatio >= hardRatio &&
+      usage.contextWindow != null
+    ) {
+      return "hard";
+    }
+    if (softTokens != null && usage.totalTokens >= softTokens) return "soft";
+    if (
+      softRatio != null &&
+      usage.usedRatio != null &&
+      usage.usedRatio >= softRatio &&
+      usage.contextWindow != null
+    ) {
+      return "soft";
+    }
+    return null;
+  }
+
+  private async maybeFirePressure(usage: UsageSnapshot, runId: string): Promise<void> {
+    const highest = this.classifyPressure(usage);
+    if (!highest) return;
+
+    // If we jumped straight to hard without firing soft yet, fire soft first so
+    // hooks always see the ordered escalation path.
+    const toFire: PressureLevel[] = [];
+    if (!this.pressureFiredThisRun.has("soft") && (highest === "soft" || highest === "hard")) {
+      toFire.push("soft");
+    }
+    if (highest === "hard" && !this.pressureFiredThisRun.has("hard")) {
+      toFire.push("hard");
+    }
+    if (toFire.length === 0) return;
+
+    for (const level of toFire) {
+      this.pressureFiredThisRun.add(level);
+
+      this.busEmit("agent.context_pressure", {
+        runId,
+        level,
+        totalTokens: usage.totalTokens,
+        contextWindow: usage.contextWindow,
+        usedRatio: usage.usedRatio,
+      });
+
+      const hook = this.lifecycleHooks.onContextPressure;
+      if (!hook) continue;
+
+      let action: PressureAction;
+      try {
+        action = await hook({
+          level,
+          usage,
+          runNumber: this.currentRunNumber,
+        });
+      } catch (err) {
+        this.busEmit("agent.error", {
+          runId,
+          error: `onContextPressure hook threw: ${err instanceof Error ? err.message : String(err)}`,
+          level: "error",
+        });
+        continue;
+      }
+
+      if (action.kind === "end") {
+        this.pendingGracefulStop = true;
+        this.busEmit("agent.graceful_stop_requested", {
+          runId,
+          reason: "context_pressure",
+          level,
+          summary: action.summary,
+        });
+      }
+    }
+  }
+
   // ── Internal: state machine ────────────────────────────────────────────
 
   private setState(state: AgentState): void {
@@ -224,10 +330,13 @@ export class Agent {
 
     // Generate a correlation ID for this processing cycle
     const runId = crypto.randomUUID();
+    this.pendingGracefulStop = false;
 
     this.processingPromise = this.coordinator
       .processLoop({
         onRunStart: (info) => {
+          this.currentRunNumber = info.runNumber;
+          this.pressureFiredThisRun.clear();
           this.emit("runStart", info);
           this.busEmit("agent.run_start", {
             runId,
@@ -243,7 +352,7 @@ export class Agent {
             durationMs: result.durationMs,
           });
         },
-        onEvent: (event) => {
+        onEvent: async (event) => {
           this.emit("event", event);
           // Forward loop events to bus with structured types
           if (event.type === "text") {
@@ -308,6 +417,16 @@ export class Agent {
               usedRatio: event.usedRatio,
               usageSource: event.source,
             });
+            const snapshot: UsageSnapshot = {
+              inputTokens: event.inputTokens,
+              outputTokens: event.outputTokens,
+              totalTokens: event.totalTokens,
+              contextWindow: event.contextWindow,
+              usedRatio: event.usedRatio,
+              source: event.source,
+            };
+            this._lastUsage = snapshot;
+            await this.maybeFirePressure(snapshot, runId);
           } else if (event.type === "error") {
             this.busEmit("agent.error", {
               runId,
@@ -317,7 +436,7 @@ export class Agent {
           }
         },
         onContextAssembled: (prompt) => this.emit("contextAssembled", prompt),
-        shouldStop: () => this._state === "stopped",
+        shouldStop: () => this._state === "stopped" || this.pendingGracefulStop,
       })
       .then((outcome) => {
         if (outcome === "error") this.setState("error");
