@@ -386,6 +386,95 @@ describe("CodexLoop", () => {
       expect(closeCount).toBe(0);
     });
 
+    test("prefers tokenUsage.cumulative over tokenUsage.last when both are present", async () => {
+      let onNotification: ((message: { method: string; params?: unknown }) => void) | null = null;
+
+      class MockJsonRpcClient {
+        constructor(_options: unknown) {}
+
+        start(cb: (message: { method: string; params?: unknown }) => void): void {
+          onNotification = cb;
+        }
+
+        async request(method: string, _params?: unknown): Promise<unknown> {
+          if (method === "initialize") {
+            return {
+              userAgent: "test",
+              codexHome: "/tmp",
+              platformFamily: "unix",
+              platformOs: "macos",
+            };
+          }
+          if (method === "thread/start") {
+            return { thread: { id: "thread-cumulative" } };
+          }
+          if (method === "turn/start") {
+            setTimeout(() => {
+              // First update: only "last" available
+              onNotification?.({
+                method: "thread/tokenUsage/updated",
+                params: {
+                  threadId: "thread-cumulative",
+                  turnId: "turn-c",
+                  tokenUsage: {
+                    last: { inputTokens: 10, outputTokens: 2, totalTokens: 12 },
+                  },
+                },
+              });
+              // Second update: both "cumulative" and a smaller "last" — cumulative wins
+              onNotification?.({
+                method: "thread/tokenUsage/updated",
+                params: {
+                  threadId: "thread-cumulative",
+                  turnId: "turn-c",
+                  tokenUsage: {
+                    cumulative: { inputTokens: 100, outputTokens: 20, totalTokens: 120 },
+                    last: { inputTokens: 3, outputTokens: 1, totalTokens: 4 },
+                  },
+                },
+              });
+              onNotification?.({
+                method: "turn/completed",
+                params: {
+                  threadId: "thread-cumulative",
+                  turn: { id: "turn-c", status: "completed", error: null },
+                },
+              });
+            }, 0);
+            return { turn: { id: "turn-c" } };
+          }
+          return {};
+        }
+
+        close(): void {}
+      }
+
+      mock.module("../src/utils/jsonrpc-stdio.ts", () => ({
+        JsonRpcStdioClient: MockJsonRpcClient,
+      }));
+
+      const { CodexLoop: MockedCodexLoop } = await import(
+        `../src/loops/codex.ts?cumulative-usage=${Date.now()}`
+      );
+      const loop = new MockedCodexLoop();
+      const result = await loop.run("prompt").result;
+
+      const usageEvents = result.events.filter(
+        (event: { type: string }) => event.type === "usage",
+      ) as Array<{
+        type: "usage";
+        inputTokens: number;
+        outputTokens: number;
+        totalTokens: number;
+      }>;
+
+      expect(usageEvents).toHaveLength(2);
+      expect(usageEvents[0]!.totalTokens).toBe(12);
+      expect(usageEvents[1]!.totalTokens).toBe(120);
+      // Final LoopResult.usage should reflect the cumulative value.
+      expect(result.usage.totalTokens).toBe(120);
+    });
+
     test("structured input is sent as thread instructions plus prompt text", async () => {
       const requestLog: Array<{ method: string; params?: unknown }> = [];
       let onNotification: ((message: { method: string; params?: unknown }) => void) | null = null;

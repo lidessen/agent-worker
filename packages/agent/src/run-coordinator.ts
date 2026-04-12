@@ -332,7 +332,7 @@ export class RunCoordinator {
           await this.deps.memory.extract(this.history.slice(-5), `run_${runCount}`);
         }
       } catch (err) {
-        callbacks.onEvent?.({
+        await callbacks.onEvent?.({
           type: "error",
           error: err instanceof Error ? err : new Error(String(err)),
         });
