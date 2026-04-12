@@ -35,9 +35,9 @@ export interface BaseBusEvent {
 export interface AgentRuntimeEvent extends BaseBusEvent {
   type: "agent.runtime_event";
   source: "agent";
-  eventKind: "tool" | "hook";
-  phase: string;
-  name: string;
+  eventKind: "tool" | "hook" | "usage";
+  phase?: string;
+  name?: string;
   callId?: string;
   hookEvent?: string;
   durationMs?: number;
@@ -45,6 +45,13 @@ export interface AgentRuntimeEvent extends BaseBusEvent {
   outcome?: string;
   args?: Record<string, unknown>;
   result?: unknown;
+  /** Cumulative token usage (present when eventKind === "usage"). */
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+  contextWindow?: number;
+  usedRatio?: number;
+  usageSource?: "runtime" | "estimate";
   [key: string]: unknown;
 }
 

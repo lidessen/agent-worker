@@ -24,6 +24,15 @@ export class ManagedAgent {
   private _inboxPath?: string;
   private _timelinePath?: string;
   private _currentResponseText = "";
+  private _lastUsage: {
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+    contextWindow?: number;
+    usedRatio?: number;
+    source: "runtime" | "estimate";
+    ts: number;
+  } | null = null;
 
   constructor(opts: {
     name: string;
@@ -157,6 +166,26 @@ export class ManagedAgent {
         });
       } else if (event.type === "thinking") {
         this._appendEvent({ type: "thinking", text: event.text });
+      } else if (event.type === "usage") {
+        this._lastUsage = {
+          inputTokens: event.inputTokens,
+          outputTokens: event.outputTokens,
+          totalTokens: event.totalTokens,
+          contextWindow: event.contextWindow,
+          usedRatio: event.usedRatio,
+          source: event.source,
+          ts: Date.now(),
+        };
+        this._appendEvent({
+          type: "runtime_event",
+          eventKind: "usage",
+          inputTokens: event.inputTokens,
+          outputTokens: event.outputTokens,
+          totalTokens: event.totalTokens,
+          contextWindow: event.contextWindow,
+          usedRatio: event.usedRatio,
+          usageSource: event.source,
+        });
       } else if (event.type === "error") {
         this._appendEvent({ type: "error", error: String(event.error) });
       }
@@ -236,6 +265,19 @@ export class ManagedAgent {
 
   get state(): AgentState {
     return this.agent.state;
+  }
+
+  /** Latest cumulative token usage reported by the runtime, if the loop supports usageStream. */
+  get lastUsage(): {
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+    contextWindow?: number;
+    usedRatio?: number;
+    source: "runtime" | "estimate";
+    ts: number;
+  } | null {
+    return this._lastUsage;
   }
 
   get info(): ManagedAgentInfo {

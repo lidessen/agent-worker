@@ -1050,6 +1050,17 @@ function serializeLoopEvent(event: LoopEvent): Record<string, unknown> {
         stderr: event.stderr,
         outcome: event.outcome,
       };
+    case "usage":
+      return {
+        type: "runtime_event",
+        eventKind: "usage",
+        inputTokens: event.inputTokens,
+        outputTokens: event.outputTokens,
+        totalTokens: event.totalTokens,
+        contextWindow: event.contextWindow,
+        usedRatio: event.usedRatio,
+        usageSource: event.source,
+      };
     case "error":
       return { type: "error", error: String(event.error) };
     default:

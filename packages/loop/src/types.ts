@@ -33,6 +33,24 @@ export type LoopEvent =
       durationMs?: number;
       error?: string;
     }
+  | {
+      /**
+       * Cumulative token usage for the current turn/run, emitted as the runtime
+       * learns about it. Not all runtimes support mid-stream usage — check the
+       * loop's `supports` for `"usageStream"`. Consumers should treat the numbers
+       * as cumulative (take last/max, not sum) across multiple events in one run.
+       */
+      type: "usage";
+      inputTokens: number;
+      outputTokens: number;
+      totalTokens: number;
+      /** Model context window limit, if the runtime reports it. */
+      contextWindow?: number;
+      /** totalTokens / contextWindow when contextWindow is known. */
+      usedRatio?: number;
+      /** "runtime" = reported by the provider; "estimate" = computed locally. */
+      source: "runtime" | "estimate";
+    }
   | { type: "error"; error: Error }
   | { type: "unknown"; data: unknown };
 

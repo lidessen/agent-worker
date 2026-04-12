@@ -297,6 +297,17 @@ export class Agent {
               hookEvent: event.hookEvent,
               outcome: event.outcome,
             });
+          } else if (event.type === "usage") {
+            this.busEmitRuntimeEvent({
+              runId,
+              eventKind: "usage",
+              inputTokens: event.inputTokens,
+              outputTokens: event.outputTokens,
+              totalTokens: event.totalTokens,
+              contextWindow: event.contextWindow,
+              usedRatio: event.usedRatio,
+              usageSource: event.source,
+            });
           } else if (event.type === "error") {
             this.busEmit("agent.error", {
               runId,
