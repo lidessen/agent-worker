@@ -146,6 +146,53 @@ describe("Unified daemon (workspace routes)", () => {
     expect(channels).toContain("design");
   });
 
+  test("listWorkspaceTasks surfaces the kickoff-created draft task", async () => {
+    await setup();
+    await client.createWorkspace(CHAT_YAML);
+
+    // Poll briefly since kickoff + task creation is async.
+    let result = await client.listWorkspaceTasks("test-ws");
+    for (let i = 0; i < 20 && result.tasks.length === 0; i++) {
+      await Bun.sleep(50);
+      result = await client.listWorkspaceTasks("test-ws");
+    }
+
+    expect(result.tasks.length).toBeGreaterThanOrEqual(1);
+    const first = result.tasks[0] as {
+      id: string;
+      status: string;
+      title: string;
+      sourceRefs: { kind: string }[];
+    };
+    expect(first.status).toBe("draft");
+    expect(first.title.length).toBeGreaterThan(0);
+    expect(first.sourceRefs.some((r) => r.kind === "kickoff")).toBe(true);
+
+    // getWorkspaceTask returns the task plus empty lifecycle lists at this point.
+    const detailed = await client.getWorkspaceTask("test-ws", first.id);
+    expect(detailed.task).toMatchObject({ id: first.id });
+    expect(detailed.attempts).toEqual([]);
+    expect(detailed.handoffs).toEqual([]);
+    expect(detailed.artifacts).toEqual([]);
+  });
+
+  test("listWorkspaceTasks accepts a status filter", async () => {
+    await setup();
+    await client.createWorkspace(CHAT_YAML);
+
+    // Wait for the kickoff task to appear.
+    let drafts = await client.listWorkspaceTasks("test-ws", { status: "draft" });
+    for (let i = 0; i < 20 && drafts.tasks.length === 0; i++) {
+      await Bun.sleep(50);
+      drafts = await client.listWorkspaceTasks("test-ws", { status: "draft" });
+    }
+    expect(drafts.tasks.length).toBeGreaterThanOrEqual(1);
+
+    // No open tasks yet.
+    const open = await client.listWorkspaceTasks("test-ws", { status: "open" });
+    expect(open.tasks).toEqual([]);
+  });
+
   test("reads workspace events", async () => {
     await setup();
     await client.createWorkspace(CHAT_YAML);
