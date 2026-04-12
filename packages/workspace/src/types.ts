@@ -212,6 +212,8 @@ export interface WorkspaceRuntime {
   readonly storageDir: string | undefined;
   /** Shared workspace sandbox directory (collaborative files visible to all agents). */
   readonly workspaceSandboxDir: string | undefined;
+  /** Kernel state store (Task/Attempt/Handoff/Artifact) — see ./state/. */
+  readonly stateStore: import("./state/index.ts").WorkspaceStateStore;
 
   /** Initialize workspace: recover from crashes, start connections. */
   init(): Promise<void>;

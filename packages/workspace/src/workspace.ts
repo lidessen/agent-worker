@@ -22,6 +22,7 @@ import { WorkspaceEventLog } from "./context/event-log.ts";
 import { ChannelBridge } from "./context/bridge.ts";
 import { InstructionQueue } from "./loop/priority-queue.ts";
 import { MemoryStorage } from "./context/storage.ts";
+import { InMemoryWorkspaceStateStore, type WorkspaceStateStore } from "./state/index.ts";
 
 export class Workspace implements WorkspaceRuntime {
   readonly name: string;
@@ -33,6 +34,12 @@ export class Workspace implements WorkspaceRuntime {
   readonly eventLog: EventLog;
   readonly bridge: ChannelBridgeInterface;
   readonly instructionQueue: InstructionQueueInterface;
+  /**
+   * Kernel state store — Task/Attempt/Handoff/Artifact canonical records.
+   * Phase 1 wires this in as an in-memory store; a file-backed
+   * implementation will arrive with the persistence work.
+   */
+  readonly stateStore: WorkspaceStateStore;
 
   private readonly channelStore: ChannelStore;
   private readonly inboxStore: InboxStore;
@@ -92,6 +99,9 @@ export class Workspace implements WorkspaceRuntime {
 
     // Instruction queue
     this.instructionQueue = new InstructionQueue(config.queueConfig);
+
+    // Kernel state store (Task / Attempt / Handoff / Artifact)
+    this.stateStore = new InMemoryWorkspaceStateStore();
 
     // Wire channel messages to inbox routing
     this.channelStore.on("message", (message) => {
