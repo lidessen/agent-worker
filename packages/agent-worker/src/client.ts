@@ -371,6 +371,39 @@ export class AwClient {
     return this.sseStream(`/workspaces/${encodeURIComponent(key)}/events/stream${q}`);
   }
 
+  // ── Task ledger ─────────────────────────────────────────────────────
+
+  /**
+   * List tasks from the workspace's kernel state store. `status` is a
+   * comma-separated filter (e.g. "draft,open,in_progress"); `ownerLeadId`
+   * filters by owning lead.
+   */
+  async listWorkspaceTasks(
+    key: string,
+    opts?: { status?: string; ownerLeadId?: string },
+  ): Promise<{ tasks: Record<string, unknown>[] }> {
+    const params = new URLSearchParams();
+    if (opts?.status) params.set("status", opts.status);
+    if (opts?.ownerLeadId) params.set("ownerLeadId", opts.ownerLeadId);
+    const qs = params.toString();
+    return this.request(`/workspaces/${encodeURIComponent(key)}/tasks${qs ? `?${qs}` : ""}`);
+  }
+
+  /** Fetch a single task with its attempts, handoffs, and artifacts. */
+  async getWorkspaceTask(
+    key: string,
+    taskId: string,
+  ): Promise<{
+    task: Record<string, unknown>;
+    attempts: Record<string, unknown>[];
+    handoffs: Record<string, unknown>[];
+    artifacts: Record<string, unknown>[];
+  }> {
+    return this.request(
+      `/workspaces/${encodeURIComponent(key)}/tasks/${encodeURIComponent(taskId)}`,
+    );
+  }
+
   // ── Documents ───────────────────────────────────────────────────────
 
   async listDocs(workspace: string): Promise<DocInfo[]> {

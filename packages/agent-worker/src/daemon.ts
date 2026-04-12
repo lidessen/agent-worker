@@ -50,6 +50,7 @@ import { DaemonEventLog } from "./event-log.ts";
 import { createLoopFromConfig } from "./loop-factory.ts";
 import { writeDaemonInfo, removeDaemonInfo, generateToken, defaultDataDir } from "./discovery.ts";
 import { WorkspaceMcpHub } from "@agent-worker/workspace";
+import type { TaskStatus } from "@agent-worker/workspace";
 import { detectAiSdkModel, resolveRuntime } from "./resolve-runtime.ts";
 import { checkCliAvailability, checkClaudeCodeAuth, checkCodexAuth } from "@agent-worker/loop";
 import { Hono } from "hono";
@@ -389,6 +390,13 @@ export class Daemon {
         }
         if (sub === "/events/stream" && method === "GET") {
           return this.handleWorkspaceEventsStream(key, url);
+        }
+        if (sub === "/tasks" && method === "GET") {
+          return await this.handleWorkspaceTasks(key, url);
+        }
+        const taskMatch = sub.match(/^\/tasks\/([^/]+)$/);
+        if (taskMatch && method === "GET") {
+          return await this.handleWorkspaceTask(key, decodeURIComponent(taskMatch[1]!));
         }
 
         // Inbox route: /workspaces/:key/inbox/:agent
@@ -1215,6 +1223,46 @@ export class Daemon {
     const wsKey = handle.key;
     const filtered = result.entries.filter((e: any) => e.workspace === wsKey);
     return Response.json({ entries: filtered, cursor: result.cursor });
+  }
+
+  private async handleWorkspaceTasks(key: string, url: URL): Promise<Response> {
+    const resolved = this.resolveWorkspace(key);
+    if (resolved instanceof Response) return resolved;
+    const handle = resolved;
+
+    const store = handle.workspace.stateStore;
+    // `status` accepts a comma-separated filter: ?status=draft,open,in_progress
+    const statusParam = url.searchParams.get("status");
+    const statusFilter = statusParam
+      ? (statusParam
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean) as TaskStatus[])
+      : undefined;
+    const ownerLeadId = url.searchParams.get("ownerLeadId") ?? undefined;
+    const tasks = await store.listTasks({
+      ...(statusFilter ? { status: statusFilter } : {}),
+      ...(ownerLeadId ? { ownerLeadId } : {}),
+    });
+    return Response.json({ tasks });
+  }
+
+  private async handleWorkspaceTask(key: string, taskId: string): Promise<Response> {
+    const resolved = this.resolveWorkspace(key);
+    if (resolved instanceof Response) return resolved;
+    const handle = resolved;
+
+    const store = handle.workspace.stateStore;
+    const task = await store.getTask(taskId);
+    if (!task) {
+      return Response.json({ error: `Task ${taskId} not found` }, { status: 404 });
+    }
+    const [attempts, handoffs, artifacts] = await Promise.all([
+      store.listAttempts(taskId),
+      store.listHandoffs(taskId),
+      store.listArtifacts(taskId),
+    ]);
+    return Response.json({ task, attempts, handoffs, artifacts });
   }
 
   private handleWorkspaceEventsStream(key: string, url: URL): Response {
