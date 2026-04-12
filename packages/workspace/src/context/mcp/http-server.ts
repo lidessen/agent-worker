@@ -7,11 +7,12 @@
  */
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { resolveScriptEntrypointCommand } from "@agent-worker/shared";
 
 /**
  * Create an MCP config file for a CLI agent.
  *
- * - claude-code: stdio config (spawns bun subprocess proxying through daemon API)
+ * - claude-code: stdio config (prefers bun, falls back to node+tsx)
  * - codex/cursor: HTTP config (points to WorkspaceMcpHub)
  */
 export async function createWorkspaceMcpConfig(
@@ -36,18 +37,17 @@ export async function createWorkspaceMcpConfig(
   if (runtime === "claude-code") {
     // Claude Code: stdio subprocess (--mcp-config doesn't load HTTP in -p mode)
     const entryPath = join(dirname(fileURLToPath(import.meta.url)), "stdio-entry.ts");
+    const scriptCommand = resolveScriptEntrypointCommand(entryPath, [
+      opts.daemonUrl ?? "",
+      opts.daemonToken ?? "",
+      opts.workspaceKey ?? "global",
+      agentName,
+    ]);
     config = {
       mcpServers: {
         workspace: {
-          command: "bun",
-          args: [
-            "run",
-            entryPath,
-            opts.daemonUrl ?? "",
-            opts.daemonToken ?? "",
-            opts.workspaceKey ?? "global",
-            agentName,
-          ],
+          command: scriptCommand.command,
+          args: scriptCommand.args,
         },
       },
     };

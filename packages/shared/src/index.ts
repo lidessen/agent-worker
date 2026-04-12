@@ -1,6 +1,12 @@
 export { c, fmtTime } from "./cli-colors.ts";
 export { readFrom, parseJsonl, appendJsonl } from "./jsonl.ts";
 export { EventBus, bus } from "./event-bus.ts";
+export {
+  getPreferredScriptRuntime,
+  resolveScriptEntrypointCommand,
+  type ScriptRuntime,
+  type ScriptEntrypointCommand,
+} from "./script-runtime.ts";
 export type {
   BaseBusEvent,
   BusEvent,

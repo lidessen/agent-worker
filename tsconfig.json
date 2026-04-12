@@ -9,6 +9,13 @@
     "allowJs": true,
 
     "moduleResolution": "bundler",
+    "paths": {
+      "agent-worker": ["./packages/agent-worker/src/index.ts"],
+      "@agent-worker/agent": ["./packages/agent/src/index.ts"],
+      "@agent-worker/loop": ["./packages/loop/src/index.ts"],
+      "@agent-worker/shared": ["./packages/shared/src/index.ts"],
+      "@agent-worker/workspace": ["./packages/workspace/src/index.ts"]
+    },
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "noEmit": true,
