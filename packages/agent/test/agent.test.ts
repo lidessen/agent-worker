@@ -746,6 +746,27 @@ function createUsageLoop(usageSequence: Array<{ total: number }>): AgentLoop {
   return loop;
 }
 
+/**
+ * Wait for the agent to (a) leave idle and then (b) return to idle/stopped/
+ * error. Polls so tests aren't timing-sensitive. The initial idle state is
+ * skipped — we first wait for onWake/debounce to kick processing off, then
+ * wait for it to settle again.
+ */
+async function waitForSettle(agent: Agent, capMs = 2000): Promise<void> {
+  const start = Date.now();
+  // Phase 1: wait for the agent to leave idle (debounce + onWake).
+  while (Date.now() - start < capMs) {
+    if (agent.state !== "idle") break;
+    await new Promise((r) => setTimeout(r, 5));
+  }
+  // Phase 2: wait for it to come back to a terminal resting state.
+  while (Date.now() - start < capMs) {
+    const s = agent.state;
+    if (s === "idle" || s === "stopped" || s === "error") return;
+    await new Promise((r) => setTimeout(r, 10));
+  }
+}
+
 describe("Agent context pressure", () => {
   test("fires onContextPressure at soft threshold based on absolute tokens", async () => {
     const calls: Array<{ level: string; total: number }> = [];
@@ -765,7 +786,7 @@ describe("Agent context pressure", () => {
     await agent.init();
 
     agent.push("go");
-    await new Promise((r) => setTimeout(r, 150));
+    await waitForSettle(agent);
 
     // First usage (500) is below soft (1000); second and third cross soft — only fires once.
     expect(calls).toHaveLength(1);
@@ -792,7 +813,7 @@ describe("Agent context pressure", () => {
     await agent.init();
 
     agent.push("go");
-    await new Promise((r) => setTimeout(r, 200));
+    await waitForSettle(agent);
 
     // Both soft (escalated) and hard should have fired from a single usage event of 3000.
     expect(calls.map((c) => c.level)).toEqual(["soft", "hard"]);
@@ -811,7 +832,7 @@ describe("Agent context pressure", () => {
     await agent.init();
 
     agent.push("go");
-    await new Promise((r) => setTimeout(r, 150));
+    await waitForSettle(agent);
 
     expect(agent.lastUsage?.totalTokens).toBe(250);
     expect(agent.lastUsage?.source).toBe("runtime");
@@ -833,7 +854,7 @@ describe("Agent context pressure", () => {
     await agent.init();
 
     agent.push("go");
-    await new Promise((r) => setTimeout(r, 150));
+    await waitForSettle(agent);
 
     // Agent should have reached idle, not error — throwing hook is swallowed.
     expect(agent.state).toBe("idle");
@@ -858,7 +879,7 @@ describe("Agent context pressure", () => {
     await agent.init();
 
     agent.push("go");
-    await new Promise((r) => setTimeout(r, 150));
+    await waitForSettle(agent);
 
     expect(fired).toBe(0);
   });
