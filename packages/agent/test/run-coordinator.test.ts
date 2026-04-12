@@ -392,9 +392,9 @@ describe("RunCoordinator", () => {
     expect(memory.extractCalls.length).toBeGreaterThanOrEqual(2);
     expect(memory.extractCalls.some((call) => call.source.startsWith("run_1:event_"))).toBe(true);
     expect(memory.extractCalls.some((call) => call.source === "run_1")).toBe(true);
-    expect(memory.extractCalls.some((call) => call.turns.some((turn) => turn.role === "tool"))).toBe(
-      true,
-    );
+    expect(
+      memory.extractCalls.some((call) => call.turns.some((turn) => turn.role === "tool")),
+    ).toBe(true);
   });
 
   test("processLoop keeps fallback tool ids stable across assistant buffer flushes", async () => {
@@ -441,10 +441,10 @@ describe("RunCoordinator", () => {
     const toolTurns = memory.extractCalls
       .flatMap((call) => call.turns)
       .filter((turn) => turn.role === "tool");
-    expect(toolTurns.some((turn) => turn.content.includes("args={\"note\":\"capture this\"}"))).toBe(
+    expect(toolTurns.some((turn) => turn.content.includes('args={"note":"capture this"}'))).toBe(
       true,
     );
-    expect(toolTurns.some((turn) => turn.content.includes("result={\"ok\":true}"))).toBe(true);
+    expect(toolTurns.some((turn) => turn.content.includes('result={"ok":true}'))).toBe(true);
   });
 
   test("processLoop returns error when loop throws", async () => {
