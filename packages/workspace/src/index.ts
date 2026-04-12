@@ -39,6 +39,8 @@ export type { PromptSection, PromptContext } from "./loop/prompt.tsx";
 
 // ── MCP tools ──────────────────────────────────────────────────────────────
 export { createWorkspaceTools, WORKSPACE_TOOL_DEFS } from "./context/mcp/server.ts";
+export { createTaskTools, TASK_TOOL_DEFS } from "./context/mcp/task.ts";
+export type { TaskTools, TaskToolsDeps } from "./context/mcp/task.ts";
 export type { WorkspaceToolSet } from "./context/mcp/server.ts";
 export { createChannelTools } from "./context/mcp/channel.ts";
 export { createInboxTools } from "./context/mcp/inbox.ts";
