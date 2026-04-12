@@ -8,6 +8,7 @@ import {
   toWorkspaceConfig,
   resolveConnections,
   WORKSPACE_TOOL_DEFS,
+  buildLeadHooks,
 } from "@agent-worker/workspace";
 import type { Workspace, ResolvedAgent, WorkspaceToolSet } from "@agent-worker/workspace";
 import type { AgentLoop } from "@agent-worker/agent";
@@ -267,6 +268,8 @@ export class WorkspaceRegistry {
         stateStore: workspace.stateStore,
         role: agent.role,
         workspaceName: workspace.name,
+        onCheckpoint:
+          agent.role === "lead" ? buildLeadHooks(workspace.stateStore).onCheckpoint : undefined,
         // Arrow function defers orch access until invocation (after assignment)
         onInstruction: (prompt, instruction) =>
           this.createInstructionHandler(
@@ -421,6 +424,8 @@ export class WorkspaceRegistry {
         stateStore: workspace.stateStore,
         role: agent.role,
         workspaceName: workspace.name,
+        onCheckpoint:
+          agent.role === "lead" ? buildLeadHooks(workspace.stateStore).onCheckpoint : undefined,
         onInstruction: (prompt, instruction) =>
           this.createInstructionHandler(key, agent, workspace, runner, orch)(prompt, instruction),
       });

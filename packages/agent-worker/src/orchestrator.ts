@@ -19,6 +19,18 @@ import type {
 } from "@agent-worker/workspace";
 import { assemblePrompt, BASE_SECTIONS, nanoid } from "@agent-worker/workspace";
 
+/**
+ * Lightweight checkpoint hook shape used by the orchestrator. Intentionally
+ * a subset of @agent-worker/agent's AgentLifecycleHooks so the workspace's
+ * buildLeadHooks can plug in without a cross-package dependency.
+ */
+export type OrchestratorCheckpointReason = "run_start" | "run_end";
+export type OrchestratorCheckpointAction = { kind: "noop" } | { kind: "inject"; content: string };
+export type OrchestratorCheckpointHook = (ctx: {
+  reason: OrchestratorCheckpointReason;
+  runNumber: number;
+}) => Promise<OrchestratorCheckpointAction | void> | OrchestratorCheckpointAction | void;
+
 export interface OrchestratorConfig {
   name: string;
   instructions?: string;
@@ -43,6 +55,14 @@ export interface OrchestratorConfig {
   role?: AgentRole;
   /** Workspace name — passed into PromptContext as workspaceName. */
   workspaceName?: string;
+  /**
+   * Optional onCheckpoint hook. Fires at the start and end of each
+   * instruction dispatch. Returning `{kind:"inject", content}` at run_start
+   * prepends the content to the prompt; returning it at run_end pushes the
+   * content onto the agent's inbox as a system message so the next run
+   * picks it up.
+   */
+  onCheckpoint?: OrchestratorCheckpointHook;
 }
 
 /**
@@ -84,6 +104,8 @@ export class WorkspaceOrchestrator {
 
   private readonly pollInterval: number;
   private readonly sections: PromptSection[];
+  /** Monotonic counter of instructions dispatched — used as onCheckpoint runNumber. */
+  private runCounter = 0;
 
   constructor(private readonly config: OrchestratorConfig) {
     this.pollInterval = config.pollInterval ?? 5000;
@@ -332,9 +354,13 @@ export class WorkspaceOrchestrator {
       instruction.content.slice(0, 100),
     );
 
-    // 3. Build prompt
+    // 3. Build prompt + fire run_start checkpoint hook
     const currentInbox = await this.config.provider.inbox.peek(this.config.name);
-    const prompt = await this.buildPrompt(currentInbox, instruction);
+    const basePrompt = await this.buildPrompt(currentInbox, instruction);
+    this.runCounter++;
+    const runNumber = this.runCounter;
+    const prologue = await this.fireCheckpoint("run_start", runNumber);
+    const prompt = prologue ? `${prologue}\n\n${basePrompt}` : basePrompt;
 
     // 4. Execute
     try {
@@ -350,10 +376,72 @@ export class WorkspaceOrchestrator {
       await this.config.eventLog.log(this.config.name, "system", `Instruction failed: ${err}`);
     }
 
+    // 5. Fire run_end checkpoint hook — inject routes to the inbox as a
+    //    system message so the next tick picks it up.
+    await this.fireCheckpoint("run_end", runNumber);
+
     const currentStatus = this.config.provider.status.getCached(this.config.name)?.status;
     if (this.running && !this.paused && currentStatus === "running") {
       await this.config.provider.status.set(this.config.name, "idle");
     }
+  }
+
+  /**
+   * Call onCheckpoint if configured and dispatch any inject action.
+   * Returns the inject content when reason==="run_start" so the caller can
+   * prepend it to the run's prompt. At run_end the content is pushed to the
+   * inbox instead.
+   *
+   * Throws from the hook are swallowed and logged to the event log.
+   */
+  private async fireCheckpoint(
+    reason: OrchestratorCheckpointReason,
+    runNumber: number,
+  ): Promise<string | null> {
+    const hook = this.config.onCheckpoint;
+    if (!hook) return null;
+
+    let action: OrchestratorCheckpointAction | void;
+    try {
+      action = await hook({ reason, runNumber });
+    } catch (err) {
+      await this.config.eventLog.log(
+        this.config.name,
+        "system",
+        `onCheckpoint hook threw at ${reason}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return null;
+    }
+
+    if (!action || action.kind === "noop") return null;
+
+    if (action.kind === "inject") {
+      if (reason === "run_start") {
+        return action.content;
+      }
+      // run_end: enqueue a synthetic instruction so the next tick picks it
+      // up alongside any real work. Using the instruction queue (not the
+      // inbox) is the correct path because the instruction queue is what
+      // tick() actually drains; the inbox is only a read surface here.
+      try {
+        this.config.queue.enqueue({
+          id: nanoid(),
+          agentName: this.config.name,
+          messageId: `checkpoint:${runNumber}:${Date.now()}`,
+          channel: "system",
+          content: action.content,
+          priority: "normal",
+          enqueuedAt: new Date().toISOString(),
+        });
+      } catch (err) {
+        await this.config.eventLog.log(
+          this.config.name,
+          "system",
+          `onCheckpoint inject enqueue failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+    return null;
   }
 
   private async buildPrompt(
