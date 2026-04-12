@@ -375,6 +375,38 @@ describe("Unified daemon (workspace routes)", () => {
     await expect(client.completeWorkspaceTask("test-ws", taskId)).rejects.toThrow();
   });
 
+  test("task mutations emit workspace.task_changed events on the workspace stream", async () => {
+    await setup();
+    await client.createWorkspace(CHAT_YAML);
+
+    // Create a task and then poll for events — the bus emit should land
+    // in the workspace event log.
+    const created = await client.createWorkspaceTask("test-ws", {
+      title: "Stream me",
+      goal: "g",
+    });
+    const taskId = (created.task as { id: string }).id;
+
+    // Trigger another change so we have multiple events to find.
+    await client.updateWorkspaceTask("test-ws", taskId, { status: "open" });
+
+    let matches: Array<{ action?: string; taskId?: string }> = [];
+    for (let i = 0; i < 20 && matches.length < 2; i++) {
+      const result = await client.readWorkspaceEvents("test-ws", 0);
+      matches = (result.entries as Array<Record<string, unknown>>)
+        .filter((e) => e.type === "workspace.task_changed" && e.taskId === taskId)
+        .map((e) => ({
+          action: e.action as string | undefined,
+          taskId: e.taskId as string | undefined,
+        }));
+      if (matches.length < 2) await Bun.sleep(50);
+    }
+
+    const actions = matches.map((m) => m.action);
+    expect(actions).toContain("created");
+    expect(actions).toContain("updated");
+  });
+
   test("reads workspace events", async () => {
     await setup();
     await client.createWorkspace(CHAT_YAML);
