@@ -9,12 +9,13 @@ description: |
   team outperforms solo agents. Trigger on phrases like 'dev eval', 'run eval', 'compare
   performance', 'benchmark', '对比评估', '开发评估', '跑评估', 'eval iteration', '/dev-eval'.
 ---
+
 > **CLI path**: All bash code blocks use `$AW_CMD` for the agent-worker CLI.
 > Define it at the start of any shell session before running commands:
+>
 > ```bash
 > AW_CMD="/Users/lidessen/.bun/bin/bun /Users/lidessen/workspaces/agent-worker/packages/agent-worker/src/cli/index.ts"
 > ```
-
 
 > **Statistical significance notice**: A single eval run is anecdotal. Conclusions require
 > ≥3 independent runs of the same task config before attributing score differences to
@@ -65,17 +66,21 @@ Write a task spec **as a file**. Both sides get identical instructions via file 
 # Eval Task: [slug]
 
 ## Task
+
 [one-line summary]
 
 ## Requirements
+
 - [requirement 1]
 - [requirement 2]
 
 ## Acceptance Criteria
+
 - [criterion 1]
 - [criterion 2]
 
 ## Tier
+
 T1 / T2 / T3
 ```
 
@@ -271,6 +276,7 @@ data. The `data_dir` config persists raw data files, and the parallel `aw log -f
 pipe captures the streaming event log before the workspace disappears.
 
 **Completion**: `aw run` exits with:
+
 - `0` — all agents stopped naturally (completed)
 - `1` — a loop errored (failed)
 - `2` — `--wait` timeout exceeded
@@ -388,6 +394,7 @@ The Agent tool blocks until the worktree agent finishes.
 You get notified when each completes — no polling needed.
 
 While both run, you can optionally monitor workspace progress:
+
 ```
 $AW_CMD ls                               → workspace status
 $AW_CMD read "@eval-team#general" 5      → recent channel messages
@@ -428,6 +435,7 @@ comes from: (1) the parallel log capture file, (2) the `data_dir` persistent sto
 and (3) the git diff from the team worktree.
 
 **Note on service mode**: Workspace is still alive — you can also use MCP tools:
+
 ```
 channel_read(channel: "general", limit: 200)
 events(limit: 200)
@@ -437,6 +445,7 @@ agent_activity(agent: "claude-code", limit: 50)
 ### Claude-Code artifacts
 
 The worktree agent returns:
+
 - Its completion report (inline in result)
 - The worktree path + branch (from isolation)
 
@@ -455,13 +464,13 @@ git log --oneline --all > $EVAL_DIR/solo-commits.txt
 Both sides must provide **comparable** evidence for fair evaluation. The orchestrator
 should normalize artifacts before passing them to the evaluator:
 
-| Evidence type | Run A (Team) | Run B (Solo) | How to align |
-|--------------|-------------|-------------|-------------|
-| Code diff | `diff-team.patch` | `diff-solo.patch` | Both from worktrees against same baseline SHA ✅ |
-| Process log | `team-log.jsonl` (event stream) | Agent tool conversation (not captured) | Extract: total tool calls, errors, phases, duration from both |
-| Activity log | `aw log` events: messages, tool calls, status changes, errors per agent | Agent return value (self-reported) | Team has full observability; Solo is self-reported. Note asymmetry. |
-| Completion report | Channel messages (general) | Agent return value | Both should list: files changed, tests, decisions, issues |
-| Cost | Event log has token/usage data | Agent doesn't report tokens | Note as "unavailable" for Run B; don't score what you can't measure |
+| Evidence type     | Run A (Team)                                                            | Run B (Solo)                           | How to align                                                        |
+| ----------------- | ----------------------------------------------------------------------- | -------------------------------------- | ------------------------------------------------------------------- |
+| Code diff         | `diff-team.patch`                                                       | `diff-solo.patch`                      | Both from worktrees against same baseline SHA ✅                    |
+| Process log       | `team-log.jsonl` (event stream)                                         | Agent tool conversation (not captured) | Extract: total tool calls, errors, phases, duration from both       |
+| Activity log      | `aw log` events: messages, tool calls, status changes, errors per agent | Agent return value (self-reported)     | Team has full observability; Solo is self-reported. Note asymmetry. |
+| Completion report | Channel messages (general)                                              | Agent return value                     | Both should list: files changed, tests, decisions, issues           |
+| Cost              | Event log has token/usage data                                          | Agent doesn't report tokens            | Note as "unavailable" for Run B; don't score what you can't measure |
 
 **Rule**: If a metric is unavailable for one side, mark it "N/A" in the scorecard
 rather than guessing. The evaluator scores only what evidence supports.
@@ -472,21 +481,25 @@ The team's event log (`team-log.jsonl`) is a rich source of process-quality sign
 beyond the final diff. When preparing evidence for the evaluator, extract:
 
 **Collaboration quality:**
+
 - Message flow: who @mentioned whom, response latency between agents
 - Task handoffs: did the orchestrator decompose clearly? Did executors stay in scope?
 - Review loops: how many review cycles? What got caught?
 
 **Autonomy signals:**
+
 - Error → recovery patterns: did agents self-recover or get stuck?
 - Idle gaps: long periods with no events = agent likely stuck
 - Repeated tool calls on same file = potential thrashing
 
 **Efficiency signals:**
+
 - Parallel activity: overlapping timestamps across agents = concurrent work
 - Total events per agent: high count on one agent = unbalanced load
 - Tool call success rate: failures / total = quality of approach
 
 Use the metrics script to extract these automatically:
+
 ```bash
 cat $EVAL_DIR/team-log.jsonl | bun .claude/skills/dev-eval/scripts/eval-metrics.ts
 ```
@@ -727,22 +740,24 @@ Update the running summary:
 
 How each side signals completion:
 
-| Side | Mode | Signal | How to detect |
-|------|------|--------|---------------|
-| **Agent-Worker** | `aw run` (task) | Process exits with status 0/1/2 | Bash `run_in_background` — notified on exit |
-| **Agent-Worker** | service | `EVAL_COMPLETE_TEAM` in channel | `aw read "@eval-team#general" 5` |
-| **Agent-Worker** | service (backup) | All agents idle | `agents` MCP tool |
-| **Claude-Code** | worktree | Agent tool returns | Natural — return value contains report |
-| **Evaluator** | — | Agent tool returns | Parse scorecard from return |
-| **Reviewer** | — | Agent tool returns | APPROVED or REVISED SCORES |
+| Side             | Mode             | Signal                          | How to detect                               |
+| ---------------- | ---------------- | ------------------------------- | ------------------------------------------- |
+| **Agent-Worker** | `aw run` (task)  | Process exits with status 0/1/2 | Bash `run_in_background` — notified on exit |
+| **Agent-Worker** | service          | `EVAL_COMPLETE_TEAM` in channel | `aw read "@eval-team#general" 5`            |
+| **Agent-Worker** | service (backup) | All agents idle                 | `agents` MCP tool                           |
+| **Claude-Code**  | worktree         | Agent tool returns              | Natural — return value contains report      |
+| **Evaluator**    | —                | Agent tool returns              | Parse scorecard from return                 |
+| **Reviewer**     | —                | Agent tool returns              | APPROVED or REVISED SCORES                  |
 
 **`aw run` is the preferred mode** because:
+
 - Exit code = completion status (0=done, 1=failed, 2=timeout)
 - `--tag` allows re-running the same config for iterations
 - `--wait 30m` prevents indefinite hanging
 - No need for channel polling or explicit completion markers
 
 **Caveat**: `aw run` auto-removes workspace on completion. Mitigated by:
+
 1. `data_dir` in YAML config → persists workspace data to disk
 2. Parallel `aw log @eval-team -f --json` pipe → captures event stream before removal
 3. Git diff captured from team worktree → not affected by workspace removal
@@ -763,14 +778,14 @@ See [target.ts](packages/agent-worker/src/cli/target.ts) for full grammar.
 
 ## Evaluation Dimensions
 
-| Dimension | What to measure |
-|-----------|----------------|
-| **Autonomy** | Human interventions, stuck episodes, self-recovery |
-| **Quality** | Correctness, test pass rate, review findings |
-| **Speed** | Wall-clock time from start to completion |
+| Dimension           | What to measure                                                       |
+| ------------------- | --------------------------------------------------------------------- |
+| **Autonomy**        | Human interventions, stuck episodes, self-recovery                    |
+| **Quality**         | Correctness, test pass rate, review findings                          |
+| **Speed**           | Wall-clock time from start to completion                              |
 | **Maintainability** | Code readability, structure, naming, test coverage for future changes |
-| **Completeness** | Requirements coverage, edge cases handled |
-| **Cost** | Total tokens/API calls consumed (N/A if unavailable) |
+| **Completeness**    | Requirements coverage, edge cases handled                             |
+| **Cost**            | Total tokens/API calls consumed (N/A if unavailable)                  |
 
 **No pre-assumed advantages.** The eval measures what actually happened, not what
 the architecture theoretically enables. The whole point is to discover — with evidence
@@ -778,11 +793,11 @@ the architecture theoretically enables. The whole point is to discover — with 
 
 ## Task Tiers
 
-| Tier | Examples |
-|------|----------|
-| **T1** (simple) | Add CLI command, fix known bug, add config option |
-| **T2** (medium) | New feature 3-5 files, refactor with cross-cutting concerns |
-| **T3** (complex) | New subsystem, multi-package change, perf optimization |
+| Tier             | Examples                                                    |
+| ---------------- | ----------------------------------------------------------- |
+| **T1** (simple)  | Add CLI command, fix known bug, add config option           |
+| **T2** (medium)  | New feature 3-5 files, refactor with cross-cutting concerns |
+| **T3** (complex) | New subsystem, multi-package change, perf optimization      |
 
 **Start with T2** — that's where the comparison is most interesting.
 
@@ -791,14 +806,14 @@ the architecture theoretically enables. The whole point is to discover — with 
 Different tiers weight dimensions differently. Apply multipliers when
 computing weighted totals (optional — useful for trend analysis):
 
-| Dimension | T1 weight | T2 weight | T3 weight |
-|-----------|:---------:|:---------:|:---------:|
-| Autonomy | 1.0 | 1.5 | 2.0 |
-| Quality | 2.0 | 2.0 | 2.0 |
-| Speed | 1.5 | 1.0 | 0.5 |
-| Maintainability | 0.5 | 1.5 | 2.0 |
-| Completeness | 2.0 | 2.0 | 2.0 |
-| Cost | 0.5 | 1.0 | 1.5 |
+| Dimension       | T1 weight | T2 weight | T3 weight |
+| --------------- | :-------: | :-------: | :-------: |
+| Autonomy        |    1.0    |    1.5    |    2.0    |
+| Quality         |    2.0    |    2.0    |    2.0    |
+| Speed           |    1.5    |    1.0    |    0.5    |
+| Maintainability |    0.5    |    1.5    |    2.0    |
+| Completeness    |    2.0    |    2.0    |    2.0    |
+| Cost            |    0.5    |    1.0    |    1.5    |
 
 **T1**: Speed and quality matter most — overhead dominates.
 **T2**: Balanced — autonomy and maintainability start to differentiate.
@@ -815,14 +830,14 @@ coordination patterns.
 Each eval produces a scorecard + reviewer analysis. Extract **specific** improvement
 actions for the workspace YAML:
 
-| Signal in scorecard | What to change in YAML |
-|---------------------|----------------------|
-| Low **Autonomy** — agents got stuck, waited | Strengthen agent instructions: add self-unblocking rules, error recovery steps |
-| Low **Quality** — bugs, missing tests | Add a dedicated reviewer agent, or strengthen review in orchestrator prompt |
-| Low **Speed** — sequential when could be parallel | Restructure roles so more work can happen concurrently |
+| Signal in scorecard                                 | What to change in YAML                                                                 |
+| --------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Low **Autonomy** — agents got stuck, waited         | Strengthen agent instructions: add self-unblocking rules, error recovery steps         |
+| Low **Quality** — bugs, missing tests               | Add a dedicated reviewer agent, or strengthen review in orchestrator prompt            |
+| Low **Speed** — sequential when could be parallel   | Restructure roles so more work can happen concurrently                                 |
 | Low **Maintainability** — messy code, missing tests | Add reviewer agent or strengthen review prompt; require test coverage in done criteria |
-| Low **Completeness** — missed requirements | Add requirement-checking step in orchestrator's completion protocol |
-| High **Cost** — too many tokens for the result | Reduce agent count, use cheaper models for simple roles, tighten prompts |
+| Low **Completeness** — missed requirements          | Add requirement-checking step in orchestrator's completion protocol                    |
+| High **Cost** — too many tokens for the result      | Reduce agent count, use cheaper models for simple roles, tighten prompts               |
 
 ### Team composition experiments
 
@@ -860,12 +875,14 @@ agents:
 The `instructions` field in YAML is the most impactful lever. Key patterns to test:
 
 **Orchestrator prompt variables:**
+
 - Decomposition granularity: "break into 2-3 subtasks" vs "one subtask per agent"
 - Review depth: "spot-check" vs "review every file changed"
 - Completion protocol: strict (checklist) vs loose (judgment call)
 - Communication style: verbose (explain reasoning) vs terse (action only)
 
 **Executor prompt variables:**
+
 - Autonomy level: "ask @orchestrator before making design decisions" vs "make best judgment, report after"
 - Scope discipline: "ONLY do your assigned subtask" vs "fix related issues you notice"
 - Reporting: "post progress updates" vs "only report when done"
@@ -888,6 +905,7 @@ design produces better results. Track in SUMMARY.md with a "Config" column.
 ### Graduation criteria
 
 A team design "graduates" when:
+
 1. It consistently outperforms claude-code solo on T2+ tasks (Delta > +3)
 2. It doesn't regress on T1 tasks (Delta >= -1, acceptable overhead)
 3. The cost ratio is reasonable (Team cost < 3x Solo cost for > +5 quality delta)

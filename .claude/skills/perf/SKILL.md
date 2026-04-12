@@ -23,12 +23,12 @@ bash ~/.claude/skills/perf/scripts/run-perf.sh
 
 ### Options
 
-| Flag | Effect |
-|------|--------|
-| (none) | Full pipeline: bump version, build, restart daemon, run Lighthouse |
-| `--no-build` | Skip build + version bump (test current deployed code) |
-| `--no-restart` | Skip daemon restart |
-| `--quick` | Skip Lighthouse, do a fast agent-browser DOM check instead |
+| Flag           | Effect                                                             |
+| -------------- | ------------------------------------------------------------------ |
+| (none)         | Full pipeline: bump version, build, restart daemon, run Lighthouse |
+| `--no-build`   | Skip build + version bump (test current deployed code)             |
+| `--no-restart` | Skip daemon restart                                                |
+| `--quick`      | Skip Lighthouse, do a fast agent-browser DOM check instead         |
 
 ### Quick check (no Lighthouse, ~3s)
 
@@ -41,14 +41,14 @@ a change didn't break rendering without waiting for a full Lighthouse run.
 
 ## What the metrics mean
 
-| Metric | Target | Why it matters |
-|--------|--------|----------------|
-| **TBT** (Total Blocking Time) | <200ms | Time the main thread is blocked — directly causes "can't click" |
-| **TTI** (Time to Interactive) | <1s | When the page first becomes fully interactive |
-| **FCP** (First Contentful Paint) | <0.5s | When the user first sees content |
-| **LCP** (Largest Contentful Paint) | <1.5s | When the main content is visible |
-| **Style & Layout** | <100ms | CSS style recalculation + layout — the main bottleneck in this app |
-| **Long Tasks** | 0 >500ms | Tasks that block the event loop — causes UI freezes |
+| Metric                             | Target   | Why it matters                                                     |
+| ---------------------------------- | -------- | ------------------------------------------------------------------ |
+| **TBT** (Total Blocking Time)      | <200ms   | Time the main thread is blocked — directly causes "can't click"    |
+| **TTI** (Time to Interactive)      | <1s      | When the page first becomes fully interactive                      |
+| **FCP** (First Contentful Paint)   | <0.5s    | When the user first sees content                                   |
+| **LCP** (Largest Contentful Paint) | <1.5s    | When the main content is visible                                   |
+| **Style & Layout**                 | <100ms   | CSS style recalculation + layout — the main bottleneck in this app |
+| **Long Tasks**                     | 0 >500ms | Tasks that block the event loop — causes UI freezes                |
 
 ## Comparing runs
 

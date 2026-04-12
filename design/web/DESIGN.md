@@ -32,14 +32,15 @@
 Web 前端使用 `fetch + ReadableStream + Authorization header` 消费流式端点，**不使用 EventSource**。
 
 理由：
+
 - `fetch` 流式响应可以带 `Authorization` header，不需要把 token 暴露到 URL query param
 - 与已有 CLI client (`packages/agent-worker/src/client.ts`) 的 `sseStream()` 模式一致
 - 避免维护 REST header auth 和 SSE query auth 两套逻辑
 
 ### Packages
 
-| Package | 位置 | 职责 |
-|---------|------|------|
+| Package             | 位置            | 职责                                |
+| ------------------- | --------------- | ----------------------------------- |
 | `@agent-worker/web` | `packages/web/` | SPA 前端, 只依赖 `semajsx` umbrella |
 
 前端 `jsxImportSource: semajsx/dom`。
@@ -82,22 +83,22 @@ GET    /events                              — 全局事件日志 (cursor-based
 
 ### 需要补齐的 Gap
 
-| Gap | 现状 | 需要做的 |
-|-----|------|---------|
-| **Stream replay/cursor** | 所有 `.../stream` 都是 live-only，不支持 `?cursor=N` 回放 | 统一所有 stream handler: 先按 cursor 补发 backlog，再切 live push |
-| **Channel stream 过滤** | `handleWorkspaceChannelStream()` 推送 workspace 全部 message 事件，不按 channel 过滤 | 只推送 `msg.channel === ch`；若有 `?agent` query，只保留相关消息 |
-| **静态文件服务** | 无 | 加 SPA fallback 路由: serve `packages/web/dist/`, 未匹配路径返回 `index.html` |
-| **BusEvent 类型** | 弱类型信封 (`type/source/agent/workspace/[payload]`) | 前端需要做事件分类映射 (见下方前端状态设计) |
+| Gap                      | 现状                                                                                 | 需要做的                                                                      |
+| ------------------------ | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| **Stream replay/cursor** | 所有 `.../stream` 都是 live-only，不支持 `?cursor=N` 回放                            | 统一所有 stream handler: 先按 cursor 补发 backlog，再切 live push             |
+| **Channel stream 过滤**  | `handleWorkspaceChannelStream()` 推送 workspace 全部 message 事件，不按 channel 过滤 | 只推送 `msg.channel === ch`；若有 `?agent` query，只保留相关消息              |
+| **静态文件服务**         | 无                                                                                   | 加 SPA fallback 路由: serve `packages/web/dist/`, 未匹配路径返回 `index.html` |
+| **BusEvent 类型**        | 弱类型信封 (`type/source/agent/workspace/[payload]`)                                 | 前端需要做事件分类映射 (见下方前端状态设计)                                   |
 
 ## Frontend Pages
 
-| 页面 | 路径 | 数据源 |
-|------|------|--------|
-| Dashboard | `/` | `/health`, `/agents`, `/workspaces` |
-| Agent Chat | `/agents/:name` | `/agents/:name/state` + `/agents/:name/responses` + stream |
-| Workspace | `/workspaces/:key` | `/workspaces/:key/status` + `/workspaces/:key/events` + docs APIs |
-| Channel | `/workspaces/:key/channels/:ch` | `/workspaces/:key/channels/:ch` + stream |
-| Settings | `/settings` | 本地 localStorage |
+| 页面       | 路径                            | 数据源                                                            |
+| ---------- | ------------------------------- | ----------------------------------------------------------------- |
+| Dashboard  | `/`                             | `/health`, `/agents`, `/workspaces`                               |
+| Agent Chat | `/agents/:name`                 | `/agents/:name/state` + `/agents/:name/responses` + stream        |
+| Workspace  | `/workspaces/:key`              | `/workspaces/:key/status` + `/workspaces/:key/events` + docs APIs |
+| Channel    | `/workspaces/:key/channels/:ch` | `/workspaces/:key/channels/:ch` + stream                          |
+| Settings   | `/settings`                     | 本地 localStorage                                                 |
 
 ### 前端状态
 
@@ -105,7 +106,9 @@ Signal-based stores，**按语义分桶**（不是只用一个 eventsByTarget）
 
 ```ts
 // daemon 连接
-const connectionState = signal<"connecting" | "connected" | "disconnected" | "error">("disconnected");
+const connectionState = signal<"connecting" | "connected" | "disconnected" | "error">(
+  "disconnected",
+);
 
 // agents
 const agents = signal<AgentInfo[]>([]);
@@ -131,15 +134,16 @@ const cursorByTarget = signal<Map<string, number>>(new Map());
 
 ## Open Questions
 
-| # | 问题 | 影响 | 验证方式 |
-|---|------|------|---------|
-| 1 | Stream replay 方案: 支持 `?cursor=N` backlog vs 前端先 GET 再连 stream | 决定 daemon 改动范围 | M0 实现时选择 |
-| 2 | BusEvent → 前端事件分类的映射规则 | 决定 stores 的 shape 和 block 渲染 | 对比 daemon 实际推送的事件类型 |
-| 3 | 长 event log 的分页/裁剪 | daemon 已有 cursor-based 分页，确认是否够用 | M0 验证 |
+| #   | 问题                                                                   | 影响                                        | 验证方式                       |
+| --- | ---------------------------------------------------------------------- | ------------------------------------------- | ------------------------------ |
+| 1   | Stream replay 方案: 支持 `?cursor=N` backlog vs 前端先 GET 再连 stream | 决定 daemon 改动范围                        | M0 实现时选择                  |
+| 2   | BusEvent → 前端事件分类的映射规则                                      | 决定 stores 的 shape 和 block 渲染          | 对比 daemon 实际推送的事件类型 |
+| 3   | 长 event log 的分页/裁剪                                               | daemon 已有 cursor-based 分页，确认是否够用 | M0 验证                        |
 
 ## Milestones
 
 ### M0: Daemon 补齐 + 验证
+
 - 补 stream cursor/replay 语义 (所有 stream handler)
 - 修 channel stream filter (按 channel + agent 过滤)
 - 加静态文件服务 + SPA fallback
@@ -147,6 +151,7 @@ const cursorByTarget = signal<Map<string, number>>(new Map());
 - 映射 BusEvent 类型 → 前端事件分类
 
 ### M1: 最小前端
+
 - `packages/web/` SPA 骨架 + signal stores + fetch streaming client
 - Dashboard: 列出 agents + workspaces
 - Agent Chat: 发消息 + 实时 responses stream 渲染
@@ -154,16 +159,19 @@ const cursorByTarget = signal<Map<string, number>>(new Map());
 - 移动端响应式
 
 ### M2: Workspace 功能
+
 - M2a: Agent Inspector — state, inbox, todos
 - M2b: Channel 视图 — 消息流 + 发送
 - M2c: Docs 集成 — 查看/编辑
 
 ### M3: 增强
+
 - Workspace 创建 (YAML 编辑器)
 - Runtime/model 配置
 - 富渲染 (ToolCallCard, ThinkingBlock)
 
 ### M4: 组件提炼
+
 - 从 `packages/web` 提炼稳定组件到 `@semajsx/blocks` + `@semajsx/chat`
 - Umbrella 导出 `semajsx/blocks`, `semajsx/chat`
 - 供未来其他前端复用

@@ -56,7 +56,7 @@ design/
 ## Web UI (`packages/web/`)
 
 - SPA built with semajsx framework, NOT React
-- Only depends on `semajsx` umbrella package (not individual @semajsx/* packages)
+- Only depends on `semajsx` umbrella package (not individual @semajsx/\* packages)
 - `jsxImportSource: semajsx/dom` — all .tsx files need `/** @jsxImportSource semajsx/dom */`
 - Build: `cd packages/web && bun run build`
 - Auto-connects to same origin (daemon serves the SPA)
@@ -64,15 +64,17 @@ design/
 ### semajsx patterns (NOT React)
 
 Components return JSXNode, not functions:
+
 ```tsx
 // WRONG — crashes with "Invalid component return type: function"
-return () => <div>...</div>
+return () => <div>...</div>;
 
 // RIGHT
-return <div>...</div>
+return <div>...</div>;
 ```
 
 Reactive content — pass signals directly, not wrapper functions:
+
 ```tsx
 // WRONG — function children are ignored with a warning
 <span>{() => count.value}</span>
@@ -85,20 +87,27 @@ Reactive content — pass signals directly, not wrapper functions:
 ```
 
 Conditional rendering:
+
 ```tsx
 // WRONG
-{condition.value ? <A /> : null}
+{
+  condition.value ? <A /> : null;
+}
 
 // RIGHT
-{when(conditionSignal, () => <A />)}
+{
+  when(conditionSignal, () => <A />);
+}
 ```
 
 Event handlers ARE functions (this is correct):
+
 ```tsx
 <button onclick={() => doThing()}>Click</button>
 ```
 
 Cleanup via component `ctx.onCleanup` (not useEffect/MutationObserver):
+
 ```tsx
 import type { ComponentAPI } from "semajsx";
 
@@ -110,6 +119,7 @@ function MyComponent(_props: Record<string, never>, ctx?: ComponentAPI) {
 ```
 
 Tokens need injection:
+
 ```tsx
 import { defineAndInjectTokens } from "semajsx/style";
 const tokens = defineAndInjectTokens({ colors: { bg: "#000" } });
@@ -117,6 +127,7 @@ const tokens = defineAndInjectTokens({ colors: { bg: "#000" } });
 ```
 
 Don't return raw DOM nodes from components:
+
 ```tsx
 // WRONG — crashes
 const el = document.createElement("div");
@@ -124,7 +135,13 @@ el.innerHTML = html;
 return el;
 
 // RIGHT — use ref callback
-return <div ref={(el: HTMLDivElement) => { el.innerHTML = html; }} />;
+return (
+  <div
+    ref={(el: HTMLDivElement) => {
+      el.innerHTML = html;
+    }}
+  />
+);
 ```
 
 ## Naming Conventions
