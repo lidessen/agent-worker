@@ -29,7 +29,7 @@ interface CodexTurnState {
 }
 
 export class CodexLoop {
-  readonly supports = ["interruptible"] as const;
+  readonly supports = ["interruptible", "usageStream"] as const;
   private _status: LoopStatus = "idle";
   private abortController: AbortController | null = null;
   private _mcpConfigPath: string | null = null;
@@ -267,6 +267,13 @@ export class CodexLoop {
           outputTokens: params.tokenUsage.last.outputTokens ?? 0,
           totalTokens: params.tokenUsage.last.totalTokens ?? 0,
         };
+        turn.emit({
+          type: "usage",
+          inputTokens: turn.usage.inputTokens,
+          outputTokens: turn.usage.outputTokens,
+          totalTokens: turn.usage.totalTokens,
+          source: "runtime",
+        });
         return;
       }
 

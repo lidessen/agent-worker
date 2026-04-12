@@ -72,7 +72,7 @@ function mapClaudeEvent(data: unknown) {
       const usage = event.usage as Record<string, number> | undefined;
       if (usage) {
         return {
-          type: "usage" as const,
+          type: "usage_delta" as const,
           usage: {
             inputTokens: usage.input_tokens ?? 0,
             outputTokens: usage.output_tokens ?? 0,

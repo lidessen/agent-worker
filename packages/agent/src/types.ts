@@ -13,7 +13,12 @@ export type AgentState = "idle" | "waiting" | "processing" | "error" | "stopped"
 
 // ── AgentLoop capability interface ─────────────────────────────────────────
 
-export type LoopCapability = "directTools" | "prepareStep" | "interruptible" | "hooks";
+export type LoopCapability =
+  | "directTools"
+  | "prepareStep"
+  | "interruptible"
+  | "hooks"
+  | "usageStream";
 
 export type PrepareStepResult = {
   system?: string;

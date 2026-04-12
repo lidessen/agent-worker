@@ -3,8 +3,14 @@ import { createEventChannel } from "../types.ts";
 import { spawnCli } from "./cli.ts";
 import { createStreamParser } from "./stream-parser.ts";
 
-/** Internal event type that includes usage (not exposed to timeline) */
-export type RawCliEvent = LoopEvent | { type: "usage"; usage: TokenUsage } | null;
+/**
+ * Internal event type for CLI loop mappers. The `"usage_delta"` variant is a
+ * sentinel used to accumulate per-message token deltas into the final
+ * `LoopResult.usage` total — it is NOT emitted to the LoopEvent timeline.
+ * For mid-stream public usage reporting, emit a real `LoopEvent` of
+ * `{ type: "usage", ..., source: "runtime" }`.
+ */
+export type RawCliEvent = LoopEvent | { type: "usage_delta"; usage: TokenUsage } | null;
 
 export interface CliLoopConfig {
   command: string;
@@ -40,7 +46,7 @@ export function runCliLoop(
     const handleRaw = (raw: RawCliEvent) => {
       if (!raw) return;
 
-      if (raw.type === "usage") {
+      if (raw.type === "usage_delta") {
         usage.inputTokens += raw.usage.inputTokens;
         usage.outputTokens += raw.usage.outputTokens;
         usage.totalTokens += raw.usage.totalTokens;

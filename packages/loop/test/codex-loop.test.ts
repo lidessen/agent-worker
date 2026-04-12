@@ -297,6 +297,24 @@ describe("CodexLoop", () => {
             event.type === "text" && event.text === "Hello",
         ),
       ).toBe(true);
+
+      // usage event should be emitted mid-stream with cumulative tokens and runtime source
+      const usageEvent = result.events.find((event: { type: string }) => event.type === "usage") as
+        | {
+            type: "usage";
+            inputTokens: number;
+            outputTokens: number;
+            totalTokens: number;
+            source: "runtime" | "estimate";
+          }
+        | undefined;
+      expect(usageEvent).toBeDefined();
+      expect(usageEvent?.inputTokens).toBe(1);
+      expect(usageEvent?.outputTokens).toBe(2);
+      expect(usageEvent?.totalTokens).toBe(3);
+      expect(usageEvent?.source).toBe("runtime");
+
+      expect(loop.supports).toContain("usageStream");
       expect(requestLog.filter((entry) => entry.method === "thread/resume")).toHaveLength(1);
       expect(requestLog.filter((entry) => entry.method === "thread/start")).toHaveLength(0);
     });
