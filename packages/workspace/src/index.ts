@@ -86,7 +86,7 @@ export type {
 } from "./config/index.ts";
 
 // ── Kernel state (Task / Attempt / Handoff / Artifact) ────────────────────
-export { InMemoryWorkspaceStateStore } from "./state/index.ts";
+export { InMemoryWorkspaceStateStore, FileWorkspaceStateStore } from "./state/index.ts";
 export type {
   SourceRef,
   TaskStatus,
