@@ -112,7 +112,7 @@ export function createWorkspaceTools(
         .join("\n");
     },
 
-    // Task ledger tools (Phase 2b — only present when a state store is wired)
+    // Task ledger tools (Phase 2b/3a — only present when a state store is wired)
     ...(taskTools
       ? {
           task_create: (args) =>
@@ -122,6 +122,22 @@ export function createWorkspaceTools(
           task_get: (args) => taskTools.task_get(args as Parameters<typeof taskTools.task_get>[0]),
           task_update: (args) =>
             taskTools.task_update(args as Parameters<typeof taskTools.task_update>[0]),
+          attempt_create: (args) =>
+            taskTools.attempt_create(args as Parameters<typeof taskTools.attempt_create>[0]),
+          attempt_list: (args) =>
+            taskTools.attempt_list(args as Parameters<typeof taskTools.attempt_list>[0]),
+          attempt_get: (args) =>
+            taskTools.attempt_get(args as Parameters<typeof taskTools.attempt_get>[0]),
+          attempt_update: (args) =>
+            taskTools.attempt_update(args as Parameters<typeof taskTools.attempt_update>[0]),
+          handoff_create: (args) =>
+            taskTools.handoff_create(args as Parameters<typeof taskTools.handoff_create>[0]),
+          handoff_list: (args) =>
+            taskTools.handoff_list(args as Parameters<typeof taskTools.handoff_list>[0]),
+          artifact_create: (args) =>
+            taskTools.artifact_create(args as Parameters<typeof taskTools.artifact_create>[0]),
+          artifact_list: (args) =>
+            taskTools.artifact_list(args as Parameters<typeof taskTools.artifact_list>[0]),
         }
       : {}),
   };
