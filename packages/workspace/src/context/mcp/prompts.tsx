@@ -2,6 +2,7 @@
 
 import type { PromptSection } from "../../loop/prompt.tsx";
 import type { Message } from "../../types.ts";
+import type { Task, TaskStatus } from "../../state/index.ts";
 
 /** Max chars per message before truncation. */
 const MSG_PREVIEW_LIMIT = 300;
@@ -158,9 +159,66 @@ export const docsPromptSection: PromptSection = async (ctx) => {
   );
 };
 
+/**
+ * Task ledger section — shown to the lead only. Lists draft/open/in_progress
+ * tasks so the lead can reason about what's pending without re-parsing
+ * channel history. Workers are intentionally excluded; they get their task
+ * context through attempt assignment, not through a global ledger dump.
+ */
+export const taskLedgerSection: PromptSection = async (ctx) => {
+  if (ctx.role !== "lead") return null;
+  if (!ctx.stateStore) return null;
+
+  const ACTIVE_STATUSES: TaskStatus[] = ["draft", "open", "in_progress", "blocked"];
+  const tasks = await ctx.stateStore.listTasks({ status: ACTIVE_STATUSES });
+  if (tasks.length === 0) return null;
+
+  const groups = groupTasksByStatus(tasks);
+
+  return (
+    <section title={`Task Ledger (${tasks.length} active)`}>
+      <line>
+        Use `task_create` / `task_update` / `task_list` / `task_get` to manage entries. Advance a
+        confirmed draft with `task_update status=open` and close with `task_update
+        status=completed`.
+      </line>
+      <br />
+      {groups.map(([status, list], groupIndex) => (
+        <>
+          <line key={`header.${status}`}>{`${status} (${list.length})`}</line>
+          {list.map((task) => (
+            <item key={`task.${task.id}`}>{formatLedgerEntry(task)}</item>
+          ))}
+          {groupIndex < groups.length - 1 && <br key={`break.${status}`} />}
+        </>
+      ))}
+    </section>
+  );
+};
+
+function groupTasksByStatus(tasks: readonly Task[]): Array<[TaskStatus, Task[]]> {
+  const order: TaskStatus[] = ["draft", "open", "in_progress", "blocked"];
+  const map = new Map<TaskStatus, Task[]>();
+  for (const status of order) map.set(status, []);
+  for (const task of tasks) {
+    if (map.has(task.status)) map.get(task.status)!.push(task);
+  }
+  return order
+    .map((status) => [status, map.get(status) ?? []] as [TaskStatus, Task[]])
+    .filter(([, list]) => list.length > 0);
+}
+
+function formatLedgerEntry(task: Task): string {
+  const parts = [`[${task.id}] ${task.title}`];
+  if (task.ownerLeadId) parts.push(`owner=${task.ownerLeadId}`);
+  if (task.activeAttemptId) parts.push(`active=${task.activeAttemptId}`);
+  return parts.join(" — ");
+}
+
 /** All workspace prompt sections, in order. */
 export const WORKSPACE_PROMPT_SECTIONS: PromptSection[] = [
   workspacePromptSection,
+  taskLedgerSection,
   conversationSection,
   docsPromptSection,
 ];

@@ -140,3 +140,93 @@ describe("Prompt assembly", () => {
     expect(result).toContain("---");
   });
 });
+
+describe("taskLedgerSection", () => {
+  test("only renders for the lead role", async () => {
+    const { taskLedgerSection } = await import("../src/context/mcp/prompts.tsx");
+    const { InMemoryWorkspaceStateStore } = await import("../src/state/index.ts");
+    const workspace = await createWorkspace({
+      name: "test",
+      agents: [],
+      storage: new MemoryStorage(),
+    });
+    const store = new InMemoryWorkspaceStateStore();
+    await store.createTask({ workspaceId: "test", title: "Ship it", goal: "g" });
+
+    const leadResult = await taskLedgerSection({
+      agentName: "lead",
+      provider: workspace.contextProvider,
+      inboxEntries: [],
+      stateStore: store,
+      role: "lead",
+      workspaceName: "test",
+    });
+    const workerResult = await taskLedgerSection({
+      agentName: "worker",
+      provider: workspace.contextProvider,
+      inboxEntries: [],
+      stateStore: store,
+      role: "worker",
+      workspaceName: "test",
+    });
+
+    expect(leadResult).not.toBeNull();
+    expect(workerResult).toBeNull();
+  });
+
+  test("is hidden when no active tasks exist", async () => {
+    const { taskLedgerSection } = await import("../src/context/mcp/prompts.tsx");
+    const { InMemoryWorkspaceStateStore } = await import("../src/state/index.ts");
+    const workspace = await createWorkspace({
+      name: "test",
+      agents: [],
+      storage: new MemoryStorage(),
+    });
+    const store = new InMemoryWorkspaceStateStore();
+
+    const result = await taskLedgerSection({
+      agentName: "lead",
+      provider: workspace.contextProvider,
+      inboxEntries: [],
+      stateStore: store,
+      role: "lead",
+      workspaceName: "test",
+    });
+
+    expect(result).toBeNull();
+  });
+
+  test("groups active tasks by status with counts in the header", async () => {
+    const { taskLedgerSection } = await import("../src/context/mcp/prompts.tsx");
+    const { InMemoryWorkspaceStateStore } = await import("../src/state/index.ts");
+    const workspace = await createWorkspace({
+      name: "test",
+      agents: [],
+      storage: new MemoryStorage(),
+    });
+    const store = new InMemoryWorkspaceStateStore();
+    await store.createTask({ workspaceId: "test", title: "a", goal: "g" });
+    await store.createTask({
+      workspaceId: "test",
+      title: "b",
+      goal: "g",
+      status: "in_progress",
+    });
+
+    const result = await taskLedgerSection({
+      agentName: "lead",
+      provider: workspace.contextProvider,
+      inboxEntries: [],
+      stateStore: store,
+      role: "lead",
+      workspaceName: "test",
+    });
+    const text = renderSectionResult(result);
+
+    expect(text).toContain("Task Ledger (2 active)");
+    expect(text).toContain("draft (1)");
+    expect(text).toContain("in_progress (1)");
+    expect(text).toContain("a");
+    expect(text).toContain("b");
+  });
+});
