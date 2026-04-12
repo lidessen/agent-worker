@@ -14,7 +14,7 @@ export async function task(args: string[]): Promise<void> {
   }
 
   const sub = args[0];
-  const validSubs = ["ls", "get", "new", "update", "dispatch"];
+  const validSubs = ["ls", "get", "new", "update", "dispatch", "complete", "abort"];
   if (!sub || !validSubs.includes(sub)) {
     printUsage();
     process.exit(1);
@@ -161,6 +161,30 @@ export async function task(args: string[]): Promise<void> {
         console.log(`Dispatched task ${t.id} [${t.status}] to @${worker} as attempt ${att.id}`);
         break;
       }
+      case "complete": {
+        const id = args.slice(1).find((a) => !a.startsWith("--") && !a.startsWith("@"));
+        if (!id) {
+          console.error("Usage: aw task complete <id> [@workspace] [--summary '...']");
+          process.exit(1);
+        }
+        const summary = getFlag(args, "--summary");
+        const result = await client.completeWorkspaceTask(workspace, id, { summary });
+        const t = result.task as { id: string; status: string; title: string };
+        console.log(`Task ${t.id} [${t.status}]: ${t.title}`);
+        break;
+      }
+      case "abort": {
+        const id = args.slice(1).find((a) => !a.startsWith("--") && !a.startsWith("@"));
+        if (!id) {
+          console.error("Usage: aw task abort <id> [@workspace] [--reason '...']");
+          process.exit(1);
+        }
+        const reason = getFlag(args, "--reason");
+        const result = await client.abortWorkspaceTask(workspace, id, { reason });
+        const t = result.task as { id: string; status: string; title: string };
+        console.log(`Task ${t.id} [${t.status}]: ${t.title}`);
+        break;
+      }
     }
   } catch (err) {
     console.error(err instanceof Error ? err.message : String(err));
@@ -170,13 +194,15 @@ export async function task(args: string[]): Promise<void> {
 
 function printUsage(): void {
   console.log(
-    `Usage: aw task <ls|get|new|update|dispatch> [options]
+    `Usage: aw task <ls|get|new|update|dispatch|complete|abort> [options]
 
   aw task ls [@workspace] [--status draft,open] [--owner <name>]
   aw task get <id> [@workspace]
   aw task new <title> --goal '...' [@workspace] [--status ...] [--owner ...] [--accept ...]
   aw task update <id> [@workspace] [--status ...] [--title ...] [--goal ...] [--owner ...]
-  aw task dispatch <id> --to <worker> [@workspace]`,
+  aw task dispatch <id> --to <worker> [@workspace]
+  aw task complete <id> [@workspace] [--summary '...']
+  aw task abort <id> [@workspace] [--reason '...']`,
   );
 }
 

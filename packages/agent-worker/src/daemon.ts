@@ -418,6 +418,16 @@ export class Daemon {
           const taskId = decodeURIComponent(dispatchMatch[1]!);
           return await this.handleDispatchTask(key, taskId, req);
         }
+        const completeMatch = sub.match(/^\/tasks\/([^/]+)\/complete$/);
+        if (completeMatch && method === "POST") {
+          const taskId = decodeURIComponent(completeMatch[1]!);
+          return await this.handleCloseTask(key, taskId, req, "completed");
+        }
+        const abortMatch = sub.match(/^\/tasks\/([^/]+)\/abort$/);
+        if (abortMatch && method === "POST") {
+          const taskId = decodeURIComponent(abortMatch[1]!);
+          return await this.handleCloseTask(key, taskId, req, "aborted");
+        }
 
         // Inbox route: /workspaces/:key/inbox/:agent
         const inboxMatch = sub.match(/^\/inbox\/([^/]+)$/);
@@ -1466,6 +1476,94 @@ export class Daemon {
     });
 
     return Response.json({ task: await store.getTask(task.id), attempt });
+  }
+
+  /**
+   * Close a task with either "completed" or "aborted" status in one shot.
+   *
+   * - If the task has an active attempt, marks it as completed/cancelled,
+   *   stamps endedAt, and clears activeAttemptId (via the store's usual
+   *   bookkeeping on terminal statuses).
+   * - Records a handoff of the matching kind on behalf of the "user" so
+   *   the timeline shows why it was closed.
+   * - Transitions the task to the requested terminal status.
+   *
+   * Body accepts an optional { summary, reason } string. Either is used as
+   * the handoff summary — if both are absent, a generic message is used.
+   */
+  private async handleCloseTask(
+    key: string,
+    taskId: string,
+    req: Request,
+    kind: "completed" | "aborted",
+  ): Promise<Response> {
+    const resolved = this.resolveWorkspace(key);
+    if (resolved instanceof Response) return resolved;
+    const handle = resolved;
+    const store = handle.workspace.stateStore;
+
+    const task = await store.getTask(taskId);
+    if (!task) {
+      return Response.json({ error: `Task ${taskId} not found` }, { status: 404 });
+    }
+    if (task.status === "completed" || task.status === "aborted" || task.status === "failed") {
+      return Response.json({ error: `Task ${taskId} is already ${task.status}` }, { status: 409 });
+    }
+
+    type CloseBody = { summary?: string; reason?: string };
+    let body: CloseBody = {};
+    try {
+      body = (await req.json()) as CloseBody;
+    } catch {
+      // Allow empty body.
+    }
+    const summary =
+      body.summary ??
+      body.reason ??
+      (kind === "completed" ? "Closed by user via HTTP" : "Aborted by user via HTTP");
+
+    // If there is an active attempt, finalize it first so the handoff
+    // references a real fromAttemptId.
+    let fromAttemptId: string | undefined;
+    if (task.activeAttemptId) {
+      fromAttemptId = task.activeAttemptId;
+      await store.updateAttempt(fromAttemptId, {
+        status: kind === "completed" ? "completed" : "cancelled",
+        resultSummary: summary,
+        endedAt: Date.now(),
+      });
+      // Clear the activeAttemptId so the next snapshot is consistent.
+      await store.updateTask(task.id, { activeAttemptId: undefined });
+    }
+
+    if (fromAttemptId) {
+      try {
+        await store.createHandoff({
+          taskId: task.id,
+          fromAttemptId,
+          createdBy: "user",
+          kind,
+          summary,
+        });
+      } catch (err) {
+        // Handoff persistence failing shouldn't block the status change;
+        // log and continue.
+        await handle.workspace.eventLog.log(
+          "user",
+          "system",
+          `close handoff failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+
+    await store.updateTask(task.id, { status: kind });
+
+    const [refreshedTask, attempts, handoffs] = await Promise.all([
+      store.getTask(task.id),
+      store.listAttempts(task.id),
+      store.listHandoffs(task.id),
+    ]);
+    return Response.json({ task: refreshedTask, attempts, handoffs });
   }
 
   private handleWorkspaceEventsStream(key: string, url: URL): Response {

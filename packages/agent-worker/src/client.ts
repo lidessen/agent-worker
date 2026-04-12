@@ -464,6 +464,53 @@ export class AwClient {
     );
   }
 
+  /**
+   * Close a task with status "completed" — finalizes the active attempt
+   * (if any), records a completed handoff, and transitions the task.
+   */
+  async completeWorkspaceTask(
+    key: string,
+    taskId: string,
+    body?: { summary?: string },
+  ): Promise<{
+    task: Record<string, unknown>;
+    attempts: Record<string, unknown>[];
+    handoffs: Record<string, unknown>[];
+  }> {
+    return this.request(
+      `/workspaces/${encodeURIComponent(key)}/tasks/${encodeURIComponent(taskId)}/complete`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body ?? {}),
+      },
+    );
+  }
+
+  /**
+   * Close a task with status "aborted" — finalizes the active attempt
+   * (if any) as cancelled, records an aborted handoff, and transitions
+   * the task.
+   */
+  async abortWorkspaceTask(
+    key: string,
+    taskId: string,
+    body?: { reason?: string },
+  ): Promise<{
+    task: Record<string, unknown>;
+    attempts: Record<string, unknown>[];
+    handoffs: Record<string, unknown>[];
+  }> {
+    return this.request(
+      `/workspaces/${encodeURIComponent(key)}/tasks/${encodeURIComponent(taskId)}/abort`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body ?? {}),
+      },
+    );
+  }
+
   // ── Documents ───────────────────────────────────────────────────────
 
   async listDocs(workspace: string): Promise<DocInfo[]> {
