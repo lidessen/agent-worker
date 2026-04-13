@@ -130,7 +130,83 @@ export class Workspace implements WorkspaceRuntime {
       await this.inboxStore.load(agentName);
     }
 
+    // Recover orphaned attempts. If the state store was replayed from
+    // disk and still has attempts marked "running", the process that
+    // owned them is gone — mark them as failed so a future dispatch
+    // isn't permanently blocked by a stale active-attempt pointer.
+    await this.recoverOrphanedAttempts();
+
     this.initialized = true;
+  }
+
+  /**
+   * Scan the kernel state store for attempts that are still marked
+   * "running" at workspace init time. These are orphaned by definition
+   * (no live runtime could possibly be holding them — the process that
+   * was running them died before it could stamp a terminal status).
+   *
+   * For each orphan:
+   *   1. Mark the attempt as failed with an endedAt timestamp and a
+   *      systemic resultSummary.
+   *   2. Clear the owning task's activeAttemptId so re-dispatch works.
+   *   3. Record a `kind: "aborted"` handoff from "system" explaining
+   *      that the attempt was orphaned.
+   *   4. Append a chronicle entry under the "recovery" category.
+   *
+   * Best-effort: individual failures are logged but do not block init.
+   */
+  private async recoverOrphanedAttempts(): Promise<void> {
+    let recovered: string[] = [];
+    try {
+      const tasks = await this.stateStore.listTasks();
+      for (const task of tasks) {
+        const attempts = await this.stateStore.listAttempts(task.id);
+        for (const attempt of attempts) {
+          if (attempt.status !== "running") continue;
+          const summary = "orphaned by workspace restart — marked failed on init";
+          try {
+            await this.stateStore.updateAttempt(attempt.id, {
+              status: "failed",
+              endedAt: Date.now(),
+              resultSummary: summary,
+            });
+            if (task.activeAttemptId === attempt.id) {
+              await this.stateStore.updateTask(task.id, { activeAttemptId: undefined });
+            }
+            await this.stateStore.createHandoff({
+              taskId: task.id,
+              fromAttemptId: attempt.id,
+              createdBy: "system",
+              kind: "aborted",
+              summary,
+              blockers: ["process restart"],
+            });
+            recovered.push(attempt.id);
+          } catch (err) {
+            console.error(
+              `[workspace ${this.name}] orphan recovery failed for attempt ${attempt.id}:`,
+              err,
+            );
+          }
+        }
+      }
+    } catch (err) {
+      console.error(`[workspace ${this.name}] orphan recovery scan failed:`, err);
+      return;
+    }
+
+    if (recovered.length === 0) return;
+
+    // Chronicle entry so the human-readable timeline shows the recovery.
+    try {
+      await this.contextProvider.chronicle.append({
+        author: "system",
+        category: "recovery",
+        content: `Marked ${recovered.length} orphaned attempt(s) as failed on workspace restart: ${recovered.join(", ")}`,
+      });
+    } catch {
+      // Chronicle is observational; a failure here is non-fatal.
+    }
   }
 
   async shutdown(): Promise<void> {

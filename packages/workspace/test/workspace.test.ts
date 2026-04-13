@@ -1,4 +1,7 @@
-import { test, expect, describe, beforeEach } from "bun:test";
+import { test, expect, describe, beforeEach, afterEach } from "bun:test";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { mkdtempSync, rmSync } from "node:fs";
 import { createWorkspace } from "../src/factory.ts";
 import { Workspace } from "../src/workspace.ts";
 import { MemoryStorage } from "../src/context/storage.ts";
@@ -218,6 +221,176 @@ describe("Workspace", () => {
     expect(msgs1[0]!.content).toBe("msg in pr-123");
     expect(msgs2).toHaveLength(1);
     expect(msgs2[0]!.content).toBe("msg in pr-456");
+  });
+
+  describe("orphan attempt recovery on restart", () => {
+    let storageDir: string;
+
+    beforeEach(() => {
+      storageDir = mkdtempSync(join(tmpdir(), "aw-orphan-recovery-"));
+    });
+
+    afterEach(() => {
+      try {
+        rmSync(storageDir, { recursive: true, force: true });
+      } catch {
+        /* ignore */
+      }
+    });
+
+    test("marks running attempts as failed and clears the task's active pointer", async () => {
+      // Round 1: create a workspace with a file-backed state store,
+      // create a running attempt, then "crash" (drop the reference).
+      const ws1 = await createWorkspace({
+        name: "recoverable",
+        agents: ["alice"],
+        storageDir,
+      });
+
+      const task = await ws1.stateStore.createTask({
+        workspaceId: ws1.name,
+        title: "t",
+        goal: "g",
+        status: "in_progress",
+      });
+      const attempt = await ws1.stateStore.createAttempt({
+        taskId: task.id,
+        agentName: "alice",
+        role: "worker",
+      });
+      await ws1.stateStore.updateTask(task.id, { activeAttemptId: attempt.id });
+
+      // Sanity check: still "running" before restart.
+      const before = await ws1.stateStore.getAttempt(attempt.id);
+      expect(before?.status).toBe("running");
+
+      await ws1.shutdown();
+
+      // Round 2: new workspace pointed at the same storageDir. The
+      // file-backed store replays tasks.jsonl + attempts.jsonl, and
+      // init() now runs recoverOrphanedAttempts which should mark our
+      // stale attempt as failed.
+      const ws2 = await createWorkspace({
+        name: "recoverable",
+        agents: ["alice"],
+        storageDir,
+      });
+
+      const recoveredAttempt = await ws2.stateStore.getAttempt(attempt.id);
+      expect(recoveredAttempt?.status).toBe("failed");
+      expect(recoveredAttempt?.endedAt).toBeGreaterThan(0);
+      expect(recoveredAttempt?.resultSummary).toContain("orphaned");
+
+      const recoveredTask = await ws2.stateStore.getTask(task.id);
+      expect(recoveredTask?.activeAttemptId).toBeUndefined();
+
+      // A system-authored aborted handoff should have been created so
+      // the timeline shows why the attempt ended.
+      const handoffs = await ws2.stateStore.listHandoffs(task.id);
+      expect(handoffs).toHaveLength(1);
+      expect(handoffs[0]?.kind).toBe("aborted");
+      expect(handoffs[0]?.createdBy).toBe("system");
+      expect(handoffs[0]?.fromAttemptId).toBe(attempt.id);
+
+      // Chronicle should have a "recovery" category entry.
+      const chronicle = await ws2.contextProvider.chronicle.read({ category: "recovery" });
+      expect(chronicle.length).toBeGreaterThanOrEqual(1);
+      expect(chronicle[0]?.content).toContain(attempt.id);
+
+      await ws2.shutdown();
+    });
+
+    test("leaves already-terminal attempts alone", async () => {
+      const ws1 = await createWorkspace({
+        name: "terminal-ok",
+        agents: ["alice"],
+        storageDir,
+      });
+
+      const task = await ws1.stateStore.createTask({
+        workspaceId: ws1.name,
+        title: "t",
+        goal: "g",
+      });
+      const attempt = await ws1.stateStore.createAttempt({
+        taskId: task.id,
+        agentName: "alice",
+        role: "worker",
+      });
+      // Transition to a terminal state before restart.
+      await ws1.stateStore.updateAttempt(attempt.id, {
+        status: "completed",
+        endedAt: Date.now(),
+        resultSummary: "done",
+      });
+      await ws1.shutdown();
+
+      const ws2 = await createWorkspace({
+        name: "terminal-ok",
+        agents: ["alice"],
+        storageDir,
+      });
+
+      const recovered = await ws2.stateStore.getAttempt(attempt.id);
+      expect(recovered?.status).toBe("completed");
+      // No aborted handoff was created — recovery skipped this attempt.
+      const handoffs = await ws2.stateStore.listHandoffs(task.id);
+      expect(handoffs).toHaveLength(0);
+
+      await ws2.shutdown();
+    });
+
+    test("recovers multiple orphans in a single workspace", async () => {
+      const ws1 = await createWorkspace({
+        name: "multi",
+        agents: ["alice"],
+        storageDir,
+      });
+
+      const taskA = await ws1.stateStore.createTask({
+        workspaceId: ws1.name,
+        title: "a",
+        goal: "g",
+      });
+      const taskB = await ws1.stateStore.createTask({
+        workspaceId: ws1.name,
+        title: "b",
+        goal: "g",
+      });
+      const attemptA = await ws1.stateStore.createAttempt({
+        taskId: taskA.id,
+        agentName: "alice",
+        role: "worker",
+      });
+      const attemptB = await ws1.stateStore.createAttempt({
+        taskId: taskB.id,
+        agentName: "alice",
+        role: "worker",
+      });
+      await ws1.stateStore.updateTask(taskA.id, { activeAttemptId: attemptA.id });
+      await ws1.stateStore.updateTask(taskB.id, { activeAttemptId: attemptB.id });
+      await ws1.shutdown();
+
+      const ws2 = await createWorkspace({
+        name: "multi",
+        agents: ["alice"],
+        storageDir,
+      });
+
+      const recoveredA = await ws2.stateStore.getAttempt(attemptA.id);
+      const recoveredB = await ws2.stateStore.getAttempt(attemptB.id);
+      expect(recoveredA?.status).toBe("failed");
+      expect(recoveredB?.status).toBe("failed");
+
+      const chronicle = await ws2.contextProvider.chronicle.read({ category: "recovery" });
+      expect(chronicle).toHaveLength(1);
+      // Single entry summarising both recoveries rather than one per attempt.
+      expect(chronicle[0]?.content).toContain("2 orphaned attempt");
+      expect(chronicle[0]?.content).toContain(attemptA.id);
+      expect(chronicle[0]?.content).toContain(attemptB.id);
+
+      await ws2.shutdown();
+    });
   });
 
   test("reuses persisted status and inbox state on restart", async () => {
