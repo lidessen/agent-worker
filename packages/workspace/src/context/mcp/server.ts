@@ -64,9 +64,18 @@ export function createWorkspaceTools(
         return "Timeout: no new inbox messages.";
       }
 
-      // Return current inbox contents using same format as my_inbox
+      // Return current inbox contents using same format as my_inbox.
+      // Mark returned entries as seen so the orchestrator's next tick
+      // (after this run ends) does not re-enqueue them as a fresh run.
+      // Crash recovery is still correct: on daemon restart,
+      // markRunStart flips seen → pending so the agent gets another
+      // chance to process them.
       const entries = await provider.inbox.peek(agentName);
       if (entries.length === 0) return "New message received. Inbox: empty (already processed).";
+
+      for (const entry of entries) {
+        await provider.inbox.markSeen(agentName, entry.messageId);
+      }
 
       const lines = entries.map((entry) => {
         const priority = entry.priority !== "normal" ? ` [${entry.priority}]` : "";

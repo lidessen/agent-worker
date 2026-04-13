@@ -121,6 +121,12 @@ export const workspacePromptSection: PromptSection = async (ctx) => {
             in the ledger unseen.
           </item>
           <item>
+            **Do NOT send intermediate acknowledgment messages to the channel** (e.g. "收到，开始
+            实现"). Those wake the lead mid-work for no reason — the lead starts verifying against
+            files that don&apos;t exist yet and wastes a run. Keep all your thinking in plain text
+            and only call `channel_send` once, after the terminal `attempt_update`.
+          </item>
+          <item>
             Before calling `artifact_create`, call `artifact_list` first to avoid registering a
             duplicate for a ref you already wrote in a prior run (recovery loops can re-enter the
             same work).
