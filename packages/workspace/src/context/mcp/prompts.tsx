@@ -101,6 +101,17 @@ export const workspacePromptSection: PromptSection = async (ctx) => {
             Register concrete outputs (files, commits, URLs) with `artifact_create` so the lead can
             review and mark the task complete.
           </item>
+          <item>
+            **After the terminal `attempt_update` call, send ONE short `channel_send` to the default
+            channel** telling the lead you&apos;re done (e.g. "完成 task_xxx，详见 handoff
+            hnd_yyy"). This is the only way the lead wakes up to review — without it your work sits
+            in the ledger unseen.
+          </item>
+          <item>
+            Before calling `artifact_create`, call `artifact_list` first to avoid registering a
+            duplicate for a ref you already wrote in a prior run (recovery loops can re-enter the
+            same work).
+          </item>
           <br />
         </>
       )}

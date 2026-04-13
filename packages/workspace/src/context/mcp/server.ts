@@ -34,6 +34,7 @@ export function createWorkspaceTools(
     options.stateStore && options.workspaceName
       ? createTaskTools(agentName, options.workspaceName, options.stateStore, {
           instructionQueue: options.instructionQueue,
+          chronicle: provider.chronicle,
         })
       : null;
 
