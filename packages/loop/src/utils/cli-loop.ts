@@ -19,7 +19,18 @@ export interface CliLoopConfig {
   env?: Record<string, string>;
   mapEvent: (data: unknown) => RawCliEvent | RawCliEvent[];
   extractResult: (stdout: string) => string;
+  /**
+   * When true, emit a post-hoc `usage` LoopEvent (with source:"estimate")
+   * at the end of the run if the event stream never produced any real
+   * `usage_delta` sentinels. The estimate uses an aggressive ~4 chars per
+   * token rule on the accumulated text/thinking output. This is a fallback
+   * for CLI runtimes that don't report token counts at all.
+   */
+  estimateUsage?: boolean;
 }
+
+/** Rough characters-per-token divisor for the fallback estimator. */
+const ESTIMATE_CHARS_PER_TOKEN = 4;
 
 /**
  * Run a CLI-based agent loop. Returns a LoopRun:
@@ -42,6 +53,8 @@ export function runCliLoop(
   const result = (async (): Promise<LoopResult> => {
     const startTime = Date.now();
     let hasContent = false;
+    let hasRealUsage = false;
+    let textCharCount = 0;
 
     const handleRaw = (raw: RawCliEvent) => {
       if (!raw) return;
@@ -50,11 +63,17 @@ export function runCliLoop(
         usage.inputTokens += raw.usage.inputTokens;
         usage.outputTokens += raw.usage.outputTokens;
         usage.totalTokens += raw.usage.totalTokens;
+        hasRealUsage = true;
         return;
       }
 
       emit(raw);
-      if (raw.type === "text") hasContent = true;
+      if (raw.type === "text") {
+        hasContent = true;
+        textCharCount += raw.text.length;
+      } else if (raw.type === "thinking") {
+        textCharCount += raw.text.length;
+      }
     };
 
     const parser = createStreamParser<unknown>((data) => {
@@ -81,7 +100,10 @@ export function runCliLoop(
 
       if (!hasContent) {
         const text = config.extractResult(spawnResult.stdout);
-        if (text) emit({ type: "text", text });
+        if (text) {
+          emit({ type: "text", text });
+          textCharCount += text.length;
+        }
       }
 
       if (spawnResult.exitCode !== 0 && !callOptions.abortSignal?.aborted) {
@@ -91,6 +113,23 @@ export function runCliLoop(
         emit({ type: "error", error });
         channel.error(error);
         throw error;
+      }
+
+      // If the runtime reported no real token usage, optionally emit a
+      // rough estimate so downstream pressure/context accounting has
+      // something to work with. Marked source:"estimate" so consumers
+      // can decide how much to trust it.
+      if (config.estimateUsage && !hasRealUsage && textCharCount > 0) {
+        const outputTokens = Math.ceil(textCharCount / ESTIMATE_CHARS_PER_TOKEN);
+        usage.outputTokens = outputTokens;
+        usage.totalTokens = outputTokens;
+        emit({
+          type: "usage",
+          inputTokens: 0,
+          outputTokens,
+          totalTokens: outputTokens,
+          source: "estimate",
+        });
       }
 
       channel.end();

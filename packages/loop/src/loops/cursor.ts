@@ -6,7 +6,7 @@ import { checkCliAvailability } from "../utils/cli.ts";
 import { runCliLoop } from "../utils/cli-loop.ts";
 
 export class CursorLoop {
-  readonly supports = [] as const;
+  readonly supports = ["usageStream"] as const;
   private _status: LoopStatus = "idle";
   private abortController: AbortController | null = null;
   private _mcpConfigPath: string | null = null;
@@ -40,6 +40,10 @@ export class CursorLoop {
         env: this.options.env,
         mapEvent: mapCursorEvent,
         extractResult: extractCursorResult,
+        // Cursor doesn't report token counts. Opt in to the cli-loop's
+        // post-hoc text-length estimate so consumers that care about
+        // context pressure have something to work with.
+        estimateUsage: true,
       },
       this.options,
       { abortSignal: this.abortController.signal },
