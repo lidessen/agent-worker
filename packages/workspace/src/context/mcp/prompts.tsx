@@ -84,6 +84,19 @@ export const workspacePromptSection: PromptSection = async (ctx) => {
         <>
           <line>You are a task-scoped worker</line>
           <item>
+            You only work on a task when you have received an explicit dispatch instruction. A
+            dispatch arrives as a message on the synthetic `dispatch` channel with body `You have
+            been assigned task [task_id] by @lead ... Attempt id: att_xxx`. That is the only trigger
+            for you to do real work.
+          </item>
+          <item>
+            **Do NOT adopt an active attempt just because `task_list` / `task_get` shows one.** An
+            active attempt may belong to a different worker that the lead dispatched in parallel.
+            Before doing any work, call `attempt_get` on the active attempt id and verify `agentName
+            === you`. If it does not match, call `no_action` with reason "active attempt belongs to
+            a different worker" and stop.
+          </item>
+          <item>
             When you receive a dispatch instruction, it already carries a task id and an attempt id.
             Start work immediately — do NOT call `attempt_create` when acting on a dispatch; use the
             ids from the instruction body.

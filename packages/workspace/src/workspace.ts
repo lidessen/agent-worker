@@ -316,17 +316,29 @@ export class Workspace implements WorkspaceRuntime {
       return;
     }
 
-    // Channel messages: route to all agents who joined this channel
-    // Check if any mentioned name is a registered agent (not just any @text in the message)
+    // Channel messages: route to agents who joined this channel.
+    // Check if any mentioned name is a registered agent (not just any
+    // @text in the message).
     const hasAgentMention = message.mentions.some((m) => this.agentChannels.has(m));
     for (const [agentName, channels] of this.agentChannels) {
       if (agentName === message.from) continue; // Don't self-deliver
       if (!channels.has(message.channel)) continue;
 
       const isMentioned = message.mentions.includes(agentName);
-      // on_demand agents only wake on @mention, skip them on broadcasts
+      // on_demand agents only wake on @mention, skip them on broadcasts.
       if (this._onDemandAgents.has(agentName) && !isMentioned) continue;
-      // Lead gets normal priority for unmentioned messages (responsible for user comms)
+
+      // When the message explicitly @-mentions one or more registered
+      // agents, it is an addressed message — only those targets get an
+      // inbox entry. Other agents in the channel can still pick it up
+      // via channel_read if they choose, but they do NOT wake. This
+      // prevents the "both lead and worker race on kickoff" pattern
+      // observed in round 2 validation, where a user @maintainer message
+      // also woke the implementer.
+      if (hasAgentMention && !isMentioned) continue;
+
+      // Unaddressed messages: lead gets normal priority (responsible
+      // for user comms), everyone else gets background.
       const isLeadFallback = !hasAgentMention && agentName === this.lead;
       await this.enqueueToAgent(
         message,
