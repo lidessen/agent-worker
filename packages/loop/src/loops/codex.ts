@@ -1,3 +1,5 @@
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { dirname } from "node:path";
 import type {
   CodexLoopOptions,
   LoopEvent,
@@ -42,6 +44,11 @@ export class CodexLoop {
   constructor(private options: CodexLoopOptions = {}) {
     if (options.threadId) {
       this.threadId = options.threadId;
+    } else if (options.threadIdFile) {
+      // Best-effort: read a previously persisted thread id so the
+      // next run of this loop instance resumes the same session.
+      const existing = readThreadIdFile(options.threadIdFile);
+      if (existing) this.threadId = existing;
     }
   }
 
@@ -213,8 +220,14 @@ export class CodexLoop {
         experimentalRawEvents: false,
         persistExtendedHistory: false,
       });
+      const prevThreadId = this.threadId;
       this.threadId = response.thread.id;
       this.threadReady = true;
+      // Persist the (possibly new) thread id so the next daemon
+      // run resumes it. Only write when it actually changed.
+      if (this.options.threadIdFile && this.threadId !== prevThreadId) {
+        writeThreadIdFile(this.options.threadIdFile, this.threadId);
+      }
     }
   }
 
@@ -421,4 +434,42 @@ export function mapCodexItemEnd(item: Record<string, unknown>): LoopEvent | null
 function normalizeInstructions(value: string | null | undefined): string | null {
   const normalized = value?.trim();
   return normalized ? normalized : null;
+}
+
+// ── Thread id persistence helpers ────────────────────────────────────────────
+//
+// The Codex app-server assigns a thread id on `thread/start` and
+// lets us reattach later with `thread/resume`. Persisting that id
+// across daemon restarts is what gives workspace-managed codex
+// agents session continuity. The file format is intentionally
+// trivial (`{"threadId":"thr_..."}`) so it's easy to inspect or
+// hand-edit from a shell.
+
+function readThreadIdFile(path: string): string | null {
+  try {
+    if (!existsSync(path)) return null;
+    const raw = readFileSync(path, "utf-8");
+    const parsed = JSON.parse(raw) as { threadId?: unknown };
+    if (typeof parsed.threadId === "string" && parsed.threadId.length > 0) {
+      return parsed.threadId;
+    }
+  } catch {
+    // Corrupt file → treat as no prior session. The next
+    // `thread/start` will mint a fresh id and overwrite this file.
+  }
+  return null;
+}
+
+function writeThreadIdFile(path: string, threadId: string): void {
+  try {
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, JSON.stringify({ threadId }, null, 2));
+  } catch (err) {
+    // Best-effort: losing thread continuity on a file write
+    // failure is strictly better than throwing mid-run.
+    console.error(
+      `[CodexLoop] failed to persist thread id to ${path}:`,
+      err instanceof Error ? err.message : err,
+    );
+  }
 }

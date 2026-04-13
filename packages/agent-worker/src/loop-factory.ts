@@ -4,6 +4,7 @@
  * This bridges the HTTP API (which receives RuntimeConfig as JSON)
  * and the agent system (which needs an AgentLoop instance).
  */
+import { join } from "node:path";
 import type { AgentLoop } from "@agent-worker/agent";
 import type { RuntimeConfig } from "./types.ts";
 import { extractProvider, getDefaultModel, resolveProvider } from "@agent-worker/loop";
@@ -71,12 +72,17 @@ async function createClaudeCodeLoop(config: RuntimeConfig): Promise<AgentLoop> {
 
 async function createCodexLoop(config: RuntimeConfig): Promise<AgentLoop> {
   const { CodexLoop } = await import("@agent-worker/loop");
+  // Session continuity (phase 2): when a persistent stateDir is
+  // provided, store the codex thread id there so the next daemon
+  // run resumes the same conversation.
+  const threadIdFile = config.stateDir ? join(config.stateDir, "codex-thread.json") : undefined;
   return new CodexLoop({
     model: config.model,
     cwd: config.cwd,
     allowedPaths: config.allowedPaths,
     env: config.env,
     fullAuto: true,
+    threadIdFile,
   });
 }
 

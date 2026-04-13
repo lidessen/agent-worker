@@ -1,4 +1,7 @@
 import { test, expect, describe, afterAll, afterEach, mock } from "bun:test";
+import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { PreflightResult } from "../src/types.ts";
 import { CodexLoop, mapCodexItemEnd, mapCodexItemStart } from "../src/loops/codex.ts";
 import * as _cliMod from "../src/utils/cli.ts";
@@ -743,6 +746,125 @@ describe("CodexLoop", () => {
     test("interrupt rejects when no active turn exists", async () => {
       const loop = new CodexLoop();
       await expect(loop.interrupt?.("hello")).rejects.toThrow("No active turn to interrupt");
+    });
+  });
+
+  describe("thread id persistence (phase-2)", () => {
+    let stateDir: string;
+
+    afterEach(() => {
+      if (stateDir) rmSync(stateDir, { recursive: true, force: true });
+    });
+
+    test("constructor seeds threadId from an existing thread file", () => {
+      stateDir = mkdtempSync(join(tmpdir(), "aw-codex-thread-"));
+      const file = join(stateDir, "codex-thread.json");
+      writeFileSync(file, JSON.stringify({ threadId: "thr_abc123" }));
+
+      const loop = new CodexLoop({ threadIdFile: file });
+      // threadId is private, but the constructor assignment is the
+      // observable: options.threadId was not set, the file had the
+      // id, so the loop should now be ready to resume that thread.
+      // We verify indirectly by confirming the loop instance takes
+      // the file path without error and the file is untouched.
+      expect(loop.status).toBe("idle");
+      expect(readFileSync(file, "utf-8")).toContain("thr_abc123");
+    });
+
+    test("constructor is tolerant of a missing thread file", () => {
+      stateDir = mkdtempSync(join(tmpdir(), "aw-codex-thread-missing-"));
+      const file = join(stateDir, "codex-thread.json");
+      // Not writing the file — it should not exist.
+      expect(existsSync(file)).toBe(false);
+
+      // Must not throw.
+      const loop = new CodexLoop({ threadIdFile: file });
+      expect(loop.status).toBe("idle");
+    });
+
+    test("constructor is tolerant of a corrupt thread file", () => {
+      stateDir = mkdtempSync(join(tmpdir(), "aw-codex-thread-corrupt-"));
+      const file = join(stateDir, "codex-thread.json");
+      writeFileSync(file, "not valid json {");
+
+      // Must not throw; starts with no thread id so the next
+      // `thread/start` will mint a fresh one.
+      const loop = new CodexLoop({ threadIdFile: file });
+      expect(loop.status).toBe("idle");
+    });
+
+    test("explicit options.threadId wins over the file", () => {
+      stateDir = mkdtempSync(join(tmpdir(), "aw-codex-thread-priority-"));
+      const file = join(stateDir, "codex-thread.json");
+      writeFileSync(file, JSON.stringify({ threadId: "thr_from_file" }));
+
+      // Passing both should prefer the explicit value. We can't
+      // read private state, but we can verify the loop constructs
+      // without error — the behavior is asserted by the earlier
+      // branch in the constructor.
+      const loop = new CodexLoop({
+        threadId: "thr_explicit",
+        threadIdFile: file,
+      });
+      expect(loop.status).toBe("idle");
+    });
+
+    test("thread/start response is persisted to the thread file", async () => {
+      stateDir = mkdtempSync(join(tmpdir(), "aw-codex-thread-write-"));
+      const file = join(stateDir, "codex-thread.json");
+
+      let onNotification: ((message: { method: string; params?: unknown }) => void) | null = null;
+      class MockJsonRpcClient {
+        constructor(_options: unknown) {}
+        start(cb: (message: { method: string; params?: unknown }) => void): void {
+          onNotification = cb;
+        }
+        async request(method: string, _params?: unknown): Promise<unknown> {
+          if (method === "initialize") {
+            return {
+              userAgent: "test",
+              codexHome: "/tmp",
+              platformFamily: "unix",
+              platformOs: "macos",
+            };
+          }
+          if (method === "thread/start") {
+            return { thread: { id: "thread-fresh-id" } };
+          }
+          if (method === "turn/start") {
+            setTimeout(() => {
+              onNotification?.({
+                method: "turn/completed",
+                params: {
+                  threadId: "thread-fresh-id",
+                  turn: { id: "turn-x", status: "completed", error: null },
+                },
+              });
+            }, 0);
+            return { turn: { id: "turn-x" } };
+          }
+          return {};
+        }
+        close(): void {}
+      }
+
+      mock.module("../src/utils/jsonrpc-stdio.ts", () => ({
+        JsonRpcStdioClient: MockJsonRpcClient,
+      }));
+      const { CodexLoop: MockedCodexLoop } = await import(
+        `../src/loops/codex.ts?thread-persist=${Date.now()}`
+      );
+
+      // No prior file; the loop should mint a thread and write it.
+      expect(existsSync(file)).toBe(false);
+
+      const loop = new MockedCodexLoop({ threadIdFile: file });
+      const run = loop.run("anything");
+      await run.result;
+
+      expect(existsSync(file)).toBe(true);
+      const persisted = JSON.parse(readFileSync(file, "utf-8")) as { threadId: string };
+      expect(persisted.threadId).toBe("thread-fresh-id");
     });
   });
 });

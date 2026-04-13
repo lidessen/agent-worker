@@ -139,6 +139,15 @@ export interface RuntimeConfig {
 
   /** Mock-specific: fixed response text. */
   mockResponse?: string;
+
+  /**
+   * Per-agent persistent state directory. When set, runtimes that
+   * support session continuity (currently codex) persist their
+   * thread/session identifier here so the next run can resume.
+   * Workspace agents use the same directory as their `agentDir`;
+   * ephemeral / in-memory agents leave this undefined.
+   */
+  stateDir?: string;
 }
 
 // ── Agent runner ──────────────────────────────────────────────────────────
