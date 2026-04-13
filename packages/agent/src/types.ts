@@ -277,6 +277,17 @@ export interface AgentConfig {
   hooks?: AgentLifecycleHooks;
   /** Thresholds used by onContextPressure. Default softRatio=0.70, hardRatio=0.90. */
   contextThresholds?: ContextThresholds;
+  /**
+   * Declared context window for the model this agent drives, in tokens.
+   * When set, the Agent fills in `contextWindow` and `usedRatio` on any
+   * usage snapshot that arrives without them, so ratio-based pressure
+   * thresholds (softRatio/hardRatio) fire correctly even for runtimes
+   * that don't self-report the limit.
+   *
+   * Precedence: runtime-reported contextWindow on the usage event wins;
+   * falls back to this config value only when the event omits it.
+   */
+  contextWindow?: number;
 }
 
 // ── Message input ──────────────────────────────────────────────────────────

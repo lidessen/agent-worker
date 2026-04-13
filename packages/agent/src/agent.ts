@@ -523,12 +523,19 @@ export class Agent {
               usedRatio: event.usedRatio,
               usageSource: event.source,
             });
+            // Enrich with contextWindow from config when the event omits
+            // it. Runtime-reported values always win; config only fills in
+            // the gap for runtimes that don't self-report the limit.
+            const rawWindow = event.contextWindow ?? this.config.contextWindow;
+            const rawRatio =
+              event.usedRatio ??
+              (rawWindow != null && rawWindow > 0 ? event.totalTokens / rawWindow : undefined);
             const snapshot: UsageSnapshot = {
               inputTokens: event.inputTokens,
               outputTokens: event.outputTokens,
               totalTokens: event.totalTokens,
-              contextWindow: event.contextWindow,
-              usedRatio: event.usedRatio,
+              contextWindow: rawWindow,
+              usedRatio: rawRatio,
               source: event.source,
             };
             this._lastUsage = snapshot;

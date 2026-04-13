@@ -768,6 +768,113 @@ async function waitForSettle(agent: Agent, capMs = 2000): Promise<void> {
 }
 
 describe("Agent context pressure", () => {
+  test("enriches usage snapshots with contextWindow from config and fires on ratio", async () => {
+    const calls: Array<{ level: string; ratio?: number; window?: number }> = [];
+    // 800 / 1000 = 0.80 → crosses softRatio 0.75.
+    const loop = createUsageLoop([{ total: 800 }]);
+    const agent = new Agent({
+      loop,
+      maxRuns: 1,
+      inbox: { debounceMs: 10 },
+      contextWindow: 1000,
+      contextThresholds: { softRatio: 0.75, hardRatio: 0.95 },
+      hooks: {
+        onContextPressure: ({ level, usage }) => {
+          calls.push({
+            level,
+            ratio: usage.usedRatio,
+            window: usage.contextWindow,
+          });
+          return { kind: "continue" };
+        },
+      },
+    });
+    await agent.init();
+
+    agent.push("go");
+    await waitForSettle(agent);
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.level).toBe("soft");
+    expect(calls[0]?.window).toBe(1000);
+    expect(calls[0]?.ratio).toBeCloseTo(0.8, 5);
+
+    // lastUsage snapshot also reflects the enriched values.
+    expect(agent.lastUsage?.contextWindow).toBe(1000);
+    expect(agent.lastUsage?.usedRatio).toBeCloseTo(0.8, 5);
+  });
+
+  test("runtime-reported contextWindow wins over config", async () => {
+    const calls: Array<{ window?: number; ratio?: number }> = [];
+    // Build a loop that emits a usage event with a runtime-reported
+    // contextWindow different from the config value.
+    const loop: AgentLoop & { _status: LoopStatus } = {
+      supports: ["directTools", "usageStream"],
+      _status: "idle",
+      get status(): LoopStatus {
+        return loop._status;
+      },
+      run(_input): LoopRun {
+        loop._status = "running";
+        const events: LoopEvent[] = [
+          {
+            type: "usage",
+            inputTokens: 900,
+            outputTokens: 0,
+            totalTokens: 900,
+            contextWindow: 2000,
+            usedRatio: 0.45,
+            source: "runtime",
+          },
+          { type: "text", text: "ok" },
+        ];
+        const result = Promise.resolve().then(() => {
+          loop._status = "completed";
+          return {
+            events,
+            usage: { inputTokens: 900, outputTokens: 0, totalTokens: 900 },
+            durationMs: 10,
+          };
+        });
+        return {
+          async *[Symbol.asyncIterator]() {
+            for (const event of events) yield event;
+          },
+          result,
+        };
+      },
+      cancel() {
+        loop._status = "cancelled";
+      },
+      setTools() {},
+      setPrepareStep() {},
+    };
+
+    const agent = new Agent({
+      loop,
+      maxRuns: 1,
+      inbox: { debounceMs: 10 },
+      contextWindow: 1000, // config says 1000
+      contextThresholds: { softRatio: 0.5, hardRatio: 0.95 },
+      hooks: {
+        onContextPressure: ({ usage }) => {
+          calls.push({ window: usage.contextWindow, ratio: usage.usedRatio });
+          return { kind: "continue" };
+        },
+      },
+    });
+    await agent.init();
+
+    agent.push("go");
+    await waitForSettle(agent);
+
+    // Runtime reported 2000 / 0.45. 0.45 < softRatio 0.5 → no pressure fires.
+    expect(calls).toHaveLength(0);
+    // lastUsage reflects the runtime-reported values, not the config.
+    expect(agent.lastUsage?.contextWindow).toBe(2000);
+    expect(agent.lastUsage?.usedRatio).toBeCloseTo(0.45, 5);
+  });
+
   test("fires onContextPressure at soft threshold based on absolute tokens", async () => {
     const calls: Array<{ level: string; total: number }> = [];
     const loop = createUsageLoop([{ total: 500 }, { total: 1200 }, { total: 1900 }]);
