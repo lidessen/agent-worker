@@ -199,6 +199,15 @@ export interface CodexLoopOptions extends CliLoopOptions {
   fullAuto?: boolean;
   /** Resume an existing app-server thread. */
   threadId?: string;
+  /**
+   * Optional path to a JSON file where the active thread id is
+   * persisted. The file format is `{"threadId":"thr_..."}`. When
+   * provided, CodexLoop reads it eagerly at construction time to
+   * seed `threadId`, and rewrites it whenever a new thread is
+   * opened via `thread/start`. Enables session continuity across
+   * daemon restarts. See docs/design/phase-2-session-continuity.
+   */
+  threadIdFile?: string;
 }
 
 export interface CursorLoopOptions extends CliLoopOptions {}

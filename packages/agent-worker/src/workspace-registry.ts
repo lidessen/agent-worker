@@ -704,8 +704,13 @@ export class WorkspaceRegistry {
         return;
       }
 
-      // For AI SDK runtimes, create a loop and run
-      const loop = await this.createAgentLoop(agent, opts?.cwd, opts?.allowedPaths);
+      // For AI SDK runtimes, create a loop and run. Per-agent
+      // state dir holds anything the runtime wants to persist
+      // across daemon restarts (currently: codex thread id).
+      const stateDir = opts?.storageDir
+        ? join(opts.storageDir, "agents", agent.name)
+        : undefined;
+      const loop = await this.createAgentLoop(agent, opts?.cwd, opts?.allowedPaths, stateDir);
       if (!loop) {
         throw new Error(`No loop available for runtime: ${agent.runtime}`);
       }
@@ -774,6 +779,7 @@ export class WorkspaceRegistry {
     agent: ResolvedAgent,
     cwd?: string,
     allowedPaths?: string[],
+    stateDir?: string,
   ): Promise<AgentLoop | null> {
     if (!agent.runtime || agent.runtime === "mock") return null;
     if (!agent.model && agent.runtime === "ai-sdk") return null;
@@ -788,6 +794,7 @@ export class WorkspaceRegistry {
       env: agent.env,
       cwd,
       allowedPaths,
+      stateDir,
     });
   }
 }
