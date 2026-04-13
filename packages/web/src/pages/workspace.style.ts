@@ -37,6 +37,13 @@ const c = classes([
   "taskStatusBadge",
   "taskMeta",
   "taskGoal",
+  "taskDetail",
+  "taskDetailLoading",
+  "taskDetailSection",
+  "taskDetailHeader",
+  "taskDetailItem",
+  "taskDetailText",
+  "taskDetailBadge",
 ] as const);
 
 export const page = rule`${c.page} {
@@ -299,4 +306,66 @@ export const taskGoal = rule`${c.taskGoal} {
   font-size: ${tokens.fontSizes.sm};
   color: ${tokens.colors.textMuted};
   white-space: pre-wrap;
+}`;
+
+export const taskHeaderClickable = rule`${c.taskHeader} {
+  cursor: pointer;
+}
+${c.taskHeader}:hover ${c.taskTitle} {
+  color: ${tokens.colors.primary};
+}`;
+
+export const taskDetail = rule`${c.taskDetail} {
+  margin-top: ${tokens.space.sm};
+  padding-top: ${tokens.space.sm};
+  border-top: 1px dashed ${tokens.colors.border};
+  display: flex;
+  flex-direction: column;
+  gap: ${tokens.space.sm};
+}`;
+
+export const taskDetailLoading = rule`${c.taskDetailLoading} {
+  font-size: ${tokens.fontSizes.xs};
+  color: ${tokens.colors.textDim};
+  font-style: italic;
+}`;
+
+export const taskDetailSection = rule`${c.taskDetailSection} {
+  display: flex;
+  flex-direction: column;
+  gap: ${tokens.space.xs};
+}`;
+
+export const taskDetailHeader = rule`${c.taskDetailHeader} {
+  font-size: ${tokens.fontSizes.xs};
+  color: ${tokens.colors.textDim};
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}`;
+
+export const taskDetailItem = rule`${c.taskDetailItem} {
+  font-size: ${tokens.fontSizes.xs};
+  color: ${tokens.colors.text};
+  padding: ${tokens.space.xs} 0;
+}
+${c.taskDetailItem} code {
+  font-family: ${tokens.fonts.mono};
+  font-size: ${tokens.fontSizes.xs};
+  color: ${tokens.colors.textDim};
+}`;
+
+export const taskDetailText = rule`${c.taskDetailText} {
+  font-size: ${tokens.fontSizes.xs};
+  color: ${tokens.colors.textMuted};
+  margin-top: 2px;
+  white-space: pre-wrap;
+}`;
+
+export const taskDetailBadge = rule`${c.taskDetailBadge} {
+  font-size: ${tokens.fontSizes.xs};
+  color: ${tokens.colors.textDim};
+  background: ${tokens.colors.surfaceHover};
+  padding: 1px 6px;
+  border-radius: ${tokens.radii.pill};
+  font-family: ${tokens.fonts.mono};
 }`;
