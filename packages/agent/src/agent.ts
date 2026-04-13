@@ -57,6 +57,7 @@ export class Agent {
   private readonly contextThresholds: Required<Pick<ContextThresholds, "softRatio" | "hardRatio">> &
     ContextThresholds;
   private pendingGracefulStop = false;
+  private pendingCompactSummary: string | null = null;
   private pressureFiredThisRun = new Set<PressureLevel>();
   private currentRunNumber = 0;
   private _lastUsage: UsageSnapshot | null = null;
@@ -310,10 +311,24 @@ export class Agent {
             summary: action.summary,
           });
           break;
+        case "compact":
+          // Compact: stop the current processing cycle gracefully and
+          // stash the rollup. After the current run ends, startProcessing's
+          // .then handler clears history, seeds it with the summary, and
+          // pushes a synthetic inbox message so a fresh cycle kicks off
+          // with the compacted context in place of the prior transcript.
+          this.pendingGracefulStop = true;
+          this.pendingCompactSummary = action.summary;
+          this.busEmit("agent.context_compact_requested", {
+            runId,
+            level,
+            summaryPreview: action.summary.slice(0, 200),
+          });
+          break;
         default: {
           // Exhaustiveness guard: forces future PressureAction variants
-          // (e.g. "compact") to be handled explicitly instead of silently
-          // falling through as "continue".
+          // to be handled explicitly instead of silently falling through
+          // as "continue".
           const _exhaustive: never = action;
           void _exhaustive;
           this.busEmit("agent.error", {
@@ -432,6 +447,7 @@ export class Agent {
     // Generate a correlation ID for this processing cycle
     const runId = crypto.randomUUID();
     this.pendingGracefulStop = false;
+    this.pendingCompactSummary = null;
 
     this.processingPromise = this.coordinator
       .processLoop({
@@ -552,8 +568,37 @@ export class Agent {
         shouldStop: () => this._state === "stopped" || this.pendingGracefulStop,
       })
       .then((outcome) => {
-        if (outcome === "error") this.setState("error");
-        else if (this._state !== "stopped") this.setState("idle");
+        if (outcome === "error") {
+          this.setState("error");
+          return;
+        }
+        // Post-run: if a compact action fired, rewrite the coordinator's
+        // history with the rollup and re-arm processing so the next
+        // cycle runs with the compacted context in place of the prior
+        // transcript. Do this before the state transition to idle so the
+        // next onWake picks up the synthetic inbox message.
+        const compactSummary = this.pendingCompactSummary;
+        if (compactSummary && this._state !== "stopped") {
+          this.pendingCompactSummary = null;
+          this.pendingGracefulStop = false;
+          this.coordinator.resetHistory({
+            role: "user",
+            content: `[context compacted] ${compactSummary}`,
+          });
+          this.busEmit("agent.context_compacted", {
+            runId,
+            summaryPreview: compactSummary.slice(0, 200),
+          });
+          // Push a synthetic inbox message so the next wake cycle sees
+          // the rollup as a fresh instruction. From outside this is
+          // indistinguishable from the agent being told "here's what
+          // happened so far, continue".
+          this.inbox.push({
+            content: compactSummary,
+            from: "system",
+          });
+        }
+        if (this._state !== "stopped") this.setState("idle");
       })
       .catch((err) => {
         this.emit("event", {

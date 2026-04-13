@@ -221,10 +221,15 @@ export interface PressureContext {
  *
  * - `continue` — ignore and keep running
  * - `end` — gracefully stop after the current run completes (handoff summary optional)
- *
- * A future `compact` action will support cancel+restart-with-rolled-up context.
+ * - `compact` — gracefully stop the current run, clear the conversation
+ *   history, seed the next run with the provided summary as a system note,
+ *   and trigger a fresh processing cycle. The hook is responsible for
+ *   producing a useful rollup; Agent just mechanically swaps history for it.
  */
-export type PressureAction = { kind: "continue" } | { kind: "end"; summary?: string };
+export type PressureAction =
+  | { kind: "continue" }
+  | { kind: "end"; summary?: string }
+  | { kind: "compact"; summary: string };
 
 export interface CheckpointContext {
   reason: "run_start" | "run_end" | "event";
