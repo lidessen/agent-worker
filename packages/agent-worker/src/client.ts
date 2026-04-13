@@ -371,6 +371,31 @@ export class AwClient {
     return this.sseStream(`/workspaces/${encodeURIComponent(key)}/events/stream${q}`);
   }
 
+  /**
+   * Read entries from the workspace chronicle (append-only human-readable
+   * timeline of decisions / task transitions / milestones). Optional
+   * limit caps the response size (default 50, max 500); category filters
+   * by the category name (e.g. "task", "decision", "milestone").
+   */
+  async readWorkspaceChronicle(
+    key: string,
+    opts?: { limit?: number; category?: string },
+  ): Promise<{
+    entries: Array<{
+      id: string;
+      timestamp: string;
+      author: string;
+      category: string;
+      content: string;
+    }>;
+  }> {
+    const params = new URLSearchParams();
+    if (opts?.limit !== undefined) params.set("limit", String(opts.limit));
+    if (opts?.category) params.set("category", opts.category);
+    const qs = params.toString();
+    return this.request(`/workspaces/${encodeURIComponent(key)}/chronicle${qs ? `?${qs}` : ""}`);
+  }
+
   // ── Task ledger ─────────────────────────────────────────────────────
 
   /**
