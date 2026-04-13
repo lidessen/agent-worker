@@ -50,7 +50,7 @@ import { DaemonEventLog } from "./event-log.ts";
 import { createLoopFromConfig } from "./loop-factory.ts";
 import { writeDaemonInfo, removeDaemonInfo, generateToken, defaultDataDir } from "./discovery.ts";
 import { WorkspaceMcpHub } from "@agent-worker/workspace";
-import type { TaskStatus } from "@agent-worker/workspace";
+import type { TaskStatus, Workspace } from "@agent-worker/workspace";
 
 const TASK_STATUS_VALUES = new Set<TaskStatus>([
   "draft",
@@ -400,6 +400,9 @@ export class Daemon {
         }
         if (sub === "/events/stream" && method === "GET") {
           return this.handleWorkspaceEventsStream(key, url);
+        }
+        if (sub === "/chronicle" && method === "GET") {
+          return await this.handleWorkspaceChronicle(key, url);
         }
         if (sub === "/tasks" && method === "GET") {
           return await this.handleWorkspaceTasks(key, url);
@@ -1286,6 +1289,21 @@ export class Daemon {
     return Response.json({ tasks });
   }
 
+  private async handleWorkspaceChronicle(key: string, url: URL): Promise<Response> {
+    const resolved = this.resolveWorkspace(key);
+    if (resolved instanceof Response) return resolved;
+    const handle = resolved;
+
+    const limitParam = url.searchParams.get("limit");
+    const limit = limitParam ? Math.max(1, Math.min(parseInt(limitParam, 10) || 50, 500)) : 50;
+    const category = url.searchParams.get("category") ?? undefined;
+    const entries = await handle.workspace.contextProvider.chronicle.read({
+      limit,
+      category,
+    });
+    return Response.json({ entries });
+  }
+
   private async handleWorkspaceTask(key: string, taskId: string): Promise<Response> {
     const resolved = this.resolveWorkspace(key);
     if (resolved instanceof Response) return resolved;
@@ -1317,6 +1335,23 @@ export class Daemon {
       action,
       taskId,
     });
+  }
+
+  /**
+   * Append a human-readable chronicle entry so the workspace timeline
+   * shows the operator-driven task mutation. Best-effort — chronicle
+   * failures never block the mutation itself.
+   */
+  private async writeTaskChronicle(workspace: Workspace, content: string): Promise<void> {
+    try {
+      await workspace.contextProvider.chronicle.append({
+        author: "user",
+        category: "task",
+        content,
+      });
+    } catch {
+      // Chronicle append is observational; swallow failures.
+    }
   }
 
   private async handleCreateTask(key: string, req: Request): Promise<Response> {
@@ -1368,6 +1403,10 @@ export class Daemon {
       ],
     });
     this.emitTaskChanged(handle.key, "created", task.id);
+    await this.writeTaskChronicle(
+      handle.workspace,
+      `task_create [${task.id}] [${task.status}]: ${task.title}`,
+    );
     return Response.json({ task });
   }
 
@@ -1411,6 +1450,13 @@ export class Daemon {
 
     const task = await store.updateTask(taskId, patch);
     this.emitTaskChanged(handle.key, "updated", task.id);
+    // Log status transitions specifically — pure field tweaks are noise.
+    if (patch.status !== undefined && patch.status !== existing.status) {
+      await this.writeTaskChronicle(
+        handle.workspace,
+        `task_update [${task.id}] ${existing.status} → ${task.status}: ${task.title}`,
+      );
+    }
     return Response.json({ task });
   }
 
@@ -1493,6 +1539,10 @@ export class Daemon {
     });
 
     this.emitTaskChanged(handle.key, "dispatched", task.id);
+    await this.writeTaskChronicle(
+      handle.workspace,
+      `task_dispatch [${task.id}] → @${worker} as ${attempt.id}: ${task.title}`,
+    );
     return Response.json({ task: await store.getTask(task.id), attempt });
   }
 
@@ -1594,6 +1644,10 @@ export class Daemon {
 
     await store.updateTask(task.id, { status: kind });
     this.emitTaskChanged(handle.key, kind, task.id);
+    await this.writeTaskChronicle(
+      handle.workspace,
+      `task_${kind} [${task.id}]: ${task.title}${summary ? ` — ${summary.slice(0, 160)}` : ""}`,
+    );
 
     const [refreshedTask, attempts, handoffs] = await Promise.all([
       store.getTask(task.id),

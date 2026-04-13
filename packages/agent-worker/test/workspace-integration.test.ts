@@ -375,6 +375,50 @@ describe("Unified daemon (workspace routes)", () => {
     await expect(client.completeWorkspaceTask("test-ws", taskId)).rejects.toThrow();
   });
 
+  test("task mutations land as task-category chronicle entries", async () => {
+    await setup();
+    await client.createWorkspace(CHAT_YAML);
+
+    const created = await client.createWorkspaceTask("test-ws", {
+      title: "Write audit log",
+      goal: "Add admin audit logging",
+    });
+    const taskId = (created.task as { id: string }).id;
+    await client.updateWorkspaceTask("test-ws", taskId, { status: "open" });
+    await client.dispatchWorkspaceTask("test-ws", taskId, { worker: "alice" });
+    await client.completeWorkspaceTask("test-ws", taskId, {
+      summary: "Shipped it",
+    });
+
+    const result = await client.readWorkspaceChronicle("test-ws", { category: "task" });
+    const contents = result.entries.map((e) => e.content);
+
+    // Order is newest-first from the store; pick by substring rather than
+    // index so we don't couple the test to ordering semantics.
+    expect(contents.some((c) => c.includes("task_create") && c.includes(taskId))).toBe(true);
+    expect(
+      contents.some(
+        (c) => c.includes("task_update") && c.includes("draft → open") && c.includes(taskId),
+      ),
+    ).toBe(true);
+    expect(
+      contents.some(
+        (c) => c.includes("task_dispatch") && c.includes("@alice") && c.includes(taskId),
+      ),
+    ).toBe(true);
+    expect(
+      contents.some(
+        (c) => c.includes("task_completed") && c.includes("Shipped it") && c.includes(taskId),
+      ),
+    ).toBe(true);
+
+    // Every entry should carry the user author and task category.
+    for (const entry of result.entries) {
+      expect(entry.author).toBe("user");
+      expect(entry.category).toBe("task");
+    }
+  });
+
   test("task mutations emit workspace.task_changed events on the workspace stream", async () => {
     await setup();
     await client.createWorkspace(CHAT_YAML);
