@@ -1,0 +1,104 @@
+# Validation workspace for the workspace-led hierarchical rollout.
+#
+# Goal: prove that a real claude-code or codex agent, given the updated
+# workspacePromptSection guidance, will autonomously drive a kickoff
+# request through the full draft → open → dispatch → completed ledger
+# path without the operator calling any `aw task *` commands by hand.
+#
+# See: docs/design/workspace-led-hierarchical-agent-system/validation-checklist.md
+#
+# To run:
+#   aw daemon start -d
+#   aw create docs/design/workspace-led-hierarchical-agent-system/validation-workspace.yml
+#   aw task ls @hierarchical-validation
+#
+# Requires:
+#   - claude-code CLI installed + `aw auth anthropic` set up
+#     OR codex CLI installed + authenticated
+#   - Bun runtime
+
+name: hierarchical-validation
+label: Workspace-led hierarchical validation
+storage: file
+
+lead: maintainer
+
+channels:
+  - general
+  - review
+
+default_channel: general
+
+# Kickoff is a concrete, small, self-contained task. The acceptance
+# criteria are explicit so a real model can actually meet them in one
+# worker attempt without getting stuck.
+kickoff: |
+  @maintainer A new micro-utility is needed in the shared workspace sandbox.
+
+  **Request:** Create a file `greet.ts` exporting a single function
+  `greet(name: string): string` that returns `"Hello, {name}!"`. Also
+  write a companion `greet.test.ts` that runs under bun:test and
+  asserts `greet("world") === "Hello, world!"`.
+
+  **Acceptance criteria:**
+  1. `greet.ts` exists in the shared workspace sandbox.
+  2. `greet.test.ts` exists alongside it.
+  3. `bun test greet.test.ts` passes when run from the sandbox.
+
+  Please capture this in the task ledger and dispatch it to an
+  implementer. Don&apos;t write the code yourself — you&apos;re the
+  lead; route it to a worker.
+
+agents:
+  # ── Lead ────────────────────────────────────────────────────────────
+  maintainer:
+    runtime: claude-code
+    model: sonnet
+    instructions: |
+      You are the maintainer-lead for a validation workspace. Your job is
+      to prove the workspace-led hierarchical task ledger works end-to-end
+      by driving any incoming request through task_create / task_update /
+      task_dispatch and then reporting back to the user.
+
+      Critical rules:
+      1. You do NOT implement anything yourself. Your job is coordination.
+      2. Before anything else, check the Task Ledger section of your
+         prompt. If there is already a draft task for the incoming
+         request (kickoff auto-creates one), advance THAT existing draft
+         with task_update status=open — do NOT call task_create again.
+      3. After confirming the draft, call task_dispatch worker=@implementer
+         on the same task id.
+      4. Acknowledge the user in one short channel_send so they know
+         which task id and which worker is handling it.
+      5. When the implementer reports back via handoff (shown in the
+         ledger delta between your runs), verify the acceptance criteria
+         by reading the produced files, then call task_update status=completed.
+         If the handoff shows blockers, call task_update status=blocked
+         and explain what's needed.
+
+  # ── Worker ──────────────────────────────────────────────────────────
+  implementer:
+    runtime: claude-code
+    model: sonnet
+    instructions: |
+      You are the implementer worker. When you receive a dispatch
+      instruction (channel "dispatch"), the instruction body carries the
+      task id and attempt id — reuse them; never call attempt_create on
+      a dispatch.
+
+      Protocol on every dispatch:
+      1. Read the task goal + acceptance criteria from the instruction.
+      2. Do the actual work in your personal sandbox (use bash tools).
+      3. Verify your own output — if the task asks for a passing test,
+         actually run it before declaring done.
+      4. Call artifact_create for each concrete output file with the
+         correct attempt id.
+      5. Call handoff_create kind=completed summary="..." with the
+         attempt id, listing what you did and what you verified.
+      6. Call attempt_update id=<attempt id from dispatch> status=completed.
+      7. Stop. Do not channel_send — the lead will see your handoff in
+         its next run.
+
+      If you hit a blocker you cannot resolve, call handoff_create
+      kind=blocked with the blockers list, then attempt_update
+      status=handed_off, then stop.
