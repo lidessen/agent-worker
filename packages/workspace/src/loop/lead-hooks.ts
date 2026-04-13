@@ -13,7 +13,7 @@
 // from the orchestration layer at registerAgent time without the workspace
 // package pulling in the agent package.
 
-import type { Task, TaskStatus, WorkspaceStateStore } from "../state/index.ts";
+import type { Handoff, Task, TaskStatus, WorkspaceStateStore } from "../state/index.ts";
 
 /** Subset of the Agent type we need — keep this file decoupled from @agent-worker/agent. */
 interface MinimalAgentHooks {
@@ -79,7 +79,10 @@ function diffSnapshots(
   return { added, removed, statusChanged, activeAttemptChanged };
 }
 
-function formatDelta(diff: ReturnType<typeof diffSnapshots>): string | null {
+function formatDelta(
+  diff: ReturnType<typeof diffSnapshots>,
+  newHandoffs: Handoff[],
+): string | null {
   const lines: string[] = [];
   if (diff.added.length > 0) {
     lines.push("**New tasks:**");
@@ -104,6 +107,21 @@ function formatDelta(diff: ReturnType<typeof diffSnapshots>): string | null {
     if (lines.length > 0) lines.push("");
     lines.push("**Removed tasks:**");
     for (const t of diff.removed) lines.push(`- [${t.id}] ${t.title}`);
+  }
+  if (newHandoffs.length > 0) {
+    if (lines.length > 0) lines.push("");
+    lines.push("**New handoffs:**");
+    for (const h of newHandoffs) {
+      const header = `- [${h.id}] ${h.kind} from ${h.createdBy} on task ${h.taskId}`;
+      lines.push(header);
+      lines.push(`  summary: ${h.summary}`);
+      if (h.blockers.length > 0) {
+        lines.push(`  blockers: ${h.blockers.join("; ")}`);
+      }
+      if (h.nextSteps.length > 0) {
+        lines.push(`  next: ${h.nextSteps.join("; ")}`);
+      }
+    }
   }
   if (lines.length === 0) return null;
   return [
@@ -135,6 +153,11 @@ export function buildLeadHooks(
   const trackStatuses = options.trackStatuses ?? ACTIVE_STATUSES;
 
   let previous: Map<string, TaskSnapshot> | null = null;
+  // Track handoffs already surfaced so we only report brand-new ones.
+  // Using a Set of ids (not a createdAt cursor) is robust against the
+  // InMemory store's millisecond-resolution clock where baseline and new
+  // handoffs can share a timestamp.
+  const reportedHandoffIds = new Set<string>();
 
   async function captureCurrent(): Promise<Map<string, TaskSnapshot>> {
     const tasks = await store.listTasks({ status: trackStatuses });
@@ -143,6 +166,29 @@ export function buildLeadHooks(
       map.set(task.id, snapshotTask(task));
     }
     return map;
+  }
+
+  async function collectNewHandoffs(taskIds: Iterable<string>): Promise<Handoff[]> {
+    const out: Handoff[] = [];
+    for (const taskId of taskIds) {
+      const handoffs = await store.listHandoffs(taskId);
+      for (const h of handoffs) {
+        if (!reportedHandoffIds.has(h.id)) {
+          out.push(h);
+          reportedHandoffIds.add(h.id);
+        }
+      }
+    }
+    // Stable order: oldest first so the lead reads them in the order the
+    // workers emitted them.
+    return out.sort((a, b) => a.createdAt - b.createdAt);
+  }
+
+  async function seedReportedHandoffs(taskIds: Iterable<string>): Promise<void> {
+    for (const taskId of taskIds) {
+      const handoffs = await store.listHandoffs(taskId);
+      for (const h of handoffs) reportedHandoffIds.add(h.id);
+    }
   }
 
   return {
@@ -155,16 +201,26 @@ export function buildLeadHooks(
 
       const current = await captureCurrent();
 
+      // Union the tracked task ids from both snapshots so we catch
+      // handoffs on tasks that just disappeared from the active set (e.g.
+      // a worker reported `completed` and the task transitioned out).
+      const relevantTaskIds = new Set<string>();
+      for (const id of current.keys()) relevantTaskIds.add(id);
+      if (previous) for (const id of previous.keys()) relevantTaskIds.add(id);
+
       if (previous === null) {
-        // First run of this lead in this process. Remember, no delta.
+        // First run of this lead in this process. Seed the reported-set
+        // so we don't dump the entire handoff backlog on the next run.
         previous = current;
+        await seedReportedHandoffs(relevantTaskIds);
         return { kind: "noop" };
       }
 
       const diff = diffSnapshots(previous, current);
+      const newHandoffs = await collectNewHandoffs(relevantTaskIds);
       previous = current;
 
-      const content = formatDelta(diff);
+      const content = formatDelta(diff, newHandoffs);
       if (!content) return { kind: "noop" };
       return { kind: "inject", content };
     },
