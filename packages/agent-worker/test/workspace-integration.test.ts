@@ -1,4 +1,8 @@
 import { test, expect, describe, afterEach } from "bun:test";
+import { execa } from "execa";
+import { mkdtempSync, rmSync, writeFileSync, realpathSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { Daemon } from "../src/daemon.ts";
 import { AwClient } from "../src/client.ts";
 
@@ -495,5 +499,82 @@ describe("Unified daemon (workspace routes)", () => {
 
     const result = await client.waitWorkspace("task-ws", "5s");
     expect(result.status).toBe("completed");
+  });
+
+  test("provisions per-agent git worktrees when repo is set", async () => {
+    // Create a scratch git repo so we can assert against real
+    // `git worktree` output. Two coder agents + a coordinator that
+    // explicitly opts out, to prove the opt-in flag works.
+    const scratchRepo = realpathSync(mkdtempSync(join(tmpdir(), "aw-phase1-repo-")));
+    try {
+      await execa("git", ["-C", scratchRepo, "init", "-b", "main"]);
+      await execa("git", ["-C", scratchRepo, "config", "user.email", "t@e.com"]);
+      await execa("git", ["-C", scratchRepo, "config", "user.name", "tester"]);
+      writeFileSync(join(scratchRepo, "README.md"), "scratch\n");
+      await execa("git", ["-C", scratchRepo, "add", "README.md"]);
+      await execa("git", ["-C", scratchRepo, "commit", "-m", "initial"]);
+
+      await setup();
+      const yaml = `
+name: phase1-wt
+agents:
+  coordinator:
+    runtime: mock
+  coder-a:
+    runtime: mock
+    worktree: true
+  coder-b:
+    runtime: mock
+    worktree: true
+channels:
+  - general
+storage: memory
+repo:
+  path: ${scratchRepo}
+`;
+      await client.createWorkspace(yaml);
+
+      // Branches are deterministic so we can check them directly
+      // against the underlying repo.
+      const { stdout: branches } = await execa("git", [
+        "-C",
+        scratchRepo,
+        "branch",
+        "--list",
+      ]);
+      const branchNames = branches
+        .split("\n")
+        .map((b) => b.replace(/^[\s*+]+/, "").trim())
+        .filter(Boolean);
+      expect(branchNames).toContain("phase1-wt/coder-a");
+      expect(branchNames).toContain("phase1-wt/coder-b");
+      // Coordinator did not opt in, so no branch should exist for it.
+      expect(branchNames).not.toContain("phase1-wt/coordinator");
+
+      // The worktree directories should be live and distinct.
+      const { stdout: wtList } = await execa("git", [
+        "-C",
+        scratchRepo,
+        "worktree",
+        "list",
+        "--porcelain",
+      ]);
+      expect(wtList).toContain("branch refs/heads/phase1-wt/coder-a");
+      expect(wtList).toContain("branch refs/heads/phase1-wt/coder-b");
+
+      // Shutting the workspace down should clean both worktrees up.
+      await client.stopWorkspace("phase1-wt");
+      const { stdout: post } = await execa("git", [
+        "-C",
+        scratchRepo,
+        "worktree",
+        "list",
+        "--porcelain",
+      ]);
+      expect(post).not.toContain("phase1-wt/coder-a");
+      expect(post).not.toContain("phase1-wt/coder-b");
+    } finally {
+      rmSync(scratchRepo, { recursive: true, force: true });
+    }
   });
 });
