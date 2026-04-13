@@ -404,6 +404,9 @@ export class Daemon {
         if (sub === "/chronicle" && method === "GET") {
           return await this.handleWorkspaceChronicle(key, url);
         }
+        if (sub === "/tool-call" && method === "POST") {
+          return await this.handleWorkspaceToolCall(key, req);
+        }
         if (sub === "/tasks" && method === "GET") {
           return await this.handleWorkspaceTasks(key, url);
         }
@@ -1287,6 +1290,66 @@ export class Daemon {
       ...(ownerLeadId ? { ownerLeadId } : {}),
     });
     return Response.json({ tasks });
+  }
+
+  /**
+   * Generic workspace tool dispatcher. Takes `{ agent, name, args }` and
+   * invokes the named workspace tool through createWorkspaceTools so the
+   * stdio MCP subprocess doesn't have to hand-wire every tool endpoint.
+   *
+   * Returns the tool's text output wrapped in `{ content }`.
+   */
+  private async handleWorkspaceToolCall(key: string, req: Request): Promise<Response> {
+    const resolved = this.resolveWorkspace(key);
+    if (resolved instanceof Response) return resolved;
+    const handle = resolved;
+
+    type Body = { agent?: string; name?: string; args?: Record<string, unknown> };
+    let body: Body;
+    try {
+      body = (await req.json()) as Body;
+    } catch {
+      return Response.json({ error: "Invalid JSON body" }, { status: 400 });
+    }
+
+    const agent = (body.agent ?? "").trim();
+    const name = (body.name ?? "").trim();
+    if (!agent || !name) {
+      return Response.json({ error: "'agent' and 'name' are required" }, { status: 400 });
+    }
+
+    // Lazy-load to avoid pulling workspace package into the daemon's
+    // module graph at the top of the file (keeps the cross-package
+    // dependency shape consistent with the existing handlers).
+    const { createWorkspaceTools } = await import("@agent-worker/workspace");
+    const channels = handle.workspace.getAgentChannels(agent);
+    const tools = createWorkspaceTools(
+      agent,
+      handle.workspace.contextProvider,
+      channels,
+      (other) =>
+        handle.workspace.hasAgent(other) ? handle.workspace.getAgentChannels(other) : undefined,
+      {
+        stateStore: handle.workspace.stateStore,
+        workspaceName: handle.workspace.name,
+        instructionQueue: handle.workspace.instructionQueue,
+      },
+    );
+
+    const fn = tools[name];
+    if (!fn) {
+      return Response.json({ error: `Unknown workspace tool: ${name}` }, { status: 404 });
+    }
+
+    try {
+      const text = await fn(body.args ?? {});
+      return Response.json({ content: text });
+    } catch (err) {
+      return Response.json(
+        { error: err instanceof Error ? err.message : String(err) },
+        { status: 500 },
+      );
+    }
   }
 
   private async handleWorkspaceChronicle(key: string, url: URL): Promise<Response> {
