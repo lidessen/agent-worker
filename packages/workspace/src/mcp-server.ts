@@ -274,6 +274,11 @@ export class WorkspaceMcpHub {
       this.workspace.contextProvider,
       agentChannels,
       (name) => (this.workspace.hasAgent(name) ? this.workspace.getAgentChannels(name) : undefined),
+      {
+        stateStore: this.workspace.stateStore,
+        workspaceName: this.workspace.name,
+        instructionQueue: this.workspace.instructionQueue,
+      },
     );
 
     const defs = WORKSPACE_TOOL_DEFS as Record<string, ToolDef>;
