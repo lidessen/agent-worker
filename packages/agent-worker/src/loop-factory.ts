@@ -4,27 +4,68 @@
  * This bridges the HTTP API (which receives RuntimeConfig as JSON)
  * and the agent system (which needs an AgentLoop instance).
  */
+import { writeFile, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import type { AgentLoop } from "@agent-worker/agent";
 import type { RuntimeConfig } from "./types.ts";
 import { extractProvider, getDefaultModel, resolveProvider } from "@agent-worker/loop";
 
+function assertSupportedMcpServers(servers?: RuntimeConfig["mcpServers"]): void {
+  if (!servers) return;
+  for (const [name, server] of Object.entries(servers)) {
+    if (server && typeof server === "object" && "oauth" in server) {
+      throw new Error(`Remote MCP OAuth is not supported for server "${name}"`);
+    }
+  }
+}
+
 /** Create an AgentLoop from a RuntimeConfig. */
 export async function createLoopFromConfig(config: RuntimeConfig): Promise<AgentLoop> {
-  switch (config.type) {
-    case "ai-sdk":
-      return createAiSdkLoop(config);
-    case "claude-code":
-      return createClaudeCodeLoop(config);
-    case "codex":
-      return createCodexLoop(config);
-    case "cursor":
-      return createCursorLoop(config);
-    case "mock":
-      return createMockLoop(config);
-    default:
-      throw new Error(`Unknown runtime type: ${(config as any).type}`);
+  assertSupportedMcpServers(config.mcpServers);
+
+  const loop = await (async () => {
+    switch (config.type) {
+      case "ai-sdk":
+        return createAiSdkLoop(config);
+      case "claude-code":
+        return createClaudeCodeLoop(config);
+      case "codex":
+        return createCodexLoop(config);
+      case "cursor":
+        return createCursorLoop(config);
+      case "mock":
+        return createMockLoop(config);
+      default:
+        throw new Error(`Unknown runtime type: ${(config as any).type}`);
+    }
+  })();
+
+  if (config.mcpServers && Object.keys(config.mcpServers).length > 0) {
+    if (!loop.setMcpConfig) {
+      throw new Error("External MCP servers are currently supported only for CLI runtimes");
+    }
+
+    const configPath = `/tmp/agent-runtime-mcp-${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2)}.json`;
+    await writeFile(configPath, JSON.stringify({ mcpServers: config.mcpServers }), "utf-8");
+    loop.setMcpConfig(configPath);
+
+    const originalCleanup = loop.cleanup?.bind(loop);
+    loop.cleanup = async () => {
+      try {
+        await originalCleanup?.();
+      } finally {
+        try {
+          await unlink(configPath);
+        } catch {
+          /* already removed */
+        }
+      }
+    };
   }
+
+  return loop;
 }
 
 async function createAiSdkLoop(config: RuntimeConfig): Promise<AgentLoop> {
@@ -61,12 +102,16 @@ async function createAiSdkLoop(config: RuntimeConfig): Promise<AgentLoop> {
 
 async function createClaudeCodeLoop(config: RuntimeConfig): Promise<AgentLoop> {
   const { ClaudeCodeLoop } = await import("@agent-worker/loop");
+  // Phase-3 control boundary: `permissionMode` is now
+  // configurable. The daemon-level default stays at
+  // `bypassPermissions` until a follow-up commit flips it, so
+  // existing workspaces keep behaving the same way.
   return new ClaudeCodeLoop({
     model: config.model ?? "sonnet",
     cwd: config.cwd,
     allowedPaths: config.allowedPaths,
     env: config.env,
-    permissionMode: "bypassPermissions",
+    permissionMode: config.permissionMode ?? "bypassPermissions",
   });
 }
 
@@ -76,12 +121,20 @@ async function createCodexLoop(config: RuntimeConfig): Promise<AgentLoop> {
   // provided, store the codex thread id there so the next daemon
   // run resumes the same conversation.
   const threadIdFile = config.stateDir ? join(config.stateDir, "codex-thread.json") : undefined;
+  // Phase-3 control boundary: `fullAuto` and `sandbox` are now
+  // configurable. Default remains aggressive (full-auto
+  // workspace-write) — opt out by setting `policy.fullAuto:
+  // false` on the agent or workspace. Note: codex approval
+  // prompts are not yet intercepted by agent-worker, so
+  // `fullAuto: false` will currently block mid-run. The knob
+  // exists now so the plumbing is ready for the approval bridge.
   return new CodexLoop({
     model: config.model,
     cwd: config.cwd,
     allowedPaths: config.allowedPaths,
     env: config.env,
-    fullAuto: true,
+    fullAuto: config.fullAuto ?? true,
+    sandbox: config.sandbox,
     threadIdFile,
   });
 }

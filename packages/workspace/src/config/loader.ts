@@ -3,6 +3,7 @@ import { readFile, access } from "node:fs/promises";
 import { basename, dirname, resolve } from "node:path";
 import { execa } from "execa";
 import type {
+  AgentDef,
   AgentRole,
   WorkspaceDef,
   ConnectionDef,
@@ -10,6 +11,7 @@ import type {
   ResolvedAgent,
   ResolvedModel,
   ModelSpec,
+  McpServerDef,
   MountDef,
   SetupStep,
 } from "./types.ts";
@@ -64,6 +66,45 @@ export function resolveModel(spec: ModelSpec): ResolvedModel {
     full,
     temperature: spec.temperature,
     max_tokens: spec.max_tokens,
+  };
+}
+
+function normalizeMcpServerDef(server: Record<string, unknown>): McpServerDef {
+  if (server.oauth !== undefined) {
+    throw new Error("Remote MCP OAuth configuration is not supported");
+  }
+
+  return {
+    type:
+      (server.type as McpServerDef["type"] | undefined) ??
+      (typeof server.command === "string" ? "stdio" : undefined),
+    command: typeof server.command === "string" ? server.command : undefined,
+    args: Array.isArray(server.args)
+      ? server.args.filter((v): v is string => typeof v === "string")
+      : undefined,
+    env:
+      server.env && typeof server.env === "object"
+        ? Object.fromEntries(
+            Object.entries(server.env as Record<string, unknown>).filter(
+              (entry): entry is [string, string] => typeof entry[1] === "string",
+            ),
+          )
+        : undefined,
+    url: typeof server.url === "string" ? server.url : undefined,
+    headers:
+      server.headers && typeof server.headers === "object"
+        ? Object.fromEntries(
+            Object.entries(server.headers as Record<string, unknown>).filter(
+              (entry): entry is [string, string] => typeof entry[1] === "string",
+            ),
+          )
+        : undefined,
+    bearerTokenEnvVar:
+      typeof server.bearerTokenEnvVar === "string"
+        ? server.bearerTokenEnvVar
+        : typeof server.bearer_token_env_var === "string"
+          ? (server.bearer_token_env_var as string)
+          : undefined,
   };
 }
 
@@ -182,6 +223,25 @@ export async function loadWorkspaceDef(
   }
 
   const def = parseWorkspaceDef(content);
+  const rawWorkspaceMcp =
+    (def as WorkspaceDef & { mcp?: Record<string, unknown>; mcpServers?: Record<string, unknown> })
+      .mcp ??
+    (
+      def as WorkspaceDef & {
+        mcp_servers?: Record<string, unknown>;
+        mcpServers?: Record<string, unknown>;
+      }
+    ).mcp_servers ??
+    (def as WorkspaceDef & { mcpServers?: Record<string, unknown> }).mcpServers;
+  const workspaceMcpServers =
+    rawWorkspaceMcp && typeof rawWorkspaceMcp === "object"
+      ? Object.fromEntries(
+          Object.entries(rawWorkspaceMcp).map(([serverName, serverDef]) => [
+            serverName,
+            normalizeMcpServerDef((serverDef ?? {}) as Record<string, unknown>),
+          ]),
+        )
+      : undefined;
 
   // Name resolution priority: YAML name → file name → opts.name → error
   if (!def.name && filePath) {
@@ -235,6 +295,38 @@ export async function loadWorkspaceDef(
 
     // Role: explicit override wins; otherwise lead iff workspace.lead matches.
     const role: AgentRole = agentDef.role ?? (def.lead === name ? "lead" : "worker");
+    const rawMcp =
+      (agentDef as AgentDef & { mcpServers?: Record<string, unknown> }).mcp ??
+      (agentDef as AgentDef & { mcpServers?: Record<string, unknown> }).mcp_servers ??
+      (agentDef as AgentDef & { mcpServers?: Record<string, unknown> }).mcpServers;
+    const agentMcpServers =
+      rawMcp && typeof rawMcp === "object"
+        ? Object.fromEntries(
+            Object.entries(rawMcp).map(([serverName, serverDef]) => [
+              serverName,
+              normalizeMcpServerDef((serverDef ?? {}) as Record<string, unknown>),
+            ]),
+          )
+        : undefined;
+    const mcpServers =
+      workspaceMcpServers || agentMcpServers
+        ? {
+            ...workspaceMcpServers,
+            ...agentMcpServers,
+          }
+        : undefined;
+
+    // Phase 3 control-boundary policy: workspace provides the
+    // defaults, agent overrides field-by-field. Undefined fields
+    // are left undefined so the factory can apply its own
+    // fallback — we do not eagerly substitute here.
+    const policy =
+      def.policy || agentDef.policy
+        ? {
+            ...def.policy,
+            ...agentDef.policy,
+          }
+        : undefined;
 
     agents.push({
       name,
@@ -247,6 +339,8 @@ export async function loadWorkspaceDef(
       on_demand: agentDef.on_demand,
       role,
       worktree: agentDef.worktree,
+      mcpServers,
+      policy,
     });
   }
 
@@ -282,6 +376,7 @@ export async function loadWorkspaceDef(
   return {
     def: def as WorkspaceDef & { name: string },
     agents,
+    mcpServers: workspaceMcpServers,
     vars: setupVars,
     kickoff,
     configDir: filePath ? dirname(filePath) : undefined,

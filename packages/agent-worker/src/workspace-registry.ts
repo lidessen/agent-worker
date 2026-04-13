@@ -413,6 +413,13 @@ export class WorkspaceRegistry {
       // declares a repo AND this agent opted in via `worktree: true`.
       // Errors surface immediately so you learn at `aw create` time,
       // not mid-run inside the agent's bash tool.
+      //
+      // Phase-3 tightening: we deliberately do NOT push
+      // `workspace.repo.path` into `allowedPaths`. The whole
+      // point of the worktree is that the worker does its code
+      // work there — git handles the indirection to the canonical
+      // `.git` directory without the worker needing filesystem
+      // access to the source repo root.
       let worktreeDir: string | undefined;
       let worktreeBranch: string | undefined;
       let baseBranch: string | undefined;
@@ -420,13 +427,7 @@ export class WorkspaceRegistry {
         const safeKey = key.replace(/:/g, "--");
         worktreeBranch = `${safeKey}/${agent.name}`;
         baseBranch = workspace.repo.baseBranch;
-        worktreeDir = join(
-          this._dataDir,
-          "workspace-data",
-          safeKey,
-          "worktrees",
-          agent.name,
-        );
+        worktreeDir = join(this._dataDir, "workspace-data", safeKey, "worktrees", agent.name);
         mkdirSync(dirname(worktreeDir), { recursive: true });
         await provisionWorktree(workspace.repo.path, worktreeDir, worktreeBranch, baseBranch);
         provisionedWorktrees.push({
@@ -434,7 +435,6 @@ export class WorkspaceRegistry {
           worktreePath: worktreeDir,
         });
         agentCwd = worktreeDir;
-        allowedPaths.push(workspace.repo.path);
       }
 
       const actualStorageDir = storageDir ?? this.workspaceDir(key);
@@ -691,6 +691,7 @@ export class WorkspaceRegistry {
           daemonUrl: this._daemonUrl,
           daemonToken: this._daemonToken,
           workspaceKey,
+          extraServers: agent.mcpServers,
         });
         mcpConfigPath = mcpConfig.configPath;
       }
@@ -707,9 +708,7 @@ export class WorkspaceRegistry {
       // For AI SDK runtimes, create a loop and run. Per-agent
       // state dir holds anything the runtime wants to persist
       // across daemon restarts (currently: codex thread id).
-      const stateDir = opts?.storageDir
-        ? join(opts.storageDir, "agents", agent.name)
-        : undefined;
+      const stateDir = opts?.storageDir ? join(opts.storageDir, "agents", agent.name) : undefined;
       const loop = await this.createAgentLoop(agent, opts?.cwd, opts?.allowedPaths, stateDir);
       if (!loop) {
         throw new Error(`No loop available for runtime: ${agent.runtime}`);
@@ -783,6 +782,13 @@ export class WorkspaceRegistry {
   ): Promise<AgentLoop | null> {
     if (!agent.runtime || agent.runtime === "mock") return null;
     if (!agent.model && agent.runtime === "ai-sdk") return null;
+    if (
+      agent.runtime === "ai-sdk" &&
+      agent.mcpServers &&
+      Object.keys(agent.mcpServers).length > 0
+    ) {
+      throw new Error("External MCP servers are currently supported only for CLI runtimes");
+    }
 
     const { createLoopFromConfig } = await import("./loop-factory.ts");
     // Don't pass instructions here — WorkspaceOrchestrator already includes them
@@ -795,6 +801,14 @@ export class WorkspaceRegistry {
       cwd,
       allowedPaths,
       stateDir,
+      mcpServers: agent.mcpServers,
+      // Phase 3 control-boundary policy. Fully resolved in the
+      // config loader (workspace defaults merged with agent
+      // overrides); missing fields fall through to the factory
+      // fallbacks, which are the prior aggressive defaults.
+      permissionMode: agent.policy?.permissionMode,
+      fullAuto: agent.policy?.fullAuto,
+      sandbox: agent.policy?.sandbox,
     });
   }
 }
