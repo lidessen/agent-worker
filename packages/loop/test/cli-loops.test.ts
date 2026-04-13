@@ -299,6 +299,49 @@ describe("CursorLoop (mock)", () => {
     expect(hasToolCalls(events)).toBe(true);
   });
 
+  test("estimateUsage flag emits a synthetic usage event with source=estimate", async () => {
+    const run = runCliLoop(
+      {
+        ...mockCliConfig("cursor", "success", mapCursorEvent, extractCursorResult),
+        estimateUsage: true,
+      },
+      {},
+    );
+    const events = await collectEvents(run);
+    const result = await run.result;
+
+    const usageEvent = events.find((e: { type: string }) => e.type === "usage") as
+      | { type: "usage"; outputTokens: number; totalTokens: number; source: string }
+      | undefined;
+    expect(usageEvent).toBeDefined();
+    expect(usageEvent?.source).toBe("estimate");
+    expect(usageEvent?.outputTokens).toBeGreaterThan(0);
+    expect(usageEvent?.totalTokens).toBe(usageEvent?.outputTokens);
+
+    // LoopResult.usage should also reflect the estimate so downstream
+    // consumers that only look at the final tally see something.
+    expect(result.usage.totalTokens).toBeGreaterThan(0);
+  });
+
+  test("estimateUsage does not override a real usage_delta from the runtime", async () => {
+    // Reuse claude's success fixture which does emit usage_delta sentinels.
+    const run = runCliLoop(
+      {
+        ...mockCliConfig("claude", "success", mapClaudeEvent, extractClaudeResult),
+        estimateUsage: true,
+      },
+      {},
+    );
+    const events = await collectEvents(run);
+    await run.result;
+
+    // The estimator must NOT fire when real usage is present.
+    const usageEvents = events.filter((e: { type: string }) => e.type === "usage");
+    for (const e of usageEvents) {
+      expect((e as { source: string }).source).not.toBe("estimate");
+    }
+  });
+
   test("error scenario", async () => {
     const run = runCliLoop(
       mockCliConfig("cursor", "error", mapCursorEvent, extractCursorResult),
