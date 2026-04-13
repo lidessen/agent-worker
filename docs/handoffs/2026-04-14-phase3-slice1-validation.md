@@ -15,15 +15,33 @@ permission prompts" and the loop factory honors it.
 
 ## Validation
 
-No real-runtime run this slice — the Codex CLI currently has
-no bridge for "on-request" approval prompts to cross back into
-agent-worker, so a `fullAuto: false` codex agent would block
-mid-run waiting for human input that can't arrive. Same story
-for Claude Code `permissionMode: default`. We ship the plumbing
-now; the approval bridge is a separate future slice.
+Real-runtime exercise was attempted with a codex `reader`
+agent under `policy.fullAuto: false`, confirming the suspected
+block: codex's `thread/start` accepted
+`approvalPolicy: "on-request"` without error, the agent reached
+the `channel_send` tool call, the MCP layer started the call,
+but the codex app-server never emitted `item/completed` for the
+MCP tool result, so our `CodexLoop.handleNotification` never
+transitioned the turn to "done". **Conclusion: `fullAuto:
+false` with codex requires the approval bridge, which is out
+of Phase 3 slice 1 scope.**
 
-Instead, the slice is validated via three layers of white-box
-tests:
+A second attempt with `policy.fullAuto: true, sandbox:
+read-only` reproduced the same hang — the policy flows to
+codex, codex accepts the thread config, the tool call starts,
+no `item/completed` arrives. This matches a pattern observed
+during Phase 2 validation (codex + MCP channel_send sometimes
+hangs at turn completion even under `fullAuto: true` +
+default sandbox). It is a pre-existing codex-integration
+issue, not a Phase 3 regression; Phase 2 validation still
+succeeded overall because the thread file was written in
+`ensureThread()` before the tool call stalled.
+
+Given those real-runtime observations, the slice 1 validation
+rests on three layers of white-box tests. A proper
+real-runtime run needs the approval bridge plus a diagnosis of
+the MCP-tool completion stall, neither of which belongs in
+this commit.
 
 ### 1. Config resolution (4 tests, `config.test.ts`)
 
