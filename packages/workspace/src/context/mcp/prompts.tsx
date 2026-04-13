@@ -152,6 +152,13 @@ export const workspacePromptSection: PromptSection = async (ctx) => {
         label="Shared workspace"
         value={`\`${ctx.workspaceSandboxDir ?? "(not available)"}\``}
       />
+      {ctx.worktreeDir && (
+        <>
+          <field label="Git worktree (your code cwd)" value={`\`${ctx.worktreeDir}\``} />
+          <field label="Branch" value={ctx.worktreeBranch ?? "(unknown)"} />
+          <field label="Base branch" value={ctx.baseBranch ?? "main"} />
+        </>
+      )}
       <br />
       <line>Channels</line>
       {channels.length > 0 ? (

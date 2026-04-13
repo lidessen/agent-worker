@@ -1,6 +1,7 @@
 import { writeFileSync } from "node:fs";
 import type { Workspace } from "@agent-worker/workspace";
 import type { ResolvedWorkspace } from "@agent-worker/workspace";
+import { removeWorktree } from "@agent-worker/workspace";
 import type { WorkspaceOrchestrator } from "./orchestrator.ts";
 import type { EventBus } from "@agent-worker/shared";
 import type {
@@ -29,6 +30,8 @@ export class ManagedWorkspace {
   private _onDemandAgents: Set<string>;
   private _mentionListener: ((msg: import("@agent-worker/workspace").Message) => void) | null =
     null;
+  /** Phase-1 worktrees provisioned for this workspace, cleaned up on stop(). */
+  private readonly _worktrees: ReadonlyArray<{ repoPath: string; worktreePath: string }>;
 
   constructor(opts: {
     workspace: Workspace;
@@ -39,6 +42,8 @@ export class ManagedWorkspace {
     bus?: EventBus;
     /** Path to status.json for persistence. */
     statusPath?: string;
+    /** Git worktrees to remove on stop(). */
+    worktrees?: Array<{ repoPath: string; worktreePath: string }>;
   }) {
     this.name = opts.resolved.def.name;
     this.tag = opts.tag;
@@ -52,6 +57,7 @@ export class ManagedWorkspace {
     this._onDemandAgents = new Set(
       opts.resolved.agents.filter((a) => a.on_demand).map((a) => a.name),
     );
+    this._worktrees = opts.worktrees ?? [];
     this._persistStatus();
   }
 
@@ -235,6 +241,20 @@ export class ManagedWorkspace {
     for (const loop of this.loops) {
       if (loop.isRunning) {
         await loop.stop();
+      }
+    }
+    // Clean up phase-1 worktrees before workspace.shutdown() so that
+    // `git worktree remove` still has a live repo to talk to. Failures
+    // are logged but do not block shutdown — the next aw create will
+    // reattach via the idempotency path.
+    for (const { repoPath, worktreePath } of this._worktrees) {
+      try {
+        await removeWorktree(repoPath, worktreePath);
+      } catch (err) {
+        console.error(
+          `[workspace ${this.key}] failed to remove worktree ${worktreePath}:`,
+          err instanceof Error ? err.message : err,
+        );
       }
     }
     await this.workspace.shutdown();

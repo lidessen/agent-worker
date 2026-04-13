@@ -155,6 +155,18 @@ export interface WorkspaceConfig {
   lead?: string;
   /** Agent names that are on-demand (only wake on @mention, not broadcasts). */
   onDemandAgents?: string[];
+  /**
+   * Optional source repo for phase-1 execution isolation. When set,
+   * workspace-registry provisions a `git worktree` for every agent
+   * whose config has `worktree: true`. See
+   * docs/design/phase-1-worktree-isolation/README.md.
+   */
+  repo?: {
+    /** Canonical path to the source git repository. */
+    path: string;
+    /** Branch that new agent branches fork from. */
+    baseBranch: string;
+  };
 }
 
 // ── Channel Bridge & Adapter ───────────────────────────────────────────────
@@ -212,6 +224,8 @@ export interface WorkspaceRuntime {
   readonly storageDir: string | undefined;
   /** Shared workspace sandbox directory (collaborative files visible to all agents). */
   readonly workspaceSandboxDir: string | undefined;
+  /** Optional source repo for phase-1 worktree isolation. */
+  readonly repo: { path: string; baseBranch: string } | undefined;
   /** Kernel state store (Task/Attempt/Handoff/Artifact) — see ./state/. */
   readonly stateStore: import("./state/index.ts").WorkspaceStateStore;
 

@@ -47,6 +47,12 @@ export interface OrchestratorConfig {
   sandboxDir?: string;
   /** Shared workspace sandbox directory (visible to all agents). */
   workspaceSandboxDir?: string;
+  /** Phase-1 worktree isolation: agent's dedicated git worktree (if provisioned). */
+  worktreeDir?: string;
+  /** Branch name of the agent's worktree. */
+  worktreeBranch?: string;
+  /** Base branch the agent's branch forked from. */
+  baseBranch?: string;
   /** Whether this agent is on_demand (started only via @mention, not at startup). */
   onDemand?: boolean;
   /** Kernel state store — exposed to the lead prompt section. */
@@ -459,6 +465,9 @@ export class WorkspaceOrchestrator {
       currentChannel: instruction?.channel || undefined,
       sandboxDir: this.config.sandboxDir,
       workspaceSandboxDir: this.config.workspaceSandboxDir,
+      worktreeDir: this.config.worktreeDir,
+      worktreeBranch: this.config.worktreeBranch,
+      baseBranch: this.config.baseBranch,
       stateStore: this.config.stateStore,
       role: this.config.role,
       workspaceName: this.config.workspaceName,

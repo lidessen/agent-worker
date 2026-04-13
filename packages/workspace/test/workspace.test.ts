@@ -129,6 +129,25 @@ describe("Workspace", () => {
     expect(aliceInbox).toHaveLength(0);
   });
 
+  test("exposes repo config on the runtime when provided", async () => {
+    const ws = await createWorkspace({
+      name: "repo-ws",
+      agents: ["alice"],
+      storage: new MemoryStorage(),
+      repo: { path: "/tmp/some-repo", baseBranch: "develop" },
+    });
+    expect(ws.repo).toEqual({ path: "/tmp/some-repo", baseBranch: "develop" });
+  });
+
+  test("repo is undefined when omitted from config", async () => {
+    const ws = await createWorkspace({
+      name: "no-repo",
+      agents: ["alice"],
+      storage: new MemoryStorage(),
+    });
+    expect(ws.repo).toBeUndefined();
+  });
+
   test("multiple leading mentions all wake", async () => {
     await workspace.contextProvider.send({
       channel: "general",

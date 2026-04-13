@@ -28,12 +28,14 @@ import {
   type WorkspaceStateStore,
 } from "./state/index.ts";
 import { extractAddressedMentions } from "./utils.ts";
+import { pruneWorktrees } from "./worktree.ts";
 
 export class Workspace implements WorkspaceRuntime {
   readonly name: string;
   readonly tag: string | undefined;
   readonly defaultChannel: string;
   readonly storageDir: string | undefined;
+  readonly repo: { path: string; baseBranch: string } | undefined;
   private readonly _sandboxBaseDir: string | undefined;
   readonly contextProvider: ContextProvider;
   readonly eventLog: EventLog;
@@ -68,6 +70,7 @@ export class Workspace implements WorkspaceRuntime {
     this.defaultChannel = config.defaultChannel ?? "general";
     this._onDemandAgents = new Set(config.onDemandAgents ?? []);
     this.storageDir = config.storageDir;
+    this.repo = config.repo;
     this._sandboxBaseDir = config.sandboxBaseDir;
 
     const storage = config.storage ?? new MemoryStorage();
@@ -136,6 +139,20 @@ export class Workspace implements WorkspaceRuntime {
     // owned them is gone — mark them as failed so a future dispatch
     // isn't permanently blocked by a stale active-attempt pointer.
     await this.recoverOrphanedAttempts();
+
+    // Best-effort worktree prune after a crash. A stale worktree
+    // directory whose underlying ref was lost will then be recreated
+    // idempotently by workspace-registry on the next create() call.
+    if (this.repo) {
+      try {
+        await pruneWorktrees(this.repo.path);
+      } catch (err) {
+        console.error(
+          `[workspace ${this.name}] worktree prune failed:`,
+          err instanceof Error ? err.message : err,
+        );
+      }
+    }
 
     this.initialized = true;
   }

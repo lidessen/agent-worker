@@ -25,6 +25,12 @@ export interface PromptContext {
   sandboxDir?: string;
   /** Shared workspace sandbox directory (visible to all agents). */
   workspaceSandboxDir?: string;
+  /** Git worktree the agent should use as its code cwd (phase 1 isolation). */
+  worktreeDir?: string;
+  /** Branch name of the agent's worktree. */
+  worktreeBranch?: string;
+  /** Base branch the agent's branch forked from. */
+  baseBranch?: string;
   /** Kernel state store — task ledger visible to the lead. Undefined in legacy callers. */
   stateStore?: WorkspaceStateStore;
   /**
