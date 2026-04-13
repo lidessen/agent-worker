@@ -412,8 +412,15 @@ describe("Unified daemon (workspace routes)", () => {
       ),
     ).toBe(true);
 
-    // Every entry should carry the user author and task category.
-    for (const entry of result.entries) {
+    // Every entry we explicitly drove via HTTP should carry the user
+    // author and task category. (The kickoff auto-draft that
+    // managed-workspace.kickoff() creates is authored by "system" and
+    // is excluded here — the integration test's CHAT_YAML still fires a
+    // kickoff before our explicit mutations, so we filter to just the
+    // task id we created.)
+    const ours = result.entries.filter((e) => e.content.includes(taskId));
+    expect(ours.length).toBeGreaterThanOrEqual(4);
+    for (const entry of ours) {
       expect(entry.author).toBe("user");
       expect(entry.category).toBe("task");
     }
