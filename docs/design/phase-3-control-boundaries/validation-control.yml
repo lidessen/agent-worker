@@ -1,0 +1,48 @@
+# Phase-3 positive validation: a workspace that explicitly
+# sets `policy.fullAuto: true` at the top level and overrides it
+# to `false` on one agent. Confirms the YAML → resolver →
+# factory → codex chain routes the knob correctly.
+#
+# The `reader` agent deliberately uses the current aggressive
+# default (`fullAuto: true`) so it can actually reach the
+# codex app-server, run a turn, and channel_send a reply.
+# Codex approval prompts (the `fullAuto: false` path) still
+# require an approval bridge that does not exist yet — see
+# the phase-3 slice 1 writeup.
+#
+# Run:
+#   bun run aw create docs/design/phase-3-control-boundaries/validation-control.yml
+#   # expect a single channel_send reply from @reader within ~15s
+
+name: phase3-control
+label: Phase 3 policy knob positive validation
+storage: file
+
+channels:
+  - general
+
+default_channel: general
+
+policy:
+  fullAuto: true
+  sandbox: read-only
+
+kickoff: |
+  @reader Reply with one short sentence confirming the phase-3
+  policy plumbing. Use channel_send only. Do NOT call bash or
+  apply_patch — the workspace policy pins sandbox to read-only,
+  so any shell write would fail anyway.
+
+agents:
+  reader:
+    runtime: codex
+    model: gpt-5-codex
+    instructions: |
+      You are a read-only reviewer. The workspace policy
+      pinned you to `sandbox: read-only` via the Phase-3
+      control-boundary plumbing. You can still run read-only
+      shell commands and all MCP tools (channel_send,
+      channel_read, etc).
+
+      On wake-up: send ONE short confirmation line via
+      channel_send and stop. Do not write files.
