@@ -507,6 +507,17 @@ export function createTaskTools(
         return "Error: 'taskId' and 'worker' are required.";
       }
 
+      // Normalize the worker handle up front. The orchestrator polls the
+      // instruction queue by bare agent name, so "@implementer" vs
+      // "implementer" is a silent bug: the enqueue goes through fine but
+      // the worker's queue never has an entry with a matching agentName
+      // and the dispatch is effectively a no-op from the queue side.
+      // Strip leading @ so both forms route the same way.
+      const workerName = args.worker.replace(/^@+/, "");
+      if (!workerName) {
+        return "Error: 'worker' must name a real agent (got just '@').";
+      }
+
       const result = await withTaskLock(args.taskId, async () => {
         const task = await store.getTask(args.taskId);
         if (!task) return `Error: task ${args.taskId} not found.`;
@@ -521,7 +532,7 @@ export function createTaskTools(
         try {
           attempt = await store.createAttempt({
             taskId: task.id,
-            agentName: args.worker,
+            agentName: workerName,
             role: "worker",
           });
         } catch (err) {
@@ -536,7 +547,7 @@ export function createTaskTools(
         const priority: Priority = args.priority ?? "normal";
         const instruction = {
           id: nanoid(),
-          agentName: args.worker,
+          agentName: workerName,
           messageId: `dispatch:${attempt.id}`,
           channel: "dispatch",
           content: formatDispatchInstruction(task, attempt, agentName),
@@ -546,9 +557,9 @@ export function createTaskTools(
         deps.instructionQueue!.enqueue(instruction);
 
         await chronicle(
-          `task_dispatch [${task.id}] → @${args.worker} as ${attempt.id}: ${task.title}`,
+          `task_dispatch [${task.id}] → @${workerName} as ${attempt.id}: ${task.title}`,
         );
-        return `Dispatched task ${task.id} to @${args.worker} as attempt ${attempt.id}`;
+        return `Dispatched task ${task.id} to @${workerName} as attempt ${attempt.id}`;
       });
       return typeof result === "string" ? result : String(result);
     },

@@ -119,7 +119,7 @@ export class ManagedWorkspace {
     // keeps working during the migration.
     const lead = this.resolved.agents.find((a) => a.role === "lead")?.name;
     try {
-      await this.workspace.stateStore.createTask({
+      const task = await this.workspace.stateStore.createTask({
         workspaceId: this.workspace.name,
         title: content.split("\n")[0]?.slice(0, 120) ?? "Kickoff",
         goal: content,
@@ -134,6 +134,18 @@ export class ManagedWorkspace {
           },
         ],
       });
+      // Chronicle the auto-draft so the workspace timeline shows the
+      // intake step the same way it shows subsequent task transitions.
+      // Best-effort — a chronicle failure never blocks kickoff.
+      try {
+        await this.workspace.contextProvider.chronicle.append({
+          author: "system",
+          category: "task",
+          content: `task_create [${task.id}] [draft]: ${task.title} (auto from kickoff on #${channel})`,
+        });
+      } catch {
+        /* chronicle is observational */
+      }
     } catch (err) {
       // Kickoff must not fail because of state store plumbing. Swallow and
       // emit a diagnostic event — the channel send below still carries the
