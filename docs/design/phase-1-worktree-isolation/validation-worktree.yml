@@ -1,0 +1,145 @@
+# Phase-1 validation: two coder agents, one shared repo, parallel
+# work on separate worktrees / branches.
+#
+# Setup note: this YAML references an absolute repo.path. Before
+# running `bun run aw create`, create the scratch repo:
+#
+#   rm -rf /tmp/aw-phase1-validation && \
+#     mkdir -p /tmp/aw-phase1-validation/repo && \
+#     cd /tmp/aw-phase1-validation/repo && \
+#     git init -q -b main && git config user.email t@test.local && \
+#     git config user.name tester && \
+#     echo hello > README.md && \
+#     git add README.md && git commit -qm initial
+#
+# Expected events:
+#   1. kickoff auto-creates a draft task at the maintainer
+#   2. maintainer run 1: task_update → split into two sub-tasks →
+#      task_dispatch to @coder-a and @coder-b in parallel
+#   3. coder-a run: writes hello.ts in its worktree, commits on
+#      branch phase1-worktree-validation/coder-a, reports completion
+#   4. coder-b run: writes world.ts in its worktree, commits on
+#      branch phase1-worktree-validation/coder-b, reports completion
+#   5. maintainer run N: verifies both branches exist with commits,
+#      marks the parent task completed
+
+name: phase1-worktree-validation
+label: Phase 1 worktree isolation validation
+storage: file
+
+lead: maintainer
+
+channels:
+  - general
+  - review
+
+default_channel: general
+
+repo:
+  path: /tmp/aw-phase1-validation/repo
+  base_branch: main
+
+kickoff: |
+  @maintainer Coordinate two parallel coding tasks against the
+  shared repo. Split into two tasks and dispatch to the two
+  coders simultaneously.
+
+  Task A (for coder-a):
+  - In your own worktree, create `hello.ts` with
+    `export const hello = () => "hello from coder-a";`
+  - Stage and commit it on your branch with message
+    "coder-a: add hello.ts"
+  - Report completion with the commit hash
+
+  Task B (for coder-b):
+  - In your own worktree, create `world.ts` with
+    `export const world = () => "world from coder-b";`
+  - Stage and commit it on your branch with message
+    "coder-b: add world.ts"
+  - Report completion with the commit hash
+
+  Acceptance:
+  - branch phase1-worktree-validation/coder-a has one new commit
+    touching hello.ts beyond main
+  - branch phase1-worktree-validation/coder-b has one new commit
+    touching world.ts beyond main
+  - both worktrees are distinct directories, neither touched the
+    other's file
+
+  Dispatch to both in parallel. Do NOT implement yourself.
+
+agents:
+  maintainer:
+    runtime: claude-code
+    model: sonnet
+    instructions: |
+      You are the maintainer-lead for a phase-1 worktree isolation
+      validation. Your job is pure coordination — never write code
+      yourself.
+
+      Critical rules:
+      1. Do NOT implement anything. Your job is coordination.
+      2. The kickoff auto-creates a draft task. Advance it to
+         open first (task_update status=open), then split it by
+         creating two NEW open tasks — one per coder.
+      3. `task_dispatch worker=coder-a taskId=...` and
+         `task_dispatch worker=coder-b taskId=...` to hand out both
+         simultaneously. Dispatch both BEFORE either finishes so
+         they actually run in parallel.
+      4. Brief channel_send after both dispatches (one sentence),
+         acknowledging that two worktree-backed workers are
+         processing the split.
+      5. When both workers report back, verify by reading each
+         coder's worktree (shown as their `Git worktree` field in
+         team_members / task ledger) — run `git log --oneline` in
+         the repo, check that both branches have their commits,
+         then mark all three tasks (parent + two subtasks)
+         completed with a final channel_send summary.
+      6. If either worker hands off with blockers, task_update
+         status=blocked + reply explaining what's needed. Do not
+         re-implement.
+
+  coder-a:
+    runtime: claude-code
+    model: sonnet
+    worktree: true
+    instructions: |
+      You are a task-scoped coder worker operating in your own git
+      worktree. Your branch and cwd are shown in the "Directories"
+      section of your prompt as "Git worktree" and "Branch" — all
+      your bash commands run from that cwd.
+
+      On dispatch, the instruction body carries a task id and an
+      attempt id. Reuse them, never call attempt_create.
+
+      Protocol on every dispatch:
+      1. Read the task goal carefully.
+      2. Do the work in your worktree via bash:
+         - Write the requested file(s) using shell redirection or
+           cat heredocs.
+         - `git add ...` and `git commit -m ...` ON YOUR BRANCH
+           (you're already on the right branch because cwd is the
+           worktree).
+         - `git log --oneline -1` to capture the commit hash.
+      3. Call artifact_create for each concrete file output
+         (artifact_list first to avoid duplicates).
+      4. Call handoff_create kind=completed with a summary
+         including the commit hash and the path touched.
+      5. Call attempt_update id=<attempt id from dispatch>
+         status=completed with a brief resultSummary.
+      6. channel_send ONE short line to @maintainer with the
+         commit hash so the lead wakes up. No intermediate acks.
+      7. Stop.
+
+      If blocked: handoff_create kind=blocked with blockers,
+      attempt_update status=handed_off, then one channel_send,
+      stop.
+
+  coder-b:
+    runtime: claude-code
+    model: sonnet
+    worktree: true
+    instructions: |
+      Same protocol as coder-a, but you are coder-b. Your branch
+      and worktree are distinct — never touch coder-a's branch or
+      files. Only commit in your own worktree on your own branch.
