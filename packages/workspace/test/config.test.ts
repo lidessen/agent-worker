@@ -269,6 +269,111 @@ agents:
     expect(result.agents[0]!.model?.full).toBe("sonnet");
   });
 
+  test("normalizes agent MCP servers from YAML aliases", async () => {
+    const result = await loadWorkspaceDef(
+      `
+name: test
+agents:
+  alice:
+    runtime: claude-code
+    model: sonnet
+    mcp_servers:
+      sentry:
+        type: http
+        url: https://mcp.sentry.dev/mcp
+        bearer_token_env_var: SENTRY_TOKEN
+`,
+      { skipSetup: true },
+    );
+
+    expect(result.agents[0]!.mcpServers).toEqual({
+      sentry: {
+        type: "http",
+        url: "https://mcp.sentry.dev/mcp",
+        bearerTokenEnvVar: "SENTRY_TOKEN",
+      },
+    });
+  });
+
+  test("rejects MCP OAuth config", async () => {
+    await expect(
+      loadWorkspaceDef(
+        `
+name: test
+agents:
+  alice:
+    runtime: claude-code
+    model: sonnet
+    mcp:
+      figma:
+        type: http
+        url: https://mcp.figma.com/mcp
+        oauth:
+          client_id: figma-client
+`,
+        { skipSetup: true },
+      ),
+    ).rejects.toThrow("Remote MCP OAuth configuration is not supported");
+  });
+
+  test("merges workspace-level mcpServers into agents and allows agent overrides", async () => {
+    const result = await loadWorkspaceDef(
+      `
+name: test
+mcp_servers:
+  figma:
+    type: http
+    url: https://mcp.figma.com/mcp
+  sentry:
+    type: http
+    url: https://mcp.sentry.dev/mcp
+agents:
+  alice:
+    runtime: claude-code
+    model: sonnet
+  bob:
+    runtime: claude-code
+    model: sonnet
+    mcp:
+      sentry:
+        type: http
+        url: https://internal.example.com/mcp
+`,
+      { skipSetup: true },
+    );
+
+    expect(result.mcpServers).toEqual({
+      figma: {
+        type: "http",
+        url: "https://mcp.figma.com/mcp",
+      },
+      sentry: {
+        type: "http",
+        url: "https://mcp.sentry.dev/mcp",
+      },
+    });
+    expect(result.agents[0]!.mcpServers).toEqual({
+      figma: {
+        type: "http",
+        url: "https://mcp.figma.com/mcp",
+      },
+      sentry: {
+        type: "http",
+        url: "https://mcp.sentry.dev/mcp",
+      },
+    });
+    expect(result.agents[1]!.mcpServers).toEqual({
+      figma: {
+        type: "http",
+        url: "https://mcp.figma.com/mcp",
+      },
+      sentry: {
+        type: "http",
+        url: "https://internal.example.com/mcp",
+      },
+    });
+  });
+
   test("resolves agents with provider:model shorthand", async () => {
     const result = await loadWorkspaceDef(
       `
@@ -637,5 +742,89 @@ agents:
     const config = toWorkspaceConfig(resolved);
     expect(config.repo).toBeUndefined();
     expect(resolved.agents[0]?.worktree).toBeUndefined();
+  });
+});
+
+describe("phase-3 policy resolution", () => {
+  test("workspace-level policy propagates to every agent", async () => {
+    const resolved = await loadWorkspaceDef(
+      `
+name: ws
+policy:
+  permissionMode: acceptEdits
+  fullAuto: false
+agents:
+  alice:
+    model: x
+  bob:
+    model: y
+`,
+      { skipSetup: true },
+    );
+    expect(resolved.agents[0]?.policy).toEqual({
+      permissionMode: "acceptEdits",
+      fullAuto: false,
+    });
+    expect(resolved.agents[1]?.policy).toEqual({
+      permissionMode: "acceptEdits",
+      fullAuto: false,
+    });
+  });
+
+  test("agent policy overrides workspace policy field-by-field", async () => {
+    const resolved = await loadWorkspaceDef(
+      `
+name: ws
+policy:
+  permissionMode: acceptEdits
+  fullAuto: false
+agents:
+  strict:
+    model: x
+  risky:
+    model: y
+    policy:
+      permissionMode: bypassPermissions
+`,
+      { skipSetup: true },
+    );
+    // strict inherits both workspace fields unchanged
+    expect(resolved.agents.find((a) => a.name === "strict")?.policy).toEqual({
+      permissionMode: "acceptEdits",
+      fullAuto: false,
+    });
+    // risky overrides permissionMode but keeps workspace fullAuto
+    expect(resolved.agents.find((a) => a.name === "risky")?.policy).toEqual({
+      permissionMode: "bypassPermissions",
+      fullAuto: false,
+    });
+  });
+
+  test("agent policy alone is accepted without a workspace policy", async () => {
+    const resolved = await loadWorkspaceDef(
+      `
+name: ws
+agents:
+  alice:
+    model: x
+    policy:
+      sandbox: read-only
+`,
+      { skipSetup: true },
+    );
+    expect(resolved.agents[0]?.policy).toEqual({ sandbox: "read-only" });
+  });
+
+  test("no policy anywhere → resolved.policy is undefined", async () => {
+    const resolved = await loadWorkspaceDef(
+      `
+name: ws
+agents:
+  alice:
+    model: x
+`,
+      { skipSetup: true },
+    );
+    expect(resolved.agents[0]?.policy).toBeUndefined();
   });
 });

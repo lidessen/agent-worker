@@ -3,12 +3,14 @@ export type {
   WorkspaceDef,
   ConnectionDef,
   AgentDef,
+  McpServerDef,
   ModelSpec,
   ModelDef,
   SetupStep,
   ResolvedWorkspace,
   ResolvedAgent,
   ResolvedModel,
+  PolicyDef,
 } from "./types.ts";
 
 export {

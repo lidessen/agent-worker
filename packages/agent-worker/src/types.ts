@@ -1,5 +1,6 @@
 import type { AgentConfig, AgentState, AgentLoop } from "@agent-worker/agent";
 import type { LoopToolsOptions } from "@agent-worker/loop";
+import type { McpServerDef } from "@agent-worker/workspace";
 
 // ── Daemon configuration ──────────────────────────────────────────────────
 
@@ -134,6 +135,9 @@ export interface RuntimeConfig {
    *  Set to false to disable all loop tools. */
   loopTools?: LoopToolsOptions | false;
 
+  /** Extra external MCP servers for CLI runtimes. */
+  mcpServers?: Record<string, McpServerDef>;
+
   /** Mock-specific: response delay in ms. */
   mockDelay?: number;
 
@@ -148,6 +152,16 @@ export interface RuntimeConfig {
    * ephemeral / in-memory agents leave this undefined.
    */
   stateDir?: string;
+
+  /**
+   * Phase-3 control-boundary policy, fully resolved. Missing
+   * fields fall through to the factory fallback (currently the
+   * aggressive defaults). See
+   * `docs/design/phase-3-control-boundaries/README.md`.
+   */
+  permissionMode?: "default" | "acceptEdits" | "bypassPermissions";
+  fullAuto?: boolean;
+  sandbox?: "read-only" | "workspace-write" | "danger-full-access";
 }
 
 // ── Agent runner ──────────────────────────────────────────────────────────
