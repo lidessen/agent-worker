@@ -246,6 +246,7 @@ export async function loadWorkspaceDef(
       mounts: resolvedMounts,
       on_demand: agentDef.on_demand,
       role,
+      worktree: agentDef.worktree,
     });
   }
 
@@ -475,6 +476,22 @@ export function toWorkspaceConfig(
   const storage = storageType === "memory" ? new MemoryStorage() : new FileStorage(storageDir);
 
   const onDemandAgents = resolved.agents.filter((a) => a.on_demand).map((a) => a.name);
+
+  // Resolve the optional phase-1 repo block. Relative paths are
+  // anchored to the config file directory, matching the data_dir
+  // resolution rule above.
+  let repo: WorkspaceConfig["repo"];
+  if (def.repo) {
+    let repoPath = def.repo.path;
+    if (resolved.configDir && !repoPath.startsWith("/")) {
+      repoPath = resolve(resolved.configDir, repoPath);
+    }
+    repo = {
+      path: repoPath,
+      baseBranch: def.repo.base_branch ?? "main",
+    };
+  }
+
   return {
     name: def.name,
     tag: opts.tag,
@@ -487,5 +504,6 @@ export function toWorkspaceConfig(
     storage,
     sandboxBaseDir: opts.sandboxBaseDir,
     storageDir: storageType === "file" ? storageDir : undefined,
+    repo,
   };
 }

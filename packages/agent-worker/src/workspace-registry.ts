@@ -9,6 +9,7 @@ import {
   resolveConnections,
   WORKSPACE_TOOL_DEFS,
   buildLeadHooks,
+  provisionWorktree,
 } from "@agent-worker/workspace";
 import type { Workspace, ResolvedAgent, WorkspaceToolSet } from "@agent-worker/workspace";
 import type { AgentLoop } from "@agent-worker/agent";
@@ -385,6 +386,10 @@ export class WorkspaceRegistry {
       resolved.kickoff = interpolate(resolved.def.kickoff, templateVars);
     }
 
+    // Collect worktrees provisioned during agent setup so stop() can
+    // clean them up deterministically.
+    const provisionedWorktrees: Array<{ repoPath: string; worktreePath: string }> = [];
+
     // Create agent loops
     for (const agent of resolved.agents) {
       const { tools, promptSections, dirs } = createAgentTools(agent.name, workspace);
@@ -398,11 +403,40 @@ export class WorkspaceRegistry {
           }
         }
       }
-      const agentCwd = dirs.sandboxDir ?? dirs.workspaceSandboxDir;
+      let agentCwd = dirs.sandboxDir ?? dirs.workspaceSandboxDir;
       const allowedPaths: string[] = [];
       if (dirs.sandboxDir && dirs.workspaceSandboxDir) {
         allowedPaths.push(dirs.workspaceSandboxDir);
       }
+
+      // Phase-1 worktree provisioning. Only when the workspace
+      // declares a repo AND this agent opted in via `worktree: true`.
+      // Errors surface immediately so you learn at `aw create` time,
+      // not mid-run inside the agent's bash tool.
+      let worktreeDir: string | undefined;
+      let worktreeBranch: string | undefined;
+      let baseBranch: string | undefined;
+      if (workspace.repo && agent.worktree) {
+        const safeKey = key.replace(/:/g, "--");
+        worktreeBranch = `${safeKey}/${agent.name}`;
+        baseBranch = workspace.repo.baseBranch;
+        worktreeDir = join(
+          this._dataDir,
+          "workspace-data",
+          safeKey,
+          "worktrees",
+          agent.name,
+        );
+        mkdirSync(dirname(worktreeDir), { recursive: true });
+        await provisionWorktree(workspace.repo.path, worktreeDir, worktreeBranch, baseBranch);
+        provisionedWorktrees.push({
+          repoPath: workspace.repo.path,
+          worktreePath: worktreeDir,
+        });
+        agentCwd = worktreeDir;
+        allowedPaths.push(workspace.repo.path);
+      }
+
       const actualStorageDir = storageDir ?? this.workspaceDir(key);
       const runner = await this.createRunner(agent, workspace, resolved, key, tools, {
         cwd: agentCwd,
@@ -420,6 +454,9 @@ export class WorkspaceRegistry {
         pollInterval: 2000,
         sandboxDir: dirs.sandboxDir,
         workspaceSandboxDir: dirs.workspaceSandboxDir,
+        worktreeDir,
+        worktreeBranch,
+        baseBranch,
         onDemand: agent.on_demand ?? false,
         stateStore: workspace.stateStore,
         role: agent.role,
@@ -441,6 +478,7 @@ export class WorkspaceRegistry {
       mode: input.mode,
       bus: this._bus,
       statusPath: join(actualStorageDir, "status.json"),
+      worktrees: provisionedWorktrees,
     });
 
     this.workspaces.set(key, handle);

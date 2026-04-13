@@ -88,6 +88,24 @@ export interface AgentDef {
    * derived into task-scoped Attempts.
    */
   role?: AgentRole;
+  /**
+   * Provision a dedicated git worktree for this agent. Only takes
+   * effect when the enclosing workspace has a `repo` block; otherwise
+   * it is silently ignored. Default: false (agent works in its sandbox).
+   * See docs/design/phase-1-worktree-isolation/README.md.
+   */
+  worktree?: boolean;
+}
+
+/**
+ * Git repository spec for a workspace. When present, workspace-registry
+ * provisions one git worktree per opted-in agent at create() time.
+ */
+export interface RepoSpec {
+  /** Absolute or config-relative path to the source git repository. */
+  path: string;
+  /** Branch to fork new agent branches from. Default: "main". */
+  base_branch?: string;
 }
 
 /** Setup step: run a shell command, optionally capture output as a variable. */
@@ -136,6 +154,13 @@ export interface WorkspaceDef {
   env?: Record<string, string>;
   /** Optional team lead agent name. The lead gets debug tools + all-channel access. */
   lead?: string;
+  /**
+   * Optional git repo to back coder agents with worktrees. When set,
+   * every agent that has `worktree: true` gets a dedicated git
+   * worktree on branch `{workspace}/{agent}` at create() time. See
+   * docs/design/phase-1-worktree-isolation/README.md.
+   */
+  repo?: RepoSpec;
 }
 
 /** Resolved model — normalized from any ModelSpec form. */
@@ -172,6 +197,8 @@ export interface ResolvedAgent {
   on_demand?: boolean;
   /** Resolved role: explicit AgentDef.role wins, else derived from workspace.lead. */
   role: AgentRole;
+  /** Resolved worktree opt-in flag (copied from AgentDef.worktree). */
+  worktree?: boolean;
 }
 
 /** Result of loading and resolving a workspace definition. */

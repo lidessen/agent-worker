@@ -53,7 +53,17 @@ export { WorkspaceMcpHub } from "./mcp-server.ts";
 export type { WorkspaceMcpHubOptions } from "./mcp-server.ts";
 
 // ── Utilities ──────────────────────────────────────────────────────────────
-export { nanoid, extractMentions } from "./utils.ts";
+export { nanoid, extractMentions, extractAddressedMentions } from "./utils.ts";
+
+// ── Git worktree (phase 1 isolation) ───────────────────────────────────────
+export {
+  provisionWorktree,
+  removeWorktree,
+  listWorktrees,
+  pruneWorktrees,
+  assertGitRepo,
+} from "./worktree.ts";
+export type { WorktreeEntry } from "./worktree.ts";
 
 // ── Config (YAML) ─────────────────────────────────────────────────────
 export {

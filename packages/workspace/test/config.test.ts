@@ -584,4 +584,58 @@ data_dir: /yaml/path
     const config = toWorkspaceConfig(resolved, { storageDir: "/override/path" });
     expect(config.storageDir).toBe("/override/path");
   });
+
+  test("carries repo block with default base_branch when absent", async () => {
+    const resolved = await loadWorkspaceDef(
+      `
+name: coders
+agents:
+  coder-a:
+    model: x
+    worktree: true
+repo:
+  path: /tmp/some-repo
+`,
+      { skipSetup: true },
+    );
+
+    const config = toWorkspaceConfig(resolved);
+    expect(config.repo).toEqual({ path: "/tmp/some-repo", baseBranch: "main" });
+    // Resolved agent should also carry the opt-in flag.
+    expect(resolved.agents[0]?.worktree).toBe(true);
+  });
+
+  test("honours explicit base_branch", async () => {
+    const resolved = await loadWorkspaceDef(
+      `
+name: coders
+agents:
+  coder-a:
+    model: x
+    worktree: true
+repo:
+  path: /tmp/some-repo
+  base_branch: develop
+`,
+      { skipSetup: true },
+    );
+
+    const config = toWorkspaceConfig(resolved);
+    expect(config.repo?.baseBranch).toBe("develop");
+  });
+
+  test("omits repo when the YAML has none", async () => {
+    const resolved = await loadWorkspaceDef(
+      `
+name: noworktree
+agents:
+  a:
+    model: x
+`,
+      { skipSetup: true },
+    );
+    const config = toWorkspaceConfig(resolved);
+    expect(config.repo).toBeUndefined();
+    expect(resolved.agents[0]?.worktree).toBeUndefined();
+  });
 });
