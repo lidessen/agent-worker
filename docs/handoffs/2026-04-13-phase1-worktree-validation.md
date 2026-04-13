@@ -111,12 +111,17 @@ From `docs/design/phase-1-worktree-isolation/README.md`:
       agents.)
 - [x] Graceful `ws rm @name` cleans up worktrees via
       `removeWorktree`.
-- [~] Daemon restart reattaches to existing worktrees rather
+- [x] Daemon restart reattaches to existing worktrees rather
       than rebuilding them, preserving uncommitted work.
-      *Covered by unit tests on `provisionWorktree` idempotency
-      (four cases including "worktree dir nuked out-of-band") but
-      not yet exercised end-to-end. Next iteration will add a
-      daemon-restart test.*
+      **Verified end-to-end with a real SIGKILL:** workspace
+      running with committed work on both coder branches, one
+      untracked `wip.ts` file in coder-a's worktree, daemon
+      `kill -9`'d, daemon restarted, workspace auto-restored
+      from manifest. Post-restart: `hello.ts` (committed), the
+      coder-a branch still at the same commit, and `wip.ts`
+      still untracked in the worktree — nothing lost. The
+      `provisionWorktree` idempotency path reattached to both
+      existing worktrees without trying to recreate them.
 
 ## Observations for the next iteration
 
@@ -138,10 +143,11 @@ From `docs/design/phase-1-worktree-isolation/README.md`:
 
 ## Phase 1 status
 
-**Done.** The MVP acceptance criteria are met end-to-end with
-real claude-code model runs. The remaining ~5% (crash-recovery
-E2E test, `wait_inbox` timeout ergonomics, own-message guard)
-are polish items, not blockers.
+**Done.** All five MVP acceptance criteria are met end-to-end
+with real claude-code model runs plus a real SIGKILL crash
+recovery pass. The remaining items (`wait_inbox` timeout
+ergonomics, own-message guard, discard-branch-on-rm flag) are
+polish, not blockers.
 
 Next phases from the roadmap:
 
