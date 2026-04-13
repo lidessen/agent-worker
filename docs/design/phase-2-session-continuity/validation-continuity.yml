@@ -1,0 +1,52 @@
+# Phase-2 validation: a single codex agent whose thread id must
+# survive a daemon restart.
+#
+# Run this manually:
+#
+#   bun run aw daemon stop || true
+#   bun run aw daemon start -d
+#   bun run aw create docs/design/phase-2-session-continuity/validation-continuity.yml
+#
+#   # wait for the first turn to finish, then:
+#   cat ~/.agent-worker/workspace-data/phase2-continuity/agents/scribe/codex-thread.json
+#   # should contain {"threadId":"thr_..."}
+#
+#   # crash the daemon (NOT `aw daemon stop` — that would clean up):
+#   kill -9 $(python3 -c 'import json,sys;print(json.load(open("~/.agent-worker/daemon.json"))["pid"])')
+#
+#   bun run aw daemon start -d
+#   # the thread file must still exist and contain the same id
+#   cat ~/.agent-worker/workspace-data/phase2-continuity/agents/scribe/codex-thread.json
+#
+# The next turn the scribe runs should hit `thread/resume` not
+# `thread/start`. You can confirm by checking codex's own log
+# (~/.codex/logs_2.sqlite or similar) or by watching the loop's
+# runtime events.
+
+name: phase2-continuity
+label: Phase 2 continuity validation (codex thread persistence)
+storage: file
+
+channels:
+  - general
+
+default_channel: general
+
+kickoff: |
+  @scribe Write one short sentence about phase-2 session
+  continuity to the channel. That is your entire job this turn.
+
+agents:
+  scribe:
+    runtime: codex
+    model: gpt-5-codex
+    instructions: |
+      You are the scribe agent. Your sole purpose is to prove
+      codex thread persistence works.
+
+      When woken, send one short channel message (under 200
+      chars) summarizing what phase-2 continuity means for this
+      project. Then stop.
+
+      Do NOT write any files. Do NOT call bash. Your only tool
+      use is channel_send.
