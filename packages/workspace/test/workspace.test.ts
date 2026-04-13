@@ -110,6 +110,39 @@ describe("Workspace", () => {
     expect(bobInbox[0]!.priority).toBe("background");
   });
 
+  test("body references do not wake non-addressed agents", async () => {
+    // Regression for the maintainer/implementer race: leading @bob
+    // addresses bob, but the in-body @alice reference should not
+    // enqueue an inbox entry for alice (she can still see it via
+    // channel_read).
+    await workspace.contextProvider.send({
+      channel: "general",
+      from: "user",
+      content: "@bob please dispatch task_xxx to @alice and verify on completion",
+    });
+
+    const bobInbox = await workspace.contextProvider.inbox.peek("bob");
+    expect(bobInbox).toHaveLength(1);
+    expect(bobInbox[0]!.priority).toBe("normal");
+
+    const aliceInbox = await workspace.contextProvider.inbox.peek("alice");
+    expect(aliceInbox).toHaveLength(0);
+  });
+
+  test("multiple leading mentions all wake", async () => {
+    await workspace.contextProvider.send({
+      channel: "general",
+      from: "user",
+      content: "@alice @bob joint review please",
+    });
+    // Routing runs from an async listener on channelStore; give it a
+    // microtask to drain before asserting.
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(await workspace.contextProvider.inbox.peek("alice")).toHaveLength(1);
+    expect(await workspace.contextProvider.inbox.peek("bob")).toHaveLength(1);
+  });
+
   describe("on_demand agent routing", () => {
     let wsWithOnDemand: Workspace;
 

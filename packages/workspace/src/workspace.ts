@@ -27,6 +27,7 @@ import {
   InMemoryWorkspaceStateStore,
   type WorkspaceStateStore,
 } from "./state/index.ts";
+import { extractAddressedMentions } from "./utils.ts";
 
 export class Workspace implements WorkspaceRuntime {
   readonly name: string;
@@ -317,33 +318,36 @@ export class Workspace implements WorkspaceRuntime {
     }
 
     // Channel messages: route to agents who joined this channel.
-    // Check if any mentioned name is a registered agent (not just any
-    // @text in the message).
-    const hasAgentMention = message.mentions.some((m) => this.agentChannels.has(m));
+    // We distinguish *addressed* mentions from in-body references:
+    //   - "@maintainer Build X, then dispatch to @implementer" should
+    //     only wake @maintainer. @implementer is a data reference.
+    //   - "Hey @bob please review" still wakes @bob (no leading
+    //     mentions → fall back to all mentions).
+    // See extractAddressedMentions for the precise rule.
+    const addressedNames = extractAddressedMentions(message.content).filter((m) =>
+      this.agentChannels.has(m),
+    );
+    const hasAddressed = addressedNames.length > 0;
     for (const [agentName, channels] of this.agentChannels) {
       if (agentName === message.from) continue; // Don't self-deliver
       if (!channels.has(message.channel)) continue;
 
-      const isMentioned = message.mentions.includes(agentName);
-      // on_demand agents only wake on @mention, skip them on broadcasts.
-      if (this._onDemandAgents.has(agentName) && !isMentioned) continue;
+      const isAddressed = addressedNames.includes(agentName);
+      // on_demand agents only wake when addressed; broadcasts and
+      // body-only references never reach them.
+      if (this._onDemandAgents.has(agentName) && !isAddressed) continue;
 
-      // When the message explicitly @-mentions one or more registered
-      // agents, it is an addressed message — only those targets get an
-      // inbox entry. Other agents in the channel can still pick it up
-      // via channel_read if they choose, but they do NOT wake. This
-      // prevents the "both lead and worker race on kickoff" pattern
-      // observed in round 2 validation, where a user @maintainer message
-      // also woke the implementer.
-      if (hasAgentMention && !isMentioned) continue;
+      // Addressed messages deliver only to their targets. Unaddressed
+      // messages are broadcasts — still visible via channel_read, but
+      // only the lead wakes (at normal priority, for user comms) and
+      // other agents get a background inbox entry they may ignore.
+      if (hasAddressed && !isAddressed) continue;
 
-      // Unaddressed messages: lead gets normal priority (responsible
-      // for user comms), everyone else gets background.
-      const isLeadFallback = !hasAgentMention && agentName === this.lead;
+      const isLeadFallback = !hasAddressed && agentName === this.lead;
       await this.enqueueToAgent(
         message,
         agentName,
-        isMentioned || isLeadFallback ? "normal" : "background",
+        isAddressed || isLeadFallback ? "normal" : "background",
       );
     }
   }
