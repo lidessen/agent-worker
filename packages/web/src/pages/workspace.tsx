@@ -5,7 +5,7 @@ import { signal, computed } from "semajsx/signal";
 import { route, navigate } from "../router.ts";
 import { client } from "../stores/connection.ts";
 import { DocViewer } from "../components/doc-viewer.tsx";
-import type { WorkspaceInfo, DocInfo, TaskSummary } from "../api/types.ts";
+import type { WorkspaceInfo, DocInfo, TaskSummary, TaskDetail } from "../api/types.ts";
 import * as styles from "./workspace.style.ts";
 
 export const WorkspacePage: RuntimeComponent<Record<string, never>> = (_props, ctx) => {
@@ -17,6 +17,9 @@ export const WorkspacePage: RuntimeComponent<Record<string, never>> = (_props, c
   const expandedDoc = signal<string | null>(null);
   const error = signal<string | null>(null);
   const tasks = signal<TaskSummary[]>([]);
+  const expandedTask = signal<string | null>(null);
+  /** Cache of task detail fetched on row expansion. Keyed by task id. */
+  const taskDetails = signal<Record<string, TaskDetail>>({});
 
   let currentKey = "";
   let unsubRoute: (() => void) | null = null;
@@ -71,7 +74,7 @@ export const WorkspacePage: RuntimeComponent<Record<string, never>> = (_props, c
     const controller = new AbortController();
     eventStreamController = controller;
 
-    const scheduleRefresh = () => {
+    const scheduleRefresh = (changedTaskId?: string) => {
       if (refreshTimer) clearTimeout(refreshTimer);
       refreshTimer = setTimeout(async () => {
         refreshTimer = null;
@@ -85,6 +88,10 @@ export const WorkspacePage: RuntimeComponent<Record<string, never>> = (_props, c
         } catch (err) {
           console.warn(`Task refresh failed for ${key}:`, err);
         }
+        // If the currently-expanded task changed, refetch its detail too.
+        if (changedTaskId && expandedTask.value === changedTaskId) {
+          await loadTaskDetail(changedTaskId);
+        }
       }, 100);
     };
 
@@ -92,8 +99,9 @@ export const WorkspacePage: RuntimeComponent<Record<string, never>> = (_props, c
       try {
         for await (const event of c.streamWorkspaceEvents(key, { signal: controller.signal })) {
           if (controller.signal.aborted) return;
-          if ((event as { type?: string }).type === "workspace.task_changed") {
-            scheduleRefresh();
+          const ev = event as { type?: string; taskId?: string };
+          if (ev.type === "workspace.task_changed") {
+            scheduleRefresh(ev.taskId);
           }
         }
       } catch (err) {
@@ -134,6 +142,89 @@ export const WorkspacePage: RuntimeComponent<Record<string, never>> = (_props, c
 
   function toggleDoc(name: string) {
     expandedDoc.value = expandedDoc.value === name ? null : name;
+  }
+
+  async function loadTaskDetail(taskId: string) {
+    const c = client.value;
+    const key = currentKey;
+    if (!c || !key) return;
+    try {
+      const detail = await c.getWorkspaceTask(key, taskId);
+      // Guard against stale arrivals after navigation away.
+      if (currentKey !== key) return;
+      taskDetails.value = { ...taskDetails.value, [taskId]: detail };
+    } catch (err) {
+      console.warn(`Task detail fetch failed for ${taskId}:`, err);
+    }
+  }
+
+  function toggleTask(taskId: string) {
+    if (expandedTask.value === taskId) {
+      expandedTask.value = null;
+      return;
+    }
+    expandedTask.value = taskId;
+    if (!taskDetails.value[taskId]) {
+      void loadTaskDetail(taskId);
+    }
+  }
+
+  function renderTaskDetail(detail: TaskDetail | undefined) {
+    if (!detail) {
+      return <div class={styles.taskDetailLoading}>Loading…</div>;
+    }
+    const { attempts, handoffs, artifacts } = detail;
+    return (
+      <div class={styles.taskDetail}>
+        {attempts.length > 0 && (
+          <div class={styles.taskDetailSection}>
+            <div class={styles.taskDetailHeader}>Attempts ({attempts.length})</div>
+            {attempts.map((a) => (
+              <div class={styles.taskDetailItem}>
+                <code>{a.id}</code> {a.agentName}{" "}
+                <span class={styles.taskDetailBadge}>{a.status}</span>
+                {a.resultSummary ? (
+                  <div class={styles.taskDetailText}>{a.resultSummary}</div>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        )}
+        {handoffs.length > 0 && (
+          <div class={styles.taskDetailSection}>
+            <div class={styles.taskDetailHeader}>Handoffs ({handoffs.length})</div>
+            {handoffs.map((h) => (
+              <div class={styles.taskDetailItem}>
+                <code>{h.id}</code> <span class={styles.taskDetailBadge}>{h.kind}</span>
+                {" by "}
+                {h.createdBy}
+                <div class={styles.taskDetailText}>{h.summary}</div>
+                {h.blockers.length > 0 && (
+                  <div class={styles.taskDetailText}>blockers: {h.blockers.join("; ")}</div>
+                )}
+                {h.nextSteps.length > 0 && (
+                  <div class={styles.taskDetailText}>next: {h.nextSteps.join("; ")}</div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+        {artifacts.length > 0 && (
+          <div class={styles.taskDetailSection}>
+            <div class={styles.taskDetailHeader}>Artifacts ({artifacts.length})</div>
+            {artifacts.map((x) => (
+              <div class={styles.taskDetailItem}>
+                <code>{x.id}</code> {x.kind}: {x.title}
+                <div class={styles.taskDetailText}>{x.ref}</div>
+              </div>
+            ))}
+          </div>
+        )}
+        {attempts.length === 0 && handoffs.length === 0 && artifacts.length === 0 && (
+          <div class={styles.taskDetailText}>No attempts, handoffs, or artifacts yet.</div>
+        )}
+      </div>
+    );
   }
 
   const wsNameDisplay = computed([workspace, wsKey], (ws, key) => ws?.name ?? key);
@@ -215,7 +306,7 @@ export const WorkspacePage: RuntimeComponent<Record<string, never>> = (_props, c
   const docCount = computed(docs, (d) => d.length);
   const taskCount = computed(tasks, (t) => t.length);
 
-  const tasksSection = computed(tasks, (t) => {
+  const tasksSection = computed([tasks, expandedTask, taskDetails], (t, expanded, details) => {
     if (t.length === 0) {
       return <div class={styles.emptyStateText}>No tasks</div>;
     }
@@ -241,9 +332,11 @@ export const WorkspacePage: RuntimeComponent<Record<string, never>> = (_props, c
           if (task.activeAttemptId) metaParts.push(`active: ${task.activeAttemptId}`);
           if (task.artifactRefs.length > 0)
             metaParts.push(`artifacts: ${task.artifactRefs.length}`);
+          const isExpanded = expanded === task.id;
+          const detail = details[task.id];
           return (
             <div class={styles.taskItem}>
-              <div class={styles.taskHeader}>
+              <div class={styles.taskHeader} onclick={() => toggleTask(task.id)}>
                 <span class={styles.taskTitle}>{task.title}</span>
                 <span class={styles.taskStatusBadge}>{task.status}</span>
               </div>
@@ -255,6 +348,7 @@ export const WorkspacePage: RuntimeComponent<Record<string, never>> = (_props, c
                   ))}
                 </div>
               )}
+              {isExpanded && renderTaskDetail(detail)}
             </div>
           );
         })}
