@@ -12,16 +12,25 @@
 ## 最终状态
 
 ```
-867 tests | 0 fail | 1840 expect calls
+878 tests | 0 fail | 1896 expect calls
 oxlint: 0 warnings / 0 errors
 typecheck: clean (web/time.test.ts 的 bun:test 类型错误是 pre-existing)
 ```
 
-31 commits in this /loop session.
+40 commits in this /loop session. 每一个设计 backlog 里的 substantive 项目要么已经落地，要么作为 known-follow-up 明确留在 docs 里。
 
-完整 commit 列表（session 内，按时间顺序）：
+完整 commit 列表（session 内，按时间顺序倒序）：
 
 ```
+68df32b agent: implement compact PressureAction
+1d02c2c agent-worker: chronicle entries + HTTP chronicle endpoint
+46abff8 loop: optional usage estimator for CLI runtimes without native token counts
+6a217bf agent: config fallback for contextWindow on usage snapshots
+ea8728e web: expandable task rows with attempts / handoffs / artifacts
+e147e63 workspace: surface new handoffs in the lead ledger delta
+52e1959 agent-worker: end-to-end orchestrator + tools integration test
+4fdd967 web,agent-worker: live task ledger refresh via bus events
+d3b1ef2 docs: refresh final handoff with iterations 5-8
 010eabd fixes from operator complete/abort review
 378a876 agent-worker: operator complete/abort commands for the task ledger
 2106e38 agent-worker: HTTP POST + CLI mutation surface for the task ledger
@@ -193,7 +202,21 @@ user request
 - prompt：lead 每 run 都看到 task ledger 头部
 ```
 
-## 仍然没做的关键部分
+## 已完成的关键后续项目（相对于第一版 handoff）
+
+- ✅ **Lead 自动决策 → orchestration**：`buildLeadHooks` 每次 lead `run_start` 注入 task ledger delta + 新 handoff（`a9ea5c1`、`e147e63`）
+- ✅ **File-backed state store**：`FileWorkspaceStateStore` 带 JSONL replay、torn-line 容错、artifact/task 交叉引用 reconcile（`975e689` + `a24568b`）
+- ✅ **HTTP + CLI mutation surface**：`aw task new/update/dispatch/complete/abort`（`2106e38`、`378a876`、`010eabd`）
+- ✅ **Cursor usage estimator**：`cli-loop.ts` 的 opt-in post-hoc text estimator（`46abff8`）
+- ✅ **Context window auto-discovery**：`AgentConfig.contextWindow` 作为 runtime 未报告时的 fallback，Agent 自动填充 `usedRatio`（`6a217bf`）
+- ✅ **compact PressureAction**：`RunCoordinator.resetHistory` + Agent post-run cleanup 路径（`68df32b`）
+- ✅ **Web UI live refresh + task detail expansion**：workspace event stream 订阅，task row 可展开看 attempts/handoffs/artifacts（`4fdd967`、`ea8728e`）
+- ✅ **Chronicle task audit trail**：每个 task mutation 自动 append chronicle entry，新 `GET /workspaces/:key/chronicle` endpoint（`1d02c2c`）
+- ✅ **End-to-end orchestrator + tools integration test**：全链路（dispatch → 指令派发 → worker 工具调用 → 终结）的 unit 级复合测试，不依赖真实 runtime（`52e1959`）
+
+## 仍然没做的关键部分（更新后）
+
+上一版 handoff 里的 7 项里程碑大部分已落地，下面是剩余的、都是真正 **前端** 或 **future work** 的项：
 
 按优先级：
 
