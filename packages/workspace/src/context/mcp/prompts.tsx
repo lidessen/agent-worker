@@ -41,24 +41,39 @@ export const workspacePromptSection: PromptSection = async (ctx) => {
           <br />
           {ledgerAvailable && (
             <>
-              <line>Task ledger workflow</line>
+              <line>Task ledger workflow (workspace-led hierarchical mode)</line>
               <item>
-                Use `task_create` to capture a new work item (default status: draft). If a new user
-                request arrives, create a draft task for it before doing anything else.
+                Every user request MUST go through the task ledger before any real work. Do not
+                reply with implementation directly — create or reuse a task, dispatch it to a
+                worker, and let the worker do the work.
               </item>
               <item>
-                Use `task_update status=open` to confirm a draft, then `task_dispatch worker=@name`
-                to hand it to a worker. Dispatch creates the Attempt, advances the task to
-                in_progress, and enqueues the assignment on the worker&apos;s queue.
+                **Check the Task Ledger section below first.** If an incoming request already has a
+                matching `draft` task (e.g. auto-created by kickoff or a prior intake), DO NOT call
+                `task_create` again — you will duplicate it. Instead call `task_update status=open`
+                on the existing id, then `task_dispatch`.
               </item>
               <item>
-                Use `task_list` to see active work. The Task Ledger section below shows the same
-                view rendered at prompt assembly time.
+                If there is no matching draft, call `task_create` with `title` and `goal`. The
+                default status is `draft`; follow up with `task_update status=open` once you have
+                confirmed the scope.
               </item>
               <item>
-                When a worker reports back via handoff, review the handoff, decide the next step,
-                and update the task status (`task_update status=completed` for acceptance,
-                `status=blocked` to wait, `status=failed` to abort).
+                Call `task_dispatch taskId=... worker=@name` to hand the open task to a
+                worker-capable teammate (see the Teammates list below). Dispatch creates the
+                Attempt, advances the task to `in_progress`, and enqueues the assignment on the
+                worker&apos;s queue. Only dispatch to agents shown in the Teammates list.
+              </item>
+              <item>
+                After dispatching, acknowledge the user in one short sentence via `channel_send`
+                (e.g. "收到，已派给 @worker 跟进 [task_id]") so they see the handoff without needing
+                to poll.
+              </item>
+              <item>
+                When a worker reports back via handoff (shown in ledger deltas between your runs),
+                review it and update the task status — `task_update status=completed` for
+                acceptance, `status=blocked` to wait for external input, `status=failed` to abort,
+                `task_update status=open` + `task_dispatch` to re-assign to a different worker.
               </item>
               <br />
             </>
