@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { mkdirSync, existsSync, writeFileSync, appendFileSync } from "node:fs";
-import { Agent } from "@agent-worker/agent";
+import { Agent, FileNotesStorage, FileMemoryStorage } from "@agent-worker/agent";
 import type { AgentConfig, AgentState } from "@agent-worker/agent";
 import type { LoopEvent } from "@agent-worker/loop";
 import type { EventBus } from "@agent-worker/shared";
@@ -67,11 +67,25 @@ export class ManagedAgent {
       if (!existsSync(this._timelinePath)) writeFileSync(this._timelinePath, "");
     }
 
-    // Inject bus into Agent config so it emits structured events directly
+    // Inject bus + file-backed notes/memory storage when a durable
+    // agentDir is available. This is the phase-2 slice-1 wiring —
+    // the `FileNotesStorage` / `FileMemoryStorage` classes have
+    // always existed; they just weren't being instantiated in prod.
+    // Caller can still pre-populate these (e.g. tests) and we won't
+    // clobber them.
+    const notesStorage =
+      opts.config.notesStorage ??
+      (opts.agentDir ? new FileNotesStorage(join(opts.agentDir, "notes")) : undefined);
+    const memory =
+      opts.config.memory ??
+      (opts.agentDir ? { storage: new FileMemoryStorage(opts.agentDir) } : undefined);
+
     const config: AgentConfig = {
       ...opts.config,
       name: opts.name,
       bus: opts.bus ?? opts.config.bus,
+      notesStorage,
+      memory,
     };
     this.agent = new Agent(config);
   }
