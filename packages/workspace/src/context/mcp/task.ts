@@ -194,6 +194,17 @@ function formatTask(task: Task): string {
 export interface TaskToolsDeps {
   /** Optional instruction queue — required only to enable task_dispatch. */
   instructionQueue?: InstructionQueueInterface;
+  /**
+   * Optional chronicle writer. When provided, every task mutation that
+   * flows through these tools also records a human-readable entry on
+   * the workspace chronicle under the "task" category, so external
+   * observers (CLI, web UI, other agents) see the audit trail without
+   * having to subscribe to bus events. Failures are swallowed — the
+   * mutation always takes priority.
+   */
+  chronicle?: {
+    append: (entry: { author: string; category: string; content: string }) => Promise<unknown>;
+  };
 }
 
 export function createTaskTools(
@@ -202,6 +213,14 @@ export function createTaskTools(
   store: WorkspaceStateStore,
   deps: TaskToolsDeps = {},
 ): TaskTools {
+  async function chronicle(content: string): Promise<void> {
+    if (!deps.chronicle) return;
+    try {
+      await deps.chronicle.append({ author: agentName, category: "task", content });
+    } catch {
+      // Chronicle is observational; a failure here is non-fatal.
+    }
+  }
   // Serialise mutations that read a task's active-attempt state and then
   // write to it. The check-then-act sequence happens across async `await`
   // boundaries, so two concurrent dispatches on the same task can both pass
@@ -257,6 +276,7 @@ export function createTaskTools(
         sourceRefs,
       });
 
+      await chronicle(`task_create [${task.id}] [${task.status}]: ${task.title}`);
       return `Task ${task.id} created [${task.status}]: ${task.title}`;
     },
 
@@ -305,6 +325,11 @@ export function createTaskTools(
       if (args.acceptanceCriteria !== undefined) patch.acceptanceCriteria = args.acceptanceCriteria;
 
       const updated = await store.updateTask(args.id, patch);
+      if (args.status !== undefined && args.status !== current.status) {
+        await chronicle(
+          `task_update [${updated.id}] ${current.status} → ${updated.status}: ${updated.title}`,
+        );
+      }
       return `Task ${updated.id} updated [${updated.status}]: ${updated.title}`;
     },
 
@@ -397,6 +422,11 @@ export function createTaskTools(
         }
       }
 
+      if (args.status !== undefined) {
+        await chronicle(
+          `attempt_update [${updated.id}] on task ${updated.taskId} → ${updated.status}`,
+        );
+      }
       return `Attempt ${updated.id} updated [${updated.status}]`;
     },
 
@@ -515,6 +545,9 @@ export function createTaskTools(
         };
         deps.instructionQueue!.enqueue(instruction);
 
+        await chronicle(
+          `task_dispatch [${task.id}] → @${args.worker} as ${attempt.id}: ${task.title}`,
+        );
         return `Dispatched task ${task.id} to @${args.worker} as attempt ${attempt.id}`;
       });
       return typeof result === "string" ? result : String(result);

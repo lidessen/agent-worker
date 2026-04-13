@@ -184,7 +184,11 @@ export function buildOptions(args: {
     allowDangerouslySkipPermissions: opts.permissionMode === "bypassPermissions",
     includePartialMessages: true,
     includeHookEvents: false,
-    maxTurns: 12,
+    // 40 is enough for a worker to finish a small task end-to-end:
+    // read instruction + context + bash write/read + artifact_create × 2 +
+    // handoff_create + attempt_update + final channel_send. 12 was too low
+    // and caused mid-run truncation (observed during validation).
+    maxTurns: 40,
     executable: scriptRuntime === "bun" ? "bun" : "node",
     mcpServers:
       (mcpServers as Record<string, any> | null | undefined) ??
