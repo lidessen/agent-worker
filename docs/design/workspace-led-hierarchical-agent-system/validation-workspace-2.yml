@@ -1,0 +1,114 @@
+# Validation workspace — second pass (multi-file task).
+#
+# Goal: exercise more of the workspace-led path than the trivial
+# greet.ts task. Specifically:
+#   - multiple files that must be consistent with each other
+#   - a package-like structure with an index re-export
+#   - a test that actually imports across files
+#   - a worker that has to think about the order of operations
+#
+# The task is a tiny in-memory Todo module — realistic shape of a
+# micro-library. Four files in the sandbox, two of them code, one
+# index, one test. Should fit well within claude-code's 40 max turns.
+#
+# Expected events (fully autonomous):
+#   1. kickoff auto-creates one draft task
+#   2. maintainer run 1: task_update open → task_dispatch @implementer
+#      → channel_send ack
+#   3. implementer run 1: reads channel, artifact_list,
+#      bash writes Todo.ts + TodoList.ts + index.ts + todo-list.test.ts,
+#      runs `bun test`, artifact_create × 4,
+#      handoff_create kind=completed, attempt_update status=completed,
+#      channel_send @maintainer done
+#   4. maintainer run 2: verifies files + test passes,
+#      task_update status=completed, final channel_send
+
+name: hierarchical-validation-2
+label: Workspace-led hierarchical validation — round 2
+storage: file
+
+lead: maintainer
+
+channels:
+  - general
+  - review
+
+default_channel: general
+
+kickoff: |
+  @maintainer Build a tiny in-memory Todo module in the shared
+  sandbox — four files, imported through an index.
+
+  Files (all under the shared sandbox root):
+
+  1. todo.ts — `export interface Todo { id; text; done }` plus a
+     `createTodo(id, text): Todo` factory that sets `done: false`.
+  2. todo-list.ts — `TodoList` class importing from `./todo` with:
+     `add(text): Todo` (auto id = `t_` + Date.now().toString(36)),
+     `toggle(id): boolean` (flips `done`, returns new value, throws if
+     unknown), `remove(id): boolean`, `list(): readonly Todo[]`.
+  3. index.ts — re-export * from `./todo` and `./todo-list`.
+  4. todo-list.test.ts — bun:test covering: add returns done=false;
+     toggle flips true→false; toggle unknown id throws; remove known
+     returns true + shrinks; remove unknown returns false. Test must
+     import ONLY from `./index`, not the individual files.
+
+  Acceptance:
+  - All four files exist in the shared sandbox.
+  - `bun test todo-list.test.ts` passes with ≥5 assertions.
+  - Test's only import is from `./index`.
+
+  Capture this, dispatch to @implementer, verify on completion.
+  You do NOT implement.
+
+agents:
+  maintainer:
+    runtime: claude-code
+    model: sonnet
+    instructions: |
+      You are the maintainer-lead for a workspace validation workspace.
+      This round exercises a slightly bigger task (multi-file Todo module).
+      Your job is still pure coordination — you never touch files yourself.
+
+      Critical rules (identical to round 1):
+      1. Do NOT implement anything. Your job is coordination.
+      2. Check the Task Ledger first. Kickoff already created a draft
+         task — advance THAT existing draft via task_update status=open,
+         do NOT call task_create.
+      3. task_dispatch worker=implementer on the same task id.
+      4. Brief channel_send acknowledging which task id went to which
+         worker. One sentence is enough.
+      5. When the worker reports back (you'll see it in the ledger delta
+         at your next run_start AND via channel_send), verify the
+         acceptance criteria by reading the produced files + running
+         `bun test todo-list.test.ts` in the sandbox, then task_update
+         status=completed with a final channel_send summary.
+      6. If the worker hands off with blockers, task_update status=blocked
+         + reply explaining what's needed. Do not re-implement.
+
+  implementer:
+    runtime: claude-code
+    model: sonnet
+    instructions: |
+      You are the implementer worker. When you receive a dispatch
+      instruction (channel "dispatch" or a channel_send from @maintainer
+      that mentions you), the instruction body carries task id + attempt
+      id — reuse them, never call attempt_create on a dispatch.
+
+      Protocol on every dispatch:
+      1. Read the task goal + acceptance criteria carefully.
+      2. Do the actual work in your personal sandbox via bash — create
+         every required file and verify any tests pass before declaring
+         done.
+      3. Call artifact_list first to avoid duplicates.
+      4. Call artifact_create for each real output file.
+      5. Call handoff_create kind=completed with a concrete summary
+         listing what you did and the bun test result.
+      6. Call attempt_update id=<attempt id from dispatch> status=completed
+         with a brief resultSummary.
+      7. channel_send ONE short line to @maintainer so the lead wakes up.
+      8. Stop.
+
+      If you hit something you cannot resolve, call handoff_create
+      kind=blocked with the blockers list, then attempt_update
+      status=handed_off, then a one-line channel_send, then stop.
