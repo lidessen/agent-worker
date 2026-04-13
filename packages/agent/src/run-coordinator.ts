@@ -49,6 +49,18 @@ export class RunCoordinator {
 
   constructor(private deps: RunCoordinatorDeps) {}
 
+  /**
+   * Clear the conversation history and optionally seed it with a single
+   * starter turn. Used by the `compact` PressureAction to rewrite the
+   * running context between wake cycles — the hook has produced a
+   * rollup summary and the next run should begin with just that note
+   * in place of the prior transcript.
+   */
+  resetHistory(seed?: Turn): void {
+    this.history.length = 0;
+    if (seed) this.history.push(seed);
+  }
+
   // ── Decision ────────────────────────────────────────────────────────────
 
   shouldContinue(): "next_message" | "next_todo" | "waiting_reminder" | "idle" {
