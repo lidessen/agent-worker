@@ -91,6 +91,35 @@ export type TaskPatch = Partial<Omit<Task, "id" | "createdAt" | "workspaceId">>;
  */
 export type AttemptStatus = "running" | "completed" | "failed" | "cancelled" | "handed_off";
 
+/** Terminal statuses — used to gate `attempt.terminal` event emission. */
+export const TERMINAL_ATTEMPT_STATUSES: readonly AttemptStatus[] = [
+  "completed",
+  "failed",
+  "cancelled",
+  "handed_off",
+];
+
+/**
+ * Git worktree provisioned by an attempt via the `worktree_create`
+ * MCP tool. Attempt-scoped: lifecycle follows the attempt, the
+ * workspace itself never holds git state directly. See
+ * `docs/design/phase-1-worktree-isolation/README.md` (v3).
+ */
+export interface Worktree {
+  /** Attempt-scoped unique identifier. Caller-provided. */
+  name: string;
+  /** Canonical absolute path to the source git repository. */
+  repoPath: string;
+  /** Branch name, caller-provided — runtime does not generate. */
+  branch: string;
+  /** Base branch the new branch was forked from. */
+  baseBranch: string;
+  /** Absolute path to the provisioned working directory. */
+  path: string;
+  /** Epoch ms of provisioning. */
+  createdAt: number;
+}
+
 export interface Attempt {
   id: string;
   taskId: string;
@@ -108,7 +137,13 @@ export interface Attempt {
   runtimeType?: string;
   sessionId?: string;
   cwd?: string;
-  worktreePath?: string;
+  /**
+   * Worktrees provisioned by this attempt through the
+   * `worktree_create` MCP tool. Each entry is torn down when the
+   * attempt transitions to any terminal status. Branches are
+   * preserved so completed work survives cleanup.
+   */
+  worktrees?: readonly Worktree[];
   pid?: number;
   lastHeartbeatAt?: number;
 }
@@ -122,7 +157,6 @@ export interface CreateAttemptInput {
   runtimeType?: string;
   sessionId?: string;
   cwd?: string;
-  worktreePath?: string;
   pid?: number;
 }
 

@@ -140,26 +140,8 @@ export interface AgentDef {
    * derived into task-scoped Attempts.
    */
   role?: AgentRole;
-  /**
-   * Provision a dedicated git worktree for this agent. A worktree
-   * is an isolated code work area — the agent's loop cwd points
-   * there, with its own branch forked from `base_branch`.
-   *
-   * Each worktree-enabled agent points at its own source repo:
-   * the workspace itself is runtime-agnostic and never knows
-   * about git. Two agents can share a repo (they'll get separate
-   * branches) or point at completely different repos.
-   *
-   * YAML shape:
-   *
-   *   worktree:
-   *     repo: /path/to/source/repo   # absolute or config-relative
-   *     base_branch: main            # optional, default "main"
-   *
-   * Default: undefined (agent works in its sandbox, no git).
-   * See docs/design/phase-1-worktree-isolation/README.md.
-   */
-  worktree?: WorktreeSpec;
+  // (no `worktree` field — worktrees are created at runtime via the
+  //  `worktree_create` MCP tool, see phase-1 design doc)
   /** Additional external MCP servers for CLI runtimes. */
   mcp?: Record<string, McpServerDef>;
   /** Alias for `mcp` in YAML. */
@@ -172,17 +154,6 @@ export interface AgentDef {
   policy?: PolicyDef;
 }
 
-/**
- * Git worktree spec for a single agent. Declared on `AgentDef.worktree`.
- * Workspace is not git-aware — every agent that wants a worktree
- * owns its own repo target.
- */
-export interface WorktreeSpec {
-  /** Absolute or config-relative path to the source git repository. */
-  repo: string;
-  /** Branch to fork the agent's new branch from. Default: "main". */
-  base_branch?: string;
-}
 
 /** Setup step: run a shell command, optionally capture output as a variable. */
 export interface SetupStep {
@@ -278,13 +249,7 @@ export interface ResolvedAgent {
   on_demand?: boolean;
   /** Resolved role: explicit AgentDef.role wins, else derived from workspace.lead. */
   role: AgentRole;
-  /**
-   * Fully-resolved worktree spec. `repoPath` is absolute (relative
-   * paths in the YAML are anchored to the config file directory);
-   * `baseBranch` has the "main" default already applied. Undefined
-   * means the agent does not want a worktree.
-   */
-  worktree?: { repoPath: string; baseBranch: string };
+  // (no resolved worktree field — worktrees are runtime-created, attempt-scoped)
   /** External MCP servers merged from the agent definition. */
   mcpServers?: Record<string, McpServerDef>;
   /**

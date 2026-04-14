@@ -1344,6 +1344,18 @@ export class Daemon {
     // dependency shape consistent with the existing handlers).
     const { createWorkspaceTools } = await import("@agent-worker/workspace");
     const channels = handle.workspace.getAgentChannels(agent);
+    // Phase-1 v3: query the agent's active attempt so the
+    // attempt-scoped tools (worktree_*) are present in the
+    // dispatched tool set. Out-of-band callers (debug,
+    // tests, the stdio MCP proxy) get the same surface as
+    // the orchestrator's per-run injection.
+    let activeAttemptId: string | undefined;
+    try {
+      const active = await handle.workspace.stateStore.findActiveAttempt(agent);
+      activeAttemptId = active?.id;
+    } catch {
+      // No active attempt → no worktree tools, that's fine.
+    }
     const tools = createWorkspaceTools(
       agent,
       handle.workspace.contextProvider,
@@ -1353,8 +1365,10 @@ export class Daemon {
       {
         stateStore: handle.workspace.stateStore,
         workspaceName: handle.workspace.name,
+        workspaceKey: key,
+        dataDir: this.config.dataDir,
         instructionQueue: handle.workspace.instructionQueue,
-        agentWorktreePath: (name) => handle.workspace.getAgentWorktreePath(name),
+        activeAttemptId,
       },
     );
 

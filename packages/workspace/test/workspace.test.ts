@@ -129,31 +129,6 @@ describe("Workspace", () => {
     expect(aliceInbox).toHaveLength(0);
   });
 
-  test("accepts worktreeRepos on the runtime config", async () => {
-    // The workspace itself no longer holds a single repo — it
-    // just carries the union of repos any agent's worktree spec
-    // targets, so Workspace.init() can prune them on crash
-    // recovery. Zero repos is the default.
-    const ws = await createWorkspace({
-      name: "repo-ws",
-      agents: ["alice"],
-      storage: new MemoryStorage(),
-      worktreeRepos: ["/tmp/repo-a", "/tmp/repo-b"],
-    });
-    // The field is private — we just assert construction succeeds
-    // and init() doesn't throw.
-    expect(ws.name).toBe("repo-ws");
-  });
-
-  test("worktreeRepos is undefined when no agent wants a worktree", async () => {
-    const ws = await createWorkspace({
-      name: "no-repo",
-      agents: ["alice"],
-      storage: new MemoryStorage(),
-    });
-    expect(ws.name).toBe("no-repo");
-  });
-
   test("multiple leading mentions all wake", async () => {
     await workspace.contextProvider.send({
       channel: "general",

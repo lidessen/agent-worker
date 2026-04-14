@@ -113,12 +113,14 @@ export type {
   Attempt,
   CreateAttemptInput,
   AttemptPatch,
+  Worktree,
   HandoffKind,
   Handoff,
   CreateHandoffInput,
   Artifact,
   CreateArtifactInput,
   WorkspaceStateStore,
+  AttemptTerminalListener,
   TaskFilter,
 } from "./state/index.ts";
 

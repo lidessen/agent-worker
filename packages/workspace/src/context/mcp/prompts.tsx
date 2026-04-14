@@ -152,11 +152,21 @@ export const workspacePromptSection: PromptSection = async (ctx) => {
         label="Shared workspace"
         value={`\`${ctx.workspaceSandboxDir ?? "(not available)"}\``}
       />
-      {ctx.worktreeDir && (
+      {ctx.worktrees && ctx.worktrees.length > 0 && (
         <>
-          <field label="Git worktree (your code cwd)" value={`\`${ctx.worktreeDir}\``} />
-          <field label="Branch" value={ctx.worktreeBranch ?? "(unknown)"} />
-          <field label="Base branch" value={ctx.baseBranch ?? "main"} />
+          <br />
+          <line>Worktrees (current attempt)</line>
+          {ctx.worktrees.map((wt) => (
+            <field
+              key={`wt.${wt.name}`}
+              label={`worktree[${wt.name}]`}
+              value={`\`${wt.path}\` (branch \`${wt.branch}\` from \`${wt.baseBranch}\`)`}
+            />
+          ))}
+          <item>
+            Your loop cwd is the {ctx.worktrees.length === 1 ? "single" : "`main`"} worktree
+            above. Use `cd` for the others, or pass absolute paths.
+          </item>
         </>
       )}
       <br />

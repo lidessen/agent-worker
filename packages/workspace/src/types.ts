@@ -155,15 +155,6 @@ export interface WorkspaceConfig {
   lead?: string;
   /** Agent names that are on-demand (only wake on @mention, not broadcasts). */
   onDemandAgents?: string[];
-  /**
-   * The full set of source-repo paths referenced by any agent's
-   * worktree spec in this workspace. Used at `init()` time to run
-   * `pruneWorktrees` across each repo for crash recovery. The
-   * workspace itself stays runtime-agnostic — this is just the
-   * union of per-agent worktree targets materialised for the
-   * init scan. Populated by `toWorkspaceConfig`.
-   */
-  worktreeRepos?: readonly string[];
 }
 
 // ── Channel Bridge & Adapter ───────────────────────────────────────────────

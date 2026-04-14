@@ -2,6 +2,7 @@
 
 import type { ContextProvider, InboxEntry } from "../types.ts";
 import type { WorkspaceStateStore } from "../state/index.ts";
+import type { Worktree } from "../state/types.ts";
 import { renderPromptDocument } from "./prompt-ui.tsx";
 import type { PromptSectionNode } from "./prompt-ui.tsx";
 
@@ -25,12 +26,14 @@ export interface PromptContext {
   sandboxDir?: string;
   /** Shared workspace sandbox directory (visible to all agents). */
   workspaceSandboxDir?: string;
-  /** Git worktree the agent should use as its code cwd (phase 1 isolation). */
-  worktreeDir?: string;
-  /** Branch name of the agent's worktree. */
-  worktreeBranch?: string;
-  /** Base branch the agent's branch forked from. */
-  baseBranch?: string;
+  /**
+   * Phase-1 v3 worktrees attached to the agent's current
+   * attempt. Resolved per-run by the orchestrator from the
+   * state store. Empty / absent when the agent has no active
+   * attempt or the active attempt has not created any
+   * worktrees yet.
+   */
+  worktrees?: readonly Worktree[];
   /** Kernel state store — task ledger visible to the lead. Undefined in legacy callers. */
   stateStore?: WorkspaceStateStore;
   /**

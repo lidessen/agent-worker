@@ -11,6 +11,7 @@ import type {
   Artifact,
   Attempt,
   AttemptPatch,
+  AttemptStatus,
   CreateArtifactInput,
   CreateAttemptInput,
   CreateHandoffInput,
@@ -20,11 +21,15 @@ import type {
   TaskPatch,
   TaskStatus,
 } from "./types.ts";
+import { TERMINAL_ATTEMPT_STATUSES } from "./types.ts";
 
 export interface TaskFilter {
   status?: TaskStatus[];
   ownerLeadId?: string;
 }
+
+/** Callback for attempt lifecycle events — see `WorkspaceStateStore.on`. */
+export type AttemptTerminalListener = (attempt: Attempt) => void | Promise<void>;
 
 export interface WorkspaceStateStore {
   // ── Task ────────────────────────────────────────────────────────────
@@ -38,6 +43,20 @@ export interface WorkspaceStateStore {
   getAttempt(id: string): Promise<Attempt | null>;
   updateAttempt(id: string, patch: AttemptPatch): Promise<Attempt>;
   listAttempts(taskId: string): Promise<Attempt[]>;
+  /**
+   * Find the agent's current running Attempt, if any. Used by the
+   * per-run tool injector to closure attempt-scoped tools over the
+   * active attempt id. Returns the oldest running attempt when
+   * there are multiple (there should be at most one by
+   * invariant).
+   */
+  findActiveAttempt(agentName: string): Promise<Attempt | null>;
+  /**
+   * All attempts across all tasks. Used by workspace init to
+   * collect the unique set of worktree repo paths for crash
+   * recovery `pruneWorktrees` scans.
+   */
+  listAllAttempts(): Promise<Attempt[]>;
 
   // ── Handoff ─────────────────────────────────────────────────────────
   createHandoff(input: CreateHandoffInput): Promise<Handoff>;
@@ -48,6 +67,19 @@ export interface WorkspaceStateStore {
   createArtifact(input: CreateArtifactInput): Promise<Artifact>;
   getArtifact(id: string): Promise<Artifact | null>;
   listArtifacts(taskId: string): Promise<Artifact[]>;
+
+  // ── Lifecycle events ────────────────────────────────────────────────
+  /**
+   * Subscribe to attempt lifecycle events. `attempt.terminal`
+   * fires when `updateAttempt` flips a running attempt to any
+   * terminal status (`completed` / `failed` / `cancelled` /
+   * `handed_off`). Listeners are called sequentially with the
+   * post-update attempt snapshot; exceptions are logged and
+   * swallowed so one bad listener doesn't break the update.
+   *
+   * Returns an unsubscribe function.
+   */
+  on(event: "attempt.terminal", listener: AttemptTerminalListener): () => void;
 }
 
 // ── In-memory implementation ──────────────────────────────────────────────
@@ -68,6 +100,46 @@ export class InMemoryWorkspaceStateStore implements WorkspaceStateStore {
   private attempts = new Map<string, Attempt>();
   private handoffs = new Map<string, Handoff>();
   private artifacts = new Map<string, Artifact>();
+  /** `attempt.terminal` listeners. */
+  protected attemptTerminalListeners = new Set<AttemptTerminalListener>();
+
+  on(event: "attempt.terminal", listener: AttemptTerminalListener): () => void {
+    if (event !== "attempt.terminal") {
+      throw new Error(`Unknown WorkspaceStateStore event: ${event}`);
+    }
+    this.attemptTerminalListeners.add(listener);
+    return () => {
+      this.attemptTerminalListeners.delete(listener);
+    };
+  }
+
+  /**
+   * Fire `attempt.terminal` listeners sequentially. Errors are
+   * caught and logged; listener faults must not break the
+   * triggering update path.
+   */
+  protected async emitAttemptTerminal(attempt: Attempt): Promise<void> {
+    for (const listener of this.attemptTerminalListeners) {
+      try {
+        await listener(attempt);
+      } catch (err) {
+        console.error(
+          `[state-store] attempt.terminal listener failed for ${attempt.id}:`,
+          err instanceof Error ? err.message : err,
+        );
+      }
+    }
+  }
+
+  /**
+   * Internal helper: detect a non-terminal → terminal status
+   * transition between two snapshots of the same attempt.
+   */
+  protected isTerminalTransition(prev: AttemptStatus, next: AttemptStatus): boolean {
+    const wasTerminal = (TERMINAL_ATTEMPT_STATUSES as readonly AttemptStatus[]).includes(prev);
+    const isTerminal = (TERMINAL_ATTEMPT_STATUSES as readonly AttemptStatus[]).includes(next);
+    return !wasTerminal && isTerminal;
+  }
 
   // ── Task ────────────────────────────────────────────────────────────
 
@@ -141,7 +213,6 @@ export class InMemoryWorkspaceStateStore implements WorkspaceStateStore {
       runtimeType: input.runtimeType,
       sessionId: input.sessionId,
       cwd: input.cwd,
-      worktreePath: input.worktreePath,
       pid: input.pid,
     };
     this.attempts.set(attempt.id, attempt);
@@ -163,6 +234,16 @@ export class InMemoryWorkspaceStateStore implements WorkspaceStateStore {
       startedAt: current.startedAt,
     };
     this.attempts.set(id, updated);
+
+    // Phase-1 v3: fire attempt.terminal on running → terminal
+    // status transition so cleanup hooks (worktree teardown,
+    // chronicle entry, etc.) can react without polling.
+    if (
+      patch.status !== undefined &&
+      this.isTerminalTransition(current.status, updated.status)
+    ) {
+      await this.emitAttemptTerminal(updated);
+    }
     return updated;
   }
 
@@ -170,6 +251,20 @@ export class InMemoryWorkspaceStateStore implements WorkspaceStateStore {
     return Array.from(this.attempts.values())
       .filter((a) => a.taskId === taskId)
       .sort((a, b) => a.startedAt - b.startedAt);
+  }
+
+  async findActiveAttempt(agentName: string): Promise<Attempt | null> {
+    let best: Attempt | null = null;
+    for (const attempt of this.attempts.values()) {
+      if (attempt.agentName !== agentName) continue;
+      if (attempt.status !== "running") continue;
+      if (!best || attempt.startedAt < best.startedAt) best = attempt;
+    }
+    return best;
+  }
+
+  async listAllAttempts(): Promise<Attempt[]> {
+    return Array.from(this.attempts.values()).sort((a, b) => a.startedAt - b.startedAt);
   }
 
   // ── Handoff ─────────────────────────────────────────────────────────

@@ -2,6 +2,7 @@ import { writeFileSync } from "node:fs";
 import type { Workspace } from "@agent-worker/workspace";
 import type { ResolvedWorkspace } from "@agent-worker/workspace";
 import { removeWorktree } from "@agent-worker/workspace";
+import type { Attempt } from "@agent-worker/workspace";
 import type { WorkspaceOrchestrator } from "./orchestrator.ts";
 import type { EventBus } from "@agent-worker/shared";
 import type {
@@ -30,19 +31,27 @@ export class ManagedWorkspace {
   private _onDemandAgents: Set<string>;
   private _mentionListener: ((msg: import("@agent-worker/workspace").Message) => void) | null =
     null;
-  /** Phase-1 worktrees provisioned for this workspace, cleaned up on stop(). */
-  private readonly _worktrees: ReadonlyArray<{ repoPath: string; worktreePath: string }>;
   /**
-   * Per-agent runner scope at creation time: the cwd the loop
-   * was launched with and the full `allowedPaths` set. Exposed
-   * via `agentRunnerScope(name)` so debug + integration tests
-   * can inspect the actual path boundaries without reaching
-   * into private registry state.
+   * Per-agent baseline runner scope: the sandbox cwd and the
+   * static `allowedPaths` set captured at workspace-create
+   * time. Phase-1 v3 worktrees override `cwd` per-run inside
+   * the runner closure based on the agent's active attempt;
+   * this snapshot is the "no active attempt" state and remains
+   * useful for debug + tests. `worktreePath` is always
+   * undefined here — runtime worktrees never appear in the
+   * static snapshot.
    */
   private readonly _agentScopes: ReadonlyMap<
     string,
     { cwd: string | undefined; allowedPaths: readonly string[]; worktreePath?: string }
   >;
+  /**
+   * Disposers to run on `stop()` — currently the
+   * `attempt.terminal` event subscription installed by
+   * workspace-registry. Kept generic so future per-workspace
+   * subscriptions can register here too.
+   */
+  private readonly _onDispose: Array<() => void>;
 
   constructor(opts: {
     workspace: Workspace;
@@ -53,13 +62,18 @@ export class ManagedWorkspace {
     bus?: EventBus;
     /** Path to status.json for persistence. */
     statusPath?: string;
-    /** Git worktrees to remove on stop(). */
-    worktrees?: Array<{ repoPath: string; worktreePath: string }>;
     /** Per-agent runner scope for inspection by debug + tests. */
     agentScopes?: Record<
       string,
       { cwd: string | undefined; allowedPaths: readonly string[]; worktreePath?: string }
     >;
+    /**
+     * Optional disposer(s) to run on `stop()`. Used by
+     * workspace-registry to unsubscribe its
+     * `attempt.terminal` listener so the closure doesn't leak
+     * across restart cycles.
+     */
+    onDispose?: (() => void) | Array<() => void>;
   }) {
     this.name = opts.resolved.def.name;
     this.tag = opts.tag;
@@ -73,15 +87,22 @@ export class ManagedWorkspace {
     this._onDemandAgents = new Set(
       opts.resolved.agents.filter((a) => a.on_demand).map((a) => a.name),
     );
-    this._worktrees = opts.worktrees ?? [];
     this._agentScopes = new Map(Object.entries(opts.agentScopes ?? {}));
+    this._onDispose = Array.isArray(opts.onDispose)
+      ? [...opts.onDispose]
+      : opts.onDispose
+        ? [opts.onDispose]
+        : [];
     this._persistStatus();
   }
 
   /**
-   * Return the runner scope (cwd + allowedPaths + worktreePath)
-   * captured for an agent at workspace-create time. Undefined
-   * when the agent name is unknown.
+   * Return the baseline runner scope (sandbox cwd +
+   * `allowedPaths`) captured for an agent at workspace-create
+   * time. Phase-1 v3 worktrees attach to attempts at runtime
+   * and are NOT reflected here — query the state store for
+   * the agent's active attempt to see runtime worktrees.
+   * Undefined when the agent name is unknown.
    */
   agentRunnerScope(
     agentName: string,
@@ -273,20 +294,51 @@ export class ManagedWorkspace {
         await loop.stop();
       }
     }
-    // Clean up phase-1 worktrees before workspace.shutdown() so that
-    // `git worktree remove` still has a live repo to talk to. Failures
-    // are logged but do not block shutdown — the next aw create will
-    // reattach via the idempotency path.
-    for (const { repoPath, worktreePath } of this._worktrees) {
+
+    // Phase-1 v3 worktree cleanup: walk every non-terminal
+    // attempt (the `attempt.terminal` listener has already
+    // cleaned the rest) and remove each worktree manually
+    // before `workspace.shutdown()`. This catches workspaces
+    // stopped while attempts were still running — e.g.
+    // `aw rm @ws` mid-task.
+    try {
+      const attempts = await this.workspace.stateStore.listAllAttempts();
+      const nonTerminal: Attempt[] = attempts.filter(
+        (a) => a.status === "running" && a.worktrees && a.worktrees.length > 0,
+      );
+      for (const attempt of nonTerminal) {
+        for (const wt of attempt.worktrees ?? []) {
+          try {
+            await removeWorktree(wt.repoPath, wt.path);
+          } catch (err) {
+            console.error(
+              `[workspace ${this.key}] failed to remove worktree ${wt.path}:`,
+              err instanceof Error ? err.message : err,
+            );
+          }
+        }
+      }
+    } catch (err) {
+      console.error(
+        `[workspace ${this.key}] worktree sweep on stop failed:`,
+        err instanceof Error ? err.message : err,
+      );
+    }
+
+    // Run any registered disposers (e.g. unsubscribe from the
+    // state store's attempt.terminal listener so the closure
+    // doesn't leak across restart cycles).
+    for (const dispose of this._onDispose) {
       try {
-        await removeWorktree(repoPath, worktreePath);
+        dispose();
       } catch (err) {
         console.error(
-          `[workspace ${this.key}] failed to remove worktree ${worktreePath}:`,
+          `[workspace ${this.key}] dispose hook failed:`,
           err instanceof Error ? err.message : err,
         );
       }
     }
+
     await this.workspace.shutdown();
     this.emitOverviewEvent("workspace.stopped", { workspace: this.key });
   }

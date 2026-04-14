@@ -9,7 +9,7 @@ import {
   resolveConnections,
   WORKSPACE_TOOL_DEFS,
   buildLeadHooks,
-  provisionWorktree,
+  removeWorktree,
 } from "@agent-worker/workspace";
 import type { Workspace, ResolvedAgent, WorkspaceToolSet } from "@agent-worker/workspace";
 import type { AgentLoop } from "@agent-worker/agent";
@@ -386,16 +386,32 @@ export class WorkspaceRegistry {
       resolved.kickoff = interpolate(resolved.def.kickoff, templateVars);
     }
 
-    // Collect worktrees provisioned during agent setup so stop() can
-    // clean them up deterministically.
-    const provisionedWorktrees: Array<{ repoPath: string; worktreePath: string }> = [];
-    // Capture the final cwd + allowedPaths per agent so debug and
-    // integration tests can inspect the actual path scope of each
-    // runner via `ManagedWorkspace.agentRunnerScope()`.
+    // Capture the final sandbox cwd + allowedPaths per agent so
+    // debug and integration tests can inspect the static path
+    // scope. Worktree-backed cwd overrides happen per-run inside
+    // the runner closure (see `createRunner`) and don't show up
+    // here — the snapshot is the "no active attempt" baseline.
     const agentScopes: Record<
       string,
       { cwd: string | undefined; allowedPaths: readonly string[]; worktreePath?: string }
     > = {};
+
+    // Phase-1 v3 worktree cleanup: subscribe ONCE per workspace
+    // to `attempt.terminal`. When an attempt flips to any
+    // terminal status, walk its worktrees and remove each one.
+    // Branches are preserved (committed work survives cleanup).
+    const unsubscribeTerminal = workspace.stateStore.on("attempt.terminal", async (attempt) => {
+      for (const wt of attempt.worktrees ?? []) {
+        try {
+          await removeWorktree(wt.repoPath, wt.path);
+        } catch (err) {
+          console.error(
+            `[workspace ${key}] removeWorktree failed for ${wt.path}:`,
+            err instanceof Error ? err.message : err,
+          );
+        }
+      }
+    });
 
     // Create agent loops
     for (const agent of resolved.agents) {
@@ -410,60 +426,16 @@ export class WorkspaceRegistry {
           }
         }
       }
-      let agentCwd = dirs.sandboxDir ?? dirs.workspaceSandboxDir;
+      const agentCwd = dirs.sandboxDir ?? dirs.workspaceSandboxDir;
       const allowedPaths: string[] = [];
       if (dirs.sandboxDir && dirs.workspaceSandboxDir) {
         allowedPaths.push(dirs.workspaceSandboxDir);
       }
 
-      // Phase-1 worktree provisioning, fully per-agent. The
-      // workspace itself is runtime-agnostic and holds no repo;
-      // every worktree-enabled agent points at its own source
-      // repo via `agent.worktree.{repoPath, baseBranch}`. Errors
-      // surface immediately so you learn at `aw create` time,
-      // not mid-run inside the agent's bash tool.
-      //
-      // Phase-3 tightening: we deliberately do NOT push
-      // `agent.worktree.repoPath` into `allowedPaths`. The whole
-      // point of the worktree is that the worker does its code
-      // work there — git handles the indirection to the canonical
-      // `.git` directory without the worker needing filesystem
-      // access to the source repo root.
-      let worktreeDir: string | undefined;
-      let worktreeBranch: string | undefined;
-      let baseBranch: string | undefined;
-      if (agent.worktree) {
-        const safeKey = key.replace(/:/g, "--");
-        worktreeBranch = `${safeKey}/${agent.name}`;
-        baseBranch = agent.worktree.baseBranch;
-        worktreeDir = join(this._dataDir, "workspace-data", safeKey, "worktrees", agent.name);
-        mkdirSync(dirname(worktreeDir), { recursive: true });
-        await provisionWorktree(
-          agent.worktree.repoPath,
-          worktreeDir,
-          worktreeBranch,
-          baseBranch,
-        );
-        provisionedWorktrees.push({
-          repoPath: agent.worktree.repoPath,
-          worktreePath: worktreeDir,
-        });
-        // Register with the runtime so task_dispatch can stamp
-        // the worktree path on every Attempt created for this
-        // worker, without the task tool needing to reach into
-        // workspace-registry internals.
-        workspace.setAgentWorktreePath(agent.name, worktreeDir);
-        agentCwd = worktreeDir;
-      }
-
       const actualStorageDir = storageDir ?? this.workspaceDir(key);
-      // Freeze the final path scope for later inspection. Copy
-      // the array so later mutations to `allowedPaths` (if any)
-      // don't leak back into the snapshot.
       agentScopes[agent.name] = {
         cwd: agentCwd,
         allowedPaths: [...allowedPaths],
-        worktreePath: worktreeDir,
       };
       const runner = await this.createRunner(agent, workspace, resolved, key, tools, {
         cwd: agentCwd,
@@ -481,9 +453,6 @@ export class WorkspaceRegistry {
         pollInterval: 2000,
         sandboxDir: dirs.sandboxDir,
         workspaceSandboxDir: dirs.workspaceSandboxDir,
-        worktreeDir,
-        worktreeBranch,
-        baseBranch,
         onDemand: agent.on_demand ?? false,
         stateStore: workspace.stateStore,
         role: agent.role,
@@ -505,8 +474,8 @@ export class WorkspaceRegistry {
       mode: input.mode,
       bus: this._bus,
       statusPath: join(actualStorageDir, "status.json"),
-      worktrees: provisionedWorktrees,
       agentScopes,
+      onDispose: unsubscribeTerminal,
     });
 
     this.workspaces.set(key, handle);
@@ -747,6 +716,42 @@ export class WorkspaceRegistry {
         return;
       }
 
+      // Phase-1 v3: rebuild the workspace tool set per run so
+      // attempt-scoped tools (worktree_*) are closure-bound to
+      // the current active attempt. The orchestrator-passed
+      // `tools` arg is the static baseline (channel / inbox /
+      // team / chronicle / task ledger); we re-create it here
+      // with `activeAttemptId` set so worktree_* shows up iff
+      // the agent is mid-dispatch.
+      let perRunTools = tools;
+      try {
+        const active = await workspace.stateStore.findActiveAttempt(agent.name);
+        const { createWorkspaceTools } = await import("@agent-worker/workspace");
+        perRunTools = createWorkspaceTools(
+          agent.name,
+          workspace.contextProvider,
+          workspace.getAgentChannels(agent.name),
+          (other) =>
+            workspace.hasAgent(other) ? workspace.getAgentChannels(other) : undefined,
+          {
+            stateStore: workspace.stateStore,
+            workspaceName: workspace.name,
+            workspaceKey,
+            dataDir: this._dataDir,
+            instructionQueue: workspace.instructionQueue,
+            activeAttemptId: active?.id,
+          },
+        );
+      } catch (err) {
+        // Fall back to the static baseline if anything goes
+        // wrong — the worker is still functional, it just
+        // won't see worktree_* tools this run.
+        console.error(
+          `[workspace ${workspaceKey}] per-run tool rebuild failed for ${agent.name}:`,
+          err instanceof Error ? err.message : err,
+        );
+      }
+
       // For AI SDK runtimes, create a loop and run. Per-agent
       // state dir holds anything the runtime wants to persist
       // across daemon restarts (currently: codex thread id).
@@ -756,11 +761,11 @@ export class WorkspaceRegistry {
         throw new Error(`No loop available for runtime: ${agent.runtime}`);
       }
 
-      const toolNames = Object.keys(tools);
+      const toolNames = Object.keys(perRunTools);
 
       if (loop.setTools) {
         // AI SDK agents: inject tools directly
-        const aiSdkTools = wrapWorkspaceToolsForAiSdk(tools);
+        const aiSdkTools = wrapWorkspaceToolsForAiSdk(perRunTools);
         loop.setTools(aiSdkTools);
       }
       if (loop.setMcpConfig && mcpConfigPath) {
