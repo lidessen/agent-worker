@@ -54,7 +54,13 @@ export function createWorkspaceTools(
 
     // Inbox tools
     wait_inbox: async (args) => {
-      const timeoutMs = (args.timeout as number) ?? 60000;
+      // 5-minute default: Phase 1 validation observed 60s being
+      // too short for lead agents that wait for coder workers —
+      // hitting the timeout woke the lead redundantly for no new
+      // work. 5 minutes matches a typical worker run length for
+      // a small multi-file task and still caps the block so
+      // runaway waits surface.
+      const timeoutMs = (args.timeout as number) ?? 300_000;
       const result = await Promise.race([
         provider.inbox.onNewEntry(agentName).then(() => "received" as const),
         new Promise<"timeout">((resolve) => setTimeout(() => resolve("timeout"), timeoutMs)),
@@ -215,7 +221,7 @@ export const WORKSPACE_TOOL_DEFS = {
     description:
       "Block and wait for a new inbox message. Returns when a message arrives or timeout expires.",
     parameters: {
-      timeout: { type: "number", description: "Max wait in ms (default 60000)" },
+      timeout: { type: "number", description: "Max wait in ms (default 300000 = 5 minutes)" },
     },
     required: [],
   },

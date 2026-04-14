@@ -827,4 +827,52 @@ agents:
     );
     expect(resolved.agents[0]?.policy).toBeUndefined();
   });
+
+  test("rejects a typo in permissionMode with a clear error", async () => {
+    await expect(
+      loadWorkspaceDef(
+        `
+name: ws
+agents:
+  alice:
+    model: x
+    policy:
+      permissionMode: bypassPermission
+`,
+        { skipSetup: true },
+      ),
+    ).rejects.toThrow(/permissionMode.*bypassPermission.*Expected.*bypassPermissions/);
+  });
+
+  test("rejects an unknown sandbox value", async () => {
+    await expect(
+      loadWorkspaceDef(
+        `
+name: ws
+agents:
+  alice:
+    model: x
+    policy:
+      sandbox: write-everywhere
+`,
+        { skipSetup: true },
+      ),
+    ).rejects.toThrow(/sandbox.*write-everywhere.*Expected.*read-only/);
+  });
+
+  test("rejects a non-boolean fullAuto", async () => {
+    await expect(
+      loadWorkspaceDef(
+        `
+name: ws
+agents:
+  alice:
+    model: x
+    policy:
+      fullAuto: "yes"
+`,
+        { skipSetup: true },
+      ),
+    ).rejects.toThrow(/fullAuto.*expected a boolean/);
+  });
 });

@@ -37,6 +37,7 @@ kickoff: "@alice Finish the task"
 describe("Unified daemon (workspace routes)", () => {
   let daemon: Daemon | null = null;
   let client: AwClient;
+  let currentDataDir: string | null = null;
 
   async function setup() {
     const { tmpdir } = await import("node:os");
@@ -47,6 +48,7 @@ describe("Unified daemon (workspace routes)", () => {
       `aw-cli-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
     );
     mkdirSync(dataDir, { recursive: true });
+    currentDataDir = dataDir;
     daemon = new Daemon({ port: 0, mcpPort: 0, dataDir });
     const info = await daemon.start();
     client = AwClient.fromInfo(info);
@@ -490,6 +492,67 @@ describe("Unified daemon (workspace routes)", () => {
     // Workspace should be removed
     const workspaces = await client.listWorkspaces();
     expect(workspaces.find((w) => w.name === "test-ws")).toBeUndefined();
+  });
+
+  test("stopWorkspace also wipes the workspace-data directory on disk", async () => {
+    await setup();
+    const fileYaml = `
+name: rm-test-ws
+agents:
+  alice:
+    runtime: mock
+    instructions: ""
+channels:
+  - general
+storage: file
+`;
+    await client.createWorkspace(fileYaml);
+
+    // Send a channel message — it should land in the channel
+    // jsonl on disk, so we can confirm the file is populated.
+    await client.sendToWorkspace("rm-test-ws", {
+      channel: "general",
+      from: "user",
+      content: "hello",
+    });
+
+    const { existsSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const dataDir = join(currentDataDir!, "workspace-data", "rm-test-ws");
+    expect(existsSync(dataDir)).toBe(true);
+
+    await client.stopWorkspace("rm-test-ws");
+
+    // After rm, the entire data dir must be gone so that a
+    // subsequent `create` with the same name starts clean.
+    expect(existsSync(dataDir)).toBe(false);
+  });
+
+  test("recreated workspace does not inherit the old channel history", async () => {
+    await setup();
+    const fileYaml = `
+name: rm-recreate-ws
+agents:
+  alice:
+    runtime: mock
+    instructions: ""
+channels:
+  - general
+storage: file
+`;
+    await client.createWorkspace(fileYaml);
+    await client.sendToWorkspace("rm-recreate-ws", {
+      channel: "general",
+      from: "user",
+      content: "old message that must not leak",
+    });
+    await client.stopWorkspace("rm-recreate-ws");
+
+    // Recreate with the same name.
+    await client.createWorkspace(fileYaml);
+    const data = await client.readChannel("rm-recreate-ws", "general");
+    const messages = (data.messages ?? []) as Array<{ content: string }>;
+    expect(messages.find((m) => m.content.includes("old message"))).toBeUndefined();
   });
 
   test("task workspace wait completes after work drains", async () => {

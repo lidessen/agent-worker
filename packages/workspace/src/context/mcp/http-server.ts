@@ -1,64 +1,68 @@
 /**
  * MCP config generator for CLI agents.
  *
- * Generates config files for each CLI agent type:
- * - claude-code: stdio subprocess (--mcp-config doesn't load HTTP in -p mode)
- * - codex/cursor: HTTP URL (points to WorkspaceMcpHub's /mcp/:agentName endpoint)
+ * All CLI runtimes (claude-code, codex, cursor) now use the same
+ * stdio subprocess path. We previously routed codex/cursor through
+ * the `StreamableHTTPServerTransport` on the WorkspaceMcpHub, but
+ * codex's app-server deadlocks mid-tool-call on that transport:
+ * the tool runs, the workspace side-effect happens, but codex
+ * never emits `item/completed` for the call because the SSE-
+ * based HTTP transport never returns a terminal response it
+ * recognises. Dropping everyone onto the stdio proxy is a strict
+ * behavioral improvement — claude-code was already using it and
+ * is the most battle-tested path.
  */
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveScriptEntrypointCommand } from "@agent-worker/shared";
+import type { McpServerDef } from "../../config/types.ts";
 
 /**
  * Create an MCP config file for a CLI agent.
  *
- * - claude-code: stdio config (prefers bun, falls back to node+tsx)
- * - codex/cursor: HTTP config (points to WorkspaceMcpHub)
+ * All CLI runtimes share the stdio path (prefers bun, falls back
+ * to node+tsx). `httpUrl` is accepted for backward compatibility
+ * but ignored.
  */
 export async function createWorkspaceMcpConfig(
   agentName: string,
   runtime: string,
   opts: {
-    /** For HTTP mode (codex/cursor): URL of the WorkspaceMcpHub agent endpoint */
+    /** @deprecated HTTP MCP transport is no longer used — ignored. */
     httpUrl?: string;
-    /** For stdio mode (claude-code): daemon URL for the stdio proxy */
+    /** Daemon URL for the stdio proxy. */
     daemonUrl?: string;
-    /** For stdio mode: daemon auth token */
+    /** Daemon auth token. */
     daemonToken?: string;
-    /** Workspace key */
+    /** Workspace key. */
     workspaceKey?: string;
+    /** Additional external MCP servers to merge into the config. */
+    extraServers?: Record<string, McpServerDef>;
   },
 ): Promise<{ configPath: string; cleanup: () => Promise<void> }> {
+  // `runtime` is accepted for future per-runtime tweaks but
+  // currently all CLI runtimes take the same stdio path.
+  void runtime;
   const { writeFile, unlink } = await import("node:fs/promises");
   const configPath = `/tmp/workspace-mcp-${agentName}-${Date.now()}.json`;
 
-  let config: Record<string, unknown>;
-
-  if (runtime === "claude-code") {
-    // Claude Code: stdio subprocess (--mcp-config doesn't load HTTP in -p mode)
-    const entryPath = join(dirname(fileURLToPath(import.meta.url)), "stdio-entry.ts");
-    const scriptCommand = resolveScriptEntrypointCommand(entryPath, [
-      opts.daemonUrl ?? "",
-      opts.daemonToken ?? "",
-      opts.workspaceKey ?? "global",
-      agentName,
-    ]);
-    config = {
-      mcpServers: {
-        workspace: {
-          command: scriptCommand.command,
-          args: scriptCommand.args,
-        },
+  // Single stdio subprocess path for every CLI runtime.
+  const entryPath = join(dirname(fileURLToPath(import.meta.url)), "stdio-entry.ts");
+  const scriptCommand = resolveScriptEntrypointCommand(entryPath, [
+    opts.daemonUrl ?? "",
+    opts.daemonToken ?? "",
+    opts.workspaceKey ?? "global",
+    agentName,
+  ]);
+  const config: Record<string, unknown> = {
+    mcpServers: {
+      ...opts.extraServers,
+      workspace: {
+        command: scriptCommand.command,
+        args: scriptCommand.args,
       },
-    };
-  } else {
-    // Codex/Cursor: HTTP URL
-    config = {
-      mcpServers: {
-        workspace: { type: "http", url: opts.httpUrl ?? "" },
-      },
-    };
-  }
+    },
+  };
 
   await writeFile(configPath, JSON.stringify(config), "utf-8");
 

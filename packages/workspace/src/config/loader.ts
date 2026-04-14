@@ -13,6 +13,7 @@ import type {
   ModelSpec,
   McpServerDef,
   MountDef,
+  PolicyDef,
   SetupStep,
 } from "./types.ts";
 import type { WorkspaceConfig, ChannelAdapter } from "../types.ts";
@@ -67,6 +68,44 @@ export function resolveModel(spec: ModelSpec): ResolvedModel {
     temperature: spec.temperature,
     max_tokens: spec.max_tokens,
   };
+}
+
+/**
+ * Fail fast on typos in a policy block — the loop factory accepts
+ * whatever we pass and the underlying SDKs have cryptic error
+ * messages when they see an unknown permissionMode / sandbox value.
+ * Centralise the whitelist here so a typo at workspace creation
+ * time gets a clear message pointing at the offending field.
+ */
+const POLICY_PERMISSION_MODES: ReadonlySet<string> = new Set([
+  "default",
+  "acceptEdits",
+  "bypassPermissions",
+]);
+const POLICY_SANDBOX_MODES: ReadonlySet<string> = new Set([
+  "read-only",
+  "workspace-write",
+  "danger-full-access",
+]);
+
+function validatePolicyDef(policy: PolicyDef, agentName: string): void {
+  if (policy.permissionMode !== undefined && !POLICY_PERMISSION_MODES.has(policy.permissionMode)) {
+    throw new Error(
+      `Invalid policy.permissionMode for agent "${agentName}": "${policy.permissionMode}". ` +
+        `Expected one of: ${[...POLICY_PERMISSION_MODES].join(", ")}.`,
+    );
+  }
+  if (policy.sandbox !== undefined && !POLICY_SANDBOX_MODES.has(policy.sandbox)) {
+    throw new Error(
+      `Invalid policy.sandbox for agent "${agentName}": "${policy.sandbox}". ` +
+        `Expected one of: ${[...POLICY_SANDBOX_MODES].join(", ")}.`,
+    );
+  }
+  if (policy.fullAuto !== undefined && typeof policy.fullAuto !== "boolean") {
+    throw new Error(
+      `Invalid policy.fullAuto for agent "${agentName}": expected a boolean, got ${typeof policy.fullAuto}.`,
+    );
+  }
 }
 
 function normalizeMcpServerDef(server: Record<string, unknown>): McpServerDef {
@@ -327,6 +366,7 @@ export async function loadWorkspaceDef(
             ...agentDef.policy,
           }
         : undefined;
+    if (policy) validatePolicyDef(policy, name);
 
     agents.push({
       name,
