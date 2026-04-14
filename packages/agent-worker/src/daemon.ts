@@ -407,6 +407,9 @@ export class Daemon {
         if (sub === "/tool-call" && method === "POST") {
           return await this.handleWorkspaceToolCall(key, req);
         }
+        if (sub === "/agent-scopes" && method === "GET") {
+          return this.handleGetWorkspaceAgentScopes(key);
+        }
         if (sub === "/tasks" && method === "GET") {
           return await this.handleWorkspaceTasks(key, url);
         }
@@ -476,7 +479,6 @@ export class Daemon {
       if (path === "/events/stream" && method === "GET") {
         return this.handleEventsStream(url);
       }
-
       // No API route matched — serve static files (SPA)
       return await this.serveStaticOrFallback(path);
     } catch (err) {
@@ -581,7 +583,6 @@ export class Daemon {
         type: resolved.runtime as RuntimeConfig["type"],
         ...(resolved.model ? { model: resolved.model } : {}),
       };
-
       const loop = await createLoopFromConfig(runtimeForLoop);
       const handle = await this.agents.create({
         name: body.name,
@@ -982,6 +983,26 @@ export class Daemon {
     return Response.json(resolved.info);
   }
 
+  /**
+   * Return the runner scope (cwd, allowedPaths, worktreePath)
+   * captured for every agent at workspace-create time. Used by
+   * debug tooling and integration tests that need to assert the
+   * actual filesystem boundary each agent runs under.
+   */
+  private handleGetWorkspaceAgentScopes(key: string): Response {
+    const resolved = this.resolveWorkspace(key);
+    if (resolved instanceof Response) return resolved;
+    const agents: Record<
+      string,
+      { cwd: string | undefined; allowedPaths: readonly string[]; worktreePath?: string }
+    > = {};
+    for (const agent of resolved.resolved.agents) {
+      const scope = resolved.agentRunnerScope(agent.name);
+      if (scope) agents[agent.name] = scope;
+    }
+    return Response.json({ agents });
+  }
+
   private async handleWorkspaceWait(key: string, url: URL): Promise<Response> {
     const resolved = this.resolveWorkspace(key);
     if (resolved instanceof Response) return resolved;
@@ -1333,6 +1354,7 @@ export class Daemon {
         stateStore: handle.workspace.stateStore,
         workspaceName: handle.workspace.name,
         instructionQueue: handle.workspace.instructionQueue,
+        agentWorktreePath: (name) => handle.workspace.getAgentWorktreePath(name),
       },
     );
 

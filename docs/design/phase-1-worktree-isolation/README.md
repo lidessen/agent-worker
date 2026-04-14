@@ -10,80 +10,111 @@ Prerequisite reading:
 
 ## Goal
 
-Let multiple coder agents work on the same repo in parallel without
-clobbering each other. Each opted-in agent gets a dedicated
-`git worktree` on a dedicated branch. The agent's loop cwd is that
-worktree. The prompt surfaces worktree path, branch, and base branch
-so the model knows where it is.
+Let agents work on code in a dedicated, isolated `git worktree` so
+multi-coder parallelism is safe. Each worktree-enabled agent gets
+its own branch on its own repo; the workspace itself stays
+runtime-agnostic and holds zero git knowledge. The agent's loop
+cwd is its worktree. The prompt surfaces worktree path, branch,
+and base branch so the model knows where it is.
 
-Per the roadmap this is Phase 1 of three (isolation → continuity →
-control boundaries), and it must land first because without it the
-multi-coder story is fundamentally unsafe.
+Per the roadmap this is Phase 1 of three (isolation → continuity
+→ control boundaries), and it must land first because without it
+the multi-coder story is fundamentally unsafe.
 
 ## Decisions (frozen)
 
 1. **Worktree is per-agent, not per-attempt.** Branch name is
    deterministic: `{workspaceKey}/{agentName}` (colons in key
    normalized to `--`). Survives daemon restarts.
-2. **Worktree location is under daemon state**, not inside the repo:
-   `{daemonDir}/worktrees/{workspaceKey}/{agentName}`.
-3. **Opt-in per agent.** `AgentDef.worktree: boolean` defaults false;
-   only meaningful when `WorkspaceDef.repo` is set. Leads typically
-   don't get a worktree — they coordinate in the sandbox.
-4. **Sandbox still exists** alongside worktree. Both are passed
+2. **Worktree location is under daemon state**, nested inside
+   the per-workspace data directory:
+   `{daemonDir}/workspace-data/{workspaceKey}/worktrees/{agentName}`.
+   Nesting under `workspace-data/{key}` keeps everything for a
+   single workspace (state store, channels, inbox, chronicle,
+   sandbox, worktrees) under one root, so `aw rm @name`'s
+   blanket `rm -rf` correctly cleans the worktrees along with
+   the rest of the workspace state.
+3. **Workspace is not git-bound.** A workspace may have 0..N
+   repos, one per opted-in agent. Two agents can share a repo
+   (they'll get separate branches) or point at completely
+   different repos. Agents that don't opt in never touch git at
+   all.
+4. **Opt-in per agent via per-agent repo spec.** Each agent that
+   wants a worktree declares its own repo:
+
+   ```yaml
+   agents:
+     coder-a:
+       worktree:
+         repo: /path/to/repo
+         base_branch: main   # optional, default "main"
+   ```
+
+   Leads typically don't declare a `worktree` block — they
+   coordinate in the sandbox.
+5. **Sandbox still exists** alongside worktree. Both are passed
    through to the prompt. Sandbox holds personal scratch files;
-   worktree holds code work. When both are present the loop cwd is
-   the worktree.
-5. **`repo` block is optional** on `WorkspaceConfig`. Existing
-   workspaces without it behave exactly as today.
-6. **Provisioning is synchronous** inside `workspace-registry.create()`
-   — a sequential loop over agents, no locks needed.
+   worktree holds code work. When both are present the loop cwd
+   is the worktree.
+6. **Provisioning is synchronous** inside
+   `workspace-registry.create()` — a sequential loop over agents,
+   no locks needed.
+7. **Legacy `workspace.repo` block is rejected at load time** with
+   a migration hint. So is `worktree: true`. The config loader
+   fails loud — no silent degradation.
 
 ## Data model
 
 ### `WorkspaceDef` (YAML layer)
 
 ```yaml
-repo:
-  path: /abs/or/relative/path/to/repo   # relative resolved against config dir
-  base_branch: main                     # optional, default "main"
+name: multi-repo
 
 agents:
   coordinator:
     runtime: claude-code
-    # no worktree: true — lead stays in sandbox
+    # no worktree block → coordinates in sandbox, no git
 
   coder-a:
     runtime: claude-code
-    worktree: true    # gets worktrees/{workspace}/coder-a on branch {workspace}/coder-a
+    worktree:
+      repo: /abs/or/relative/path/to/repo-a
+      base_branch: main          # optional, default "main"
+
+  coder-b:
+    runtime: codex
+    worktree:
+      repo: /path/to/repo-b      # different repo is fine
 ```
 
-When `repo` is absent, `worktree: true` is silently ignored (no
-error, no provisioning) to stay backward-compatible.
+Relative `repo` paths are anchored to the config file directory,
+matching the `data_dir` resolution rule.
 
 ### Type surface
 
 - `packages/workspace/src/config/types.ts`:
-  - new `RepoSpec { path: string; base_branch?: string }`
-  - `WorkspaceDef.repo?: RepoSpec`
-  - `AgentDef.worktree?: boolean`
-  - `ResolvedAgent.worktree?: boolean`
+  - new `WorktreeSpec { repo: string; base_branch?: string }`
+  - `AgentDef.worktree?: WorktreeSpec`
+  - `ResolvedAgent.worktree?: { repoPath: string; baseBranch: string }`
+    (fully resolved — path absolute, base branch defaulted)
+  - No `WorkspaceDef.repo` field — workspace is not git-aware.
 - `packages/workspace/src/types.ts`:
-  - `WorkspaceConfig.repo?: { path: string; baseBranch: string }`
-    (resolved form — default filled in)
-- `packages/workspace/src/factory.ts` `AgentDirs`:
-  - `worktreeDir?: string`
-  - `worktreeBranch?: string`
-  - `baseBranch?: string`
+  - `WorkspaceConfig.worktreeRepos?: readonly string[]` — the
+    union of unique repo paths targeted by any agent's worktree
+    spec. Used only for crash-recovery pruning at `init()`
+    time; the workspace runtime itself never talks to git
+    directly.
 - `packages/workspace/src/loop/prompt.tsx` `PromptContext`:
-  - same three fields
+  - `worktreeDir?`, `worktreeBranch?`, `baseBranch?`
 - `packages/agent-worker/src/orchestrator.ts` orchestrator config:
   - same three fields, threaded into the `PromptContext` assembly
 
 `Attempt.worktreePath?: string` already exists in
-`packages/workspace/src/state/types.ts` — in this phase we simply
-copy the per-agent worktree path into every Attempt record at
-`attempt_create` time so the ledger shows where work happened.
+`packages/workspace/src/state/types.ts`. `task_dispatch` now
+looks up the worker's worktree path via the
+`agentWorktreePath` dep injected by `createWorkspaceTools` and
+stamps it onto the freshly-created Attempt so the ledger shows
+where the work happened.
 
 ## New module: `packages/workspace/src/worktree.ts`
 

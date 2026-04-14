@@ -690,46 +690,92 @@ data_dir: /yaml/path
     expect(config.storageDir).toBe("/override/path");
   });
 
-  test("carries repo block with default base_branch when absent", async () => {
+  test("per-agent worktree spec resolves repo path + default base_branch", async () => {
     const resolved = await loadWorkspaceDef(
       `
 name: coders
 agents:
   coder-a:
     model: x
-    worktree: true
-repo:
-  path: /tmp/some-repo
+    worktree:
+      repo: /tmp/some-repo
 `,
       { skipSetup: true },
     );
+    expect(resolved.agents[0]?.worktree).toEqual({
+      repoPath: "/tmp/some-repo",
+      baseBranch: "main",
+    });
 
     const config = toWorkspaceConfig(resolved);
-    expect(config.repo).toEqual({ path: "/tmp/some-repo", baseBranch: "main" });
-    // Resolved agent should also carry the opt-in flag.
-    expect(resolved.agents[0]?.worktree).toBe(true);
+    expect(config.worktreeRepos).toEqual(["/tmp/some-repo"]);
   });
 
-  test("honours explicit base_branch", async () => {
+  test("per-agent worktree spec honours explicit base_branch", async () => {
     const resolved = await loadWorkspaceDef(
       `
 name: coders
 agents:
   coder-a:
     model: x
-    worktree: true
-repo:
-  path: /tmp/some-repo
-  base_branch: develop
+    worktree:
+      repo: /tmp/some-repo
+      base_branch: develop
 `,
       { skipSetup: true },
     );
-
-    const config = toWorkspaceConfig(resolved);
-    expect(config.repo?.baseBranch).toBe("develop");
+    expect(resolved.agents[0]?.worktree?.baseBranch).toBe("develop");
   });
 
-  test("omits repo when the YAML has none", async () => {
+  test("two agents on different repos each carry their own worktree spec", async () => {
+    const resolved = await loadWorkspaceDef(
+      `
+name: coders
+agents:
+  coder-a:
+    model: x
+    worktree:
+      repo: /tmp/repo-a
+  coder-b:
+    model: x
+    worktree:
+      repo: /tmp/repo-b
+      base_branch: develop
+`,
+      { skipSetup: true },
+    );
+    const a = resolved.agents.find((x) => x.name === "coder-a");
+    const b = resolved.agents.find((x) => x.name === "coder-b");
+    expect(a?.worktree?.repoPath).toBe("/tmp/repo-a");
+    expect(a?.worktree?.baseBranch).toBe("main");
+    expect(b?.worktree?.repoPath).toBe("/tmp/repo-b");
+    expect(b?.worktree?.baseBranch).toBe("develop");
+
+    const config = toWorkspaceConfig(resolved);
+    expect([...(config.worktreeRepos ?? [])].sort()).toEqual(["/tmp/repo-a", "/tmp/repo-b"]);
+  });
+
+  test("two agents sharing a repo deduplicate into worktreeRepos", async () => {
+    const resolved = await loadWorkspaceDef(
+      `
+name: coders
+agents:
+  coder-a:
+    model: x
+    worktree:
+      repo: /tmp/shared-repo
+  coder-b:
+    model: x
+    worktree:
+      repo: /tmp/shared-repo
+`,
+      { skipSetup: true },
+    );
+    const config = toWorkspaceConfig(resolved);
+    expect(config.worktreeRepos).toEqual(["/tmp/shared-repo"]);
+  });
+
+  test("omits worktreeRepos when no agent wants a worktree", async () => {
     const resolved = await loadWorkspaceDef(
       `
 name: noworktree
@@ -740,8 +786,39 @@ agents:
       { skipSetup: true },
     );
     const config = toWorkspaceConfig(resolved);
-    expect(config.repo).toBeUndefined();
+    expect(config.worktreeRepos).toBeUndefined();
     expect(resolved.agents[0]?.worktree).toBeUndefined();
+  });
+
+  test("rejects legacy `worktree: true` with a migration hint", async () => {
+    await expect(
+      loadWorkspaceDef(
+        `
+name: legacy
+agents:
+  a:
+    model: x
+    worktree: true
+`,
+        { skipSetup: true },
+      ),
+    ).rejects.toThrow(/legacy.*worktree: true/i);
+  });
+
+  test("rejects legacy workspace-level repo block", async () => {
+    await expect(
+      loadWorkspaceDef(
+        `
+name: legacy
+repo:
+  path: /tmp/repo
+agents:
+  a:
+    model: x
+`,
+        { skipSetup: true },
+      ),
+    ).rejects.toThrow(/Workspace-level `repo` block is no longer supported/);
   });
 });
 

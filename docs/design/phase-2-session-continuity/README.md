@@ -56,10 +56,14 @@ of Phase 2.
    classes to write. Pass `new FileNotesStorage({basePath: ...})`
    and `new FileMemoryStorage({filePath: ...})` into
    `AgentConfig`.
-2. **Codex `threadId` lives in a one-line file** per agent,
-   `<agentDir>/thread.json` (`{"threadId": "thr_..."}`).
-   Written when `ensureThread()` succeeds; read back via
-   `CodexLoopOptions.threadId` when the loop is reconstructed.
+2. **Codex `threadId` lives in a runtime-scoped file** per
+   agent, `<agentDir>/codex-thread.json`
+   (`{"threadId": "thr_..."}`). Runtime-scoped naming leaves
+   room for future runtimes (e.g. a `gemini-thread.json`) to
+   coexist in the same agent dir without colliding on a
+   generic `thread.json`. Written when `ensureThread()`
+   succeeds; read back via `CodexLoopOptions.threadIdFile`
+   when the loop is reconstructed.
 3. **Full `Turn[]` conversation history persistence is out of
    scope for the MVP.** Rationale: chronicle + task ledger +
    notes give the agent enough context to resume, and real
@@ -90,15 +94,19 @@ aw daemon start
                       │   filePath: join(agentDir, "memories.json")
                       │ })  ← NEW
                       └─ if runtime === "codex":
-                          const threadId = readThreadFile(agentDir)
-                          CodexLoopOptions.threadId = threadId   ← NEW
+                          threadIdFile = agentDir/codex-thread.json
+                          CodexLoopOptions.threadIdFile = threadIdFile  ← NEW
+                          (CodexLoop reads the file sync in its
+                           constructor and seeds this.threadId)
 ```
 
 And on the runtime hot path, after Codex assigns a thread:
 
 ```
 CodexLoop.ensureThread()
-  └─ on success: writeThreadFile(agentDir, threadId)   ← NEW
+  └─ on success: writeThreadIdFile(threadIdFile, threadId) ← NEW
+     (only when the id actually changed, so unchanged
+      resumes leave the file mtime untouched)
 ```
 
 ## Integration points

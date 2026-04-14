@@ -52,6 +52,9 @@ export function createAgentTools(
       stateStore: runtime.stateStore,
       workspaceName: runtime.name,
       instructionQueue: runtime.instructionQueue,
+      // task_dispatch stamps the worker's worktree path on the
+      // Attempt when present — see phase-1 isolation design.
+      agentWorktreePath: (name) => runtime.getAgentWorktreePath(name),
     },
   );
   const dirs: AgentDirs = {

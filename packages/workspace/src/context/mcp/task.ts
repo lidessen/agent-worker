@@ -205,6 +205,15 @@ export interface TaskToolsDeps {
   chronicle?: {
     append: (entry: { author: string; category: string; content: string }) => Promise<unknown>;
   };
+  /**
+   * Optional lookup for an agent's phase-1 worktree path. When
+   * provided and a dispatched agent has a worktree provisioned,
+   * `task_dispatch` stamps the path onto the freshly-created
+   * Attempt so the task ledger can surface it. Returning
+   * `undefined` is fine — the attempt just won't carry a
+   * worktreePath, matching pre-phase-1 behavior.
+   */
+  agentWorktreePath?: (agentName: string) => string | undefined;
 }
 
 export function createTaskTools(
@@ -530,10 +539,16 @@ export function createTaskTools(
 
         let attempt: Attempt;
         try {
+          // Phase 1 hook-up: stamp the worker's worktree path on
+          // the Attempt so the task ledger (and any later audit)
+          // can surface where the work happened without having
+          // to cross-reference the workspace registry.
+          const workerWorktree = deps.agentWorktreePath?.(workerName);
           attempt = await store.createAttempt({
             taskId: task.id,
             agentName: workerName,
             role: "worker",
+            worktreePath: workerWorktree,
           });
         } catch (err) {
           return `Error creating attempt: ${err instanceof Error ? err.message : String(err)}`;

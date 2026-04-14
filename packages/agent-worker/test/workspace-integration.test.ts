@@ -577,7 +577,7 @@ storage: file
       await execa("git", ["-C", scratchRepo, "add", "README.md"]);
       await execa("git", ["-C", scratchRepo, "commit", "-m", "initial"]);
 
-      await setup();
+      const daemonInfo = await setup();
       const yaml = `
 name: phase1-wt
 agents:
@@ -585,15 +585,15 @@ agents:
     runtime: mock
   coder-a:
     runtime: mock
-    worktree: true
+    worktree:
+      repo: ${scratchRepo}
   coder-b:
     runtime: mock
-    worktree: true
+    worktree:
+      repo: ${scratchRepo}
 channels:
   - general
 storage: memory
-repo:
-  path: ${scratchRepo}
 `;
       await client.createWorkspace(yaml);
 
@@ -625,6 +625,39 @@ repo:
       expect(wtList).toContain("branch refs/heads/phase1-wt/coder-a");
       expect(wtList).toContain("branch refs/heads/phase1-wt/coder-b");
 
+      // Phase-3 tightening: each worktree-enabled agent's runner
+      // must have the worktree as cwd, the shared sandbox (if
+      // any) in allowedPaths, and the canonical source repo
+      // root MUST NOT be present in allowedPaths. See
+      // docs/design/phase-3-control-boundaries/README.md.
+      const scopesUrl = `http://${daemonInfo.host}:${daemonInfo.port}/workspaces/phase1-wt/agent-scopes`;
+      const scopesRes = (await (
+        await fetch(scopesUrl, {
+          headers: { Authorization: `Bearer ${daemonInfo.token}` },
+        })
+      ).json()) as {
+        agents: Record<
+          string,
+          { cwd?: string; allowedPaths: string[]; worktreePath?: string }
+        >;
+      };
+      const coderAScope = scopesRes.agents["coder-a"];
+      const coderBScope = scopesRes.agents["coder-b"];
+      expect(coderAScope).toBeDefined();
+      expect(coderBScope).toBeDefined();
+      // cwd is the worktree
+      expect(coderAScope!.worktreePath).toBeDefined();
+      expect(coderAScope!.cwd).toBe(coderAScope!.worktreePath!);
+      expect(coderBScope!.cwd).toBe(coderBScope!.worktreePath!);
+      // the canonical source repo root is NOT in allowedPaths
+      expect(coderAScope!.allowedPaths).not.toContain(scratchRepo);
+      expect(coderBScope!.allowedPaths).not.toContain(scratchRepo);
+      // coordinator opted out — no worktree, no allowedPaths
+      // additions beyond its sandbox (which is the default)
+      const coordScope = scopesRes.agents["coordinator"];
+      expect(coordScope).toBeDefined();
+      expect(coordScope!.worktreePath).toBeUndefined();
+
       // Shutting the workspace down should clean both worktrees up.
       await client.stopWorkspace("phase1-wt");
       const { stdout: post } = await execa("git", [
@@ -638,6 +671,89 @@ repo:
       expect(post).not.toContain("phase1-wt/coder-b");
     } finally {
       rmSync(scratchRepo, { recursive: true, force: true });
+    }
+  });
+
+  test("two agents on two distinct repos each get their own worktree", async () => {
+    // Workspace is runtime-agnostic — each worktree-enabled
+    // agent points at its own repo independently. Verifies the
+    // "0..N repos per workspace" contract by standing up two
+    // temp repos and routing one coder at each.
+    const repoA = realpathSync(mkdtempSync(join(tmpdir(), "aw-multi-repo-a-")));
+    const repoB = realpathSync(mkdtempSync(join(tmpdir(), "aw-multi-repo-b-")));
+    try {
+      for (const repo of [repoA, repoB]) {
+        await execa("git", ["-C", repo, "init", "-b", "main"]);
+        await execa("git", ["-C", repo, "config", "user.email", "t@e.com"]);
+        await execa("git", ["-C", repo, "config", "user.name", "tester"]);
+        writeFileSync(join(repo, "README.md"), `${repo}\n`);
+        await execa("git", ["-C", repo, "add", "README.md"]);
+        await execa("git", ["-C", repo, "commit", "-m", "initial"]);
+      }
+
+      const daemonInfo = await setup();
+      const yaml = `
+name: multi-repo
+agents:
+  coder-a:
+    runtime: mock
+    worktree:
+      repo: ${repoA}
+  coder-b:
+    runtime: mock
+    worktree:
+      repo: ${repoB}
+channels:
+  - general
+storage: memory
+`;
+      await client.createWorkspace(yaml);
+
+      const { stdout: aBranches } = await execa("git", ["-C", repoA, "branch", "--list"]);
+      const { stdout: bBranches } = await execa("git", ["-C", repoB, "branch", "--list"]);
+      expect(aBranches).toContain("multi-repo/coder-a");
+      expect(aBranches).not.toContain("multi-repo/coder-b");
+      expect(bBranches).toContain("multi-repo/coder-b");
+      expect(bBranches).not.toContain("multi-repo/coder-a");
+
+      const scopesUrl = `http://${daemonInfo.host}:${daemonInfo.port}/workspaces/multi-repo/agent-scopes`;
+      const scopesRes = (await (
+        await fetch(scopesUrl, { headers: { Authorization: `Bearer ${daemonInfo.token}` } })
+      ).json()) as {
+        agents: Record<string, { worktreePath?: string; allowedPaths: string[] }>;
+      };
+      expect(scopesRes.agents["coder-a"]!.worktreePath).toBeDefined();
+      expect(scopesRes.agents["coder-b"]!.worktreePath).toBeDefined();
+      expect(scopesRes.agents["coder-a"]!.worktreePath).not.toBe(
+        scopesRes.agents["coder-b"]!.worktreePath,
+      );
+      // Neither agent sees any repo root in allowedPaths.
+      expect(scopesRes.agents["coder-a"]!.allowedPaths).not.toContain(repoA);
+      expect(scopesRes.agents["coder-a"]!.allowedPaths).not.toContain(repoB);
+      expect(scopesRes.agents["coder-b"]!.allowedPaths).not.toContain(repoA);
+      expect(scopesRes.agents["coder-b"]!.allowedPaths).not.toContain(repoB);
+
+      await client.stopWorkspace("multi-repo");
+
+      const { stdout: aAfter } = await execa("git", [
+        "-C",
+        repoA,
+        "worktree",
+        "list",
+        "--porcelain",
+      ]);
+      const { stdout: bAfter } = await execa("git", [
+        "-C",
+        repoB,
+        "worktree",
+        "list",
+        "--porcelain",
+      ]);
+      expect(aAfter).not.toContain("multi-repo/coder-a");
+      expect(bAfter).not.toContain("multi-repo/coder-b");
+    } finally {
+      rmSync(repoA, { recursive: true, force: true });
+      rmSync(repoB, { recursive: true, force: true });
     }
   });
 });

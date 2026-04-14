@@ -302,6 +302,8 @@ describe("task_dispatch", () => {
     expect(attempts).toHaveLength(1);
     expect(attempts[0]!.agentName).toBe("codex");
     expect(attempts[0]!.role).toBe("worker");
+    // No agentWorktreePath hook → no worktreePath on the Attempt.
+    expect(attempts[0]!.worktreePath).toBeUndefined();
 
     const enqueued = queue.dequeue("codex");
     expect(enqueued).not.toBeNull();
@@ -312,6 +314,52 @@ describe("task_dispatch", () => {
     expect(enqueued?.content).toContain(attempts[0]!.id);
     expect(enqueued?.channel).toBe("dispatch");
     expect(enqueued?.priority).toBe("normal");
+  });
+
+  test("stamps the worker's worktree path onto the Attempt when provided", async () => {
+    // Phase-1 hook-up: task_dispatch asks the wiring layer for
+    // the resolved worker worktree path and persists it on the
+    // Attempt so the ledger can surface where work ran.
+    const store = new InMemoryWorkspaceStateStore();
+    const queue = new InstructionQueue();
+    const paths: Record<string, string> = {
+      "codex": "/tmp/worktree-codex",
+    };
+    const tools = createTaskTools("lead", "test-ws", store, {
+      instructionQueue: queue,
+      agentWorktreePath: (name) => paths[name],
+    });
+    const task = await store.createTask({
+      workspaceId: "test-ws",
+      title: "Ship worktree",
+      goal: "...",
+      status: "open",
+    });
+
+    await tools.task_dispatch({ taskId: task.id, worker: "codex" });
+    const attempts = await store.listAttempts(task.id);
+    expect(attempts).toHaveLength(1);
+    expect(attempts[0]!.worktreePath).toBe("/tmp/worktree-codex");
+  });
+
+  test("leaves worktreePath undefined when the worker has no registered worktree", async () => {
+    const store = new InMemoryWorkspaceStateStore();
+    const queue = new InstructionQueue();
+    const tools = createTaskTools("lead", "test-ws", store, {
+      instructionQueue: queue,
+      // lookup returns undefined for any name
+      agentWorktreePath: () => undefined,
+    });
+    const task = await store.createTask({
+      workspaceId: "test-ws",
+      title: "No worktree",
+      goal: "...",
+      status: "open",
+    });
+
+    await tools.task_dispatch({ taskId: task.id, worker: "codex" });
+    const attempts = await store.listAttempts(task.id);
+    expect(attempts[0]!.worktreePath).toBeUndefined();
   });
 
   test("is unavailable when no instruction queue is wired", async () => {

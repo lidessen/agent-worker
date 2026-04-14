@@ -35,10 +35,6 @@ channels:
 
 default_channel: general
 
-repo:
-  path: /tmp/aw-phase1-validation/repo
-  base_branch: main
-
 kickoff: |
   @maintainer Coordinate two parallel coding tasks against the
   shared repo. Split into two tasks and dispatch to the two
@@ -102,7 +98,9 @@ agents:
   coder-a:
     runtime: claude-code
     model: sonnet
-    worktree: true
+    worktree:
+      repo: /tmp/aw-phase1-validation/repo
+      base_branch: main
     instructions: |
       You are a task-scoped coder worker operating in your own git
       worktree. Your branch and cwd are shown in the "Directories"
@@ -138,7 +136,9 @@ agents:
   coder-b:
     runtime: claude-code
     model: sonnet
-    worktree: true
+    worktree:
+      repo: /tmp/aw-phase1-validation/repo
+      base_branch: main
     instructions: |
       Same protocol as coder-a, but you are coder-b. Your branch
       and worktree are distinct — never touch coder-a's branch or
