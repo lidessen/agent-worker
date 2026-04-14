@@ -517,6 +517,23 @@ export class WorkspaceRegistry {
     await handle.stop();
     this.workspaces.delete(key);
     await this.unregisterFromManifest(key);
+    // Wipe the workspace-data directory so a subsequent `create`
+    // with the same name starts clean. Without this the new
+    // workspace inherits the old channel history, inbox, state
+    // store, chronicle — confusing users who expect `rm` to be
+    // a full delete. Best-effort: if the rm fails we still
+    // report success at the CLI layer because the workspace is
+    // gone from the registry.
+    const dataDir = this.workspaceDir(key);
+    try {
+      const { rmSync } = await import("node:fs");
+      rmSync(dataDir, { recursive: true, force: true });
+    } catch (err) {
+      console.error(
+        `[registry] failed to remove workspace data dir ${dataDir}:`,
+        err instanceof Error ? err.message : err,
+      );
+    }
   }
 
   /** Stop all workspaces (including default). */
@@ -679,15 +696,12 @@ export class WorkspaceRegistry {
     let mcpConfigPath: string | undefined;
 
     return async (prompt, instruction, runId) => {
-      // Generate MCP config on first run (deferred so hub URL is set)
+      // Generate MCP config on first run. All CLI runtimes now
+      // share the stdio subprocess path — see http-server.ts for
+      // the rationale (codex deadlocked on HTTP MCP transport).
       if (isCliRuntime && !mcpConfigPath && this._daemonUrl && this._daemonToken) {
         const { createWorkspaceMcpConfig } = await import("@agent-worker/workspace");
-        const httpUrl =
-          agent.runtime !== "claude-code" && this._mcpHubUrl
-            ? `${this._mcpHubUrl}/mcp/${agent.name}`
-            : undefined;
         const mcpConfig = await createWorkspaceMcpConfig(agent.name, agent.runtime!, {
-          httpUrl,
           daemonUrl: this._daemonUrl,
           daemonToken: this._daemonToken,
           workspaceKey,
