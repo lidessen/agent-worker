@@ -16,6 +16,12 @@ export interface WorkspaceToolsOptions {
   workspaceName?: string;
   /** Instruction queue — enables task_dispatch when present. */
   instructionQueue?: InstructionQueueInterface;
+  /**
+   * Optional lookup for an agent's phase-1 worktree path. When
+   * provided, `task_dispatch` stamps the resolved path on the
+   * freshly-created Attempt so the ledger can surface it.
+   */
+  agentWorktreePath?: (agentName: string) => string | undefined;
 }
 
 /** Create all workspace tools for a given agent. */
@@ -35,6 +41,7 @@ export function createWorkspaceTools(
       ? createTaskTools(agentName, options.workspaceName, options.stateStore, {
           instructionQueue: options.instructionQueue,
           chronicle: provider.chronicle,
+          agentWorktreePath: options.agentWorktreePath,
         })
       : null;
 

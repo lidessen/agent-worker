@@ -389,6 +389,13 @@ export class WorkspaceRegistry {
     // Collect worktrees provisioned during agent setup so stop() can
     // clean them up deterministically.
     const provisionedWorktrees: Array<{ repoPath: string; worktreePath: string }> = [];
+    // Capture the final cwd + allowedPaths per agent so debug and
+    // integration tests can inspect the actual path scope of each
+    // runner via `ManagedWorkspace.agentRunnerScope()`.
+    const agentScopes: Record<
+      string,
+      { cwd: string | undefined; allowedPaths: readonly string[]; worktreePath?: string }
+    > = {};
 
     // Create agent loops
     for (const agent of resolved.agents) {
@@ -409,13 +416,15 @@ export class WorkspaceRegistry {
         allowedPaths.push(dirs.workspaceSandboxDir);
       }
 
-      // Phase-1 worktree provisioning. Only when the workspace
-      // declares a repo AND this agent opted in via `worktree: true`.
-      // Errors surface immediately so you learn at `aw create` time,
+      // Phase-1 worktree provisioning, fully per-agent. The
+      // workspace itself is runtime-agnostic and holds no repo;
+      // every worktree-enabled agent points at its own source
+      // repo via `agent.worktree.{repoPath, baseBranch}`. Errors
+      // surface immediately so you learn at `aw create` time,
       // not mid-run inside the agent's bash tool.
       //
       // Phase-3 tightening: we deliberately do NOT push
-      // `workspace.repo.path` into `allowedPaths`. The whole
+      // `agent.worktree.repoPath` into `allowedPaths`. The whole
       // point of the worktree is that the worker does its code
       // work there — git handles the indirection to the canonical
       // `.git` directory without the worker needing filesystem
@@ -423,21 +432,39 @@ export class WorkspaceRegistry {
       let worktreeDir: string | undefined;
       let worktreeBranch: string | undefined;
       let baseBranch: string | undefined;
-      if (workspace.repo && agent.worktree) {
+      if (agent.worktree) {
         const safeKey = key.replace(/:/g, "--");
         worktreeBranch = `${safeKey}/${agent.name}`;
-        baseBranch = workspace.repo.baseBranch;
+        baseBranch = agent.worktree.baseBranch;
         worktreeDir = join(this._dataDir, "workspace-data", safeKey, "worktrees", agent.name);
         mkdirSync(dirname(worktreeDir), { recursive: true });
-        await provisionWorktree(workspace.repo.path, worktreeDir, worktreeBranch, baseBranch);
+        await provisionWorktree(
+          agent.worktree.repoPath,
+          worktreeDir,
+          worktreeBranch,
+          baseBranch,
+        );
         provisionedWorktrees.push({
-          repoPath: workspace.repo.path,
+          repoPath: agent.worktree.repoPath,
           worktreePath: worktreeDir,
         });
+        // Register with the runtime so task_dispatch can stamp
+        // the worktree path on every Attempt created for this
+        // worker, without the task tool needing to reach into
+        // workspace-registry internals.
+        workspace.setAgentWorktreePath(agent.name, worktreeDir);
         agentCwd = worktreeDir;
       }
 
       const actualStorageDir = storageDir ?? this.workspaceDir(key);
+      // Freeze the final path scope for later inspection. Copy
+      // the array so later mutations to `allowedPaths` (if any)
+      // don't leak back into the snapshot.
+      agentScopes[agent.name] = {
+        cwd: agentCwd,
+        allowedPaths: [...allowedPaths],
+        worktreePath: worktreeDir,
+      };
       const runner = await this.createRunner(agent, workspace, resolved, key, tools, {
         cwd: agentCwd,
         storageDir: actualStorageDir,
@@ -479,6 +506,7 @@ export class WorkspaceRegistry {
       bus: this._bus,
       statusPath: join(actualStorageDir, "status.json"),
       worktrees: provisionedWorktrees,
+      agentScopes,
     });
 
     this.workspaces.set(key, handle);

@@ -35,7 +35,14 @@ export class Workspace implements WorkspaceRuntime {
   readonly tag: string | undefined;
   readonly defaultChannel: string;
   readonly storageDir: string | undefined;
-  readonly repo: { path: string; baseBranch: string } | undefined;
+  /**
+   * Unique source-repo paths referenced by any agent's worktree
+   * in this workspace. Used only for crash-recovery pruning at
+   * `init()` time — the workspace itself never talks to git
+   * directly, it just holds the list so the init scan knows
+   * which repos to prune stray worktree refs out of.
+   */
+  private readonly _worktreeRepos: readonly string[];
   private readonly _sandboxBaseDir: string | undefined;
   readonly contextProvider: ContextProvider;
   readonly eventLog: EventLog;
@@ -57,6 +64,15 @@ export class Workspace implements WorkspaceRuntime {
   /** Agent name → set of joined channels. */
   private agentChannels = new Map<string, Set<string>>();
 
+  /**
+   * Agent name → phase-1 worktree path. Populated by whichever
+   * layer provisions worktrees (currently `WorkspaceRegistry`)
+   * via `setAgentWorktreePath`. Task tools read this via
+   * `getAgentWorktreePath` to stamp `worktreePath` on every
+   * dispatched Attempt.
+   */
+  private agentWorktreePaths = new Map<string, string>();
+
   /** Optional team lead agent name (gets debug tools + all-channel access). */
   readonly lead: string | undefined;
 
@@ -70,7 +86,7 @@ export class Workspace implements WorkspaceRuntime {
     this.defaultChannel = config.defaultChannel ?? "general";
     this._onDemandAgents = new Set(config.onDemandAgents ?? []);
     this.storageDir = config.storageDir;
-    this.repo = config.repo;
+    this._worktreeRepos = [...(config.worktreeRepos ?? [])];
     this._sandboxBaseDir = config.sandboxBaseDir;
 
     const storage = config.storage ?? new MemoryStorage();
@@ -143,12 +159,15 @@ export class Workspace implements WorkspaceRuntime {
     // Best-effort worktree prune after a crash. A stale worktree
     // directory whose underlying ref was lost will then be recreated
     // idempotently by workspace-registry on the next create() call.
-    if (this.repo) {
+    // Pruning runs across every distinct source repo any agent in
+    // this workspace targets — the workspace itself never owns a
+    // repo, we just hold the union of agent targets.
+    for (const repoPath of this._worktreeRepos) {
       try {
-        await pruneWorktrees(this.repo.path);
+        await pruneWorktrees(repoPath);
       } catch (err) {
         console.error(
-          `[workspace ${this.name}] worktree prune failed:`,
+          `[workspace ${this.name}] worktree prune failed for ${repoPath}:`,
           err instanceof Error ? err.message : err,
         );
       }
@@ -275,6 +294,21 @@ export class Workspace implements WorkspaceRuntime {
     const base = this._sandboxBaseDir ?? this.storageDir;
     if (!base) return undefined;
     return join(base, "agents", agentName, "sandbox");
+  }
+
+  /**
+   * Register a phase-1 git worktree for an agent. Called by the
+   * workspace registry (or any future provisioner) right after
+   * `provisionWorktree` succeeds, so task tools can stamp
+   * `attempt.worktreePath` on every dispatched Attempt.
+   */
+  setAgentWorktreePath(agentName: string, worktreePath: string): void {
+    this.agentWorktreePaths.set(agentName, worktreePath);
+  }
+
+  /** Lookup the agent's worktree path, if any was registered. */
+  getAgentWorktreePath(agentName: string): string | undefined {
+    return this.agentWorktreePaths.get(agentName);
   }
 
   async snapshotState(opts?: {

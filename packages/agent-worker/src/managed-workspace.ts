@@ -32,6 +32,17 @@ export class ManagedWorkspace {
     null;
   /** Phase-1 worktrees provisioned for this workspace, cleaned up on stop(). */
   private readonly _worktrees: ReadonlyArray<{ repoPath: string; worktreePath: string }>;
+  /**
+   * Per-agent runner scope at creation time: the cwd the loop
+   * was launched with and the full `allowedPaths` set. Exposed
+   * via `agentRunnerScope(name)` so debug + integration tests
+   * can inspect the actual path boundaries without reaching
+   * into private registry state.
+   */
+  private readonly _agentScopes: ReadonlyMap<
+    string,
+    { cwd: string | undefined; allowedPaths: readonly string[]; worktreePath?: string }
+  >;
 
   constructor(opts: {
     workspace: Workspace;
@@ -44,6 +55,11 @@ export class ManagedWorkspace {
     statusPath?: string;
     /** Git worktrees to remove on stop(). */
     worktrees?: Array<{ repoPath: string; worktreePath: string }>;
+    /** Per-agent runner scope for inspection by debug + tests. */
+    agentScopes?: Record<
+      string,
+      { cwd: string | undefined; allowedPaths: readonly string[]; worktreePath?: string }
+    >;
   }) {
     this.name = opts.resolved.def.name;
     this.tag = opts.tag;
@@ -58,7 +74,21 @@ export class ManagedWorkspace {
       opts.resolved.agents.filter((a) => a.on_demand).map((a) => a.name),
     );
     this._worktrees = opts.worktrees ?? [];
+    this._agentScopes = new Map(Object.entries(opts.agentScopes ?? {}));
     this._persistStatus();
+  }
+
+  /**
+   * Return the runner scope (cwd + allowedPaths + worktreePath)
+   * captured for an agent at workspace-create time. Undefined
+   * when the agent name is unknown.
+   */
+  agentRunnerScope(
+    agentName: string,
+  ):
+    | { cwd: string | undefined; allowedPaths: readonly string[]; worktreePath?: string }
+    | undefined {
+    return this._agentScopes.get(agentName);
   }
 
   /** Unique key: "name" or "name:tag". */
