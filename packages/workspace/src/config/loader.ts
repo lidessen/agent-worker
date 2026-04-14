@@ -88,38 +88,6 @@ const POLICY_SANDBOX_MODES: ReadonlySet<string> = new Set([
   "danger-full-access",
 ]);
 
-/**
- * Normalise `AgentDef.worktree` into a fully-resolved
- * `ResolvedAgent.worktree`. Relative repo paths are anchored to
- * the config file directory. Legacy boolean form (from when
- * repo lived on the workspace) fails loud with a migration hint.
- */
-function resolveAgentWorktree(
-  raw: AgentDef["worktree"],
-  agentName: string,
-  configDir: string | undefined,
-): { repoPath: string; baseBranch: string } | undefined {
-  if (raw === undefined) return undefined;
-  if (typeof raw === "boolean") {
-    throw new Error(
-      `Agent "${agentName}" uses legacy \`worktree: true\` form. Replace with ` +
-        `\`worktree: { repo: <path>, base_branch?: <branch> }\`. The workspace no longer ` +
-        `holds a repo — each worktree-enabled agent points at its own source repo. ` +
-        `See docs/design/phase-1-worktree-isolation/README.md.`,
-    );
-  }
-  if (typeof raw !== "object" || typeof (raw as { repo?: unknown }).repo !== "string") {
-    throw new Error(
-      `Agent "${agentName}" worktree spec must be an object with a \`repo\` string. Got: ${JSON.stringify(raw)}`,
-    );
-  }
-  const spec = raw as { repo: string; base_branch?: string };
-  let repoPath = spec.repo;
-  if (configDir && !repoPath.startsWith("/")) {
-    repoPath = resolve(configDir, repoPath);
-  }
-  return { repoPath, baseBranch: spec.base_branch ?? "main" };
-}
 
 function validatePolicyDef(policy: PolicyDef, agentName: string): void {
   if (policy.permissionMode !== undefined && !POLICY_PERMISSION_MODES.has(policy.permissionMode)) {
@@ -401,13 +369,6 @@ export async function loadWorkspaceDef(
         : undefined;
     if (policy) validatePolicyDef(policy, name);
 
-    // Phase 1 worktree spec: every worktree-enabled agent points
-    // at its own source repo. The workspace itself is not git-
-    // aware — this is a pure per-agent concern. Reject legacy
-    // boolean form with a migration hint so old configs fail
-    // loud at load time instead of silently missing a repo.
-    const resolvedWorktree = resolveAgentWorktree(agentDef.worktree, name, configDir);
-
     agents.push({
       name,
       runtime: resolution.runtime,
@@ -418,22 +379,9 @@ export async function loadWorkspaceDef(
       mounts: resolvedMounts,
       on_demand: agentDef.on_demand,
       role,
-      worktree: resolvedWorktree,
       mcpServers,
       policy,
     });
-  }
-
-  // Reject legacy workspace-level repo block with a clear
-  // migration error. Keeping the field silently ignored would
-  // let old configs load with no worktrees provisioned, which
-  // is worse than failing loudly.
-  if ((def as unknown as { repo?: unknown }).repo !== undefined) {
-    throw new Error(
-      "Workspace-level `repo` block is no longer supported. Move it onto the " +
-        "agent(s) that actually need a worktree: `agents.<name>.worktree: { repo, base_branch? }`. " +
-        "See docs/design/phase-1-worktree-isolation/README.md.",
-    );
   }
 
   // Validate lead references an existing agent
@@ -664,18 +612,6 @@ export function toWorkspaceConfig(
 
   const onDemandAgents = resolved.agents.filter((a) => a.on_demand).map((a) => a.name);
 
-  // Collect the unique source-repo paths referenced by any agent's
-  // worktree spec. The workspace runtime needs this list only to
-  // run `pruneWorktrees` at init time across every distinct repo
-  // after a crash — it never talks to git otherwise.
-  const worktreeRepoSet = new Set<string>();
-  for (const agent of resolved.agents) {
-    if (agent.worktree?.repoPath) {
-      worktreeRepoSet.add(agent.worktree.repoPath);
-    }
-  }
-  const worktreeRepos = worktreeRepoSet.size > 0 ? [...worktreeRepoSet] : undefined;
-
   return {
     name: def.name,
     tag: opts.tag,
@@ -688,6 +624,5 @@ export function toWorkspaceConfig(
     storage,
     sandboxBaseDir: opts.sandboxBaseDir,
     storageDir: storageType === "file" ? storageDir : undefined,
-    worktreeRepos,
   };
 }

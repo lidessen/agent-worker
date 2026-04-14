@@ -47,12 +47,6 @@ export interface OrchestratorConfig {
   sandboxDir?: string;
   /** Shared workspace sandbox directory (visible to all agents). */
   workspaceSandboxDir?: string;
-  /** Phase-1 worktree isolation: agent's dedicated git worktree (if provisioned). */
-  worktreeDir?: string;
-  /** Branch name of the agent's worktree. */
-  worktreeBranch?: string;
-  /** Base branch the agent's branch forked from. */
-  baseBranch?: string;
   /** Whether this agent is on_demand (started only via @mention, not at startup). */
   onDemand?: boolean;
   /** Kernel state store — exposed to the lead prompt section. */
@@ -454,6 +448,23 @@ export class WorkspaceOrchestrator {
     inboxEntries: InboxEntry[],
     instruction?: Instruction,
   ): Promise<string> {
+    // Phase-1 v3: surface the agent's active attempt's worktrees
+    // (if any) so the prompt's "Worktrees" section can render
+    // them. The runner closure also reads this to pick the
+    // per-run cwd, but we re-query here so the prompt and the
+    // runner see exactly the same state.
+    let worktrees: import("@agent-worker/workspace").Worktree[] | undefined;
+    if (this.config.stateStore) {
+      try {
+        const active = await this.config.stateStore.findActiveAttempt(this.config.name);
+        if (active?.worktrees && active.worktrees.length > 0) {
+          worktrees = [...active.worktrees];
+        }
+      } catch {
+        // best-effort; missing worktrees just means the prompt
+        // has no Worktrees section this run.
+      }
+    }
     return assemblePrompt(this.sections, {
       agentName: this.config.name,
       instructions: this.config.instructions,
@@ -465,9 +476,7 @@ export class WorkspaceOrchestrator {
       currentChannel: instruction?.channel || undefined,
       sandboxDir: this.config.sandboxDir,
       workspaceSandboxDir: this.config.workspaceSandboxDir,
-      worktreeDir: this.config.worktreeDir,
-      worktreeBranch: this.config.worktreeBranch,
-      baseBranch: this.config.baseBranch,
+      worktrees,
       stateStore: this.config.stateStore,
       role: this.config.role,
       workspaceName: this.config.workspaceName,

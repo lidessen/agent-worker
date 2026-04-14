@@ -21,6 +21,7 @@ import type {
   Artifact,
   Attempt,
   AttemptPatch,
+  AttemptStatus,
   CreateArtifactInput,
   CreateAttemptInput,
   CreateHandoffInput,
@@ -30,7 +31,12 @@ import type {
   TaskPatch,
   TaskStatus,
 } from "./types.ts";
-import type { TaskFilter, WorkspaceStateStore } from "./store.ts";
+import { TERMINAL_ATTEMPT_STATUSES } from "./types.ts";
+import type {
+  AttemptTerminalListener,
+  TaskFilter,
+  WorkspaceStateStore,
+} from "./store.ts";
 
 const TASK_FILE = "tasks.jsonl";
 const ATTEMPT_FILE = "attempts.jsonl";
@@ -59,6 +65,7 @@ export class FileWorkspaceStateStore implements WorkspaceStateStore {
   private attempts = new Map<string, Attempt>();
   private handoffs = new Map<string, Handoff>();
   private artifacts = new Map<string, Artifact>();
+  private attemptTerminalListeners = new Set<AttemptTerminalListener>();
 
   private readonly taskPath: string;
   private readonly attemptPath: string;
@@ -226,7 +233,6 @@ export class FileWorkspaceStateStore implements WorkspaceStateStore {
       runtimeType: input.runtimeType,
       sessionId: input.sessionId,
       cwd: input.cwd,
-      worktreePath: input.worktreePath,
       pid: input.pid,
     };
     this.attempts.set(attempt.id, attempt);
@@ -252,6 +258,16 @@ export class FileWorkspaceStateStore implements WorkspaceStateStore {
     };
     this.attempts.set(id, updated);
     this.writeAttempt(updated);
+
+    // Phase-1 v3: fire attempt.terminal on running → terminal
+    // status transition so cleanup hooks (worktree teardown,
+    // chronicle entry, etc.) can react without polling.
+    if (
+      patch.status !== undefined &&
+      this.isTerminalTransition(current.status, updated.status)
+    ) {
+      await this.emitAttemptTerminal(updated);
+    }
     return updated;
   }
 
@@ -260,6 +276,53 @@ export class FileWorkspaceStateStore implements WorkspaceStateStore {
     return Array.from(this.attempts.values())
       .filter((a) => a.taskId === taskId)
       .sort((a, b) => a.startedAt - b.startedAt);
+  }
+
+  async findActiveAttempt(agentName: string): Promise<Attempt | null> {
+    await this.ready;
+    let best: Attempt | null = null;
+    for (const attempt of this.attempts.values()) {
+      if (attempt.agentName !== agentName) continue;
+      if (attempt.status !== "running") continue;
+      if (!best || attempt.startedAt < best.startedAt) best = attempt;
+    }
+    return best;
+  }
+
+  async listAllAttempts(): Promise<Attempt[]> {
+    await this.ready;
+    return Array.from(this.attempts.values()).sort((a, b) => a.startedAt - b.startedAt);
+  }
+
+  // ── Lifecycle events ────────────────────────────────────────────────
+
+  on(event: "attempt.terminal", listener: AttemptTerminalListener): () => void {
+    if (event !== "attempt.terminal") {
+      throw new Error(`Unknown WorkspaceStateStore event: ${event}`);
+    }
+    this.attemptTerminalListeners.add(listener);
+    return () => {
+      this.attemptTerminalListeners.delete(listener);
+    };
+  }
+
+  private async emitAttemptTerminal(attempt: Attempt): Promise<void> {
+    for (const listener of this.attemptTerminalListeners) {
+      try {
+        await listener(attempt);
+      } catch (err) {
+        console.error(
+          `[file-state-store] attempt.terminal listener failed for ${attempt.id}:`,
+          err instanceof Error ? err.message : err,
+        );
+      }
+    }
+  }
+
+  private isTerminalTransition(prev: AttemptStatus, next: AttemptStatus): boolean {
+    const wasTerminal = (TERMINAL_ATTEMPT_STATUSES as readonly AttemptStatus[]).includes(prev);
+    const isTerminal = (TERMINAL_ATTEMPT_STATUSES as readonly AttemptStatus[]).includes(next);
+    return !wasTerminal && isTerminal;
   }
 
   // ── Handoff ─────────────────────────────────────────────────────────

@@ -5,6 +5,7 @@ import { createInboxTools } from "./inbox.ts";
 import { createTeamTools } from "./team.ts";
 import { createResourceTools } from "./resource.ts";
 import { createTaskTools, TASK_TOOL_DEFS } from "./task.ts";
+import { createAttemptTools, ATTEMPT_TOOL_DEFS } from "./attempt-tools.ts";
 
 export interface WorkspaceToolSet {
   [name: string]: (args: Record<string, unknown>) => Promise<string>;
@@ -14,14 +15,23 @@ export interface WorkspaceToolsOptions {
   stateStore?: WorkspaceStateStore;
   /** Workspace name — used as the `workspaceId` when creating tasks. */
   workspaceName?: string;
+  /** Workspace key (`name` or `name:tag`) — used by attempt-scoped
+   *  tools for filesystem path layout. Defaults to `workspaceName`. */
+  workspaceKey?: string;
+  /** Daemon data directory — root of `workspace-data/`. Required to
+   *  enable attempt-scoped tools (worktree_*). */
+  dataDir?: string;
   /** Instruction queue — enables task_dispatch when present. */
   instructionQueue?: InstructionQueueInterface;
   /**
-   * Optional lookup for an agent's phase-1 worktree path. When
-   * provided, `task_dispatch` stamps the resolved path on the
-   * freshly-created Attempt so the ledger can surface it.
+   * The active attempt for this agent at tool-injection time.
+   * When set, attempt-scoped tools (worktree_*) are added to the
+   * returned tool set, closure-bound to this attempt id. The
+   * orchestrator computes this per-run via
+   * `stateStore.findActiveAttempt(agentName)`. Undefined → no
+   * worktree tools (the agent is between dispatches).
    */
-  agentWorktreePath?: (agentName: string) => string | undefined;
+  activeAttemptId?: string;
 }
 
 /** Create all workspace tools for a given agent. */
@@ -41,7 +51,18 @@ export function createWorkspaceTools(
       ? createTaskTools(agentName, options.workspaceName, options.stateStore, {
           instructionQueue: options.instructionQueue,
           chronicle: provider.chronicle,
-          agentWorktreePath: options.agentWorktreePath,
+        })
+      : null;
+  // Attempt-scoped tools are present iff the orchestrator passed
+  // an active attempt id AND the registry passed dataDir +
+  // workspaceKey. Tool factory closures over the attempt id so
+  // every call inside this run targets the same attempt.
+  const attemptTools =
+    options.stateStore && options.dataDir && options.activeAttemptId
+      ? createAttemptTools(agentName, options.activeAttemptId, {
+          stateStore: options.stateStore,
+          workspaceKey: options.workspaceKey ?? options.workspaceName ?? "default",
+          dataDir: options.dataDir,
         })
       : null;
 
@@ -167,6 +188,24 @@ export function createWorkspaceTools(
             taskTools.artifact_list(args as Parameters<typeof taskTools.artifact_list>[0]),
           task_dispatch: (args) =>
             taskTools.task_dispatch(args as Parameters<typeof taskTools.task_dispatch>[0]),
+        }
+      : {}),
+
+    // Phase-1 v3: attempt-scoped tools — only present when the
+    // orchestrator has bound this tool set to an active attempt.
+    // Workers between dispatches don't see them, which matches
+    // the "tools have a lifecycle scope" mental model.
+    ...(attemptTools
+      ? {
+          worktree_create: (args) =>
+            attemptTools.worktree_create(
+              args as Parameters<typeof attemptTools.worktree_create>[0],
+            ),
+          worktree_list: () => attemptTools.worktree_list(),
+          worktree_remove: (args) =>
+            attemptTools.worktree_remove(
+              args as Parameters<typeof attemptTools.worktree_remove>[0],
+            ),
         }
       : {}),
   };
@@ -350,4 +389,5 @@ export const WORKSPACE_TOOL_DEFS = {
     required: [],
   },
   ...TASK_TOOL_DEFS,
+  ...ATTEMPT_TOOL_DEFS,
 } as const;

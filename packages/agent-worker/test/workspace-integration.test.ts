@@ -564,11 +564,20 @@ storage: file
     expect(result.status).toBe("completed");
   });
 
-  test("provisions per-agent git worktrees when repo is set", async () => {
-    // Create a scratch git repo so we can assert against real
-    // `git worktree` output. Two coder agents + a coordinator that
-    // explicitly opts out, to prove the opt-in flag works.
-    const scratchRepo = realpathSync(mkdtempSync(join(tmpdir(), "aw-phase1-repo-")));
+  test("worktree_create attaches a worktree to the current attempt and cleanup fires on terminal status", async () => {
+    // Phase-1 v3: worktrees are attempt-scoped and runtime-
+    // created, not declared in YAML. Drive the full lifecycle
+    // through the daemon HTTP layer:
+    //   1. create a workspace with a coder agent (no static
+    //      worktree config — workspace is git-unaware)
+    //   2. open a task and dispatch it to the coder
+    //   3. POST /tool-call worktree_create against the worker's
+    //      active attempt → expect a real worktree on disk +
+    //      branch in the source repo + entry on attempt.worktrees
+    //   4. POST /tool-call attempt_update status=completed →
+    //      expect the worktree to be cleaned up via the
+    //      `attempt.terminal` event listener; branch survives.
+    const scratchRepo = realpathSync(mkdtempSync(join(tmpdir(), "aw-phase1v3-repo-")));
     try {
       await execa("git", ["-C", scratchRepo, "init", "-b", "main"]);
       await execa("git", ["-C", scratchRepo, "config", "user.email", "t@e.com"]);
@@ -579,42 +588,77 @@ storage: file
 
       const daemonInfo = await setup();
       const yaml = `
-name: phase1-wt
+name: phase1v3
 agents:
-  coordinator:
+  lead:
     runtime: mock
-  coder-a:
+  coder:
     runtime: mock
-    worktree:
-      repo: ${scratchRepo}
-  coder-b:
-    runtime: mock
-    worktree:
-      repo: ${scratchRepo}
 channels:
   - general
 storage: memory
+lead: lead
 `;
       await client.createWorkspace(yaml);
 
-      // Branches are deterministic so we can check them directly
-      // against the underlying repo.
-      const { stdout: branches } = await execa("git", [
-        "-C",
-        scratchRepo,
-        "branch",
-        "--list",
-      ]);
-      const branchNames = branches
-        .split("\n")
-        .map((b) => b.replace(/^[\s*+]+/, "").trim())
-        .filter(Boolean);
-      expect(branchNames).toContain("phase1-wt/coder-a");
-      expect(branchNames).toContain("phase1-wt/coder-b");
-      // Coordinator did not opt in, so no branch should exist for it.
-      expect(branchNames).not.toContain("phase1-wt/coordinator");
+      // Helper: POST /tool-call as a given agent.
+      const callTool = async (agent: string, name: string, args: Record<string, unknown>) => {
+        const url = `http://${daemonInfo.host}:${daemonInfo.port}/workspaces/phase1v3/tool-call`;
+        const res = await fetch(url, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${daemonInfo.token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ agent, name, args }),
+        });
+        return (await res.json()) as { content?: string; error?: string };
+      };
 
-      // The worktree directories should be live and distinct.
+      // 1. Lead creates a task.
+      const taskCreateRes = await callTool("lead", "task_create", {
+        title: "Add hello.ts",
+        goal: "Drop a hello.ts in the worktree",
+        status: "open",
+      });
+      expect(taskCreateRes.content).toBeDefined();
+      const taskId = (taskCreateRes.content ?? "").match(/task_[a-f0-9]+/)?.[0];
+      expect(taskId).toBeDefined();
+
+      // 2. Lead dispatches to coder. dispatch creates the
+      // attempt — no worktree yet.
+      const dispatchRes = await callTool("lead", "task_dispatch", {
+        taskId,
+        worker: "coder",
+      });
+      expect(dispatchRes.content).toContain("Dispatched");
+
+      // The attempt is now active — verify before we touch worktrees.
+      const tasksRes = await fetch(
+        `http://${daemonInfo.host}:${daemonInfo.port}/workspaces/phase1v3/tasks/${taskId}`,
+        { headers: { Authorization: `Bearer ${daemonInfo.token}` } },
+      );
+      const taskBody = (await tasksRes.json()) as { task: { activeAttemptId?: string } };
+      const attemptId = taskBody.task.activeAttemptId;
+      expect(attemptId).toBeDefined();
+
+      // 3. Coder calls worktree_create. The /tool-call route
+      // looks up the coder's active attempt and injects the
+      // attempt-scoped tool with that id closure-bound.
+      const wtCreateRes = await callTool("coder", "worktree_create", {
+        name: "main",
+        repo: scratchRepo,
+        branch: "phase1v3/feature",
+        base_branch: "main",
+      });
+      expect(wtCreateRes.content).toContain("worktree[main]");
+      expect(wtCreateRes.error).toBeUndefined();
+
+      // The branch must exist in the source repo.
+      const { stdout: branches } = await execa("git", ["-C", scratchRepo, "branch", "--list"]);
+      expect(branches).toContain("phase1v3/feature");
+
+      // The worktree dir must be live and listed by git.
       const { stdout: wtList } = await execa("git", [
         "-C",
         scratchRepo,
@@ -622,65 +666,58 @@ storage: memory
         "list",
         "--porcelain",
       ]);
-      expect(wtList).toContain("branch refs/heads/phase1-wt/coder-a");
-      expect(wtList).toContain("branch refs/heads/phase1-wt/coder-b");
+      expect(wtList).toContain("branch refs/heads/phase1v3/feature");
 
-      // Phase-3 tightening: each worktree-enabled agent's runner
-      // must have the worktree as cwd, the shared sandbox (if
-      // any) in allowedPaths, and the canonical source repo
-      // root MUST NOT be present in allowedPaths. See
-      // docs/design/phase-3-control-boundaries/README.md.
-      const scopesUrl = `http://${daemonInfo.host}:${daemonInfo.port}/workspaces/phase1-wt/agent-scopes`;
-      const scopesRes = (await (
-        await fetch(scopesUrl, {
-          headers: { Authorization: `Bearer ${daemonInfo.token}` },
-        })
-      ).json()) as {
-        agents: Record<
-          string,
-          { cwd?: string; allowedPaths: string[]; worktreePath?: string }
-        >;
-      };
-      const coderAScope = scopesRes.agents["coder-a"];
-      const coderBScope = scopesRes.agents["coder-b"];
-      expect(coderAScope).toBeDefined();
-      expect(coderBScope).toBeDefined();
-      // cwd is the worktree
-      expect(coderAScope!.worktreePath).toBeDefined();
-      expect(coderAScope!.cwd).toBe(coderAScope!.worktreePath!);
-      expect(coderBScope!.cwd).toBe(coderBScope!.worktreePath!);
-      // the canonical source repo root is NOT in allowedPaths
-      expect(coderAScope!.allowedPaths).not.toContain(scratchRepo);
-      expect(coderBScope!.allowedPaths).not.toContain(scratchRepo);
-      // coordinator opted out — no worktree, no allowedPaths
-      // additions beyond its sandbox (which is the default)
-      const coordScope = scopesRes.agents["coordinator"];
-      expect(coordScope).toBeDefined();
-      expect(coordScope!.worktreePath).toBeUndefined();
+      // worktree_list reflects the same state.
+      const wtListRes = await callTool("coder", "worktree_list", {});
+      expect(wtListRes.content).toContain("main");
+      expect(wtListRes.content).toContain("phase1v3/feature");
 
-      // Shutting the workspace down should clean both worktrees up.
-      await client.stopWorkspace("phase1-wt");
-      const { stdout: post } = await execa("git", [
+      // Attempt-scoped uniqueness: same name twice → error.
+      const dupRes = await callTool("coder", "worktree_create", {
+        name: "main",
+        repo: scratchRepo,
+        branch: "phase1v3/other",
+      });
+      expect(dupRes.content ?? dupRes.error).toMatch(/already has a worktree named "main"/);
+
+      // 4. Mark the attempt completed → terminal event →
+      // worktree cleanup.
+      const updateRes = await callTool("coder", "attempt_update", {
+        id: attemptId,
+        status: "completed",
+        resultSummary: "done",
+      });
+      expect(updateRes.content).toBeDefined();
+
+      // Worktree gone, branch retained.
+      const { stdout: wtListAfter } = await execa("git", [
         "-C",
         scratchRepo,
         "worktree",
         "list",
         "--porcelain",
       ]);
-      expect(post).not.toContain("phase1-wt/coder-a");
-      expect(post).not.toContain("phase1-wt/coder-b");
+      expect(wtListAfter).not.toContain("phase1v3/feature");
+      const { stdout: branchesAfter } = await execa("git", [
+        "-C",
+        scratchRepo,
+        "branch",
+        "--list",
+      ]);
+      expect(branchesAfter).toContain("phase1v3/feature");
     } finally {
       rmSync(scratchRepo, { recursive: true, force: true });
     }
   });
 
-  test("two agents on two distinct repos each get their own worktree", async () => {
-    // Workspace is runtime-agnostic — each worktree-enabled
-    // agent points at its own repo independently. Verifies the
-    // "0..N repos per workspace" contract by standing up two
-    // temp repos and routing one coder at each.
-    const repoA = realpathSync(mkdtempSync(join(tmpdir(), "aw-multi-repo-a-")));
-    const repoB = realpathSync(mkdtempSync(join(tmpdir(), "aw-multi-repo-b-")));
+  test("multi-worktree on a single attempt: two repos, two names", async () => {
+    // Verifies the "0..N worktrees per attempt" contract:
+    // one attempt, two worktree_create calls against two
+    // different repos, both visible on attempt.worktrees, both
+    // cleaned up on terminal status.
+    const repoA = realpathSync(mkdtempSync(join(tmpdir(), "aw-multi-wt-a-")));
+    const repoB = realpathSync(mkdtempSync(join(tmpdir(), "aw-multi-wt-b-")));
     try {
       for (const repo of [repoA, repoB]) {
         await execa("git", ["-C", repo, "init", "-b", "main"]);
@@ -692,65 +729,85 @@ storage: memory
       }
 
       const daemonInfo = await setup();
-      const yaml = `
-name: multi-repo
+      await client.createWorkspace(`
+name: multi-wt
 agents:
-  coder-a:
-    runtime: mock
-    worktree:
-      repo: ${repoA}
-  coder-b:
-    runtime: mock
-    worktree:
-      repo: ${repoB}
+  lead: { runtime: mock }
+  coder: { runtime: mock }
 channels:
   - general
 storage: memory
-`;
-      await client.createWorkspace(yaml);
+lead: lead
+`);
+
+      const callTool = async (agent: string, name: string, args: Record<string, unknown>) => {
+        const url = `http://${daemonInfo.host}:${daemonInfo.port}/workspaces/multi-wt/tool-call`;
+        const res = await fetch(url, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${daemonInfo.token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ agent, name, args }),
+        });
+        return (await res.json()) as { content?: string; error?: string };
+      };
+
+      const create = await callTool("lead", "task_create", {
+        title: "Cross-repo refactor",
+        goal: "...",
+        status: "open",
+      });
+      const taskId = (create.content ?? "").match(/task_[a-f0-9]+/)?.[0];
+      expect(taskId).toBeDefined();
+      await callTool("lead", "task_dispatch", { taskId, worker: "coder" });
+
+      const taskRes = await fetch(
+        `http://${daemonInfo.host}:${daemonInfo.port}/workspaces/multi-wt/tasks/${taskId}`,
+        { headers: { Authorization: `Bearer ${daemonInfo.token}` } },
+      );
+      const taskBody = (await taskRes.json()) as { task: { activeAttemptId?: string } };
+      const attemptId = taskBody.task.activeAttemptId!;
+
+      // Worktree 1: primary repo
+      const wt1 = await callTool("coder", "worktree_create", {
+        name: "core",
+        repo: repoA,
+        branch: "multi-wt/core",
+      });
+      expect(wt1.error).toBeUndefined();
+
+      // Worktree 2: secondary repo on same attempt
+      const wt2 = await callTool("coder", "worktree_create", {
+        name: "deps",
+        repo: repoB,
+        branch: "multi-wt/deps",
+      });
+      expect(wt2.error).toBeUndefined();
+
+      // Both worktrees present on the attempt
+      const list = await callTool("coder", "worktree_list", {});
+      expect(list.content).toContain("core");
+      expect(list.content).toContain("deps");
+      expect(list.content).toContain(repoA);
+      expect(list.content).toContain(repoB);
+
+      // Terminal status cleans BOTH worktrees, both branches survive
+      await callTool("coder", "attempt_update", {
+        id: attemptId,
+        status: "completed",
+        resultSummary: "done",
+      });
+
+      const { stdout: aWt } = await execa("git", ["-C", repoA, "worktree", "list", "--porcelain"]);
+      const { stdout: bWt } = await execa("git", ["-C", repoB, "worktree", "list", "--porcelain"]);
+      expect(aWt).not.toContain("multi-wt/core");
+      expect(bWt).not.toContain("multi-wt/deps");
 
       const { stdout: aBranches } = await execa("git", ["-C", repoA, "branch", "--list"]);
       const { stdout: bBranches } = await execa("git", ["-C", repoB, "branch", "--list"]);
-      expect(aBranches).toContain("multi-repo/coder-a");
-      expect(aBranches).not.toContain("multi-repo/coder-b");
-      expect(bBranches).toContain("multi-repo/coder-b");
-      expect(bBranches).not.toContain("multi-repo/coder-a");
-
-      const scopesUrl = `http://${daemonInfo.host}:${daemonInfo.port}/workspaces/multi-repo/agent-scopes`;
-      const scopesRes = (await (
-        await fetch(scopesUrl, { headers: { Authorization: `Bearer ${daemonInfo.token}` } })
-      ).json()) as {
-        agents: Record<string, { worktreePath?: string; allowedPaths: string[] }>;
-      };
-      expect(scopesRes.agents["coder-a"]!.worktreePath).toBeDefined();
-      expect(scopesRes.agents["coder-b"]!.worktreePath).toBeDefined();
-      expect(scopesRes.agents["coder-a"]!.worktreePath).not.toBe(
-        scopesRes.agents["coder-b"]!.worktreePath,
-      );
-      // Neither agent sees any repo root in allowedPaths.
-      expect(scopesRes.agents["coder-a"]!.allowedPaths).not.toContain(repoA);
-      expect(scopesRes.agents["coder-a"]!.allowedPaths).not.toContain(repoB);
-      expect(scopesRes.agents["coder-b"]!.allowedPaths).not.toContain(repoA);
-      expect(scopesRes.agents["coder-b"]!.allowedPaths).not.toContain(repoB);
-
-      await client.stopWorkspace("multi-repo");
-
-      const { stdout: aAfter } = await execa("git", [
-        "-C",
-        repoA,
-        "worktree",
-        "list",
-        "--porcelain",
-      ]);
-      const { stdout: bAfter } = await execa("git", [
-        "-C",
-        repoB,
-        "worktree",
-        "list",
-        "--porcelain",
-      ]);
-      expect(aAfter).not.toContain("multi-repo/coder-a");
-      expect(bAfter).not.toContain("multi-repo/coder-b");
+      expect(aBranches).toContain("multi-wt/core");
+      expect(bBranches).toContain("multi-wt/deps");
     } finally {
       rmSync(repoA, { recursive: true, force: true });
       rmSync(repoB, { recursive: true, force: true });

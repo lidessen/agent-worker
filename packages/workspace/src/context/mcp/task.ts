@@ -140,7 +140,11 @@ function formatAttempt(attempt: Attempt): string {
   lines.push(`  task: ${attempt.taskId}`);
   if (attempt.runtimeType) lines.push(`  runtime: ${attempt.runtimeType}`);
   if (attempt.sessionId) lines.push(`  session: ${attempt.sessionId}`);
-  if (attempt.worktreePath) lines.push(`  worktree: ${attempt.worktreePath}`);
+  if (attempt.worktrees && attempt.worktrees.length > 0) {
+    for (const wt of attempt.worktrees) {
+      lines.push(`  worktree[${wt.name}]: ${wt.path} (${wt.branch})`);
+    }
+  }
   if (attempt.inputHandoffId) lines.push(`  inputHandoff: ${attempt.inputHandoffId}`);
   if (attempt.outputHandoffId) lines.push(`  outputHandoff: ${attempt.outputHandoffId}`);
   if (attempt.resultSummary) lines.push(`  summary: ${attempt.resultSummary}`);
@@ -205,15 +209,6 @@ export interface TaskToolsDeps {
   chronicle?: {
     append: (entry: { author: string; category: string; content: string }) => Promise<unknown>;
   };
-  /**
-   * Optional lookup for an agent's phase-1 worktree path. When
-   * provided and a dispatched agent has a worktree provisioned,
-   * `task_dispatch` stamps the path onto the freshly-created
-   * Attempt so the task ledger can surface it. Returning
-   * `undefined` is fine — the attempt just won't carry a
-   * worktreePath, matching pre-phase-1 behavior.
-   */
-  agentWorktreePath?: (agentName: string) => string | undefined;
 }
 
 export function createTaskTools(
@@ -359,7 +354,6 @@ export function createTaskTools(
             runtimeType: args.runtimeType,
             sessionId: args.sessionId,
             cwd: args.cwd,
-            worktreePath: args.worktreePath,
           });
 
           // Wire as active only when the task has no active attempt.
@@ -539,16 +533,17 @@ export function createTaskTools(
 
         let attempt: Attempt;
         try {
-          // Phase 1 hook-up: stamp the worker's worktree path on
-          // the Attempt so the task ledger (and any later audit)
-          // can surface where the work happened without having
-          // to cross-reference the workspace registry.
-          const workerWorktree = deps.agentWorktreePath?.(workerName);
+          // Phase 1 v3: worktrees are no longer attached at
+          // dispatch time. The worker creates them via the
+          // attempt-scoped `worktree_create` tool during its
+          // run; the resulting entries land on
+          // `attempt.worktrees` and are cleaned up on terminal
+          // status via the `attempt.terminal` event listener
+          // wired in workspace-registry.
           attempt = await store.createAttempt({
             taskId: task.id,
             agentName: workerName,
             role: "worker",
-            worktreePath: workerWorktree,
           });
         } catch (err) {
           return `Error creating attempt: ${err instanceof Error ? err.message : String(err)}`;
