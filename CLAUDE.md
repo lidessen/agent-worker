@@ -1,5 +1,16 @@
 This project is in early development. Do not add backward-compatibility shims, deprecated aliases, or dual-path code when making changes. Breaking changes are acceptable — just update all callers directly.
 
+## Design-Driven Development
+
+`design/` is the architectural source of truth. Read `design/DESIGN.md` first for system shape, then the relevant per-package doc under `design/packages/<pkg>.md` before touching a package — the module boundaries, data flow, and "doesn't do" lists are there.
+
+- If a task would change the system's shape (add/remove/merge modules, change how modules connect, introduce a new key mechanism), write a proposal in `design/decisions/NNN-title.md` and wait for review before coding. Commit design changes separately from code.
+- For non-trivial tasks, follow Plan → Build → Verify: write a blueprint in `blueprints/<task>.md`, track progress with a TODO scaffold, then strip the TODO and keep the blueprint when done.
+- Bug fixes, small config tweaks, or tasks shorter to do than to plan don't need a blueprint.
+- See `.claude/skills/design-driven/` for the full methodology.
+
+## Bun runtime
+
 Bun is the runtime, package manager, and test runner. Use Node.js APIs for library code that needs broad compatibility.
 
 - Use `bun <file>` instead of `node <file>` or `ts-node <file>`
@@ -42,7 +53,10 @@ packages/
 vendor/
   semajsx/         # Git submodule — signal-based JSX framework
 design/
-  web/             # Web UI design document
+  DESIGN.md        # Top-level architectural source of truth (see Design-Driven Development above)
+  packages/        # Per-package design docs (agent.md, agent-worker.md, loop.md, shared.md, web.md, workspace.md)
+  decisions/       # Proposals for shape-changing decisions (adopted + rejected)
+blueprints/        # Task-level implementation records (plan/build/verify)
 ```
 
 ## Daemon
@@ -55,94 +69,8 @@ design/
 
 ## Web UI (`packages/web/`)
 
-- SPA built with semajsx framework, NOT React
-- Only depends on `semajsx` umbrella package (not individual @semajsx/\* packages)
-- `jsxImportSource: semajsx/dom` — all .tsx files need `/** @jsxImportSource semajsx/dom */`
+- SPA built with **semajsx**, NOT React. Framework conventions (component shape, signals, cleanup, tokens) live in `design/packages/web.md` — read it before touching `packages/web/`.
 - Build: `cd packages/web && bun run build`
-- Auto-connects to same origin (daemon serves the SPA)
-
-### semajsx patterns (NOT React)
-
-Components return JSXNode, not functions:
-
-```tsx
-// WRONG — crashes with "Invalid component return type: function"
-return () => <div>...</div>;
-
-// RIGHT
-return <div>...</div>;
-```
-
-Reactive content — pass signals directly, not wrapper functions:
-
-```tsx
-// WRONG — function children are ignored with a warning
-<span>{() => count.value}</span>
-
-// RIGHT — signal auto-subscribes
-<span>{count}</span>
-
-// RIGHT — derived value via computed
-<span>{computed(count, v => v + 1)}</span>
-```
-
-Conditional rendering:
-
-```tsx
-// WRONG
-{
-  condition.value ? <A /> : null;
-}
-
-// RIGHT
-{
-  when(conditionSignal, () => <A />);
-}
-```
-
-Event handlers ARE functions (this is correct):
-
-```tsx
-<button onclick={() => doThing()}>Click</button>
-```
-
-Cleanup via component `ctx.onCleanup` (not useEffect/MutationObserver):
-
-```tsx
-import type { ComponentAPI } from "semajsx";
-
-function MyComponent(_props: Record<string, never>, ctx?: ComponentAPI) {
-  const controller = new AbortController();
-  ctx?.onCleanup(() => controller.abort());
-  // ...
-}
-```
-
-Tokens need injection:
-
-```tsx
-import { defineAndInjectTokens } from "semajsx/style";
-const tokens = defineAndInjectTokens({ colors: { bg: "#000" } });
-// defineTokens() alone does NOT inject CSS variables
-```
-
-Don't return raw DOM nodes from components:
-
-```tsx
-// WRONG — crashes
-const el = document.createElement("div");
-el.innerHTML = html;
-return el;
-
-// RIGHT — use ref callback
-return (
-  <div
-    ref={(el: HTMLDivElement) => {
-      el.innerHTML = html;
-    }}
-  />
-);
-```
 
 ## Naming Conventions
 
