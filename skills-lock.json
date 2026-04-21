@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "skills": {
+    "design-driven": {
+      "source": "lidessen/skills",
+      "sourceType": "github",
+      "computedHash": "f5a7fd05ebc8fecc3af56d61ac054f31d8d43ba13af17064a359f005b1fbcae8"
+    },
+    "harness": {
+      "source": "lidessen/skills",
+      "sourceType": "github",
+      "computedHash": "dcadff9ac9acc09261f01cb863b4b237bc8e32f6553bf705569fee45201e1d67"
+    }
+  }
+}

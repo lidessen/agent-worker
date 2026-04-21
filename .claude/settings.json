@@ -23,6 +23,29 @@
           {
             "type": "command",
             "command": "oxlint \"$CLAUDE_FILE_PATH\""
+          },
+          {
+            "type": "command",
+            "command": "case \"$CLAUDE_FILE_PATH\" in */packages/*/src/*.ts|*/packages/*/src/*.tsx) case \"$CLAUDE_FILE_PATH\" in *.test.*|*.spec.*) ;; *) echo '[design-driven] verify change respects design/ boundaries — re-check design/DESIGN.md if scope shifts' ;; esac ;; esac"
+          },
+          {
+            "type": "command",
+            "command": "case \"$CLAUDE_FILE_PATH\" in */CLAUDE.md|*/AGENTS.md) echo '[L1 litmus] Every line in CLAUDE.md/AGENTS.md is always-loaded context. Would removing this line cause the agent to make a worse architectural decision? If not, move it to L2 (design/, skill body) or L3 (code/docs).' ;; esac"
+          },
+          {
+            "type": "command",
+            "command": "case \"$CLAUDE_FILE_PATH\" in */design/*) echo '[design-code separation] design/ changes must be committed separately from code changes — do not stage design/ and packages/ in the same commit.' ;; esac"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '[consistency] Did you rename a path, term, symbol, or restructure anything this turn? If so, grep for every file that references the old form and update them — stale references are a top failure mode.'"
           }
         ]
       }

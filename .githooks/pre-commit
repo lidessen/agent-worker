@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# design-driven: remind (don't block) when design/ files are staged alongside
+# non-design source files. Design changes should land in their own commit.
+
+set -u
+
+staged=$(git diff --cached --name-only)
+[ -z "$staged" ] && exit 0
+
+has_design=$(printf '%s\n' "$staged" | grep -E '^design/' || true)
+has_non_design=$(printf '%s\n' "$staged" | grep -vE '^design/|^blueprints/' | grep . || true)
+
+if [ -n "$has_design" ] && [ -n "$has_non_design" ]; then
+  printf '\n[design-driven] Reminder: design/ files are staged with non-design files.\n' >&2
+  printf '[design-driven] Consider committing design changes in a separate commit.\n' >&2
+  printf '[design-driven] (Not blocking — proceeding.)\n\n' >&2
+fi
+
+exit 0
