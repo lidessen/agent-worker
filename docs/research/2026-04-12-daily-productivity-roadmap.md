@@ -40,6 +40,7 @@
 
 - `loop.run()` 继续保持异步迭代器模型
 - `agent / orchestrator` 保持状态机与调度器模型
+- `lead` / `worker` 优先作为装配角色存在，而不是 runtime 类型
 
 不要把“主力工具化”错误理解成“再重写一套 loop 抽象”。
 
@@ -58,7 +59,9 @@
 - handoff / artifacts
 - event log
 
-而不是单纯依赖单次 provider session。
+而不是单纯依赖 provider session。
+
+provider session continuity 如果存在价值，应只作为附加优化，而不是主连续性机制。
 
 ### 2. 继续复用成熟 runtime
 
@@ -84,6 +87,36 @@
 - `workspace`：长期协作状态
 - `daemon/web`：控制面与可观测性
 
+### 4. role-first 优先于 runtime-first
+
+不要把 `lead` / `worker` 设计成 runtime 身份。
+
+应优先保持：
+
+- runtime 表达执行能力
+- role 表达协作位置
+- workspace/orchestration 负责把二者装配起来
+
+这意味着：
+
+- 任何 runtime 理论上都可以成为 lead 或 worker
+- `lead` / `worker` 的差异主要体现在 prompt、tool surface、routing、lifecycle 上
+- 不应把设计方向带向 `claude=lead / cursor=worker` 一类绑定
+
+### 5. 从 channel-first 逐步转向 workspace-led orchestration
+
+当前系统虽然是 workspace-first，但协作心智仍然偏 `peer agents in channels`。
+
+后续路线应逐步推动到：
+
+- lead 持有长期状态
+- worker 承担短周期 session 级 execution
+- transcript 退化为二级材料
+- channel 更多承担公共可见面与辅助协作面
+- `task / attempt / handoff / artifact` 逐步提升为 workspace 一等对象
+
+这条方向不会立即覆盖全部行为，但它应成为后续 Phase 1/2 设计的上位约束。
+
 ## Phase 1：执行隔离
 
 ### 目标
@@ -95,7 +128,9 @@
 - 每个 coder agent 默认拥有独立 `git worktree`
 - 每个 coder agent 默认拥有独立 branch
 - agent 的 `cwd` 指向自己的 worktree
-- shared sandbox 只用于协作文档与中间产物
+- `sandbox` 继续被视为 workspace 内部概念
+- code work 的 `worktree` 被视为 workspace 众多工作对象中的一种
+- shared sandbox 默认只用于协作文档与中间产物
 - `allowedPaths` 只允许：
   - 当前 agent worktree
   - workspace shared sandbox
@@ -135,11 +170,12 @@
 
 - 长期 agent 默认使用 `FileNotesStorage`
 - 长期 agent 默认启用 `FileMemoryStorage`
-- `CodexLoop.threadId` 持久化并在恢复时重新注入
+- provider session continuity 只作为附加优化
+- 例如 `CodexLoop.threadId` 可持久化并在恢复时重新注入
 - agent 重启后能恢复：
   - notes
   - memory
-  - thread/session 线索
+  - 必要的 session/thread 线索
   - 当前任务摘要
 
 ### 核心改动
@@ -172,32 +208,21 @@
 
 ### 需要达成的状态
 
-系统内至少有三档明确模式：
+系统内应存在清晰的控制边界。
 
-- `assist`
-- `delegate`
-- `auto`
+当前先不冻结 mode 名称，先冻结控制目标：
 
-建议语义：
-
-- `assist`
-  - 偏个人开发助手
-  - 计划优先
-  - 高风险写操作收紧
-
-- `delegate`
-  - 偏团队 coder agent
-  - 可自动写代码
-  - 但不自动 merge
-
-- `auto`
-  - 偏评测/批处理/低风险重复任务
+- 哪些写操作可以自动执行
+- 哪些高风险动作需要更强约束
+- 哪些策略属于 workspace policy
+- 哪些策略属于 skill / workflow 层
 
 ### 核心改动
 
 - loop-factory 不再写死激进默认值
 - permission policy、approval policy、git policy 统一抽到 agent/workspace 配置
 - Web settings 页可见当前模式和关键策略
+- `review / merge` 优先放在 skill / workflow 层，不在内核中硬编码完整流程
 
 ### 主要文件
 
@@ -207,7 +232,7 @@
 
 ### 验收标准
 
-- 同一个 workspace 可以明确切换“日常开发模式”和“全自动执行模式”
+- 同一个 workspace 可以明确切换不同强度的控制策略
 - 用户能预期 agent 是否会直接写代码、是否会自动执行高风险动作
 - 默认策略适合长期使用，而不是只适合评测
 
