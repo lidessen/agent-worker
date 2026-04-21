@@ -1,10 +1,13 @@
 import { readFileSync } from "node:fs";
 
 export interface AgentMcpServerConfig {
-  type?: string;
+  type?: "stdio" | "http" | "sse";
   command?: string;
   args?: string[];
+  env?: Record<string, string>;
   url?: string;
+  headers?: Record<string, string>;
+  bearerTokenEnvVar?: string;
 }
 
 export interface AgentMcpConfigFile {
@@ -13,6 +16,11 @@ export interface AgentMcpConfigFile {
 
 export function readAgentMcpConfig(configPath: string): Record<string, AgentMcpServerConfig> {
   const config = JSON.parse(readFileSync(configPath, "utf-8")) as AgentMcpConfigFile;
+  for (const [name, server] of Object.entries(config.mcpServers ?? {})) {
+    if (server && typeof server === "object" && "oauth" in server) {
+      throw new Error(`Remote MCP OAuth is not supported for server "${name}"`);
+    }
+  }
   return config.mcpServers ?? {};
 }
 
@@ -39,15 +47,31 @@ export function buildCodexMcpOverrides(configPath: string): string[] {
   for (const [name, server] of Object.entries(servers)) {
     const key = quoteTomlKey(name);
 
+    if (server.type === "sse") {
+      throw new Error(`Codex MCP does not support SSE transport for server "${name}"`);
+    }
+
     if (server.url || server.type === "http") {
       flags.push("-c", `mcp_servers.${key}.type="http"`);
       flags.push("-c", `mcp_servers.${key}.url="${escapeToml(server.url!)}"`);
+      if (server.bearerTokenEnvVar) {
+        flags.push(
+          "-c",
+          `mcp_servers.${key}.bearer_token_env_var="${escapeToml(server.bearerTokenEnvVar)}"`,
+        );
+      }
     } else if (server.command) {
       flags.push("-c", `mcp_servers.${key}.type="stdio"`);
       flags.push("-c", `mcp_servers.${key}.command="${escapeToml(server.command)}"`);
       if (server.args?.length) {
         const tomlArray = "[" + server.args.map((a) => `"${escapeToml(a)}"`).join(", ") + "]";
         flags.push("-c", `mcp_servers.${key}.args=${tomlArray}`);
+      }
+      if (server.env && Object.keys(server.env).length > 0) {
+        const entries = Object.entries(server.env).map(
+          ([envKey, envValue]) => `${quoteTomlKey(envKey)}="${escapeToml(envValue)}"`,
+        );
+        flags.push("-c", `mcp_servers.${key}.env={${entries.join(", ")}}`);
       }
     }
   }
