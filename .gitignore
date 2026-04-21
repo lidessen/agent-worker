@@ -43,3 +43,7 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .agent-workspace/global/
 .claude/skills/dev-eval/scripts/
 .claude/worktrees/
+
+# automation review artifacts
+.automations/review/summary.md
+.automations/review/runs/
