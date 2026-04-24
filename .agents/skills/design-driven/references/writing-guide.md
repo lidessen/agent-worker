@@ -8,6 +8,10 @@ reviewing DESIGN.md, proposals, or blueprints.
 Match the team's language. Write like explaining to a smart colleague who 
 just joined — they need the shape and the non-obvious choices, not details.
 
+Write in **present tense**, describing the system as it is. Don't narrate 
+how it got here ("we used to store X in Redis, then moved to…"); that 
+belongs in commit history or decision records, not the skeleton.
+
 ## What good looks like
 
 **Module descriptions** — two lines:
@@ -44,8 +48,10 @@ Bad:   "We use TypeScript." (not a real decision)
 
 ## What to avoid
 
-- API endpoints, types, config — that's code
+- API endpoints, function signatures, types, config, schema fields, 
+  error codes — that's code, not shape
 - Diagrams with every branch — happy path only
 - Over 200 lines per file
 - Module "does" longer than 3 lines — split the module
 - Decisions without a rejected alternative
+- Past-tense narration of how the system evolved — describe it as it is
