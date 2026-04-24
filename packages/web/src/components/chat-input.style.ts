@@ -4,32 +4,42 @@ import { tokens } from "../theme/tokens.ts";
 const c = classes(["bar", "composer", "textarea", "footer", "shortcut", "sendBtn"] as const);
 
 export const bar = rule`${c.bar} {
-  padding: ${tokens.space.sm} ${tokens.space.xl} ${tokens.space.lg};
-  background: ${tokens.colors.backgroundElevated};
+  padding: 12px 24px 20px;
+  background: linear-gradient(to bottom, transparent, ${tokens.colors.background} 20%);
   flex-shrink: 0;
+  pointer-events: none;
+}
+${c.bar} > * {
+  pointer-events: auto;
 }
 @media (max-width: 640px) {
   ${c.bar} {
-    padding: ${tokens.space.xs} ${tokens.space.sm} ${tokens.space.sm};
-    padding-bottom: max(${tokens.space.sm}, env(safe-area-inset-bottom));
+    padding: 10px 14px 14px;
+    padding-bottom: max(14px, env(safe-area-inset-bottom));
   }
 }`;
 
 export const composer = rule`${c.composer} {
+  max-width: 780px;
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: ${tokens.space.sm};
-  padding: 10px 12px 9px;
-  border: 1px solid ${tokens.colors.border};
-  border-radius: ${tokens.radii.xl};
-  background: ${tokens.colors.surfaceSecondary};
-  box-shadow: ${tokens.shadows.inset};
+  gap: 6px;
+  padding: 10px 12px 8px;
+  border: 1px solid ${tokens.colors.borderStrong};
+  border-radius: 12px;
+  background: ${tokens.colors.backgroundElevated};
+  box-shadow: ${tokens.shadows.panel};
+  transition: border-color ${tokens.transitions.fast};
+}
+${c.composer}:focus-within {
+  border-color: ${tokens.colors.text};
 }
 @media (max-width: 640px) {
   ${c.composer} {
-    gap: ${tokens.space.xs};
-    padding: 9px 11px 8px;
-    border-radius: ${tokens.radii.lg};
+    gap: 4px;
+    padding: 9px 11px 7px;
+    border-radius: 10px;
   }
 }`;
 

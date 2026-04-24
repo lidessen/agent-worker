@@ -6,18 +6,19 @@ const c = classes(["block", "content"] as const);
 export const block = rule`${c.block} {
   display: flex;
   justify-content: flex-end;
-  padding: ${tokens.space.xs} 0;
+  padding: 0;
+  margin: 8px 0 12px;
 }`;
 
 export const content = rule`${c.content} {
-  background: ${tokens.colors.buttonPrimary};
-  color: ${tokens.colors.buttonPrimaryText};
-  padding: ${tokens.space.md} ${tokens.space.lg};
-  border-radius: ${tokens.radii.xl};
-  border: 1px solid ${tokens.colors.buttonPrimaryBorder};
-  box-shadow: ${tokens.shadows.panel};
-  max-width: 80%;
-  font-size: ${tokens.fontSizes.md};
-  line-height: 1.5;
+  padding: 10px 14px;
+  background: ${tokens.colors.surface};
+  border: 1px solid ${tokens.colors.border};
+  border-radius: 9px;
+  color: ${tokens.colors.text};
+  max-width: 620px;
+  font-size: 13.5px;
+  line-height: 1.55;
   white-space: pre-wrap;
+  box-shadow: none;
 }`;

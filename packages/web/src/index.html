@@ -4,6 +4,12 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Agent Worker</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap"
+    />
     <style>
       :root {
         color-scheme: light;
@@ -19,11 +25,39 @@
         box-sizing: border-box;
       }
 
+      html {
+        font-family: var(--fonts-base);
+        font-feature-settings: "cv11", "ss01", "ss03";
+        font-size: 13px;
+        line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        text-rendering: optimizeLegibility;
+      }
+
       body {
         margin: 0;
         background: var(--colors-background);
         color: var(--colors-text);
         font-family: var(--fonts-base);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      /* CJK adjustment — Han characters want more leading at equal px */
+      :lang(zh),
+      :lang(zh-CN) {
+        font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", var(--fonts-base);
+        line-height: 1.75;
+        letter-spacing: 0;
+      }
+
+      code,
+      kbd,
+      samp,
+      pre {
+        font-family: var(--fonts-mono);
+        font-feature-settings: "ss02", "zero";
       }
 
       ::selection {
@@ -37,8 +71,8 @@
       }
 
       *::-webkit-scrollbar {
-        width: 10px;
-        height: 10px;
+        width: 8px;
+        height: 8px;
       }
 
       *::-webkit-scrollbar-track {
@@ -58,6 +92,27 @@
       button {
         -webkit-appearance: none;
         appearance: none;
+      }
+
+      /* Running/active status pulse — applied via class selectors in components.
+         Uses currentColor so it stays aligned with any token-derived dot color. */
+      @keyframes aw-pulse {
+        0%,
+        100% {
+          box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 15%, transparent);
+        }
+        50% {
+          box-shadow: 0 0 0 5px color-mix(in srgb, currentColor 8%, transparent);
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          animation-duration: 0.01ms !important;
+          transition-duration: 0.01ms !important;
+        }
       }
     </style>
   </head>

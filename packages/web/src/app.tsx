@@ -5,17 +5,15 @@ import { computed, signal } from "semajsx/signal";
 import { AppShell } from "./components/layout/app-shell.tsx";
 import {
   currentWorkspace,
-  sidebarTab,
   selectedItem,
   selectChannel,
-  selectDoc,
   selectAgent,
   selectWorkspaceSettings,
   selectGlobalEvents,
-  selectGlobalSettings,
   type SelectedItem,
 } from "./stores/navigation.ts";
-import { wsAgents, wsChannels, wsDocs, wsInfo } from "./stores/workspace-data.ts";
+import { wsInfo } from "./stores/workspace-data.ts";
+import { agents } from "./stores/agents.ts";
 import { workspaces } from "./stores/workspaces.ts";
 import {
   ClaudeIcon,
@@ -24,7 +22,18 @@ import {
   VercelIcon,
   parsePlatformName,
 } from "./components/brand-icons.tsx";
-import { Icon, Drama } from "semajsx/icons";
+import {
+  Icon,
+  Drama,
+  Search,
+  Sun,
+  Moon,
+  Home,
+  Terminal,
+  Folder,
+  Zap,
+} from "semajsx/icons";
+import { resolvedTheme, toggleTheme } from "./theme/tokens.ts";
 import * as styles from "./app.style.ts";
 
 // Import all views
@@ -35,7 +44,10 @@ import { DocViewerPanel } from "./views/doc-viewer-panel.tsx";
 import { WorkspaceSettingsView } from "./views/workspace-settings-view.tsx";
 import { GlobalSettingsView } from "./views/global-settings-view.tsx";
 import { GlobalEventsView } from "./views/global-events-view.tsx";
+import { DashboardView } from "./views/dashboard-view.tsx";
+import { CreateAgentDialog } from "./components/create-agent-dialog.tsx";
 import { CreateDocDialog } from "./components/create-doc-dialog.tsx";
+import { CreateWorkspaceDialog } from "./components/create-workspace-dialog.tsx";
 
 const mobileQuery = typeof window !== "undefined" ? window.matchMedia("(max-width: 900px)") : null;
 const isMobileViewport = signal(mobileQuery?.matches ?? false);
@@ -45,6 +57,9 @@ if (mobileQuery) {
     isMobileViewport.value = event.matches;
   });
 }
+
+type MobileResource = "agents" | "workspaces" | "events";
+const mobileResource = signal<MobileResource>("agents");
 
 function runtimeIcon(runtime: string) {
   switch (runtime) {
@@ -82,229 +97,160 @@ function createView(item: SelectedItem) {
   }
 }
 
+function agentDotClass(state: string) {
+  if (state === "running" || state === "processing") return [styles.mRowDot, styles.mRowDotRunning];
+  if (state === "error" || state === "failed") return [styles.mRowDot, styles.mRowDotError];
+  return [styles.mRowDot, styles.mRowDotIdle];
+}
+
+function wsDotClass(status: string) {
+  if (status === "running") return [styles.mRowDot, styles.mRowDotRunning];
+  if (status === "error") return [styles.mRowDot, styles.mRowDotError];
+  return [styles.mRowDot, styles.mRowDotIdle];
+}
+
 function MobileHome() {
   const workspaceName = computed([wsInfo, currentWorkspace], (info, key) => info?.name ?? key);
-  const selectedWorkspace = computed(currentWorkspace, (ws) => ws);
-  const workspaceOptions = computed(workspaces, (list) =>
-    list.map((ws) => <option value={ws.name}>{ws.name}</option>),
-  );
-  const channelCount = computed(wsChannels, (list) => list.length);
-  const agentCount = computed(wsAgents, (list) => list.length);
-  const docCount = computed(wsDocs, (list) => list.length);
-  const activeTab = computed(sidebarTab, (tab) => tab);
-  const resourceButtonClass = (selected: boolean) =>
-    selected
-      ? [styles.mobileResourceButton, styles.resourceRow, styles.resourceRowSelected]
-      : [styles.mobileResourceButton, styles.resourceRow];
 
-  const resourceList = computed(
-    [sidebarTab, wsChannels, wsAgents, wsDocs],
-    (tab, channels, agents, docs) => {
-      if (tab === "channels") {
-        if (channels.length === 0) {
-          return <div class={styles.mobileResourceEmpty}>No channels</div>;
-        }
-        return channels.map((channel) => {
-          const parsed = parsePlatformName(channel);
-          const isSelected =
-            selectedItem.value?.kind === "channel" &&
-            selectedItem.value.channel === channel &&
-            selectedItem.value.wsKey === currentWorkspace.value;
-          return (
-            <button
-              class={resourceButtonClass(isSelected)}
-              onclick={() => selectChannel(currentWorkspace.value, channel)}
-            >
-              <span class={styles.mobileResourceIcon}>
-                {parsed.icon ? parsed.icon({ size: 13 }) : "#"}
-              </span>
-              <span class={styles.mobileResourceBody}>
-                <span class={styles.mobileResourceTitle}>{parsed.name}</span>
-                <span class={styles.mobileResourceMeta}>Channel</span>
-              </span>
+  const resourceBody = computed([mobileResource, agents, workspaces], (res, agentList, wsList) => {
+    if (res === "agents") {
+      if (agentList.length === 0) {
+        return <div style="padding:16px;color:var(--colors-textDim);font-size:13px">No agents</div>;
+      }
+      return (
+        <div class={styles.mList}>
+          {agentList.map((a) => (
+            <button class={styles.mRow} onclick={() => selectAgent(a.name)}>
+              <span class={agentDotClass(a.state)} />
+              <div class={styles.mRowName}>
+                <span class={styles.mRowT}>{a.name}</span>
+                <span class={styles.mRowS}>
+                  {a.runtime}
+                  {a.workspace ? ` · ws/${a.workspace}` : ""}
+                </span>
+              </div>
+              <span class={styles.mRowR}>{a.state}</span>
             </button>
-          );
-        });
-      }
-
-      if (tab === "agents") {
-        if (agents.length === 0) {
-          return <div class={styles.mobileResourceEmpty}>No agents</div>;
-        }
-        return agents.map((agent) => {
-          const isSelected =
-            selectedItem.value?.kind === "agent" && selectedItem.value.name === agent.name;
-          return (
-            <button class={resourceButtonClass(isSelected)} onclick={() => selectAgent(agent.name)}>
-              <span class={styles.mobileResourceIcon}>{runtimeIcon(agent.runtime)}</span>
-              <span class={styles.mobileResourceBody}>
-                <span class={styles.mobileResourceTitle}>{agent.name}</span>
-                <span class={styles.mobileResourceMeta}>{agent.runtime}</span>
-              </span>
-            </button>
-          );
-        });
-      }
-
-      if (docs.length === 0) {
-        return <div class={styles.mobileResourceEmpty}>No docs</div>;
-      }
-      return docs.map((doc) => {
-        const isSelected =
-          selectedItem.value?.kind === "doc" &&
-          selectedItem.value.docName === doc.name &&
-          selectedItem.value.wsKey === currentWorkspace.value;
+          ))}
+        </div>
+      );
+    }
+    if (res === "workspaces") {
+      if (wsList.length === 0) {
         return (
-          <button
-            class={resourceButtonClass(isSelected)}
-            onclick={() => selectDoc(currentWorkspace.value, doc.name)}
-          >
-            <span class={styles.mobileResourceIcon}>•</span>
-            <span class={styles.mobileResourceBody}>
-              <span class={styles.mobileResourceTitle}>{doc.name}</span>
-              <span class={styles.mobileResourceMeta}>Document</span>
-            </span>
-          </button>
+          <div style="padding:16px;color:var(--colors-textDim);font-size:13px">No workspaces</div>
         );
-      });
-    },
+      }
+      return (
+        <div class={styles.mList}>
+          {wsList.map((w) => (
+            <button
+              class={styles.mRow}
+              onclick={() => {
+                currentWorkspace.value = w.name;
+                selectWorkspaceSettings(w.name);
+              }}
+            >
+              <span class={wsDotClass(w.status)} />
+              <div class={styles.mRowName}>
+                <span class={styles.mRowT}>{w.label || w.name}</span>
+                <span class={styles.mRowS}>
+                  {w.agents.join(", ") || "no agents"}
+                </span>
+              </div>
+              <span class={styles.mRowR}>{w.status}</span>
+            </button>
+          ))}
+        </div>
+      );
+    }
+    // events
+    return (
+      <div
+        class={styles.mList}
+        style="padding:16px;color:var(--colors-textDim);font-size:13px"
+        onclick={() => selectGlobalEvents()}
+      >
+        Open the full Event Log
+      </div>
+    );
+  });
+
+  const agentCount = computed(agents, (list) => list.length);
+  const wsCount = computed(workspaces, (list) => list.length);
+
+  function tabCls(k: MobileResource) {
+    return computed(mobileResource, (r) =>
+      r === k ? [styles.mobileResTab, styles.mobileResTabActive] : styles.mobileResTab,
+    );
+  }
+
+  const themeIcon = computed(resolvedTheme, (t) =>
+    t === "dark" ? <Icon icon={Sun} size={14} /> : <Icon icon={Moon} size={14} />,
   );
 
   return (
     <div class={styles.mobileHome}>
-      <div class={styles.mobileIntro}>
-        <div class={styles.mobileTitle}>{workspaceName}</div>
-        <div class={styles.mobileSubtitle}>
-          Browse channels, agents, and docs from one mobile home screen.
+      <div class={styles.mobileHead}>
+        <div class={styles.mobileBrand}>
+          <div class={styles.mobileLogo}>L</div>
+          <span class={styles.mobileTitle}>{workspaceName}</span>
+          <span class={styles.mobileDaemon}>
+            <span class={styles.mobileDaemonDot} />
+            daemon
+          </span>
         </div>
-      </div>
-
-      <select
-        class={styles.mobileSelect}
-        value={selectedWorkspace}
-        onchange={(e: Event) => {
-          currentWorkspace.value = (e.target as HTMLSelectElement).value;
-          selectedItem.value = null;
-        }}
-      >
-        {workspaceOptions}
-      </select>
-
-      <div class={styles.mobileStats}>
-        {[
-          { label: "Agents", value: agentCount },
-          { label: "Channels", value: channelCount },
-          { label: "Docs", value: docCount },
-        ].map((item) => (
-          <div class={styles.mobileStatCard}>
-            <span class={styles.mobileStatLabel}>{item.label}</span>
-            <span class={styles.mobileStatValue}>{item.value}</span>
-          </div>
-        ))}
-      </div>
-
-      <div class={styles.mobileTabBar}>
-        {[
-          { key: "channels", label: "Channels" },
-          { key: "agents", label: "Agents" },
-          { key: "docs", label: "Docs" },
-        ].map((tab) => (
-          <button
-            class={computed(activeTab, (current) =>
-              current === tab.key ? [styles.mobileTab, styles.mobileTabActive] : styles.mobileTab,
-            )}
-            onclick={() => {
-              sidebarTab.value = tab.key as typeof sidebarTab.value;
-            }}
-          >
-            {tab.label}
+        <div class={styles.mobileHeadRight}>
+          <button class={styles.mobileIconBtn} onclick={() => toggleTheme()}>
+            {themeIcon}
           </button>
-        ))}
+          <button class={styles.mobileIconBtn}>
+            <Icon icon={Search} size={14} />
+          </button>
+        </div>
       </div>
 
-      <div class={styles.mobileResourceList}>{resourceList}</div>
+      <div class={styles.mobileResbar}>
+        <button class={tabCls("agents")} onclick={() => (mobileResource.value = "agents")}>
+          Agents <span class={styles.mobileResTabCount}>{agentCount}</span>
+        </button>
+        <button class={tabCls("workspaces")} onclick={() => (mobileResource.value = "workspaces")}>
+          Workspaces <span class={styles.mobileResTabCount}>{wsCount}</span>
+        </button>
+        <button class={tabCls("events")} onclick={() => (mobileResource.value = "events")}>
+          Events
+        </button>
+      </div>
 
-      <div class={styles.mobileFooterActions}>
+      <div class={styles.mobileBody}>{resourceBody}</div>
+
+      <div class={styles.mTabbar}>
+        <button class={[styles.mTabbarBtn, styles.mTabbarBtnActive]}>
+          <Icon icon={Home} size={18} />
+          <span>Home</span>
+        </button>
         <button
-          class={styles.mobileFooterButton}
-          onclick={() => selectWorkspaceSettings(currentWorkspace.value)}
+          class={styles.mTabbarBtn}
+          onclick={() => {
+            mobileResource.value = "agents";
+          }}
         >
-          Workspace
+          <Icon icon={Terminal} size={18} />
+          <span>Agent</span>
         </button>
-        <button class={styles.mobileFooterButton} onclick={() => selectGlobalEvents()}>
-          Event Log
+        <button
+          class={styles.mTabbarBtn}
+          onclick={() => {
+            mobileResource.value = "workspaces";
+          }}
+        >
+          <Icon icon={Folder} size={18} />
+          <span>Spaces</span>
         </button>
-        <button class={styles.mobileFooterButton} onclick={() => selectGlobalSettings()}>
-          Settings
+        <button class={styles.mTabbarBtn} onclick={() => selectGlobalEvents()}>
+          <Icon icon={Zap} size={18} />
+          <span>Events</span>
         </button>
-      </div>
-    </div>
-  );
-}
-
-function EmptyState() {
-  const workspaceName = computed([wsInfo, currentWorkspace], (info, key) => info?.name ?? key);
-  const channelCount = computed(wsChannels, (list) => list.length);
-  const agentCount = computed(wsAgents, (list) => list.length);
-  const docCount = computed(wsDocs, (list) => list.length);
-  const firstChannel = computed(wsChannels, (list) => list[0] ?? null);
-  const firstDoc = computed(wsDocs, (list) => list[0]?.name ?? null);
-
-  return (
-    <div class={styles.emptyState}>
-      <div class={styles.emptyHero}>
-        <div class={styles.emptyLogo}>
-          <VercelIcon size={24} />
-        </div>
-        <div class={styles.emptyTitle}>Workspace overview</div>
-        <div class={styles.emptyWorkspace}>{workspaceName}</div>
-        <div class={styles.emptyDescription}>
-          Select a channel, agent, or document from the sidebar to inspect the workspace, review
-          conversations, and coordinate agent activity.
-        </div>
-      </div>
-
-      <div class={styles.emptyPanel}>
-        <div class={styles.emptyStats}>
-          {[
-            { label: "Agents", value: agentCount },
-            { label: "Channels", value: channelCount },
-            { label: "Docs", value: docCount },
-          ].map((item) => (
-            <div class={styles.emptyStatCard}>
-              <span class={styles.emptyStatLabel}>{item.label}</span>
-              <span class={styles.emptyStatValue}>{item.value}</span>
-            </div>
-          ))}
-        </div>
-        <div class={styles.emptyActions}>
-          <div
-            class={styles.emptyAction}
-            onclick={() => selectWorkspaceSettings(currentWorkspace.value)}
-          >
-            Open workspace overview
-          </div>
-          {computed(firstChannel, (channel) =>
-            channel ? (
-              <div
-                class={styles.emptyAction}
-                onclick={() => selectChannel(currentWorkspace.value, channel)}
-              >
-                Open #{channel}
-              </div>
-            ) : null,
-          )}
-          {computed(firstDoc, (docName) =>
-            docName ? (
-              <div
-                class={styles.emptyAction}
-                onclick={() => selectDoc(currentWorkspace.value, docName)}
-              >
-                Open doc: {docName}
-              </div>
-            ) : null,
-          )}
-        </div>
       </div>
     </div>
   );
@@ -376,7 +322,11 @@ function renderContent() {
   const t1 = performance.now();
 
   // Render new view
-  const vnode = item ? createView(item) : isMobileViewport.value ? <MobileHome /> : <EmptyState />;
+  const vnode = item
+    ? createView(item)
+    : isMobileViewport.value
+      ? <MobileHome />
+      : <DashboardView />;
   const t2 = performance.now();
 
   const result = render(vnode, el);
@@ -425,7 +375,7 @@ export function App() {
             selectedItem.value = null;
           }}
         >
-          Back
+          ← Back
         </button>
         <span class={styles.mobileBackTitle}>{selectedLabel(item)}</span>
       </div>
@@ -443,7 +393,9 @@ export function App() {
           renderContent();
         }}
       />
+      <CreateAgentDialog />
       <CreateDocDialog />
+      <CreateWorkspaceDialog />
     </AppShell>
   );
 }
