@@ -2,302 +2,211 @@
 
 import type { JSXNode } from "semajsx";
 import { computed } from "semajsx/signal";
-import { Icon, Drama } from "semajsx/icons";
-import { ClaudeIcon, CursorIcon, OpenAIIcon, VercelIcon } from "../brand-icons.tsx";
-import { connectionState } from "../../stores/connection.ts";
+import { Icon, Search, Plus, ChevronRight, Zap, Settings, Bot, Folder } from "semajsx/icons";
+import { agents } from "../../stores/agents.ts";
 import { workspaces } from "../../stores/workspaces.ts";
-import { wsChannels, wsAgents, wsDocs } from "../../stores/workspace-data.ts";
+import { wsChannels } from "../../stores/workspace-data.ts";
 import {
   currentWorkspace,
-  sidebarTab,
   selectedItem,
   selectChannel,
   selectAgent,
-  selectDoc,
   selectWorkspaceSettings,
   selectGlobalSettings,
   selectGlobalEvents,
 } from "../../stores/navigation.ts";
-import { showCreateDoc } from "../create-doc-dialog.tsx";
-import type { SidebarTab } from "../../stores/navigation.ts";
-import type { AgentInfo } from "../../api/types.ts";
-import * as styles from "./sidebar.style.ts";
+import { parsePlatformName } from "../brand-icons.tsx";
+import { showCreateAgent } from "../create-agent-dialog.tsx";
+import { showCreateWorkspace } from "../create-workspace-dialog.tsx";
+import { sidebarCollapsed } from "./app-shell.tsx";
+import * as s from "./sidebar.style.ts";
+import type { AgentInfo, WorkspaceInfo } from "../../api/types.ts";
 
-// ── Runtime icon (same as agent-card) ────────────────────────────────────
-
-function runtimeIcon(runtime: string): JSXNode {
-  switch (runtime) {
-    case "claude-code":
-      return <ClaudeIcon size={12} />;
-    case "codex":
-      return <OpenAIIcon size={12} />;
-    case "cursor":
-      return <CursorIcon size={12} />;
-    case "ai-sdk":
-      return <VercelIcon size={12} />;
-    case "mock":
-      return <Icon icon={Drama} size={12} />;
-    default:
-      return null;
-  }
+function agentDotClass(state: string) {
+  if (state === "running") return [s.dot, s.dotRunning];
+  if (state === "error" || state === "failed") return [s.dot, s.dotError];
+  return [s.dot, s.dotIdle];
 }
 
-// ── Connection dot ───────────────────────────────────────────────────────
+function workspaceDotClass(status: string) {
+  if (status === "running") return [s.dot, s.dotRunning];
+  if (status === "error") return [s.dot, s.dotError];
+  return [s.dot, s.dotIdle];
+}
 
-const connDotClass = computed(connectionState, (state) => [
-  styles.connectionDot,
-  state === "connected"
-    ? styles.connectionDotConnected
-    : state === "connecting"
-      ? styles.connectionDotConnecting
-      : styles.connectionDotError,
-]);
-
-const connLabel = computed(connectionState, (state) => {
-  switch (state) {
-    case "connected":
-      return "Connected";
-    case "connecting":
-      return "Connecting...";
-    case "disconnected":
-      return "Disconnected";
-    case "error":
-      return "Connection error";
-  }
-});
-
-// ── Tab helpers ──────────────────────────────────────────────────────────
-
-const tabs: { key: SidebarTab; label: string }[] = [
-  { key: "channels", label: "Channels" },
-  { key: "agents", label: "Agents" },
-  { key: "docs", label: "Docs" },
-];
-
-function TabButton(props: { tab: SidebarTab; label: string }) {
-  const cls = computed(sidebarTab, (cur) =>
-    cur === props.tab ? [styles.tab, styles.tabActive] : styles.tab,
+function AgentItem(props: { agent: AgentInfo }) {
+  const { agent } = props;
+  const active = computed(
+    selectedItem,
+    (sel) => sel?.kind === "agent" && sel.name === agent.name,
   );
+  const cls = computed(active, (a) => (a ? [s.item, s.itemActive] : s.item));
   return (
-    <button class={cls} onclick={() => (sidebarTab.value = props.tab)}>
-      {props.label}
+    <button class={cls} onclick={() => selectAgent(agent.name)}>
+      <span class={agentDotClass(agent.state)} />
+      <span class={s.collapsedGlyph}>
+        <Icon icon={Bot} size={12} />
+      </span>
+      <span
+        class={computed(sidebarCollapsed, (c) => (c ? s.hiddenCollapsed : s.itemLabel))}
+      >
+        {agent.name}
+      </span>
     </button>
   );
 }
 
-// ── List items ───────────────────────────────────────────────────────────
-
-function ChannelItem(props: { channel: string; onSelect?: () => void }) {
-  const isActive = computed(
-    selectedItem,
-    (sel) => sel?.kind === "channel" && sel.channel === props.channel,
+function WorkspaceItem(props: { ws: WorkspaceInfo }) {
+  const { ws } = props;
+  const isCurrent = computed(currentWorkspace, (key) => key === ws.name);
+  const active = computed(
+    [selectedItem, isCurrent],
+    (sel, cur) => cur && sel?.kind === "workspace-settings" && sel.wsKey === ws.name,
   );
-  const cls = computed(isActive, (a) =>
-    a ? [styles.listItem, styles.listItemActive] : styles.listItem,
-  );
+  const cls = computed(active, (a) => (a ? [s.item, s.itemActive] : s.item));
+  const agentCount = computed(agents, (list) => list.filter((a) => a.workspace === ws.name).length);
   return (
-    <div
+    <button
       class={cls}
       onclick={() => {
-        selectChannel(currentWorkspace.value, props.channel);
-        props.onSelect?.();
+        currentWorkspace.value = ws.name;
+        selectWorkspaceSettings(ws.name);
       }}
     >
-      <div class={styles.itemPreview}>
-        <span># {props.channel}</span>
-        <span class={styles.itemMeta}>Channel thread</span>
-      </div>
-    </div>
+      <span class={workspaceDotClass(ws.status)} />
+      <span class={s.collapsedGlyph}>
+        <Icon icon={Folder} size={12} />
+      </span>
+      <span
+        class={computed(sidebarCollapsed, (c) => (c ? s.hiddenCollapsed : s.itemLabel))}
+      >
+        {ws.label || ws.name}
+      </span>
+      <span
+        class={computed(sidebarCollapsed, (c) => (c ? s.hiddenCollapsed : s.itemCount))}
+      >
+        {agentCount}
+      </span>
+    </button>
   );
 }
 
-function AgentItem(props: { agent: AgentInfo; onSelect?: () => void }) {
-  const { agent } = props;
-  const isActive = computed(
+function ChannelSub(props: { wsKey: string; channel: string }) {
+  const parsed = parsePlatformName(props.channel);
+  const active = computed(
     selectedItem,
-    (sel) => sel?.kind === "agent" && sel.name === agent.name,
+    (sel) =>
+      sel?.kind === "channel" && sel.channel === props.channel && sel.wsKey === props.wsKey,
   );
-  const cls = computed(isActive, (a) =>
-    a ? [styles.listItem, styles.listItemActive] : styles.listItem,
+  const cls = computed(active, (a) => (a ? [s.sub, s.subActive] : s.sub));
+  return (
+    <button
+      class={cls}
+      onclick={() => {
+        currentWorkspace.value = props.wsKey;
+        selectChannel(props.wsKey, props.channel);
+      }}
+    >
+      <span class={s.subHash}>#</span>
+      <span class={s.subName}>{parsed.name}</span>
+    </button>
   );
-  const itemDotClass = [
-    styles.itemDot,
-    agent.state === "running"
-      ? styles.itemDotRunning
-      : agent.state === "processing"
-        ? styles.itemDotProcessing
-        : agent.state === "error" || agent.state === "failed"
-          ? styles.itemDotError
-          : agent.state === "completed"
-            ? styles.itemDotCompleted
-            : styles.itemDotIdle,
+}
+
+function WorkspacesSection() {
+  return computed([workspaces, currentWorkspace, wsChannels], (list, curKey, channels) => {
+    const items: JSXNode[] = [];
+    list.forEach((ws) => {
+      items.push(<WorkspaceItem ws={ws} />);
+      if (ws.name === curKey) {
+        channels.forEach((ch) => {
+          items.push(<ChannelSub wsKey={ws.name} channel={ch} />);
+        });
+      }
+    });
+    return items;
+  });
+}
+
+function SystemSection() {
+  const eventsActive = computed(selectedItem, (sel) => sel?.kind === "global-events");
+  const settingsActive = computed(selectedItem, (sel) => sel?.kind === "global-settings");
+  const eventsCls = computed(eventsActive, (a) => (a ? [s.item, s.itemActive] : s.item));
+  const settingsCls = computed(settingsActive, (a) => (a ? [s.item, s.itemActive] : s.item));
+  const hideLabel = computed(sidebarCollapsed, (c) => (c ? s.hiddenCollapsed : s.itemLabel));
+  return [
+    <button class={eventsCls} onclick={() => selectGlobalEvents()}>
+      <Icon icon={Zap} size={13} />
+      <span class={hideLabel}>Events</span>
+    </button>,
+    <button class={settingsCls} onclick={() => selectGlobalSettings()}>
+      <Icon icon={Settings} size={13} />
+      <span class={hideLabel}>Settings</span>
+    </button>,
   ];
-  return (
-    <div
-      class={cls}
-      onclick={() => {
-        selectAgent(agent.name);
-        props.onSelect?.();
-      }}
-    >
-      <span class={styles.itemIcon}>{runtimeIcon(agent.runtime)}</span>
-      <div class={styles.itemPreview}>
-        <span>{agent.name}</span>
-        <span class={styles.itemMeta}>{agent.runtime}</span>
-      </div>
-      <span class={itemDotClass} />
-    </div>
-  );
 }
-
-function DocItem(props: { name: string; onSelect?: () => void }) {
-  const isActive = computed(
-    selectedItem,
-    (sel) => sel?.kind === "doc" && sel.docName === props.name,
-  );
-  const cls = computed(isActive, (a) =>
-    a ? [styles.listItem, styles.listItemActive] : styles.listItem,
-  );
-  return (
-    <div
-      class={cls}
-      onclick={() => {
-        selectDoc(currentWorkspace.value, props.name);
-        props.onSelect?.();
-      }}
-    >
-      <div class={styles.itemPreview}>
-        <span>{props.name}</span>
-        <span class={styles.itemMeta}>Workspace document</span>
-      </div>
-    </div>
-  );
-}
-
-// ── Tab content ──────────────────────────────────────────────────────────
-
-function TabContent(props: { onSelect?: () => void }) {
-  // Use separate computeds per tab, each watching only its data signal
-  const channelContent = computed(wsChannels, (channels) => (
-    <div class={styles.listWrap}>
-      <div class={styles.sectionLabel}>Threads</div>
-      {channels.map((ch) => (
-        <ChannelItem channel={ch} onSelect={props.onSelect} />
-      ))}
-    </div>
-  ));
-  const agentContent = computed(wsAgents, (agentArr) => (
-    <div class={styles.listWrap}>
-      <div class={styles.sectionLabel}>Agents</div>
-      {agentArr.map((a) => (
-        <AgentItem agent={a} onSelect={props.onSelect} />
-      ))}
-    </div>
-  ));
-  const docContent = computed(wsDocs, (docs) => (
-    <div class={styles.listWrap}>
-      <div class={[styles.sectionLabel, styles.sectionLabelRow]}>
-        <span>Docs</span>
-        <span class={styles.sectionAction} onclick={() => (showCreateDoc.value = true)}>
-          +
-        </span>
-      </div>
-      {docs.map((d) => (
-        <DocItem name={d.name} onSelect={props.onSelect} />
-      ))}
-    </div>
-  ));
-
-  const channelPaneClass = computed(sidebarTab, (t) =>
-    t === "channels" ? styles.tabPane : [styles.tabPane, styles.tabPaneHidden],
-  );
-  const agentPaneClass = computed(sidebarTab, (t) =>
-    t === "agents" ? styles.tabPane : [styles.tabPane, styles.tabPaneHidden],
-  );
-  const docPaneClass = computed(sidebarTab, (t) =>
-    t === "docs" ? styles.tabPane : [styles.tabPane, styles.tabPaneHidden],
-  );
-
-  return (
-    <div class={styles.displayContents}>
-      <div class={channelPaneClass}>{channelContent}</div>
-      <div class={agentPaneClass}>{agentContent}</div>
-      <div class={docPaneClass}>{docContent}</div>
-    </div>
-  );
-}
-
-// ── Workspace switcher ───────────────────────────────────────────────────
-
-function WorkspaceSwitcher() {
-  const options = computed(workspaces, (wsList) =>
-    wsList.map((ws) => <option value={ws.name}>{ws.label || ws.name}</option>),
-  );
-
-  return (
-    <select
-      class={styles.workspaceSelect}
-      onchange={(e: Event) => {
-        currentWorkspace.value = (e.target as HTMLSelectElement).value;
-      }}
-    >
-      {options}
-    </select>
-  );
-}
-
-// Auto-select first workspace when list loads (if current is still "global" virtual key).
-workspaces.subscribe((wsList) => {
-  if (wsList.length > 0 && currentWorkspace.value === "global") {
-    const hasGlobal = wsList.some((ws) => ws.name === "global");
-    currentWorkspace.value = hasGlobal ? "global" : wsList[0]!.name;
-  }
-});
-
-// ── Sidebar ──────────────────────────────────────────────────────────────
 
 export function Sidebar() {
+  const asideClass = computed(sidebarCollapsed, (c) =>
+    c ? [s.sidebar, s.sidebarCollapsed] : s.sidebar,
+  );
+  const hideWhenCollapsed = computed(sidebarCollapsed, (c) => (c ? s.hiddenCollapsed : null));
+  const sectionLabelClass = computed(sidebarCollapsed, (c) =>
+    c ? s.hiddenCollapsed : s.sectionLabel,
+  );
+  const sectionActionClass = computed(sidebarCollapsed, (c) =>
+    c ? s.hiddenCollapsed : s.sectionAction,
+  );
+
+  const agentsList = computed(agents, (list) =>
+    list.slice(0, 5).map((a) => <AgentItem agent={a} />),
+  );
+
   return (
-    <aside class={styles.sidebar}>
-      <div class={styles.header}>
-        <div class={styles.headerRow}>
-          <div>
-            <div class={styles.eyebrow}>Agent Worker</div>
-            <div class={styles.headerMeta}>Workspace navigation</div>
-          </div>
-        </div>
-        <WorkspaceSwitcher />
+    <aside class={asideClass}>
+      <div class={computed(sidebarCollapsed, (c) => (c ? s.hiddenCollapsed : s.find))}>
+        <Icon icon={Search} size={12} />
+        <input class={s.findInput} placeholder="Find or jump…" readOnly />
+        <span class={s.kbd}>⌘K</span>
       </div>
 
-      <div class={styles.tabBar}>
-        {tabs.map((t) => (
-          <TabButton tab={t.key} label={t.label} />
-        ))}
+      <div class={s.section}>
+        <span class={sectionLabelClass}>Agents</span>
+        <button
+          class={sectionActionClass}
+          title="New agent"
+          onclick={() => (showCreateAgent.value = true)}
+        >
+          <Icon icon={Plus} size={11} />
+        </button>
       </div>
+      {agentsList}
 
-      <div class={styles.listArea}>
-        <TabContent />
+      <div class={s.section} style="margin-top:8px">
+        <span class={sectionLabelClass}>Workspaces</span>
+        <button
+          class={sectionActionClass}
+          title="New workspace"
+          onclick={() => (showCreateWorkspace.value = true)}
+        >
+          <Icon icon={Plus} size={11} />
+        </button>
       </div>
+      {WorkspacesSection()}
 
-      <div class={styles.bottomBar}>
-        <div class={styles.bottomActions}>
-          <button
-            class={styles.bottomLink}
-            onclick={() => selectWorkspaceSettings(currentWorkspace.value)}
-          >
-            Workspace
-          </button>
-          <button class={styles.bottomLink} onclick={() => selectGlobalEvents()}>
-            Event Log
-          </button>
-          <button class={styles.bottomLink} onclick={() => selectGlobalSettings()}>
-            Settings
-          </button>
-        </div>
-        <div class={styles.statusRow}>
-          <span class={connDotClass} />
-          <span class={styles.statusLabel}>{connLabel}</span>
-        </div>
+      <div class={s.section} style="margin-top:8px">
+        <span class={hideWhenCollapsed}>System</span>
+      </div>
+      {SystemSection()}
+
+      <div class={s.bottom}>
+        <button class={s.account}>
+          <span class={s.avatar} />
+          <span class={hideWhenCollapsed}>lidessen</span>
+          <span class={computed(sidebarCollapsed, (c) => (c ? s.hiddenCollapsed : s.itemChev))}>
+            <Icon icon={ChevronRight} size={11} />
+          </span>
+        </button>
       </div>
     </aside>
   );

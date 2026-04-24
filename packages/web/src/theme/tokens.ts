@@ -1,8 +1,12 @@
 /**
- * Dark-first design tokens for @agent-worker/web
+ * Lidessen design tokens for @agent-worker/web
  *
- * All components reference these tokens via CSS custom properties,
- * enabling runtime theme switching.
+ * Monochrome oklch palette, Geist + Noto Sans SC typography.
+ * Light is the base theme; dark is applied by toggling darkThemeClass
+ * on <html> based on the user's system preference.
+ *
+ * All components reference tokens via CSS custom properties so the
+ * swap happens at the CSS variable layer — no component changes needed.
  */
 
 import { defineTokens, createTheme, inject } from "semajsx/style";
@@ -10,57 +14,57 @@ import type { TokenRefs } from "semajsx/style";
 
 const tokenDefinition = {
   colors: {
-    background: "#f3f3f3",
-    backgroundElevated: "#ffffff",
-    surface: "#f8f8f8",
-    surfaceHover: "#f1f1f1",
-    surfaceActive: "#e8e8e8",
-    surfaceSecondary: "#ffffff",
-    surfaceTertiary: "#f6f6f6",
-    border: "#e1e1e1",
-    borderSubtle: "#ececec",
-    borderStrong: "#cfcfcf",
-    borderHover: "#c5c5c5",
-    text: "#1f1f1f",
-    textMuted: "#555555",
-    textDim: "#777777",
+    background: "oklch(1 0 0)",
+    backgroundElevated: "oklch(0.985 0 0)",
+    surface: "oklch(0.985 0 0)",
+    surfaceHover: "oklch(0.965 0 0)",
+    surfaceActive: "oklch(0.94 0 0)",
+    surfaceSecondary: "oklch(0.985 0 0)",
+    surfaceTertiary: "oklch(0.975 0 0)",
+    border: "oklch(0 0 0 / 0.08)",
+    borderSubtle: "oklch(0 0 0 / 0.05)",
+    borderStrong: "oklch(0 0 0 / 0.16)",
+    borderHover: "oklch(0 0 0 / 0.22)",
+    text: "oklch(0.145 0 0)",
+    textMuted: "oklch(0.38 0 0)",
+    textDim: "oklch(0.55 0 0)",
 
-    primary: "#1f1f1f",
-    primaryHover: "#000000",
-    accent: "#3794ff",
-    accentSoft: "rgba(55, 148, 255, 0.14)",
-    panel: "#ffffff",
-    panelHover: "#f8f8f8",
-    panelStrong: "#f1f1f1",
-    input: "#ffffff",
-    badge: "#f3f3f3",
-    surfaceOverlay: "rgba(31, 31, 31, 0.04)",
-    headerSheen: "linear-gradient(180deg, rgba(31, 31, 31, 0.03) 0%, transparent 100%)",
-    overlayScrim: "rgba(15, 23, 42, 0.24)",
-    selectionBg: "rgba(55, 148, 255, 0.3)",
-    selectionText: "#ffffff",
-    scrollbarThumb: "rgba(121, 121, 121, 0.42)",
-    buttonPrimary: "linear-gradient(180deg, #2b2b2b 0%, #1b1b1b 100%)",
-    buttonPrimaryHover: "linear-gradient(180deg, #323232 0%, #222222 100%)",
-    buttonPrimaryText: "#ffffff",
-    buttonPrimaryBorder: "rgba(255, 255, 255, 0.08)",
-    successTextStrong: "#1f6f35",
-    successBorder: "rgba(56, 142, 60, 0.24)",
-    warningBorder: "rgba(191, 102, 0, 0.24)",
-    dangerBorder: "rgba(196, 43, 28, 0.24)",
-    dangerSurface: "rgba(196, 43, 28, 0.1)",
-    warningSurface: "rgba(191, 102, 0, 0.1)",
-    successSurface: "rgba(56, 142, 60, 0.1)",
+    primary: "oklch(0.145 0 0)",
+    primaryHover: "oklch(0.24 0 0)",
+    accent: "oklch(0.145 0 0)",
+    accentSoft: "oklch(0.145 0 0 / 0.08)",
+    panel: "oklch(1 0 0)",
+    panelHover: "oklch(0.985 0 0)",
+    panelStrong: "oklch(0.965 0 0)",
+    input: "oklch(1 0 0)",
+    badge: "oklch(0.985 0 0)",
+    surfaceOverlay: "oklch(0 0 0 / 0.04)",
+    headerSheen: "linear-gradient(180deg, oklch(0 0 0 / 0.03) 0%, transparent 100%)",
+    overlayScrim: "oklch(0.145 0 0 / 0.48)",
+    selectionBg: "oklch(0.75 0.16 240 / 0.3)",
+    selectionText: "oklch(0.145 0 0)",
+    scrollbarThumb: "oklch(0 0 0 / 0.16)",
+    buttonPrimary: "oklch(0.145 0 0)",
+    buttonPrimaryHover: "oklch(0.24 0 0)",
+    buttonPrimaryText: "oklch(0.985 0 0)",
+    buttonPrimaryBorder: "oklch(0 0 0 / 0.08)",
+    successTextStrong: "oklch(0.48 0.14 150)",
+    successBorder: "oklch(0.58 0.14 150 / 0.3)",
+    warningBorder: "oklch(0.62 0.14 65 / 0.3)",
+    dangerBorder: "oklch(0.58 0.18 25 / 0.3)",
+    dangerSurface: "oklch(0.58 0.18 25 / 0.08)",
+    warningSurface: "oklch(0.62 0.14 65 / 0.08)",
+    successSurface: "oklch(0.58 0.14 150 / 0.08)",
 
-    success: "#388e3c",
-    warning: "#bc6c00",
-    danger: "#c42b1c",
+    success: "oklch(0.58 0.14 150)",
+    warning: "oklch(0.62 0.14 65)",
+    danger: "oklch(0.58 0.18 25)",
 
-    agentIdle: "#8a8a8a",
-    agentRunning: "#388e3c",
-    agentProcessing: "#0a84ff",
-    agentError: "#c42b1c",
-    agentCompleted: "#388e3c",
+    agentIdle: "oklch(0.72 0 0)",
+    agentRunning: "oklch(0.58 0.14 150)",
+    agentProcessing: "oklch(0.55 0.14 240)",
+    agentError: "oklch(0.58 0.18 25)",
+    agentCompleted: "oklch(0.58 0.14 150)",
   },
 
   space: {
@@ -74,17 +78,17 @@ const tokenDefinition = {
   },
 
   radii: {
-    sm: "6px",
-    md: "8px",
-    lg: "10px",
-    xl: "14px",
-    xxl: "18px",
-    pill: "980px",
+    sm: "4px",
+    md: "6px",
+    lg: "9px",
+    xl: "12px",
+    xxl: "16px",
+    pill: "9999px",
   },
 
   fonts: {
-    base: '-apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, "Segoe UI", Roboto, sans-serif',
-    mono: '"SF Mono", "Fira Code", "Fira Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace',
+    base: '"Geist", "Noto Sans SC", -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif',
+    mono: '"Geist Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, "DejaVu Sans Mono", monospace',
   },
 
   fontSizes: {
@@ -94,7 +98,7 @@ const tokenDefinition = {
     md: "0.875rem",
     lg: "1rem",
     xl: "1.5rem",
-    xxl: "2.5rem",
+    xxl: "2rem",
   },
 
   fontWeights: {
@@ -105,15 +109,15 @@ const tokenDefinition = {
   },
 
   transitions: {
-    fast: "0.15s ease",
-    normal: "0.25s cubic-bezier(0.25, 0.1, 0.25, 1)",
+    fast: "120ms cubic-bezier(0.2, 0, 0, 1)",
+    normal: "220ms cubic-bezier(0.2, 0, 0, 1)",
   },
 
   shadows: {
-    panel: "0 8px 24px rgba(0, 0, 0, 0.08)",
-    inset: "inset 0 1px 0 rgba(255, 255, 255, 0.65)",
-    glow: "0 0 0 1px rgba(0, 0, 0, 0.02), 0 8px 24px rgba(0, 0, 0, 0.05)",
-    focusRing: "0 0 0 3px rgba(55, 148, 255, 0.18)",
+    panel: "0 1px 2px oklch(0 0 0 / 0.04), 0 2px 6px oklch(0 0 0 / 0.06)",
+    inset: "inset 0 1px 0 oklch(1 0 0 / 0.6)",
+    glow: "0 0 0 1px oklch(0 0 0 / 0.05)",
+    focusRing: "0 0 0 3px oklch(0 0 0 / 0.1)",
   },
 } as const;
 
@@ -122,78 +126,124 @@ export const tokens: TokenRefs<typeof tokenDefinition> = defineTokens(tokenDefin
 const lightTheme = createTheme(tokens);
 const darkTheme = createTheme(tokens, {
   colors: {
-    background: "#181818",
-    backgroundElevated: "#1f1f1f",
-    surface: "#252526",
-    surfaceHover: "#2a2d2e",
-    surfaceActive: "#313135",
-    surfaceSecondary: "#1f1f1f",
-    surfaceTertiary: "#2a2a2a",
-    border: "#2b2b2b",
-    borderSubtle: "#242628",
-    borderStrong: "#3a3d41",
-    borderHover: "#45494e",
-    text: "#cccccc",
-    textMuted: "#a9adb3",
-    textDim: "#7d8187",
-    primary: "#cccccc",
-    primaryHover: "#ffffff",
-    panel: "#202020",
-    panelHover: "#252526",
-    panelStrong: "#2a2d2e",
-    input: "#1f1f1f",
-    badge: "#2a2d2e",
-    surfaceOverlay: "rgba(255, 255, 255, 0.04)",
-    headerSheen: "linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, transparent 100%)",
-    overlayScrim: "rgba(0, 0, 0, 0.6)",
-    selectionBg: "rgba(55, 148, 255, 0.3)",
-    selectionText: "#ffffff",
-    scrollbarThumb: "rgba(121, 121, 121, 0.42)",
-    buttonPrimary: "linear-gradient(180deg, #f6f6f6 0%, #e7e7e7 100%)",
-    buttonPrimaryHover: "linear-gradient(180deg, #ffffff 0%, #ededed 100%)",
-    buttonPrimaryText: "#111111",
-    buttonPrimaryBorder: "rgba(255, 255, 255, 0.28)",
-    successTextStrong: "#8be28d",
-    successBorder: "rgba(48, 209, 88, 0.24)",
-    warningBorder: "rgba(255, 214, 10, 0.16)",
-    dangerBorder: "rgba(255, 69, 58, 0.24)",
-    dangerSurface: "rgba(244, 71, 71, 0.12)",
-    warningSurface: "rgba(255, 204, 2, 0.12)",
-    successSurface: "rgba(108, 203, 95, 0.12)",
-    success: "#30d158",
-    warning: "#ffd60a",
-    danger: "#ff453a",
-    agentIdle: "#737373",
-    agentRunning: "#30d158",
-    agentError: "#ff453a",
-    agentCompleted: "#30d158",
+    background: "oklch(0.145 0 0)",
+    backgroundElevated: "oklch(0.185 0 0)",
+    surface: "oklch(0.205 0 0)",
+    surfaceHover: "oklch(0.235 0 0)",
+    surfaceActive: "oklch(0.265 0 0)",
+    surfaceSecondary: "oklch(0.185 0 0)",
+    surfaceTertiary: "oklch(0.205 0 0)",
+    border: "oklch(1 0 0 / 0.08)",
+    borderSubtle: "oklch(1 0 0 / 0.05)",
+    borderStrong: "oklch(1 0 0 / 0.16)",
+    borderHover: "oklch(1 0 0 / 0.24)",
+    text: "oklch(0.985 0 0)",
+    textMuted: "oklch(0.78 0 0)",
+    textDim: "oklch(0.58 0 0)",
+    primary: "oklch(0.985 0 0)",
+    primaryHover: "oklch(0.92 0 0)",
+    accent: "oklch(0.985 0 0)",
+    accentSoft: "oklch(1 0 0 / 0.08)",
+    panel: "oklch(0.185 0 0)",
+    panelHover: "oklch(0.205 0 0)",
+    panelStrong: "oklch(0.235 0 0)",
+    input: "oklch(0.185 0 0)",
+    badge: "oklch(0.205 0 0)",
+    surfaceOverlay: "oklch(1 0 0 / 0.04)",
+    headerSheen: "linear-gradient(180deg, oklch(1 0 0 / 0.03) 0%, transparent 100%)",
+    overlayScrim: "oklch(0.145 0 0 / 0.72)",
+    selectionBg: "oklch(0.75 0.16 240 / 0.3)",
+    selectionText: "oklch(0.985 0 0)",
+    scrollbarThumb: "oklch(1 0 0 / 0.16)",
+    buttonPrimary: "oklch(0.985 0 0)",
+    buttonPrimaryHover: "oklch(0.92 0 0)",
+    buttonPrimaryText: "oklch(0.145 0 0)",
+    buttonPrimaryBorder: "oklch(0 0 0 / 0.4)",
+    successTextStrong: "oklch(0.82 0.19 148)",
+    successBorder: "oklch(0.78 0.19 148 / 0.3)",
+    warningBorder: "oklch(0.82 0.17 78 / 0.3)",
+    dangerBorder: "oklch(0.70 0.22 25 / 0.3)",
+    dangerSurface: "oklch(0.70 0.22 25 / 0.08)",
+    warningSurface: "oklch(0.82 0.17 78 / 0.08)",
+    successSurface: "oklch(0.78 0.19 148 / 0.08)",
+    success: "oklch(0.78 0.19 148)",
+    warning: "oklch(0.82 0.17 78)",
+    danger: "oklch(0.70 0.22 25)",
+    agentIdle: "oklch(0.42 0 0)",
+    agentRunning: "oklch(0.78 0.19 148)",
+    agentError: "oklch(0.70 0.22 25)",
+    agentCompleted: "oklch(0.78 0.19 148)",
   },
   shadows: {
-    panel: "0 10px 30px rgba(0, 0, 0, 0.2)",
-    inset: "inset 0 1px 0 rgba(255, 255, 255, 0.02)",
-    glow: "0 0 0 1px rgba(255, 255, 255, 0.02), 0 8px 24px rgba(0, 0, 0, 0.16)",
+    panel: "0 1px 2px oklch(0 0 0 / 0.4), 0 2px 6px oklch(0 0 0 / 0.3)",
+    inset: "inset 0 1px 0 oklch(1 0 0 / 0.04)",
+    glow: "0 0 0 1px oklch(1 0 0 / 0.04)",
+    focusRing: "0 0 0 3px oklch(0.985 0 0 / 0.16)",
   },
 });
 
 inject(lightTheme);
 inject(darkTheme);
 
+import { signal } from "semajsx/signal";
+
 const darkThemeClass = String(darkTheme);
 
-function applySystemTheme() {
+export type ThemeMode = "system" | "light" | "dark";
+
+const THEME_STORAGE_KEY = "aw:theme";
+
+function readStoredTheme(): ThemeMode {
+  if (typeof window === "undefined") return "system";
+  const v = window.localStorage.getItem(THEME_STORAGE_KEY);
+  return v === "light" || v === "dark" ? v : "system";
+}
+
+export const themeMode = signal<ThemeMode>(readStoredTheme());
+
+function resolve(mode: ThemeMode): "light" | "dark" {
+  if (mode !== "system") return mode;
+  return typeof window !== "undefined" &&
+    window.matchMedia("(prefers-color-scheme: dark)").matches
+    ? "dark"
+    : "light";
+}
+
+export const resolvedTheme = signal<"light" | "dark">(resolve(themeMode.value));
+
+function apply() {
+  if (typeof document === "undefined") return;
+  const mode = resolvedTheme.value;
   const root = document.documentElement;
-  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-  root.classList.toggle(darkThemeClass, prefersDark);
-  root.style.colorScheme = prefersDark ? "dark" : "light";
+  root.classList.toggle(darkThemeClass, mode === "dark");
+  root.style.colorScheme = mode;
+}
+
+export function setTheme(mode: ThemeMode) {
+  themeMode.value = mode;
+  if (mode === "system") window.localStorage.removeItem(THEME_STORAGE_KEY);
+  else window.localStorage.setItem(THEME_STORAGE_KEY, mode);
+  resolvedTheme.value = resolve(mode);
+}
+
+export function toggleTheme() {
+  setTheme(resolvedTheme.value === "dark" ? "light" : "dark");
 }
 
 if (typeof window !== "undefined") {
   const mql = window.matchMedia("(prefers-color-scheme: dark)");
-  applySystemTheme();
-  mql.addEventListener("change", applySystemTheme);
+
+  const onSystemChange = () => {
+    if (themeMode.value === "system") {
+      resolvedTheme.value = resolve("system");
+    }
+  };
+  mql.addEventListener("change", onSystemChange);
+  resolvedTheme.subscribe(apply);
+  apply();
 
   // Cleanup on HMR to prevent listener accumulation
   if (import.meta.hot) {
-    import.meta.hot.dispose(() => mql.removeEventListener("change", applySystemTheme));
+    import.meta.hot.dispose(() => mql.removeEventListener("change", onSystemChange));
   }
 }

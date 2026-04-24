@@ -141,20 +141,24 @@ export const EventList: RuntimeComponent<{
         </div>
       );
     }
-    return list.map((event) => {
-      const body = renderEvent(event);
-      if (!body) return null;
-      return (
-        <div class={styles.item}>
-          <div class={styles.itemMeta}>
-            <span class={styles.itemDot} />
-            <span class={styles.itemLabel}>{eventLabel(event)}</span>
-            <span class={styles.itemTime}>{formatDateTime(event.ts)}</span>
-          </div>
-          <div class={styles.itemBody}>{body}</div>
-        </div>
-      );
-    });
+    return (
+      <div class={styles.inner}>
+        {list.map((event) => {
+          const body = renderEvent(event);
+          if (!body) return null;
+          return (
+            <div class={styles.item}>
+              <div class={styles.itemMeta}>
+                <span class={styles.itemDot} />
+                <span class={styles.itemLabel}>{eventLabel(event)}</span>
+                <span class={styles.itemTime}>{formatDateTime(event.ts)}</span>
+              </div>
+              <div class={styles.itemBody}>{body}</div>
+            </div>
+          );
+        })}
+      </div>
+    );
   });
 
   return (

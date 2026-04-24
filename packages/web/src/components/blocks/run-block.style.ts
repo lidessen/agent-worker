@@ -1,16 +1,47 @@
 import { classes, rule } from "semajsx/style";
 import { tokens } from "../../theme/tokens.ts";
 
-const c = classes(["block", "divider", "label", "detail", "detailInline", "detailIcon"] as const);
+const c = classes([
+  "rail",
+  "railRunning",
+  "dot",
+  "label",
+  "detail",
+  "detailInline",
+  "detailIcon",
+  "divider",
+] as const);
 
-export const block = rule`${c.block} {
+export const rail = rule`${c.rail} {
   display: flex;
   align-items: center;
-  gap: ${tokens.space.sm};
-  padding: ${tokens.space.sm} ${tokens.space.md};
-  border-radius: ${tokens.radii.pill};
-  background: ${tokens.colors.surfaceSecondary};
-  border: 1px solid ${tokens.colors.border};
+  gap: 10px;
+  padding: 10px 0 4px;
+  font-family: ${tokens.fonts.mono};
+  font-size: 11px;
+  color: ${tokens.colors.textDim};
+}`;
+
+export const railRunning = rule`${c.railRunning} {
+  color: ${tokens.colors.textDim};
+}`;
+
+export const dot = rule`${c.dot} {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: ${tokens.colors.agentIdle};
+  flex-shrink: 0;
+}
+${c.railRunning} ${c.dot} {
+  background: ${tokens.colors.agentRunning};
+  color: ${tokens.colors.agentRunning};
+  animation: aw-pulse 1.6s ease-in-out infinite;
+}`;
+
+export const label = rule`${c.label} {
+  white-space: nowrap;
+  color: ${tokens.colors.textDim};
 }`;
 
 export const divider = rule`${c.divider} {
@@ -19,16 +50,8 @@ export const divider = rule`${c.divider} {
   background: ${tokens.colors.border};
 }`;
 
-export const label = rule`${c.label} {
-  font-size: ${tokens.fontSizes.xs};
-  color: ${tokens.colors.textDim};
-  white-space: nowrap;
-}`;
-
 export const detail = rule`${c.detail} {
-  font-size: ${tokens.fontSizes.xs};
-  color: ${tokens.colors.textMuted};
-  font-family: ${tokens.fonts.mono};
+  color: ${tokens.colors.textDim};
   white-space: nowrap;
 }`;
 

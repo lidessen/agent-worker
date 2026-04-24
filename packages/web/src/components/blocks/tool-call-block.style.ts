@@ -2,54 +2,141 @@ import { classes, rule } from "semajsx/style";
 import { tokens } from "../../theme/tokens.ts";
 
 const c = classes([
-  "block",
-  "header",
-  "toolIcon",
-  "toolName",
+  "card",
+  "cardOpen",
+  "head",
+  "icon",
+  "name",
+  "args",
+  "duration",
+  "chev",
+  "body",
+  "panel",
+  "lbl",
+  "pre",
+  "preError",
   "statusDot",
   "statusDotPending",
   "statusDotSuccess",
   "statusDotError",
   "statusDotProcessing",
-  "toggle",
-  "args",
-  "result",
-  "resultSection",
-  "resultToggle",
-  "resultToggleLabel",
-  "resultToggleIcon",
   "pending",
-  "duration",
-  "resultError",
 ] as const);
 
-export const block = rule`${c.block} {
-  padding: ${tokens.space.md} ${tokens.space.lg};
-  background: ${tokens.colors.panel};
+export const card = rule`${c.card} {
+  margin: 6px 0;
   border: 1px solid ${tokens.colors.border};
-  border-radius: ${tokens.radii.xl};
-  margin: ${tokens.space.xs} 0;
-  box-shadow: ${tokens.shadows.inset};
+  border-radius: 9px;
+  background: ${tokens.colors.background};
+  overflow: hidden;
+  transition: border-color ${tokens.transitions.fast};
+}
+${c.card}:hover {
+  border-color: ${tokens.colors.borderStrong};
 }`;
 
-export const header = rule`${c.header} {
+export const cardOpen = rule`${c.cardOpen} {
+  border-color: ${tokens.colors.borderStrong};
+}`;
+
+export const head = rule`${c.head} {
   display: flex;
   align-items: center;
-  gap: ${tokens.space.sm};
+  gap: 10px;
+  padding: 9px 12px;
   cursor: pointer;
+  font-family: ${tokens.fonts.mono};
+  font-size: 11.5px;
   user-select: none;
 }`;
 
-export const toolIcon = rule`${c.toolIcon} {
-  font-size: ${tokens.fontSizes.sm};
+export const icon = rule`${c.icon} {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: ${tokens.colors.textMuted};
   flex-shrink: 0;
 }`;
 
-export const toolName = rule`${c.toolName} {
-  font-family: ${tokens.fonts.mono};
-  font-size: ${tokens.fontSizes.sm};
-  font-weight: ${tokens.fontWeights.semibold};
+export const name = rule`${c.name} {
   color: ${tokens.colors.text};
+  font-weight: 500;
+  flex-shrink: 0;
+}`;
+
+export const args = rule`${c.args} {
+  color: ${tokens.colors.textDim};
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1;
+}`;
+
+export const duration = rule`${c.duration} {
+  color: ${tokens.colors.textDim};
+  flex-shrink: 0;
+}`;
+
+export const chev = rule`${c.chev} {
+  color: ${tokens.colors.textDim};
+  transition: transform 120ms;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+}
+${c.cardOpen} ${c.chev} {
+  transform: rotate(90deg);
+}`;
+
+export const body = rule`${c.body} {
+  padding: 10px 12px 12px;
+  border-top: 1px solid ${tokens.colors.border};
+  background: ${tokens.colors.backgroundElevated};
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 900px) {
+  ${c.body} {
+    grid-template-columns: 1fr;
+  }
+}`;
+
+export const panel = rule`${c.panel} {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}`;
+
+export const lbl = rule`${c.lbl} {
+  font-family: ${tokens.fonts.mono};
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: ${tokens.colors.textDim};
+}`;
+
+export const pre = rule`${c.pre} {
+  margin: 0;
+  background: ${tokens.colors.surface};
+  border: 1px solid ${tokens.colors.border};
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-family: ${tokens.fonts.mono};
+  font-size: 11.5px;
+  color: ${tokens.colors.text};
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.5;
+  overflow-x: auto;
+  max-height: 220px;
+  overflow-y: auto;
+}`;
+
+export const preError = rule`${c.preError} {
+  color: ${tokens.colors.danger};
 }`;
 
 export const statusDot = rule`${c.statusDot} {
@@ -58,111 +145,38 @@ export const statusDot = rule`${c.statusDot} {
   border-radius: 50%;
   flex-shrink: 0;
 }
-@keyframes pulse {
+@keyframes aw-fade-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.3; }
 }`;
 
 export const statusDotPending = rule`${c.statusDotPending} {
-  background: ${tokens.colors.primary};
-  animation: pulse 1.5s ease-in-out infinite;
+  background: ${tokens.colors.agentIdle};
 }`;
 
 export const statusDotSuccess = rule`${c.statusDotSuccess} {
-  background: ${tokens.colors.success};
+  background: ${tokens.colors.agentRunning};
+  color: ${tokens.colors.agentRunning};
 }`;
 
 export const statusDotError = rule`${c.statusDotError} {
-  background: ${tokens.colors.danger};
+  background: ${tokens.colors.agentError};
 }`;
 
 export const statusDotProcessing = rule`${c.statusDotProcessing} {
-  background: ${tokens.colors.primary};
-  animation: pulse 1.5s ease-in-out infinite;
-}`;
-
-export const toggle = rule`${c.toggle} {
-  font-size: ${tokens.fontSizes.xs};
-  color: ${tokens.colors.textDim};
-  margin-left: auto;
-}`;
-
-export const args = rule`${c.args} {
-  font-family: ${tokens.fonts.mono};
-  font-size: ${tokens.fontSizes.xs};
-  color: ${tokens.colors.textMuted};
-  white-space: pre-wrap;
-  word-break: break-all;
-  margin-top: ${tokens.space.sm};
-  padding: ${tokens.space.sm};
-  background: ${tokens.colors.input};
-  border-radius: ${tokens.radii.lg};
-  max-height: 300px;
-  overflow-y: auto;
-}`;
-
-export const resultSection = rule`${c.resultSection} {
-  margin-top: ${tokens.space.sm};
-}`;
-
-export const resultToggle = rule`${c.resultToggle} {
-  font-size: ${tokens.fontSizes.xs};
-  color: ${tokens.colors.textDim};
-  cursor: pointer;
-  background: none;
-  border: none;
-  padding: ${tokens.space.xs} 0;
-  transition: color ${tokens.transitions.fast};
-}
-${c.resultToggle}:hover {
-  color: ${tokens.colors.text};
-}`;
-
-export const resultToggleLabel = rule`${c.resultToggleLabel} {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-}`;
-
-export const resultToggleIcon = rule`${c.resultToggleIcon} {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: inherit;
-}`;
-
-export const result = rule`${c.result} {
-  font-family: ${tokens.fonts.mono};
-  font-size: ${tokens.fontSizes.xs};
-  color: ${tokens.colors.textMuted};
-  white-space: pre-wrap;
-  word-break: break-all;
-  margin-top: ${tokens.space.xs};
-  padding: ${tokens.space.sm};
-  background: ${tokens.colors.background};
-  border-radius: ${tokens.radii.sm};
-  max-height: 300px;
-  overflow-y: auto;
-}`;
-
-export const resultError = rule`${c.resultError} {
-  color: ${tokens.colors.danger};
+  background: ${tokens.colors.agentRunning};
+  color: ${tokens.colors.agentRunning};
+  animation: aw-pulse 1.6s ease-in-out infinite;
 }`;
 
 export const pending = rule`${c.pending} {
-  font-size: ${tokens.fontSizes.xs};
+  padding: 8px 12px;
+  border-top: 1px solid ${tokens.colors.border};
+  background: ${tokens.colors.backgroundElevated};
+  font-family: ${tokens.fonts.mono};
+  font-size: 11px;
   color: ${tokens.colors.textDim};
-  margin-top: ${tokens.space.sm};
   display: flex;
   align-items: center;
-  gap: ${tokens.space.xs};
-}`;
-
-export const duration = rule`${c.duration} {
-  font-size: ${tokens.fontSizes.xs};
-  color: ${tokens.colors.textDim};
-  font-family: ${tokens.fonts.mono};
-  background: ${tokens.colors.surfaceSecondary};
-  padding: 2px ${tokens.space.xs};
-  border-radius: ${tokens.radii.pill};
+  gap: 6px;
 }`;

@@ -3,6 +3,7 @@ import { tokens } from "../theme/tokens.ts";
 
 const c = classes([
   "container",
+  "inner",
   "empty",
   "emptyContent",
   "emptyIcon",
@@ -18,16 +19,30 @@ const c = classes([
 export const container = rule`${c.container} {
   flex: 1;
   overflow-y: auto;
-  padding: ${tokens.space.md} ${tokens.space.xl} ${tokens.space.lg};
+  padding: 24px 0 120px;
   display: flex;
   flex-direction: column;
-  gap: ${tokens.space.md};
   min-height: 0;
+  background: ${tokens.colors.background};
 }
 @media (max-width: 640px) {
   ${c.container} {
-    padding: ${tokens.space.sm} ${tokens.space.md} ${tokens.space.md};
-    gap: ${tokens.space.sm};
+    padding: 14px 0 96px;
+  }
+}`;
+
+export const inner = rule`${c.inner} {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 0 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+@media (max-width: 640px) {
+  ${c.inner} {
+    padding: 0 14px;
   }
 }`;
 
@@ -47,27 +62,27 @@ export const emptyContent = rule`${c.emptyContent} {
   text-align: center;
   max-width: 320px;
   padding: ${tokens.space.xl};
-  border-radius: ${tokens.radii.xl};
-  background: ${tokens.colors.surfaceSecondary};
+  border-radius: 9px;
+  background: ${tokens.colors.surface};
   border: 1px solid ${tokens.colors.border};
 }`;
 
 export const emptyIcon = rule`${c.emptyIcon} {
-  width: 56px;
-  height: 56px;
-  border-radius: ${tokens.radii.md};
+  width: 48px;
+  height: 48px;
+  border-radius: 9px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: ${tokens.colors.surface};
+  background: ${tokens.colors.backgroundElevated};
   border: 1px solid ${tokens.colors.border};
-  color: ${tokens.colors.text};
+  color: ${tokens.colors.textMuted};
   line-height: 1;
 }`;
 
 export const emptyText = rule`${c.emptyText} {
   color: ${tokens.colors.textMuted};
-  font-size: ${tokens.fontSizes.sm};
+  font-size: 12.5px;
   line-height: 1.5;
 }`;
 
@@ -75,75 +90,27 @@ export const item = rule`${c.item} {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: ${tokens.space.xs};
-}
-${c.item}:not(:first-child) {
-  padding-top: ${tokens.space.sm};
-}
-${c.item}:not(:first-child)::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 8px;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, ${tokens.colors.borderStrong}, ${tokens.colors.borderSubtle} 55%, transparent);
-}
-@media (max-width: 640px) {
-  ${c.item}:not(:first-child) {
-    padding-top: ${tokens.space.xs};
-  }
 }`;
 
+/* Event labels/meta are visually hidden in the new design — the blocks
+   themselves carry their type. The slots are kept so the component logic
+   stays intact for screen readers. */
 export const itemMeta = rule`${c.itemMeta} {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0;
-}
-@media (max-width: 640px) {
-  ${c.itemMeta} {
-    gap: 4px;
-  }
+  display: none;
 }`;
 
 export const itemDot = rule`${c.itemDot} {
-  width: 5px;
-  height: 5px;
-  border-radius: ${tokens.radii.pill};
-  background: ${tokens.colors.textDim};
-  flex-shrink: 0;
+  display: none;
 }`;
 
 export const itemLabel = rule`${c.itemLabel} {
-  font-size: ${tokens.fontSizes.xxs};
-  color: ${tokens.colors.textDim};
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-@media (max-width: 640px) {
-  ${c.itemLabel} {
-    font-size: ${tokens.fontSizes.xxs};
-    letter-spacing: 0.08em;
-  }
+  display: none;
 }`;
 
 export const itemTime = rule`${c.itemTime} {
-  font-size: ${tokens.fontSizes.xxs};
-  color: ${tokens.colors.textDim};
-}
-@media (max-width: 640px) {
-  ${c.itemTime} {
-    font-size: ${tokens.fontSizes.xxs};
-  }
+  display: none;
 }`;
 
 export const itemBody = rule`${c.itemBody} {
   min-width: 0;
-  padding-left: 6px;
-}
-@media (max-width: 640px) {
-  ${c.itemBody} {
-    padding-left: 4px;
-  }
 }`;
