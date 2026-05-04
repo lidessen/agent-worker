@@ -3,8 +3,11 @@ import {
   extractProvider,
   hasProviderKey,
   getDefaultModel,
+  getFallbackModels,
   getProviderMeta,
   getProviderPriority,
+  PROVIDER_DEFAULT_MODELS,
+  PROVIDER_FALLBACK_MODELS,
   resolveProvider,
   registerProvider,
 } from "../src/providers/registry.ts";
@@ -13,18 +16,17 @@ import {
 
 describe("registry: extractProvider", () => {
   test("extracts provider from model string", () => {
-    expect(extractProvider("anthropic:claude-sonnet-4-6")).toBe("anthropic");
-    expect(extractProvider("openai:gpt-4.1")).toBe("openai");
+    expect(extractProvider(PROVIDER_DEFAULT_MODELS.anthropic)).toBe("anthropic");
+    expect(extractProvider(PROVIDER_DEFAULT_MODELS.openai)).toBe("openai");
     expect(extractProvider("google:gemini-2.5-pro")).toBe("google");
     expect(extractProvider("deepseek:deepseek-chat")).toBe("deepseek");
     expect(extractProvider("kimi-code:kimi-for-coding")).toBe("kimi-code");
     expect(extractProvider("minimax:MiniMax-M2.5")).toBe("minimax");
-    expect(extractProvider("ai-gateway:anthropic/claude-sonnet-4-6")).toBe("ai-gateway");
+    expect(extractProvider(PROVIDER_DEFAULT_MODELS["ai-gateway"])).toBe("ai-gateway");
   });
 
   test("returns null when no colon present", () => {
-    expect(extractProvider("claude-sonnet-4-6")).toBeNull();
-    expect(extractProvider("gpt-4")).toBeNull();
+    expect(extractProvider("model-without-provider")).toBeNull();
   });
 
   test("handles empty string", () => {
@@ -96,13 +98,13 @@ describe("registry: hasProviderKey", () => {
 
 describe("registry: getDefaultModel", () => {
   test("returns default model for known providers", () => {
-    expect(getDefaultModel("anthropic")).toBe("anthropic:claude-sonnet-4-6");
-    expect(getDefaultModel("openai")).toBe("openai:gpt-5.4");
-    expect(getDefaultModel("google")).toBe("google:gemini-2.5-flash");
-    expect(getDefaultModel("deepseek")).toBe("deepseek:deepseek-chat");
-    expect(getDefaultModel("kimi-code")).toBe("kimi-code:kimi-for-coding");
-    expect(getDefaultModel("minimax")).toBe("minimax:MiniMax-M2.7");
-    expect(getDefaultModel("ai-gateway")).toBe("ai-gateway:anthropic/claude-sonnet-4-6");
+    expect(getDefaultModel("anthropic")).toBe(PROVIDER_DEFAULT_MODELS.anthropic);
+    expect(getDefaultModel("openai")).toBe(PROVIDER_DEFAULT_MODELS.openai);
+    expect(getDefaultModel("google")).toBe(PROVIDER_DEFAULT_MODELS.google);
+    expect(getDefaultModel("deepseek")).toBe(PROVIDER_DEFAULT_MODELS.deepseek);
+    expect(getDefaultModel("kimi-code")).toBe(PROVIDER_DEFAULT_MODELS["kimi-code"]);
+    expect(getDefaultModel("minimax")).toBe(PROVIDER_DEFAULT_MODELS.minimax);
+    expect(getDefaultModel("ai-gateway")).toBe(PROVIDER_DEFAULT_MODELS["ai-gateway"]);
   });
 
   test("returns undefined for unknown provider", () => {
@@ -110,7 +112,21 @@ describe("registry: getDefaultModel", () => {
   });
 
   test("returns default model for zenmux", () => {
-    expect(getDefaultModel("zenmux")).toBe("zenmux:openai/gpt-5.4");
+    expect(getDefaultModel("zenmux")).toBe(PROVIDER_DEFAULT_MODELS.zenmux);
+  });
+});
+
+// ── getFallbackModels ─────────────────────────────────────────────────────
+
+describe("registry: getFallbackModels", () => {
+  test("returns fallback models from provider metadata", () => {
+    expect(getFallbackModels("openai").map((m) => m.id)).toEqual(
+      PROVIDER_FALLBACK_MODELS.openai.map((m) => m.id),
+    );
+  });
+
+  test("returns empty array for unknown provider", () => {
+    expect(getFallbackModels("nonexistent")).toEqual([]);
   });
 });
 
@@ -151,7 +167,8 @@ describe("registry: resolveProvider", () => {
   });
 
   test("resolves zenmux provider", async () => {
-    await expect(resolveProvider("zenmux", "openai/gpt-5.4")).resolves.toBeDefined();
+    const model = PROVIDER_DEFAULT_MODELS.zenmux.slice("zenmux:".length);
+    await expect(resolveProvider("zenmux", model)).resolves.toBeDefined();
   });
 
   test("google: uses GOOGLE_API_KEY fallback when GENERATIVE key missing", async () => {

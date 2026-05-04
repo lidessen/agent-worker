@@ -101,7 +101,7 @@ export function CreateAgentDialog() {
           <input
             class={styles.input}
             type="text"
-            placeholder="e.g. anthropic:claude-sonnet-4-20250514"
+            placeholder="provider:model"
             oninput={(e: Event) => {
               model.value = (e.target as HTMLInputElement).value;
             }}

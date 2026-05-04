@@ -3,14 +3,13 @@ import { extractProvider, hasProviderKey, listModelsForProvider } from "../src/u
 
 describe("extractProvider", () => {
   test("extracts provider from model string", () => {
-    expect(extractProvider("anthropic:claude-sonnet-4-6")).toBe("anthropic");
-    expect(extractProvider("openai:gpt-4")).toBe("openai");
-    expect(extractProvider("google:gemini-2.5-pro")).toBe("google");
+    expect(extractProvider("anthropic:any-model")).toBe("anthropic");
+    expect(extractProvider("openai:any-model")).toBe("openai");
+    expect(extractProvider("google:any-model")).toBe("google");
   });
 
   test("returns null when no colon present", () => {
-    expect(extractProvider("claude-sonnet-4-6")).toBeNull();
-    expect(extractProvider("gpt-4")).toBeNull();
+    expect(extractProvider("model-without-provider")).toBeNull();
   });
 
   test("handles empty string", () => {

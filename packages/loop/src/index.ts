@@ -45,13 +45,17 @@ export type {
 export {
   resolveProvider,
   getDefaultModel,
+  getFallbackModels,
   getProviderPriority,
   getProviderMeta,
+  PROVIDER_DEFAULT_MODELS,
+  PROVIDER_FALLBACK_MODELS,
   extractProvider,
   hasProviderKey,
   registerProvider,
   type ProviderAdapter,
   type ProviderMeta,
+  type ModelInfo,
 } from "./providers/registry.ts";
 
 // ── ZenMux provider ──────────────────────────────────────────────────────

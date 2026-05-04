@@ -15,10 +15,14 @@ Run these with the `aw` CLI tool against different runtimes and models.
 ## Prerequisites
 
 ```sh
+# Optional: override these manually. Defaults come from the provider registry.
+ANTHROPIC_MODEL="${ANTHROPIC_MODEL:-$(bun -e 'import { getDefaultModel } from "./packages/loop/src/providers/registry.ts"; console.log(getDefaultModel("anthropic"))')}"
+OPENAI_MODEL="${OPENAI_MODEL:-$(bun -e 'import { getDefaultModel } from "./packages/loop/src/providers/registry.ts"; console.log(getDefaultModel("openai"))')}"
+
 # Terminal 1: Create an agent (daemon auto-starts; pick one)
 aw add test-agent --runtime mock
-aw add test-agent --runtime ai-sdk --model anthropic:claude-sonnet-4-20250514
-aw add test-agent --runtime ai-sdk --model openai:gpt-4.1
+aw add test-agent --runtime ai-sdk --model "$ANTHROPIC_MODEL"
+aw add test-agent --runtime ai-sdk --model "$OPENAI_MODEL"
 aw add test-agent --runtime claude-code --model sonnet
 
 # Terminal 2: Run test commands below
@@ -298,7 +302,7 @@ aw state test-agent 2>&1 | grep -i "no.*daemon\|not running"
 
 ```sh
 # Create agent with real model + builtins
-aw add test-agent --runtime ai-sdk --model anthropic:claude-sonnet-4-20250514
+aw add test-agent --runtime ai-sdk --model "$ANTHROPIC_MODEL"
 
 # In another terminal:
 aw send test-agent 'Save a note with key="test" and content="hello"'
@@ -360,8 +364,8 @@ Record pass (P), fail (F), skip (S), or flaky (FL) with artifact path.
 | Runtime     | Model                              | T1  | T2  | T3  | T4  | T5  | T6  | T7  | T8  | T9  | T10 | T11 | T12 |
 | ----------- | ---------------------------------- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | mock        | (default)                          |     |     |     |     |     |     |     |     |     |     | N/A |     |
-| ai-sdk      | anthropic:claude-sonnet-4-20250514 |     |     |     |     |     |     |     |     |     |     |     |     |
-| ai-sdk      | openai:gpt-4.1                     |     |     |     |     |     |     |     |     |     |     |     |     |
+| ai-sdk      | `$ANTHROPIC_MODEL`                 |     |     |     |     |     |     |     |     |     |     |     |     |
+| ai-sdk      | `$OPENAI_MODEL`                    |     |     |     |     |     |     |     |     |     |     |     |     |
 | claude-code | sonnet                             |     |     |     |     |     |     |     |     |     |     |     |     |
 | codex       | (default)                          |     |     |     |     |     |     |     |     |     |     |     |     |
 | cursor      | (default)                          |     |     |     |     |     |     |     |     |     |     |     |     |

@@ -3,14 +3,11 @@
  */
 import {
   extractProvider as extractProviderFromRegistry,
+  getFallbackModels,
   getProviderMeta,
   hasProviderKey as hasProviderKeyFromRegistry,
+  type ModelInfo,
 } from "../providers/registry.ts";
-
-interface ModelInfo {
-  id: string;
-  name?: string;
-}
 
 // ── Anthropic ───────────────────────────────────────────────────────────────
 
@@ -86,31 +83,6 @@ export async function listGoogleModels(apiKey?: string): Promise<ModelInfo[]> {
 
 // ── Provider dispatch ───────────────────────────────────────────────────────
 
-const FALLBACK_MODELS: Record<string, ModelInfo[]> = {
-  anthropic: [
-    { id: "claude-opus-4-6", name: "Claude Opus 4.6" },
-    { id: "claude-sonnet-4-6", name: "Claude Sonnet 4.6" },
-    { id: "claude-haiku-4-5-20251001", name: "Claude Haiku 4.5" },
-  ],
-  openai: [
-    { id: "o3", name: "o3" },
-    { id: "o4-mini", name: "o4-mini" },
-    { id: "gpt-4.1", name: "GPT-4.1" },
-    { id: "gpt-4.1-mini", name: "GPT-4.1 Mini" },
-    { id: "gpt-4.1-nano", name: "GPT-4.1 Nano" },
-  ],
-  google: [
-    { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro" },
-    { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash" },
-  ],
-  "kimi-code": [{ id: "kimi-for-coding", name: "Kimi for Coding" }],
-  minimax: [
-    { id: "MiniMax-M2.7", name: "MiniMax M2.7" },
-    { id: "MiniMax-M2.5", name: "MiniMax M2.5" },
-    { id: "MiniMax-M2", name: "MiniMax M2" },
-  ],
-};
-
 const LIST_FNS: Record<string, (key?: string) => Promise<ModelInfo[]>> = {
   anthropic: listAnthropicModels,
   openai: listOpenAiModels,
@@ -134,11 +106,11 @@ export async function listModelsForProvider(provider: string): Promise<ModelInfo
     if (models.length > 0) return models;
   }
 
-  return FALLBACK_MODELS[provider] ?? [];
+  return [...getFallbackModels(provider)];
 }
 
 /**
- * Extract provider name from AI SDK model string like "anthropic:claude-sonnet-4-6".
+ * Extract provider name from AI SDK model strings.
  */
 export function extractProvider(model: string): string | null {
   return extractProviderFromRegistry(model);

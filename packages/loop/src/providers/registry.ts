@@ -9,7 +9,7 @@
  * Design constraints:
  * - Only handles provider metadata + adapter resolution (no use-case presets)
  * - zenmux is an OpenAI-compatible AI gateway (lower priority than direct providers)
- * - Listing/fallback UI helpers stay in models.ts (not this module's concern)
+ * - Provider defaults and fallback model lists are declared alongside provider metadata
  */
 
 import type { LanguageModel } from "ai";
@@ -22,12 +22,54 @@ export type ProviderAdapter = (
   env?: Record<string, string>,
 ) => Promise<LanguageModel>;
 
+export interface ModelInfo {
+  id: string;
+  name?: string;
+}
+
+export const PROVIDER_DEFAULT_MODELS = {
+  anthropic: "anthropic:claude-sonnet-4-6",
+  openai: "openai:gpt-5.5",
+  google: "google:gemini-2.5-flash",
+  deepseek: "deepseek:deepseek-chat",
+  "kimi-code": "kimi-code:kimi-for-coding",
+  minimax: "minimax:MiniMax-M2.7",
+  "ai-gateway": "ai-gateway:anthropic/claude-sonnet-4-6",
+  zenmux: "zenmux:openai/gpt-5.5",
+} as const;
+
+export const PROVIDER_FALLBACK_MODELS = {
+  anthropic: [
+    { id: "claude-opus-4-6", name: "Claude Opus 4.6" },
+    { id: "claude-sonnet-4-6", name: "Claude Sonnet 4.6" },
+    { id: "claude-haiku-4-5-20251001", name: "Claude Haiku 4.5" },
+  ],
+  openai: [
+    { id: "gpt-5.5", name: "GPT-5.5" },
+    { id: "gpt-5.4", name: "GPT-5.4" },
+    { id: "gpt-5.4-mini", name: "GPT-5.4 Mini" },
+    { id: "gpt-5.4-nano", name: "GPT-5.4 Nano" },
+  ],
+  google: [
+    { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro" },
+    { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash" },
+  ],
+  "kimi-code": [{ id: "kimi-for-coding", name: "Kimi for Coding" }],
+  minimax: [
+    { id: "MiniMax-M2.7", name: "MiniMax M2.7" },
+    { id: "MiniMax-M2.5", name: "MiniMax M2.5" },
+    { id: "MiniMax-M2", name: "MiniMax M2" },
+  ],
+} as const satisfies Record<string, readonly ModelInfo[]>;
+
 /** Static metadata for a registered provider. */
 export interface ProviderMeta {
   /** Environment variable names that hold the API key for this provider. */
   envKeys: string[];
   /** Default model string (provider:modelId format). */
   defaultModel: string;
+  /** Known model list used when provider model-list APIs are unavailable. */
+  fallbackModels?: readonly ModelInfo[];
   /** Priority for auto-detection (higher = checked first). */
   priority: number;
   /** Factory that creates a LanguageModel. Undefined for reserved providers. */
@@ -123,56 +165,61 @@ function register(name: string, meta: ProviderMeta): void {
 // Register built-in providers (priority: higher = checked first in auto-detect)
 register("anthropic", {
   envKeys: ["ANTHROPIC_API_KEY"],
-  defaultModel: "anthropic:claude-sonnet-4-6",
+  defaultModel: PROVIDER_DEFAULT_MODELS.anthropic,
+  fallbackModels: PROVIDER_FALLBACK_MODELS.anthropic,
   priority: 70,
   adapter: anthropicAdapter,
 });
 
 register("openai", {
   envKeys: ["OPENAI_API_KEY"],
-  defaultModel: "openai:gpt-5.4",
+  defaultModel: PROVIDER_DEFAULT_MODELS.openai,
+  fallbackModels: PROVIDER_FALLBACK_MODELS.openai,
   priority: 60,
   adapter: openaiAdapter,
 });
 
 register("google", {
   envKeys: ["GOOGLE_GENERATIVE_AI_API_KEY", "GOOGLE_API_KEY"],
-  defaultModel: "google:gemini-2.5-flash",
+  defaultModel: PROVIDER_DEFAULT_MODELS.google,
+  fallbackModels: PROVIDER_FALLBACK_MODELS.google,
   priority: 50,
   adapter: googleAdapter,
 });
 
 register("deepseek", {
   envKeys: ["DEEPSEEK_API_KEY"],
-  defaultModel: "deepseek:deepseek-chat",
+  defaultModel: PROVIDER_DEFAULT_MODELS.deepseek,
   priority: 40,
   adapter: deepseekAdapter,
 });
 
 register("kimi-code", {
   envKeys: ["KIMI_CODE_API_KEY"],
-  defaultModel: "kimi-code:kimi-for-coding",
+  defaultModel: PROVIDER_DEFAULT_MODELS["kimi-code"],
+  fallbackModels: PROVIDER_FALLBACK_MODELS["kimi-code"],
   priority: 30,
   adapter: kimiCodeAdapter,
 });
 
 register("minimax", {
   envKeys: ["MINIMAX_API_KEY"],
-  defaultModel: "minimax:MiniMax-M2.7",
+  defaultModel: PROVIDER_DEFAULT_MODELS.minimax,
+  fallbackModels: PROVIDER_FALLBACK_MODELS.minimax,
   priority: 20,
   adapter: minimaxAdapter,
 });
 
 register("ai-gateway", {
   envKeys: ["AI_GATEWAY_API_KEY"],
-  defaultModel: "ai-gateway:anthropic/claude-sonnet-4-6",
+  defaultModel: PROVIDER_DEFAULT_MODELS["ai-gateway"],
   priority: 10,
   adapter: aiGatewayAdapter,
 });
 
 register("zenmux", {
   envKeys: ["ZENMUX_API_KEY"],
-  defaultModel: "zenmux:openai/gpt-5.4",
+  defaultModel: PROVIDER_DEFAULT_MODELS.zenmux,
   priority: 0, // utility gateway — not auto-selected for agent runtimes
   adapter: zenmuxProviderAdapter,
 });
@@ -199,11 +246,19 @@ export async function resolveProvider(
 }
 
 /**
- * Get the default model string for a provider (e.g. "anthropic:claude-sonnet-4-6").
+ * Get the default model string for a provider.
  * Returns undefined for unknown providers.
  */
 export function getDefaultModel(provider: string): string | undefined {
   return registry.get(provider)?.defaultModel;
+}
+
+/**
+ * Get known fallback models for a provider.
+ * Returns an empty array for unknown providers or providers without fallback models.
+ */
+export function getFallbackModels(provider: string): readonly ModelInfo[] {
+  return registry.get(provider)?.fallbackModels ?? [];
 }
 
 /**

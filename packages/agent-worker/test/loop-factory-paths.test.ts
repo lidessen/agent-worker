@@ -1,4 +1,5 @@
 import { test, expect, describe } from "bun:test";
+import { getDefaultModel } from "@agent-worker/loop";
 import type { RuntimeConfig } from "../src/types.ts";
 
 describe("loop-factory allowedPaths plumbing", () => {
@@ -107,7 +108,7 @@ describe("loop-factory allowedPaths plumbing", () => {
     await expect(
       createLoopFromConfig({
         type: "ai-sdk",
-        model: "openai:gpt-5",
+        model: getDefaultModel("openai"),
         mcpServers: {
           remote: {
             type: "http",

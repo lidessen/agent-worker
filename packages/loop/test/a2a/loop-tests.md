@@ -27,6 +27,10 @@ export DEEPSEEK_API_KEY="sk-..."
 claude --version    # ClaudeCodeLoop
 codex --version     # CodexLoop
 cursor --version    # CursorLoop (agent CLI)
+
+# 4. Model defaults from the provider registry:
+ANTHROPIC_MODEL="${ANTHROPIC_MODEL:-$(bun -e 'import { getDefaultModel } from "./packages/loop/src/providers/registry.ts"; console.log(getDefaultModel("anthropic"))')}"
+OPENAI_FAST_MODEL="${OPENAI_FAST_MODEL:-$(bun -e 'import { getDefaultModel, getFallbackModels } from "./packages/loop/src/providers/registry.ts"; const m = getFallbackModels("openai").find((model) => model.id.endsWith("-nano")); console.log(m ? `openai:${m.id}` : getDefaultModel("openai"))')}"
 ```
 
 ## Saving test artifacts
@@ -46,13 +50,14 @@ aw read test-agent --json > "a2a-artifacts/${TEST_ID}_recv.json"
 
 | Field    | Value                                                                            |
 | -------- | -------------------------------------------------------------------------------- |
-| Input    | `aw add test-agent --runtime ai-sdk --model anthropic:claude-haiku-4-5-20251001` |
+| Input    | `aw add test-agent --runtime ai-sdk --model "$ANTHROPIC_MODEL"` |
 | Expected | Agent created, daemon starts successfully; no API key errors                     |
 | Timeout  | 5s                                                                               |
 | Retry    | No                                                                               |
 
 ```sh
-aw add test-agent --runtime ai-sdk --model anthropic:claude-haiku-4-5-20251001
+ANTHROPIC_MODEL="${ANTHROPIC_MODEL:-$(bun -e 'import { getDefaultModel } from "./packages/loop/src/providers/registry.ts"; console.log(getDefaultModel("anthropic"))')}"
+aw add test-agent --runtime ai-sdk --model "$ANTHROPIC_MODEL"
 # verify agent is running:
 aw state test-agent | grep -i "state"
 aw rm test-agent && aw daemon stop
@@ -62,7 +67,7 @@ aw rm test-agent && aw daemon stop
 
 ```sh
 unset ANTHROPIC_API_KEY
-aw add test-agent --runtime ai-sdk --model anthropic:claude-haiku-4-5-20251001 2>&1 | grep -i "error\|key\|not found"
+aw add test-agent --runtime ai-sdk --model "$ANTHROPIC_MODEL" 2>&1 | grep -i "error\|key\|not found"
 aw rm test-agent 2>/dev/null; aw daemon stop 2>/dev/null
 ```
 
@@ -84,7 +89,7 @@ aw rm test-agent 2>/dev/null; aw daemon stop 2>/dev/null
 
 ```sh
 aw rm test-agent 2>/dev/null; aw daemon stop 2>/dev/null
-aw add test-agent --runtime ai-sdk --model anthropic:claude-haiku-4-5-20251001
+aw add test-agent --runtime ai-sdk --model "$ANTHROPIC_MODEL"
 
 aw send test-agent "Reply with exactly: HELLO_A2A_TEST"
 aw read test-agent --wait 10 | grep "HELLO_A2A_TEST"
@@ -108,7 +113,7 @@ aw rm test-agent && aw daemon stop
 
 ```sh
 aw rm test-agent 2>/dev/null; aw daemon stop 2>/dev/null
-aw add test-agent --runtime ai-sdk --model anthropic:claude-haiku-4-5-20251001
+aw add test-agent --runtime ai-sdk --model "$ANTHROPIC_MODEL"
 
 aw send test-agent "Say OK"
 aw read test-agent --wait 10
@@ -146,7 +151,7 @@ print('OK: all events valid')
 
 ```sh
 aw rm test-agent 2>/dev/null; aw daemon stop 2>/dev/null
-aw add test-agent --runtime ai-sdk --model anthropic:claude-haiku-4-5-20251001
+aw add test-agent --runtime ai-sdk --model "$ANTHROPIC_MODEL"
 
 aw send test-agent "Reply: OK"
 aw read test-agent --wait 10
@@ -173,7 +178,7 @@ aw rm test-agent && aw daemon stop
 
 ```sh
 aw rm test-agent 2>/dev/null; aw daemon stop 2>/dev/null
-aw add test-agent --runtime ai-sdk --model anthropic:claude-haiku-4-5-20251001
+aw add test-agent --runtime ai-sdk --model "$ANTHROPIC_MODEL"
 
 aw log --follow > /tmp/a2a_t15_log.txt &
 LOG_PID=$!
@@ -207,7 +212,7 @@ grep "state_change\|run_start\|run_end" /tmp/a2a_t15_log.txt
 
 ```sh
 aw rm test-agent 2>/dev/null; aw daemon stop 2>/dev/null
-aw add test-agent --runtime ai-sdk --model anthropic:claude-haiku-4-5-20251001
+aw add test-agent --runtime ai-sdk --model "$ANTHROPIC_MODEL"
 
 aw send test-agent "Write a very long essay about the entire history of mathematics, covering every century in detail"
 sleep 1
@@ -233,7 +238,7 @@ pgrep -f "aw.*daemon" | wc -l    # should be 0
 
 ```sh
 aw rm test-agent 2>/dev/null; aw daemon stop 2>/dev/null
-aw add test-agent --runtime ai-sdk --model anthropic:claude-haiku-4-5-20251001
+aw add test-agent --runtime ai-sdk --model "$ANTHROPIC_MODEL"
 aw rm test-agent && aw daemon stop
 aw daemon stop 2>&1    # should not crash
 echo "exit code: $?"
@@ -256,7 +261,8 @@ echo "exit code: $?"
 
 ```sh
 aw rm test-agent 2>/dev/null; aw daemon stop 2>/dev/null
-aw add test-agent --runtime ai-sdk --model openai:gpt-4.1-nano
+OPENAI_FAST_MODEL="${OPENAI_FAST_MODEL:-$(bun -e 'import { getDefaultModel, getFallbackModels } from "./packages/loop/src/providers/registry.ts"; const m = getFallbackModels("openai").find((model) => model.id.endsWith("-nano")); console.log(m ? `openai:${m.id}` : getDefaultModel("openai"))')}"
+aw add test-agent --runtime ai-sdk --model "$OPENAI_FAST_MODEL"
 aw send test-agent "Reply with exactly: HELLO_OPENAI_A2A"
 aw read test-agent --wait 15 | grep "HELLO_OPENAI_A2A"
 aw rm test-agent && aw daemon stop
