@@ -2,12 +2,12 @@
 # Dogfood: agents develop agent-worker using agent-worker
 #
 # Assignment based on model strengths + budget:
-#   maintainer (opus)    — deep reasoning, architecture, review all PRs  [$100/mo claude]
-#   codex (GPT-5.4)      — terminal/system SOTA, use sparingly           [$20/mo, tightest budget]
-#   kimi-code (K2.5)     — frontend strongest, debug/refactor, workhorse [coding plan, generous]
-#   minimax (M2.7)       — 97% skill adherence, e2e delivery, workhorse  [coding plan, generous]
+#   maintainer (Claude Opus 4.7)  — deep reasoning, architecture, review all PRs  [$100/mo claude]
+#   codex (GPT-5.3-Codex)         — terminal/system SOTA, use sparingly           [$20/mo, tightest budget]
+#   kimi-code (kimi-for-coding)   — frontend strongest, debug/refactor, workhorse [coding plan, generous]
+#   minimax (M2.7-highspeed)      — 97% skill adherence, e2e delivery, workhorse  [coding plan, generous]
 #   cursor               — fast but unstable, light tasks only
-#   bot (deepseek)       — cheap & stable, chronicle + reports           [API, very cheap]
+#   bot (DeepSeek V4 Pro)         — cheap & stable, chronicle + reports           [API, very cheap]
 #
 # Usage:
 #   cd ~/workspaces/agent-worker
@@ -40,7 +40,7 @@ setup:
 agents:
   maintainer:
     runtime: claude-code
-    model: opus
+    model: claude-opus-4-7
     channels: [general, dev, review]
     instructions: |
       You are the maintainer of the agent-worker project.
@@ -133,12 +133,13 @@ agents:
 
   codex:
     runtime: codex
+    model: gpt-5.3-codex
     channels: [general, dev]
     instructions: |
       You are a contributor to agent-worker.
 
       ## Your domain
-      Your model (GPT-5.4-Codex) is SOTA on terminal and system-level tasks.
+      Your model (GPT-5.3-Codex) is SOTA on terminal and system-level tasks.
       Your usage is limited ($20/mo), so only engage where you're truly needed:
       - packages/agent-worker: daemon, CLI, HTTP API, process management
       - packages/loop: CLI loop implementations (subprocess management)
@@ -161,7 +162,7 @@ agents:
       You are a contributor to agent-worker. You are one of the two primary developers.
 
       ## Your domain
-      Your model (Kimi K2.5) excels at frontend development and debug/refactor.
+      Your model (Kimi Code / kimi-for-coding) excels at frontend development and debug/refactor.
       You handle:
       - packages/web: Web UI (semajsx framework, NOT React)
       - vendor/semajsx: signal system, DOM rendering, styles
@@ -185,7 +186,7 @@ agents:
 
   minimax:
     runtime: ai-sdk
-    model: minimax:MiniMax-M2.7
+    model: minimax:MiniMax-M2.7-highspeed
     env:
       MINIMAX_BASE_URL: https://api.minimaxi.com
     channels: [general, dev]
@@ -193,7 +194,7 @@ agents:
       You are a contributor to agent-worker. You are one of the two primary developers.
 
       ## Your domain
-      Your model (MiniMax M2.7) excels at complex multi-step tasks and agent
+      Your model (MiniMax M2.7-highspeed) excels at complex multi-step tasks and agent
       infrastructure, with 97% skill adherence on intricate workflows.
       You handle:
       - packages/workspace: MCP server, context provider, tool definitions
@@ -228,7 +229,7 @@ agents:
 
   bot:
     runtime: ai-sdk
-    model: deepseek:deepseek-chat
+    model: deepseek:deepseek-v4-pro
     channels: [general, dev, review]
     instructions: |
       You are the project's automation bot.
