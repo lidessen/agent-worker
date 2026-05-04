@@ -1,29 +1,14 @@
-import { test, expect, describe, afterAll, afterEach, mock } from "bun:test";
-import type { CliLoopConfig } from "../src/utils/cli-loop.ts";
-import type { LoopRun, PreflightResult } from "../src/types.ts";
-import { CursorLoop } from "../src/loops/cursor.ts";
+import { afterEach, describe, expect, mock, test } from "bun:test";
+import type { SDKMessage } from "@cursor/sdk";
+import type { LoopEvent } from "../src/types.ts";
 
-// Capture real module exports before any mock.module calls can replace them.
-// Spread into plain objects so values are frozen (not live ESM bindings).
-import * as _cliLoopMod from "../src/utils/cli-loop.ts";
-import * as _cliMod from "../src/utils/cli.ts";
-const _realCliLoop = { ..._cliLoopMod };
-const _realCli = { ..._cliMod };
+async function importCursorLoop() {
+  return import(`../src/loops/cursor.ts?test=${Date.now()}-${Math.random()}`);
+}
 
-function createStubLoopRun(): LoopRun {
-  return {
-    [Symbol.asyncIterator]() {
-      return {
-        async next() {
-          return { done: true, value: undefined };
-        },
-      };
-    },
-    result: Promise.resolve({
-      events: [],
-      usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
-      durationMs: 0,
-    }),
+function streamMessages(messages: SDKMessage[]) {
+  return async function* () {
+    for (const message of messages) yield message;
   };
 }
 
@@ -32,273 +17,196 @@ describe("CursorLoop", () => {
     mock.restore();
   });
 
-  // mock.module is process-global; restore real modules so later test files aren't poisoned
-  afterAll(() => {
-    mock.module("../src/utils/cli-loop.ts", () => _realCliLoop);
-    mock.module("../src/utils/cli.ts", () => _realCli);
-  });
+  test("maps SDK assistant, thinking, and tool messages", async () => {
+    const { mapCursorMessage } = await importCursorLoop();
 
-  test("starts with idle status", () => {
-    const loop = new CursorLoop();
-    expect(loop.status).toBe("idle");
-  });
-
-  test("cancel before run is a no-op", () => {
-    const loop = new CursorLoop();
-    loop.cancel();
-    expect(loop.status).toBe("idle");
-  });
-
-  test("run transitions to running status", () => {
-    const loop = new CursorLoop();
-    loop.run("test prompt");
-    expect(loop.status).toBe("running");
-    // Cancel immediately so it doesn't actually call the CLI
-    loop.cancel();
-  });
-
-  test("throws error when run is called while already running", () => {
-    const loop = new CursorLoop();
-    loop.run("first prompt");
-    expect(() => loop.run("second prompt")).toThrow("Already running");
-    loop.cancel();
-  });
-
-  test("cancel transitions status to cancelled", () => {
-    const loop = new CursorLoop();
-    loop.run("test prompt");
-    loop.cancel();
-    expect(loop.status).toBe("cancelled");
-  });
-
-  test("accepts options in constructor", () => {
-    const loop = new CursorLoop({
-      model: "claude-sonnet-4",
-      extraArgs: ["--test"],
-    });
-    expect(loop.status).toBe("idle");
-  });
-
-  test("run returns LoopRun with async iterator and result promise", () => {
-    const loop = new CursorLoop();
-    const run = loop.run("test prompt");
-
-    // Verify LoopRun contract
-    expect(Symbol.asyncIterator in run).toBe(true);
-    expect(run.result).toBeInstanceOf(Promise);
-
-    loop.cancel();
-  });
-
-  test("can cancel multiple times safely", () => {
-    const loop = new CursorLoop();
-    loop.run("test prompt");
-    loop.cancel();
-    loop.cancel(); // Should not throw
-    expect(loop.status).toBe("cancelled");
-  });
-
-  describe("preflight", () => {
-    test("returns preflight result", async () => {
-      const loop = new CursorLoop();
-      const result = await loop.preflight();
-
-      expect(result).toHaveProperty("ok");
-      expect(typeof result.ok).toBe("boolean");
-      if (result.ok) {
-        expect(result).toHaveProperty("version");
-      } else {
-        expect(result).toHaveProperty("error");
-      }
-    });
-
-    test("preflight does not change status", async () => {
-      const loop = new CursorLoop();
-      expect(loop.status).toBe("idle");
-      await loop.preflight();
-      expect(loop.status).toBe("idle");
-    });
-  });
-
-  describe("status transitions", () => {
-    test("status transitions to completed after successful run", async () => {
-      const loop = new CursorLoop();
-      loop.run("test prompt");
-
-      // Cancel immediately to simulate completion
-      loop.cancel();
-
-      // Wait a bit for status to update
-      await new Promise((resolve) => setTimeout(resolve, 10));
-
-      // Status should be cancelled since we cancelled
-      expect(loop.status).toBe("cancelled");
-    });
-
-    test("status transitions to failed on error", async () => {
-      const loop = new CursorLoop();
-      const r = loop.run("test prompt");
-
-      // Cancel to trigger error path
-      loop.cancel();
-
-      try {
-        await r.result;
-      } catch {
-        // Expected to fail
-      }
-
-      // Status should reflect cancellation
-      expect(loop.status).toBe("cancelled");
-    });
-  });
-
-  describe("options handling", () => {
-    test("builds args with model option", () => {
-      const loop = new CursorLoop({ model: "claude-sonnet-4" });
-      loop.run("test prompt");
-      // Verify it doesn't throw and can be cancelled
-      loop.cancel();
-    });
-
-    test("builds args with extraArgs option", () => {
-      const loop = new CursorLoop({ extraArgs: ["--verbose", "--debug"] });
-      loop.run("test prompt");
-      loop.cancel();
-    });
-
-    test("builds args with both model and extraArgs", () => {
-      const loop = new CursorLoop({
-        model: "claude-sonnet-4",
-        extraArgs: ["--verbose"],
-      });
-      loop.run("test prompt");
-      loop.cancel();
-    });
-
-    test("handles empty prompt", () => {
-      const loop = new CursorLoop();
-      loop.run("");
-      loop.cancel();
-    });
-  });
-
-  describe("CLI integration", () => {
-    test("uses agent CLI with positional prompt and yolo flags", async () => {
-      let capturedConfig: CliLoopConfig | undefined;
-
-      mock.module("../src/utils/cli-loop.ts", () => ({
-        runCliLoop: (config: CliLoopConfig) => {
-          capturedConfig = config;
-          return createStubLoopRun();
-        },
-      }));
-
-      const { CursorLoop: MockedCursorLoop } = await import(
-        `../src/loops/cursor.ts?cursor-args=${Date.now()}`
-      );
-      const loop = new MockedCursorLoop({
-        model: "claude-sonnet-4",
-        extraArgs: ["--debug"],
-      });
-
-      loop.run("fix the bug");
-
-      expect(capturedConfig).toBeDefined();
-      expect(capturedConfig?.command).toBe("agent");
-      expect(capturedConfig?.args).toEqual([
-        "-p",
-        "--output-format",
-        "stream-json",
-        "--yolo",
-        "--approve-mcps",
-        "--model",
-        "claude-sonnet-4",
-        "--debug",
-        "fix the bug",
-      ]);
-    });
-
-    test("maps tool_call started and completed events", async () => {
-      let capturedConfig: CliLoopConfig | undefined;
-
-      mock.module("../src/utils/cli-loop.ts", () => ({
-        runCliLoop: (config: CliLoopConfig) => {
-          capturedConfig = config;
-          return createStubLoopRun();
-        },
-      }));
-
-      const { CursorLoop: MockedCursorLoop } = await import(
-        `../src/loops/cursor.ts?cursor-events=${Date.now()}`
-      );
-      new MockedCursorLoop().run("exercise mapper");
-
-      expect(
-        capturedConfig?.mapEvent({
-          type: "tool_call",
-          subtype: "started",
-          call_id: "call_001",
-          tool_call: {
-            mcpToolCall: {
-              args: {
-                toolName: "agent_todo",
-                args: { action: "add", text: "Write unit tests" },
-              },
+    expect(
+      mapCursorMessage({
+        type: "assistant",
+        agent_id: "agent_1",
+        run_id: "run_1",
+        message: {
+          role: "assistant",
+          content: [
+            { type: "text", text: "hello" },
+            {
+              type: "tool_use",
+              id: "call_1",
+              name: "workspace.channel_read",
+              input: { channel: "dev" },
             },
-          },
-        }),
-      ).toEqual({
+          ],
+        },
+      }),
+    ).toEqual([
+      { type: "text", text: "hello" },
+      {
         type: "tool_call_start",
-        callId: "call_001",
-        name: "agent_todo",
-        args: { action: "add", text: "Write unit tests" },
-      });
+        name: "workspace.channel_read",
+        callId: "call_1",
+        args: { channel: "dev" },
+      },
+    ]);
 
-      expect(
-        capturedConfig?.mapEvent({
-          type: "tool_call",
-          subtype: "completed",
-          call_id: "call_001",
-          tool_call: {
-            mcpToolCall: {
-              result: {
-                success: {
-                  content: [{ text: { text: "Created todo `todo_6`" } }],
-                },
-              },
-            },
-          },
-        }),
-      ).toEqual({
+    expect(
+      mapCursorMessage({
+        type: "thinking",
+        agent_id: "agent_1",
+        run_id: "run_1",
+        text: "considering",
+      }),
+    ).toEqual([{ type: "thinking", text: "considering" }]);
+
+    expect(
+      mapCursorMessage({
+        type: "tool_call",
+        agent_id: "agent_1",
+        run_id: "run_1",
+        call_id: "call_1",
+        name: "workspace.channel_read",
+        status: "completed",
+        result: "ok",
+      }),
+    ).toEqual([
+      {
         type: "tool_call_end",
-        name: "unknown",
-        callId: "call_001",
-        result: "Created todo `todo_6`",
-      });
-    });
-
-    test("preflight checks agent CLI availability", async () => {
-      const checkCliAvailability = mock(async (command: string) => {
-        expect(command).toBe("agent");
-        return { available: true, version: "0.9.0" };
-      });
-
-      mock.module("../src/utils/cli.ts", () => ({
-        checkCliAvailability,
-      }));
-
-      const { CursorLoop: MockedCursorLoop } = await import(
-        `../src/loops/cursor.ts?cursor-preflight=${Date.now()}`
-      );
-      const result: PreflightResult = await new MockedCursorLoop().preflight();
-
-      expect(result).toEqual({
-        ok: true,
-        version: "0.9.0",
+        name: "workspace.channel_read",
+        callId: "call_1",
+        result: "ok",
         error: undefined,
-      });
-      expect(checkCliAvailability).toHaveBeenCalledTimes(1);
+      },
+    ]);
+  });
+
+  test("builds Cursor SDK options with local cwd array and MCP servers", async () => {
+    const { buildCursorAgentOptions } = await importCursorLoop();
+
+    const opts = buildCursorAgentOptions(
+      {
+        model: "composer-2",
+        cwd: "/repo",
+        allowedPaths: ["/shared"],
+        apiKey: "key_123",
+        settingSources: ["project"],
+      },
+      {
+        workspace: {
+          command: "bun",
+          args: ["run", "mcp.ts"],
+          env: { DAEMON_URL: "http://127.0.0.1:7420" },
+        },
+        sentry: {
+          type: "http",
+          url: "https://mcp.sentry.dev/mcp",
+          headers: { "x-test": "1" },
+        },
+      },
+    );
+
+    expect(opts).toEqual({
+      apiKey: "key_123",
+      model: { id: "composer-2" },
+      local: {
+        cwd: ["/repo", "/shared"],
+        settingSources: ["project"],
+      },
+      mcpServers: {
+        workspace: {
+          type: "stdio",
+          command: "bun",
+          args: ["run", "mcp.ts"],
+          env: { DAEMON_URL: "http://127.0.0.1:7420" },
+        },
+        sentry: {
+          type: "http",
+          url: "https://mcp.sentry.dev/mcp",
+          headers: { "x-test": "1" },
+        },
+      },
     });
+  });
+
+  test("streams SDK messages through the LoopRun contract", async () => {
+    const send = mock(async () => ({
+      id: "run_1",
+      agentId: "agent_1",
+      status: "finished",
+      supports: () => true,
+      unsupportedReason: () => undefined,
+      stream: streamMessages([
+        {
+          type: "assistant",
+          agent_id: "agent_1",
+          run_id: "run_1",
+          message: { role: "assistant", content: [{ type: "text", text: "done" }] },
+        },
+      ]),
+      wait: async () => ({ id: "run_1", status: "finished" }),
+      cancel: mock(async () => {}),
+      conversation: async () => [],
+      onDidChangeStatus: () => () => {},
+    }));
+    const close = mock(() => {});
+    const create = mock(async () => ({
+      agentId: "agent_1",
+      model: { id: "composer-2" },
+      send,
+      close,
+      reload: async () => {},
+      [Symbol.asyncDispose]: async () => {},
+      listArtifacts: async () => [],
+      downloadArtifact: async () => new Uint8Array(),
+    }));
+
+    mock.module("@cursor/sdk", () => ({
+      Agent: { create },
+      Cursor: { me: mock(async () => ({})) },
+    }));
+
+    const { CursorLoop } = await importCursorLoop();
+    const loop = new CursorLoop({
+      cwd: "/repo",
+      apiKey: "key_123",
+    });
+    loop.setMcpServers({
+      workspace: { command: "bun", args: ["run", "mcp.ts"] },
+    });
+
+    const run = loop.run({ system: "system", prompt: "prompt" });
+    const events: LoopEvent[] = [];
+    for await (const event of run) events.push(event);
+    const result = await run.result;
+
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(send).toHaveBeenCalledWith("system\n\nprompt", {
+      mcpServers: {
+        workspace: { type: "stdio", command: "bun", args: ["run", "mcp.ts"] },
+      },
+    });
+    expect(events).toContainEqual({ type: "text", text: "done" });
+    expect(events.find((event) => event.type === "usage")).toMatchObject({
+      type: "usage",
+      source: "estimate",
+    });
+    expect(result.usage.totalTokens).toBeGreaterThan(0);
+    expect(loop.status).toBe("completed");
+  });
+
+  test("preflight validates Cursor API key presence without network by default", async () => {
+    const { CursorLoop } = await importCursorLoop();
+
+    const previousApiKey = process.env.CURSOR_API_KEY;
+    delete process.env.CURSOR_API_KEY;
+    try {
+      await expect(new CursorLoop().preflight()).resolves.toEqual({
+        ok: false,
+        error: "Cursor SDK requires CURSOR_API_KEY or runtime env.CURSOR_API_KEY.",
+      });
+      await expect(new CursorLoop({ apiKey: "key_123" }).preflight()).resolves.toEqual({
+        ok: true,
+      });
+    } finally {
+      if (previousApiKey) process.env.CURSOR_API_KEY = previousApiKey;
+    }
   });
 });

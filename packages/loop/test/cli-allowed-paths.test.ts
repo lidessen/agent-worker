@@ -37,10 +37,7 @@ describe("CLI loop allowedPaths → --add-dir", () => {
     expect(args).toContain("/shared/workspace");
   });
 
-  test("cursor passes allowedPaths via env var", async () => {
-    // Cursor has no --add-dir flag; allowedPaths are passed via AGENT_ALLOWED_PATHS env.
-    // This is wired in loop-factory.ts, not in CursorLoop itself.
-    // Verify the CursorLoop accepts the option without error.
+  test("cursor accepts allowedPaths for SDK local cwd roots", async () => {
     const mod = await import("../src/loops/cursor.ts");
     const loop = new mod.CursorLoop({
       model: "auto",

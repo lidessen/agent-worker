@@ -23,10 +23,10 @@ export ANTHROPIC_API_KEY="sk-..."
 export OPENAI_API_KEY="sk-..."
 export DEEPSEEK_API_KEY="sk-..."
 
-# 3. For CLI runtimes, verify the CLI is installed:
+# 3. For CLI runtimes, verify the CLI is installed; Cursor uses @cursor/sdk:
 claude --version    # ClaudeCodeLoop
 codex --version     # CodexLoop
-cursor --version    # CursorLoop (agent CLI)
+export CURSOR_API_KEY="key_..."
 
 # 4. Model defaults from the provider registry:
 ANTHROPIC_MODEL="${ANTHROPIC_MODEL:-$(bun -e 'import { getDefaultModel } from "./packages/loop/src/providers/registry.ts"; console.log(getDefaultModel("anthropic"))')}"
@@ -506,17 +506,17 @@ aw rm test-agent && time aw daemon stop
 
 ## 4. CursorLoop Tests
 
-### T4.1: CLI availability
+### T4.1: SDK auth availability
 
-| Field    | Value              |
-| -------- | ------------------ |
-| Input    | `cursor --version` |
-| Expected | Prints version     |
-| Timeout  | 5s                 |
-| Retry    | No                 |
+| Field    | Value                      |
+| -------- | -------------------------- |
+| Input    | `CURSOR_API_KEY` is set    |
+| Expected | CursorLoop preflight is ok |
+| Timeout  | 5s                         |
+| Retry    | No                         |
 
 ```sh
-cursor --version    # If fails, skip all T4.x tests
+test -n "$CURSOR_API_KEY"    # If fails, skip all T4.x tests
 ```
 
 ---
@@ -558,7 +558,7 @@ aw log --json | grep '"type":"run_end"'
 aw rm test-agent && aw daemon stop
 ```
 
-> **Note:** CursorLoop may not emit `tool_call_end` events. This is a known limitation.
+> **Note:** CursorLoop now maps SDK `tool_call` messages. Tool end events depend on whether the SDK emits completed tool-call messages for the run.
 
 ---
 

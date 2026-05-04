@@ -36,13 +36,20 @@ export async function createLoopFromConfig(config: RuntimeConfig): Promise<Agent
       case "mock":
         return createMockLoop(config);
       default:
-        throw new Error(`Unknown runtime type: ${(config as any).type}`);
+        throw new Error(`Unknown runtime type: ${String((config as { type?: unknown }).type)}`);
     }
   })();
 
   if (config.mcpServers && Object.keys(config.mcpServers).length > 0) {
+    if (loop.setMcpServers) {
+      loop.setMcpServers(config.mcpServers);
+      return loop;
+    }
+
     if (!loop.setMcpConfig) {
-      throw new Error("External MCP servers are currently supported only for CLI runtimes");
+      throw new Error(
+        "External MCP servers are currently supported only for SDK-native or config-file runtimes",
+      );
     }
 
     const configPath = `/tmp/agent-runtime-mcp-${Date.now()}-${Math.random()
@@ -141,15 +148,12 @@ async function createCodexLoop(config: RuntimeConfig): Promise<AgentLoop> {
 
 async function createCursorLoop(config: RuntimeConfig): Promise<AgentLoop> {
   const { CursorLoop } = await import("@agent-worker/loop");
-  // Cursor has no --add-dir; pass allowedPaths via env var
-  const env = { ...config.env };
-  if (config.allowedPaths?.length) {
-    env.AGENT_ALLOWED_PATHS = config.allowedPaths.join(":");
-  }
   return new CursorLoop({
     model: config.model,
     cwd: config.cwd,
-    env,
+    allowedPaths: config.allowedPaths,
+    env: config.env,
+    apiKey: config.env?.CURSOR_API_KEY,
   });
 }
 

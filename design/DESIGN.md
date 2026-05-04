@@ -77,7 +77,7 @@ _Does:_ `Workspace` definition (channels, `InstructionQueue`, context providers,
 _Doesn't:_ poll queues (that's the orchestrator), run loops, or hold any standalone-agent state.
 
 **`packages/loop/`** — pluggable LLM backends.
-_Does:_ `AgentLoop` interface + implementations (`AiSdkLoop`, `ClaudeCodeLoop`, `CodexLoop`, `CursorLoop`, `MockLoop`); streaming `LoopEvent` (text / thinking / tool_call_* / usage / error); optional `setTools` (AI SDK direct injection) and `setMcpConfig` (CLI runtimes via stdio).
+_Does:_ `AgentLoop` interface + implementations (`AiSdkLoop`, `ClaudeCodeLoop`, `CodexLoop`, `CursorLoop`, `MockLoop`); streaming `LoopEvent` (text / thinking / tool_call_* / usage / error); optional `setTools` (AI SDK direct injection), `setMcpServers` (SDK runtimes with structured MCP), and `setMcpConfig` (config-file runtimes).
 _Doesn't:_ know about agents, workspaces, inboxes, or how the prompt was assembled.
 
 **`packages/shared/`** — cross-cutting plumbing.
@@ -137,7 +137,7 @@ Core types: `BusEvent` (shared), `LoopEvent` (loop), `Instruction` / `InboxEntry
 
 **Event-first JSONL persistence.** Every activity — loop events, inbox state, responses, chronicle, timeline, per-run logs — appends to JSONL files via the process-level `EventBus`. Emitters don't know consumers; tailers (UI stream, `aw log`, replay) subscribe + read from disk. Crash recovery and UI resume are both log replay, so there's no separate snapshot path to keep in sync.
 
-**Loop abstraction decouples runtime from backend.** `AgentLoop` is minimal: `run(prompt)` returning a streaming `LoopEvent` iterable, plus optional `setTools` / `setMcpConfig`. AI SDK loops inject workspace tools directly via `prepareStep`; CLI loops (Claude Code, Codex, Cursor) receive a generated MCP config file and run the tool server as a stdio subprocess. Tool capability is committed once per run. Runtime is chosen at agent-create time via `RuntimeConfig.type` and can be swapped without touching agent or workspace code.
+**Loop abstraction decouples runtime from backend.** `AgentLoop` is minimal: `run(prompt)` returning a streaming `LoopEvent` iterable, plus optional `setTools` / `setMcpServers` / `setMcpConfig`. AI SDK loops inject workspace tools directly via `prepareStep`; SDK-backed loops (Claude Code, Cursor) receive structured MCP server objects; config-file runtimes (Codex) receive generated config and run the workspace MCP tool server as a stdio subprocess. Tool capability is committed once per run. Runtime is chosen at agent-create time via `RuntimeConfig.type` and can be swapped without touching agent or workspace code.
 
 **Workspace kernel state (Task → Attempt → Handoff → Artifact) with attempt-scoped worktrees.** The workspace owns multi-agent coordination records, not the agent. A `Task` is a unit of work; an `Attempt` is one runtime execution with lifecycle-bound resources; a `Handoff` is an explicit shift with decisions/blockers/next-steps; `Artifact`s point to concrete outputs. Git worktrees are created on-demand by `worktree_*` MCP tools during a running attempt, bound to its lifecycle, and torn down at terminal status — branches survive as audit trail. Per-run tool rebuilding attaches `activeAttemptId` so `worktree_*` tools are visible only while an attempt is active.
 
@@ -163,7 +163,7 @@ Core types: `BusEvent` (shared), `LoopEvent` (loop), `Instruction` / `InboxEntry
 - **Static tool capability per run.** Tool set is committed before `loop.run()` starts; no mid-run capability changes.
 - **Runtime-local usage/session semantics.** Context usage and provider session ids stay inside loop implementations because each backend reports and resumes differently.
 - **OAuth-declaring MCP servers rejected.** `readAgentMcpConfig` throws if a server entry has an `oauth` field.
-- **CLI runtimes over stdio only.** Codex deadlocked on HTTP MCP transport; all CLI runtimes (Claude Code, Codex, Cursor) now share the stdio subprocess path.
+- **Config-file MCP runtimes over stdio only.** Codex deadlocked on HTTP MCP transport, so config-file MCP generation uses the stdio subprocess path. SDK runtimes should prefer structured MCP server objects when their SDK exposes that surface.
 
 ## Non-goals
 

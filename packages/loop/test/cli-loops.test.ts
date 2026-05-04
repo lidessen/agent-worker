@@ -141,49 +141,6 @@ function extractCodexResult(stdout: string): string {
   return stdout;
 }
 
-// ── Cursor event mapper ─────────────────────────────────────────────────────
-
-function mapCursorEvent(data: unknown) {
-  const event = data as Record<string, unknown>;
-  const type = event.type as string;
-  switch (type) {
-    case "assistant": {
-      const message = event.message as Record<string, unknown> | undefined;
-      const content = message?.content as Array<Record<string, unknown>> | undefined;
-      if (!Array.isArray(content)) return null;
-      for (const block of content) {
-        if (block.type === "tool_use")
-          return {
-            type: "tool_call_start" as const,
-            name: block.name as string,
-            callId: block.id as string,
-            args: block.input as Record<string, unknown>,
-          };
-        if (block.type === "text") return { type: "text" as const, text: block.text as string };
-      }
-      return null;
-    }
-    case "result":
-      if (event.result) return { type: "text" as const, text: event.result as string };
-      return null;
-    default:
-      return { type: "unknown" as const, data: event };
-  }
-}
-
-function extractCursorResult(stdout: string): string {
-  const lines = stdout.trim().split("\n");
-  for (let i = lines.length - 1; i >= 0; i--) {
-    try {
-      const parsed = JSON.parse(lines[i]!) as Record<string, unknown>;
-      if (parsed.type === "result" && typeof parsed.result === "string") return parsed.result;
-    } catch {
-      /* skip */
-    }
-  }
-  return stdout;
-}
-
 // ── Tests ───────────────────────────────────────────────────────────────────
 
 describe("ClaudeCodeLoop (mock)", () => {
@@ -286,85 +243,6 @@ describe("CodexLoop (mock)", () => {
   });
 });
 
-describe("CursorLoop (mock)", () => {
-  test("success scenario", async () => {
-    const run = runCliLoop(
-      mockCliConfig("cursor", "success", mapCursorEvent, extractCursorResult),
-      {},
-    );
-    const events = await collectEvents(run);
-    await run.result;
-
-    expect(hasTextOutput(events)).toBe(true);
-    expect(hasToolCalls(events)).toBe(true);
-  });
-
-  test("estimateUsage flag emits a synthetic usage event with source=estimate", async () => {
-    const run = runCliLoop(
-      {
-        ...mockCliConfig("cursor", "success", mapCursorEvent, extractCursorResult),
-        estimateUsage: true,
-      },
-      {},
-    );
-    const events = await collectEvents(run);
-    const result = await run.result;
-
-    const usageEvent = events.find((e: { type: string }) => e.type === "usage") as
-      | { type: "usage"; outputTokens: number; totalTokens: number; source: string }
-      | undefined;
-    expect(usageEvent).toBeDefined();
-    expect(usageEvent?.source).toBe("estimate");
-    expect(usageEvent?.outputTokens).toBeGreaterThan(0);
-    expect(usageEvent?.totalTokens).toBe(usageEvent?.outputTokens);
-
-    // LoopResult.usage should also reflect the estimate so downstream
-    // consumers that only look at the final tally see something.
-    expect(result.usage.totalTokens).toBeGreaterThan(0);
-  });
-
-  test("estimateUsage does not override a real usage_delta from the runtime", async () => {
-    // Reuse claude's success fixture which does emit usage_delta sentinels.
-    const run = runCliLoop(
-      {
-        ...mockCliConfig("claude", "success", mapClaudeEvent, extractClaudeResult),
-        estimateUsage: true,
-      },
-      {},
-    );
-    const events = await collectEvents(run);
-    await run.result;
-
-    // The estimator must NOT fire when real usage is present.
-    const usageEvents = events.filter((e: { type: string }) => e.type === "usage");
-    for (const e of usageEvents) {
-      expect((e as { source: string }).source).not.toBe("estimate");
-    }
-  });
-
-  test("error scenario", async () => {
-    const run = runCliLoop(
-      mockCliConfig("cursor", "error", mapCursorEvent, extractCursorResult),
-      {},
-    );
-    await collectEventsSafe(run);
-    await expect(run.result).rejects.toThrow();
-  });
-
-  test("tool-calls scenario", async () => {
-    const run = runCliLoop(
-      mockCliConfig("cursor", "tool-calls", mapCursorEvent, extractCursorResult),
-      {},
-    );
-    const events = await collectEvents(run);
-    await run.result;
-
-    // Cursor only emits tool_call_start from assistant blocks (no separate end events in mock)
-    const toolStarts = eventsOfType(events, "tool_call_start");
-    expect(toolStarts.length).toBe(3);
-  });
-});
-
 describe("Cross-runtime contract", () => {
   test("all runtimes produce LoopRun with result promise", async () => {
     const configs = [
@@ -375,10 +253,6 @@ describe("Cross-runtime contract", () => {
       {
         name: "codex",
         config: mockCliConfig("codex", "success", mapCodexEvent, extractCodexResult),
-      },
-      {
-        name: "cursor",
-        config: mockCliConfig("cursor", "success", mapCursorEvent, extractCursorResult),
       },
     ];
 

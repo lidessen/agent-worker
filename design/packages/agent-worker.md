@@ -37,7 +37,7 @@ See [../DESIGN.md](../DESIGN.md) for how the two paths split. This doc covers th
 
 **Workspace path.** `workspace-registry.ts` maps keys (`name` or `name:tag`) → `ManagedWorkspace`, ensures the implicit `global` workspace exists, persists `workspaces.json` for restart recovery, serializes manifest writes. `managed-workspace.ts` holds the `Workspace` + resolved config + one `WorkspaceOrchestrator` per agent loop, emits `status.json`, snapshots per-run runner scopes (cwd, allowedPaths, active worktree). `orchestrator.ts` polls the workspace's `InstructionQueue`, builds prompts, dispatches to the runner closure, and owns quota backoff + auto-pause. `runner.ts` is the runner abstraction (`HostRunner` today; `SandboxRunner` is a placeholder).
 
-**Loop wiring.** `loop-factory.ts` turns a `RuntimeConfig` into an `AgentLoop` (ai-sdk / claude-code / codex / cursor / mock) and writes a temp MCP config file for CLI runtimes, hooking cleanup. `resolve-runtime.ts` resolves runtime + model: CLI discovery precedence, provider key detection, fallback to ai-sdk if a model is given but no CLI.
+**Loop wiring.** `loop-factory.ts` turns a `RuntimeConfig` into an `AgentLoop` (ai-sdk / claude-code / codex / cursor / mock), passing MCP servers as structured objects to SDK-capable loops and writing temp MCP config files only for config-file runtimes, with cleanup hooked. `resolve-runtime.ts` resolves runtime + model: CLI discovery precedence, provider key detection, fallback to ai-sdk if a model is given but no CLI.
 
 **Event log.** `event-log.ts` is the single EventBus consumer: appends every BusEvent to daemon JSONL, tracks byte offsets so `/events` can resume from a cursor.
 

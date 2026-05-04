@@ -117,7 +117,7 @@ export interface RuntimeConfig {
   /** System instructions for the agent. */
   instructions?: string;
 
-  /** Working directory for CLI-based runtimes. Default: daemon cwd. */
+  /** Working directory for local runtimes. Default: daemon cwd. */
   cwd?: string;
 
   /** Additional directories the agent is allowed to access beyond cwd.

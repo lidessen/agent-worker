@@ -1,16 +1,14 @@
 /**
- * MCP config generator for CLI agents.
+ * MCP config generator for config-file MCP agents.
  *
- * All CLI runtimes (claude-code, codex, cursor) now use the same
- * stdio subprocess path. We previously routed codex/cursor through
+ * Config-file MCP runtimes use the same stdio subprocess path.
+ * We previously routed codex/cursor through
  * the `StreamableHTTPServerTransport` on the WorkspaceMcpHub, but
  * codex's app-server deadlocks mid-tool-call on that transport:
  * the tool runs, the workspace side-effect happens, but codex
  * never emits `item/completed` for the call because the SSE-
  * based HTTP transport never returns a terminal response it
- * recognises. Dropping everyone onto the stdio proxy is a strict
- * behavioral improvement — claude-code was already using it and
- * is the most battle-tested path.
+ * recognises. Config-file clients therefore use the stdio proxy.
  */
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -18,10 +16,10 @@ import { resolveScriptEntrypointCommand } from "@agent-worker/shared";
 import type { McpServerDef } from "../../config/types.ts";
 
 /**
- * Create an MCP config file for a CLI agent.
+ * Create an MCP config file for a runtime that needs one.
  *
- * All CLI runtimes share the stdio path (prefers bun, falls back
- * to node+tsx). `httpUrl` is accepted for backward compatibility
+ * The workspace MCP server uses the stdio path (prefers bun, falls
+ * back to node+tsx). `httpUrl` is accepted for backward compatibility
  * but ignored.
  */
 export async function createWorkspaceMcpConfig(

@@ -31,7 +31,7 @@ describe("loop-factory allowedPaths plumbing", () => {
     expect(loop).toBeDefined();
   });
 
-  test("createLoopFromConfig passes allowedPaths to cursor as env", async () => {
+  test("createLoopFromConfig passes allowedPaths to cursor loop options", async () => {
     const { createLoopFromConfig } = await import("../src/loop-factory.ts");
 
     const config: RuntimeConfig = {
@@ -42,6 +42,8 @@ describe("loop-factory allowedPaths plumbing", () => {
 
     const loop = await createLoopFromConfig(config);
     expect(loop).toBeDefined();
+    const internal = loop as unknown as { options: { allowedPaths?: string[] } };
+    expect(internal.options.allowedPaths).toEqual(["/shared/workspace", "/extra/path"]);
   });
 
   test("createLoopFromConfig works without allowedPaths", async () => {
@@ -57,12 +59,11 @@ describe("loop-factory allowedPaths plumbing", () => {
     expect(loop).toBeDefined();
   });
 
-  test("createLoopFromConfig writes temp MCP config for CLI runtimes", async () => {
+  test("createLoopFromConfig writes temp MCP config for config-file runtimes", async () => {
     const { createLoopFromConfig } = await import("../src/loop-factory.ts");
 
     const config: RuntimeConfig = {
-      type: "claude-code",
-      model: "sonnet",
+      type: "codex",
       cwd: "/home/agent",
       mcpServers: {
         sentry: {
@@ -96,7 +97,7 @@ describe("loop-factory allowedPaths plumbing", () => {
             type: "http",
             url: "https://mcp.figma.com/mcp",
             oauth: { clientId: "client-123" },
-          } as any,
+          } as unknown as NonNullable<RuntimeConfig["mcpServers"]>[string],
         },
       }),
     ).rejects.toThrow("Remote MCP OAuth is not supported");
@@ -116,7 +117,7 @@ describe("loop-factory allowedPaths plumbing", () => {
           },
         },
       }),
-    ).rejects.toThrow("supported only for CLI runtimes");
+    ).rejects.toThrow("supported only for SDK-native or config-file runtimes");
   });
 });
 

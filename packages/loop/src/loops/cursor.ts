@@ -1,16 +1,30 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync, rmdirSync } from "node:fs";
-import { join } from "node:path";
-import type { CursorLoopOptions, LoopRun, LoopStatus, PreflightResult } from "../types.ts";
-import type { RawCliEvent } from "../utils/cli-loop.ts";
-import { checkCliAvailability } from "../utils/cli.ts";
-import { runCliLoop } from "../utils/cli-loop.ts";
+import {
+  Agent,
+  Cursor,
+  type AgentOptions,
+  type McpServerConfig,
+  type SDKAgent,
+  type SDKMessage,
+  type Run,
+  type SendOptions,
+} from "@cursor/sdk";
+import type {
+  CursorLoopOptions,
+  LoopEvent,
+  LoopRun,
+  LoopStatus,
+  PreflightResult,
+} from "../types.ts";
+import { createEventChannel } from "../types.ts";
 
 export class CursorLoop {
   readonly supports = ["usageStream"] as const;
   private _status: LoopStatus = "idle";
   private abortController: AbortController | null = null;
-  private _mcpConfigPath: string | null = null;
-  private _mcpSnapshot: McpSnapshot | null = null;
+  private _mcpServers: Record<string, unknown> | null = null;
+  private agentPromise: Promise<SDKAgent> | null = null;
+  private agent: SDKAgent | null = null;
+  private activeRun: Run | null = null;
 
   constructor(private options: CursorLoopOptions = {}) {}
 
@@ -19,252 +33,297 @@ export class CursorLoop {
   }
 
   run(input: string | { system: string; prompt: string }): LoopRun {
-    const prompt = typeof input === "string" ? input : `${input.system}\n\n${input.prompt}`;
     if (this._status === "running") throw new Error("Already running");
     this._status = "running";
     this.abortController = new AbortController();
 
-    // Cursor agent detects MCP servers from .cursor/mcp.json in the cwd.
-    // Inject the agent MCP config before starting the CLI process.
-    if (this._mcpConfigPath) {
-      this._mcpSnapshot = injectCursorMcpConfig(
-        this._mcpConfigPath,
-        this.options.cwd ?? process.cwd(),
-      );
-    }
+    const prompt = buildPrompt(input, this.options.instructions);
+    const channel = createEventChannel<LoopEvent>();
+    const allEvents: LoopEvent[] = [];
+    let outputText = "";
+    let usage = estimateUsage(prompt, outputText);
 
-    const loopRun = runCliLoop(
-      {
-        command: "agent",
-        args: buildArgs(prompt, this.options),
-        env: this.options.env,
-        mapEvent: mapCursorEvent,
-        extractResult: extractCursorResult,
-        // Cursor doesn't report token counts. Opt in to the cli-loop's
-        // post-hoc text-length estimate so consumers that care about
-        // context pressure have something to work with.
-        estimateUsage: true,
-      },
-      this.options,
-      { abortSignal: this.abortController.signal },
-    );
+    const emit = (event: LoopEvent) => {
+      allEvents.push(event);
+      channel.push(event);
+      if (event.type === "text" || event.type === "thinking") {
+        outputText += event.text;
+      }
+    };
 
-    loopRun.result
-      .then(() => {
-        this.cleanupMcpConfig();
-        if (this._status === "running") this._status = "completed";
-      })
-      .catch(() => {
-        this.cleanupMcpConfig();
-        if (this._status === "running") {
-          this._status = this.abortController!.signal.aborted ? "cancelled" : "failed";
+    const result = (async () => {
+      const startedAt = Date.now();
+      try {
+        if (this.abortController!.signal.aborted) throw new Error("Cursor run cancelled");
+
+        const agent = await this.getAgent();
+        if (this.abortController!.signal.aborted) throw new Error("Cursor run cancelled");
+
+        const sendOptions: SendOptions = {
+          ...(this.options.model ? { model: { id: this.options.model } } : {}),
+          ...(this._mcpServers ? { mcpServers: buildCursorMcpServers(this._mcpServers) } : {}),
+        };
+        const run = await agent.send(prompt, sendOptions);
+        this.activeRun = run;
+
+        if (this.abortController!.signal.aborted) {
+          await run.cancel();
+          throw new Error("Cursor run cancelled");
         }
-      });
 
-    return loopRun;
+        for await (const message of run.stream() as AsyncGenerator<SDKMessage>) {
+          for (const event of mapCursorMessage(message)) emit(event);
+        }
+
+        usage = estimateUsage(prompt, outputText);
+        emit({ type: "usage", ...usage, source: "estimate" });
+
+        if (this._status === "running") this._status = "completed";
+        channel.end();
+        return {
+          events: allEvents,
+          usage,
+          durationMs: Date.now() - startedAt,
+        };
+      } catch (err) {
+        this._status = this.abortController?.signal.aborted ? "cancelled" : "failed";
+        const error = err instanceof Error ? err : new Error(String(err));
+        channel.error(error);
+        throw error;
+      } finally {
+        this.activeRun = null;
+      }
+    })();
+
+    result.catch(() => {});
+
+    return {
+      [Symbol.asyncIterator]() {
+        return channel.iterable[Symbol.asyncIterator]();
+      },
+      result,
+    };
   }
 
   cancel(): void {
     this.abortController?.abort();
+    void this.activeRun?.cancel();
     if (this._status === "running") {
       this._status = "cancelled";
     }
   }
 
-  setMcpConfig(configPath: string): void {
-    this._mcpConfigPath = configPath;
+  setMcpServers(servers: Record<string, unknown>): void {
+    this._mcpServers = servers;
   }
 
-  private cleanupMcpConfig(): void {
-    if (this._mcpSnapshot) {
-      restoreCursorMcpConfig(this._mcpSnapshot);
-      this._mcpSnapshot = null;
-    }
+  async cleanup(): Promise<void> {
+    this.cancel();
+    this.agent?.close();
+    this.agent = null;
+    this.agentPromise = null;
   }
 
-  /** Check if agent CLI (Cursor Agent) is installed. Not a runtime test. */
   async preflight(): Promise<PreflightResult> {
-    const cli = await checkCliAvailability("agent");
-    return { ok: cli.available, version: cli.version, error: cli.error };
-  }
-}
-
-function buildArgs(prompt: string, opts: CursorLoopOptions): string[] {
-  // `agent` CLI: prompt is positional, `-p`/`--print` is a boolean flag for headless mode,
-  // `--yolo` skips workspace trust + auto-approves commands.
-  const args = ["-p", "--output-format", "stream-json", "--yolo", "--approve-mcps"];
-
-  if (opts.model) args.push("--model", opts.model);
-  if (opts.extraArgs?.length) args.push(...opts.extraArgs);
-
-  // Prompt must come last (positional argument)
-  // Note: Cursor has no --add-dir flag. allowedPaths passed via AGENT_ALLOWED_PATHS env var.
-  args.push(prompt);
-
-  return args;
-}
-
-function mapCursorEvent(data: unknown): RawCliEvent | RawCliEvent[] {
-  const event = data as Record<string, unknown>;
-  const type = event.type as string;
-
-  switch (type) {
-    case "assistant": {
-      const message = event.message as Record<string, unknown> | undefined;
-      const content = message?.content as Array<Record<string, unknown>> | undefined;
-      if (!Array.isArray(content)) return { type: "unknown", data: event };
-
-      const events: RawCliEvent[] = [];
-      for (const block of content) {
-        if (block.type === "tool_use") {
-          events.push({
-            type: "tool_call_start",
-            name: block.name as string,
-            callId: block.id as string,
-            args: block.input as Record<string, unknown>,
-          });
-        } else if (block.type === "text") {
-          events.push({ type: "text", text: block.text as string });
-        }
-      }
-      return events.length > 0 ? events : { type: "unknown", data: event };
+    const apiKey = resolveApiKey(this.options);
+    if (!apiKey) {
+      return {
+        ok: false,
+        error: "Cursor SDK requires CURSOR_API_KEY or runtime env.CURSOR_API_KEY.",
+      };
     }
 
-    case "tool_call": {
-      const subtype = event.subtype as string;
-      const toolCall = (event.tool_call as Record<string, unknown>) ?? {};
-      const mcpCall = (toolCall.mcpToolCall as Record<string, unknown>) ?? {};
-      const mcpArgs = (mcpCall.args as Record<string, unknown>) ?? {};
-      const callId = event.call_id as string | undefined;
-
-      if (subtype === "started") {
-        return {
-          type: "tool_call_start",
-          name: (mcpArgs.toolName as string) ?? (mcpArgs.name as string) ?? "unknown",
-          callId: callId ?? "",
-          args: (mcpArgs.args as Record<string, unknown>) ?? {},
-        };
-      }
-      if (subtype === "completed") {
-        const result = mcpCall.result as Record<string, unknown> | undefined;
-        const success = result?.success as Record<string, unknown> | undefined;
-        const content = success?.content as Array<Record<string, unknown>> | undefined;
-        const text = content?.[0]?.text as Record<string, unknown> | undefined;
-        return {
-          type: "tool_call_end",
-          name: (mcpArgs?.toolName as string) ?? "unknown",
-          callId: callId ?? "",
-          result: (text?.text as string) ?? "",
-        };
-      }
-      return { type: "unknown", data: event };
-    }
-
-    case "thinking": {
-      const subtype = event.subtype as string;
-      if (subtype === "delta") {
-        const text = event.text as string;
-        if (text) return { type: "thinking", text };
-      }
-      return { type: "unknown", data: event };
-    }
-
-    case "result": {
-      const resultText = event.result as string;
-      if (resultText) {
-        return { type: "text", text: resultText };
-      }
-      return { type: "unknown", data: event };
-    }
-
-    default:
-      return { type: "unknown", data: event };
-  }
-}
-
-function extractCursorResult(stdout: string): string {
-  const lines = stdout.trim().split("\n");
-  for (let i = lines.length - 1; i >= 0; i--) {
-    try {
-      const parsed = JSON.parse(lines[i]!) as Record<string, unknown>;
-      if (parsed.type === "result" && typeof parsed.result === "string") {
-        return parsed.result;
-      }
-    } catch {
-      // skip
-    }
-  }
-  return stdout;
-}
-
-// ── Cursor MCP config injection ──────────────────────────────────────────────
-//
-// Cursor agent has no --mcp-config flag. It discovers MCP servers from
-// .cursor/mcp.json in the working directory. We save a snapshot of the
-// original file before injecting, and restore it exactly on cleanup.
-
-interface McpSnapshot {
-  cursorMcpPath: string;
-  /** null means the file did not exist before injection. */
-  originalContent: string | null;
-  /** The content we wrote, used to detect external modifications during cleanup. */
-  injectedContent: string;
-}
-
-/**
- * Inject agent MCP servers into .cursor/mcp.json, saving a snapshot
- * of the original file for exact restoration on cleanup.
- */
-function injectCursorMcpConfig(configPath: string, cwd: string): McpSnapshot {
-  const agentConfig = JSON.parse(readFileSync(configPath, "utf-8")) as {
-    mcpServers?: Record<string, unknown>;
-  };
-  const cursorDir = join(cwd, ".cursor");
-  const cursorMcpPath = join(cursorDir, "mcp.json");
-
-  let originalContent: string | null = null;
-  let existing: Record<string, unknown> = {};
-
-  if (existsSync(cursorMcpPath)) {
-    originalContent = readFileSync(cursorMcpPath, "utf-8");
-    existing = JSON.parse(originalContent) as Record<string, unknown>;
-  } else {
-    mkdirSync(cursorDir, { recursive: true });
-  }
-
-  const merged = {
-    ...existing,
-    mcpServers: {
-      ...(existing.mcpServers as Record<string, unknown>),
-      ...agentConfig.mcpServers,
-    },
-  };
-
-  const injectedContent = JSON.stringify(merged, null, 2);
-  writeFileSync(cursorMcpPath, injectedContent);
-  return { cursorMcpPath, originalContent, injectedContent };
-}
-
-/** Restore .cursor/mcp.json to its pre-injection state. */
-function restoreCursorMcpConfig(snapshot: McpSnapshot): void {
-  try {
-    // If the file was modified externally since we wrote it, leave it alone.
-    if (!existsSync(snapshot.cursorMcpPath)) return;
-    const current = readFileSync(snapshot.cursorMcpPath, "utf-8");
-    if (current !== snapshot.injectedContent) return;
-
-    if (snapshot.originalContent === null) {
-      // File didn't exist before — remove it and try to clean up .cursor/
-      unlinkSync(snapshot.cursorMcpPath);
+    if (this.options.preflightOnline) {
       try {
-        rmdirSync(join(snapshot.cursorMcpPath, ".."));
-      } catch {
-        // .cursor/ has other files, leave it
+        await Cursor.me({ apiKey });
+      } catch (err) {
+        return {
+          ok: false,
+          error: err instanceof Error ? err.message : String(err),
+        };
       }
-    } else {
-      writeFileSync(snapshot.cursorMcpPath, snapshot.originalContent);
     }
-  } catch {
-    // Best-effort cleanup
+
+    return { ok: true };
   }
+
+  private getAgent(): Promise<SDKAgent> {
+    if (!this.agentPromise) {
+      this.agentPromise = Agent.create(
+        buildCursorAgentOptions(this.options, this._mcpServers),
+      ).then((agent) => {
+        this.agent = agent;
+        return agent;
+      });
+    }
+    return this.agentPromise;
+  }
+}
+
+export function buildCursorAgentOptions(
+  opts: CursorLoopOptions,
+  mcpServers?: Record<string, unknown> | null,
+): AgentOptions {
+  const cwd = buildCursorCwd(opts.cwd, opts.allowedPaths);
+  const apiKey = resolveApiKey(opts);
+
+  return {
+    ...(apiKey ? { apiKey } : {}),
+    model: { id: opts.model ?? "composer-2" },
+    local: {
+      ...(cwd ? { cwd } : {}),
+      settingSources: opts.settingSources ?? ["project"],
+      ...(opts.sandboxEnabled !== undefined
+        ? { sandboxOptions: { enabled: opts.sandboxEnabled } }
+        : {}),
+    },
+    ...(mcpServers ? { mcpServers: buildCursorMcpServers(mcpServers) } : {}),
+    ...(opts.agentId ? { agentId: opts.agentId } : {}),
+  };
+}
+
+export function mapCursorMessage(message: SDKMessage): LoopEvent[] {
+  switch (message.type) {
+    case "assistant":
+      return mapAssistantMessage(message);
+    case "thinking":
+      return message.text ? [{ type: "thinking", text: message.text }] : [];
+    case "tool_call":
+      return mapToolCallMessage(message);
+    case "status":
+      if (message.status === "ERROR") {
+        return [{ type: "error", error: new Error(message.message ?? "Cursor run failed") }];
+      }
+      return [];
+    case "task":
+      return message.text ? [{ type: "text", text: message.text }] : [];
+    default:
+      return [];
+  }
+}
+
+function mapAssistantMessage(message: Extract<SDKMessage, { type: "assistant" }>): LoopEvent[] {
+  const events: LoopEvent[] = [];
+  for (const block of message.message.content ?? []) {
+    if (block.type === "text" && block.text) {
+      events.push({ type: "text", text: block.text });
+    } else if (block.type === "tool_use") {
+      events.push({
+        type: "tool_call_start",
+        name: block.name,
+        callId: block.id,
+        args: isRecord(block.input) ? block.input : { input: block.input },
+      });
+    }
+  }
+  return events;
+}
+
+function mapToolCallMessage(message: Extract<SDKMessage, { type: "tool_call" }>): LoopEvent[] {
+  if (message.status === "running") {
+    return [
+      {
+        type: "tool_call_start",
+        name: message.name,
+        callId: message.call_id,
+        args: isRecord(message.args) ? message.args : undefined,
+      },
+    ];
+  }
+
+  return [
+    {
+      type: "tool_call_end",
+      name: message.name,
+      callId: message.call_id,
+      result: message.result,
+      error:
+        message.status === "error"
+          ? String(message.result ?? "Cursor tool call failed")
+          : undefined,
+    },
+  ];
+}
+
+function buildPrompt(
+  input: string | { system: string; prompt: string },
+  instructions?: string,
+): string {
+  const parts =
+    typeof input === "string" ? [instructions, input] : [instructions, input.system, input.prompt];
+  return parts.filter((part): part is string => Boolean(part?.trim())).join("\n\n");
+}
+
+function buildCursorCwd(cwd?: string, allowedPaths?: string[]): string | string[] | undefined {
+  if (!cwd) return allowedPaths?.length ? allowedPaths : undefined;
+  if (!allowedPaths?.length) return cwd;
+  return [cwd, ...allowedPaths];
+}
+
+function buildCursorMcpServers(servers: Record<string, unknown>): Record<string, McpServerConfig> {
+  const converted: Record<string, McpServerConfig> = {};
+
+  for (const [name, raw] of Object.entries(servers)) {
+    if (!isRecord(raw)) continue;
+    if ("oauth" in raw) {
+      throw new Error(`Remote MCP OAuth is not supported for server "${name}"`);
+    }
+
+    if (typeof raw.command === "string") {
+      converted[name] = {
+        type: "stdio",
+        command: raw.command,
+        ...(Array.isArray(raw.args) ? { args: raw.args } : {}),
+        ...(isStringRecord(raw.env) ? { env: raw.env } : {}),
+        ...(typeof raw.cwd === "string" ? { cwd: raw.cwd } : {}),
+      };
+      continue;
+    }
+
+    if (typeof raw.url === "string") {
+      const headers = {
+        ...(isStringRecord(raw.headers) ? raw.headers : {}),
+        ...bearerHeaderFromEnv(raw.bearerTokenEnvVar),
+      };
+      converted[name] = {
+        type: raw.type === "sse" ? "sse" : "http",
+        url: raw.url,
+        ...(Object.keys(headers).length > 0 ? { headers } : {}),
+      };
+    }
+  }
+
+  return converted;
+}
+
+function bearerHeaderFromEnv(value: unknown): Record<string, string> {
+  if (typeof value !== "string") return {};
+  const token = process.env[value];
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+function resolveApiKey(opts: CursorLoopOptions): string | undefined {
+  return opts.apiKey ?? opts.env?.CURSOR_API_KEY ?? process.env.CURSOR_API_KEY;
+}
+
+function estimateUsage(input: string, output: string) {
+  const inputTokens = estimateTokens(input);
+  const outputTokens = estimateTokens(output);
+  return {
+    inputTokens,
+    outputTokens,
+    totalTokens: inputTokens + outputTokens,
+  };
+}
+
+function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 4);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isStringRecord(value: unknown): value is Record<string, string> {
+  return isRecord(value) && Object.values(value).every((item) => typeof item === "string");
 }

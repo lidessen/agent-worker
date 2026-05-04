@@ -229,7 +229,20 @@ export interface CodexLoopOptions extends CliLoopOptions {
   threadIdFile?: string;
 }
 
-export interface CursorLoopOptions extends CliLoopOptions {}
+export type CursorSettingSource = "project" | "user" | "team" | "mdm" | "plugins" | "all";
+
+export interface CursorLoopOptions extends CliLoopOptions {
+  /** Cursor API key. Falls back to env.CURSOR_API_KEY or process.env.CURSOR_API_KEY. */
+  apiKey?: string;
+  /** Persisted Cursor agent id, if the caller wants SDK-level local continuity. */
+  agentId?: string;
+  /** Cursor local settings layers to load for SDK runs. */
+  settingSources?: CursorSettingSource[];
+  /** Cursor SDK local sandbox toggle. */
+  sandboxEnabled?: boolean;
+  /** If true, preflight verifies the API key against Cursor's API. */
+  preflightOnline?: boolean;
+}
 
 // ── Preflight ────────────────────────────────────────────────────────────────
 
