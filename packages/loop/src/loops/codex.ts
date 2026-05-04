@@ -395,7 +395,7 @@ export function mapCodexItemEnd(item: Record<string, unknown>): LoopEvent | null
         type: "tool_call_end",
         name: String(item.tool ?? "unknown"),
         callId: String(item.id ?? ""),
-        result: item.result ?? item.error ?? null,
+        result: item.error ? null : (item.result ?? null),
         durationMs: typeof item.durationMs === "number" ? item.durationMs : undefined,
         error: item.error ? JSON.stringify(item.error) : undefined,
       };
