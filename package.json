@@ -16,9 +16,9 @@
     "fmt:check": "oxfmt --check ."
   },
   "dependencies": {
-    "@ai-sdk/deepseek": "^2.0.24",
+    "@ai-sdk/deepseek": "^2.0.32",
     "@hono/node-server": "^1.19.11",
-    "ai": "^6.0.116",
+    "ai": "^6.0.174",
     "execa": "^9.6.1",
     "hono": "^4.12.7"
   },

@@ -1,4 +1,4 @@
-import { ToolLoopAgent, tool, type ToolSet, type LanguageModel } from "ai";
+import { ToolLoopAgent, tool, type ToolSet, type LanguageModel, type StepResult } from "ai";
 import { z } from "zod";
 import { createBashTool, type CreateBashToolOptions, type BashToolkit } from "bash-tool";
 import type { LoopEvent, LoopResult, LoopRun, LoopStatus, PreflightResult } from "../types.ts";
@@ -118,37 +118,32 @@ export class AiSdkLoop {
           prompt,
           abortSignal: this.abortController!.signal,
 
-          experimental_onToolCallStart: (event) => {
-            const tc = event.toolCall;
-            emit({
-              type: "tool_call_start",
-              name: tc.toolName,
-              callId: tc.toolCallId,
-              args: ("input" in tc ? tc.input : undefined) as Record<string, unknown> | undefined,
-            });
-          },
+          onStepFinish: (step: StepResult<ToolSet>) => {
+            for (const toolCall of step.toolCalls) {
+              emit({
+                type: "tool_call_start",
+                name: String(toolCall.toolName),
+                callId: toolCall.toolCallId,
+                args: toToolArgs(toolCall.input),
+              });
 
-          experimental_onToolCallFinish: (event) => {
-            const tc = event.toolCall;
-            emit({
-              type: "tool_call_end",
-              name: tc.toolName,
-              callId: tc.toolCallId,
-              result: event.success ? event.output : undefined,
-              durationMs: event.durationMs,
-              error: !event.success ? String(event.error) : undefined,
-            });
-          },
+              const result = step.toolResults.find(
+                (toolResult) => toolResult.toolCallId === toolCall.toolCallId,
+              );
+              if (result) {
+                emit({
+                  type: "tool_call_end",
+                  name: String(result.toolName),
+                  callId: result.toolCallId,
+                  result: result.output,
+                });
+              }
+            }
 
-          onStepFinish: (step) => {
-            const { reasoningText, text } = step as {
-              reasoningText?: string;
-              text?: string;
-            };
+            const { reasoningText, text } = step;
             if (reasoningText) emit({ type: "thinking", text: reasoningText });
             if (text) emit({ type: "text", text });
-            const stepUsage = (step as { usage?: { inputTokens?: number; outputTokens?: number } })
-              .usage;
+            const stepUsage = step.usage;
             if (stepUsage) {
               cumulativeUsage.inputTokens += stepUsage.inputTokens ?? 0;
               cumulativeUsage.outputTokens += stepUsage.outputTokens ?? 0;
@@ -323,4 +318,9 @@ export class AiSdkLoop {
       return resolved;
     };
   }
+}
+
+function toToolArgs(input: unknown): Record<string, unknown> | undefined {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return undefined;
+  return input as Record<string, unknown>;
 }

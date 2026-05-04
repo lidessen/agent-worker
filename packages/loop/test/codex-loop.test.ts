@@ -535,8 +535,94 @@ describe("CodexLoop", () => {
       expect(requestLog.find((entry) => entry.method === "thread/start")?.params).toMatchObject({
         developerInstructions: "[ROLE]\nAgent",
       });
+      expect(
+        requestLog.find((entry) => entry.method === "thread/start")?.params,
+      ).not.toHaveProperty("experimentalRawEvents");
+      expect(
+        requestLog.find((entry) => entry.method === "thread/start")?.params,
+      ).not.toHaveProperty("persistExtendedHistory");
       expect(requestLog.find((entry) => entry.method === "turn/start")?.params).toMatchObject({
         input: [{ type: "text", text: "[notification] New messages in inbox.", text_elements: [] }],
+      });
+    });
+
+    test("passes modern app-server turn controls", async () => {
+      const requestLog: Array<{ method: string; params?: unknown }> = [];
+      let onNotification: ((message: { method: string; params?: unknown }) => void) | null = null;
+
+      class MockJsonRpcClient {
+        constructor(_options: unknown) {}
+
+        start(cb: (message: { method: string; params?: unknown }) => void): void {
+          onNotification = cb;
+        }
+
+        async request(method: string, params?: unknown): Promise<unknown> {
+          requestLog.push({ method, params });
+          if (method === "initialize") {
+            return {
+              userAgent: "test",
+              codexHome: "/tmp",
+              platformFamily: "unix",
+              platformOs: "macos",
+            };
+          }
+          if (method === "thread/start") {
+            return { thread: { id: "thread-modern-controls" } };
+          }
+          if (method === "turn/start") {
+            setTimeout(() => {
+              onNotification?.({
+                method: "turn/completed",
+                params: {
+                  threadId: "thread-modern-controls",
+                  turn: { id: "turn-modern-controls", status: "completed", error: null },
+                },
+              });
+            }, 0);
+            return { turn: { id: "turn-modern-controls" } };
+          }
+          return {};
+        }
+
+        close(): void {}
+      }
+
+      mock.module("../src/utils/jsonrpc-stdio.ts", () => ({
+        JsonRpcStdioClient: MockJsonRpcClient,
+      }));
+
+      const { CodexLoop: MockedCodexLoop } = await import(
+        `../src/loops/codex.ts?modern-turn-controls=${Date.now()}`
+      );
+
+      const outputSchema = {
+        type: "object",
+        properties: { ok: { type: "boolean" } },
+        required: ["ok"],
+      };
+      const sandboxPolicy = { type: "readOnly", networkAccess: false };
+      const loop = new MockedCodexLoop({
+        approvalsReviewer: "auto_review",
+        serviceTier: "flex",
+        effort: "high",
+        summary: "concise",
+        outputSchema,
+        sandboxPolicy,
+      });
+
+      await loop.run("respond as structured JSON").result;
+
+      expect(requestLog.find((entry) => entry.method === "thread/start")?.params).toMatchObject({
+        approvalsReviewer: "auto_review",
+      });
+      expect(requestLog.find((entry) => entry.method === "turn/start")?.params).toMatchObject({
+        approvalsReviewer: "auto_review",
+        serviceTier: "flex",
+        effort: "high",
+        summary: "concise",
+        outputSchema,
+        sandboxPolicy,
       });
     });
 

@@ -197,6 +197,25 @@ export interface CodexLoopOptions extends CliLoopOptions {
   sandbox?: "read-only" | "workspace-write" | "danger-full-access";
   /** Run in full-auto mode (no confirmations, workspace-write sandbox) */
   fullAuto?: boolean;
+  /** Route app-server approval requests. Defaults to Codex app-server behavior. */
+  approvalsReviewer?: "user" | "auto_review" | "guardian_subagent";
+  /** Service tier override for Codex turns. */
+  serviceTier?: "fast" | "flex";
+  /** Reasoning effort override for Codex turns. */
+  effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+  /** Reasoning summary style override for Codex turns. */
+  summary?: "auto" | "concise" | "detailed" | "none";
+  /**
+   * Optional JSON Schema used by Codex app-server to constrain the final
+   * assistant message for each turn.
+   */
+  outputSchema?: Record<string, unknown>;
+  /**
+   * Newer per-turn sandbox policy shape accepted by Codex app-server.
+   * Keep `sandbox` for thread-level legacy shorthand; use this only when
+   * the caller has already resolved the full app-server policy object.
+   */
+  sandboxPolicy?: Record<string, unknown>;
   /** Resume an existing app-server thread. */
   threadId?: string;
   /**

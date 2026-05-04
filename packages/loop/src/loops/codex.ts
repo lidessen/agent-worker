@@ -88,6 +88,12 @@ export class CodexLoop {
             input: [{ type: "text", text: prompt, text_elements: [] }],
             cwd: this.options.cwd,
             model: this.options.model ?? undefined,
+            serviceTier: this.options.serviceTier ?? undefined,
+            effort: this.options.effort ?? undefined,
+            summary: this.options.summary ?? undefined,
+            approvalsReviewer: this.options.approvalsReviewer ?? undefined,
+            sandboxPolicy: this.options.sandboxPolicy ?? undefined,
+            outputSchema: this.options.outputSchema ?? undefined,
           })
             .then((response) => {
               this.currentTurn = {
@@ -215,10 +221,9 @@ export class CodexLoop {
         threadId: this.threadId ?? undefined,
         approvalPolicy: this.options.fullAuto ? "never" : "on-request",
         sandbox: this.options.sandbox ?? (this.options.fullAuto ? "workspace-write" : undefined),
+        approvalsReviewer: this.options.approvalsReviewer ?? undefined,
         developerInstructions: this.pendingDeveloperInstructions ?? undefined,
         baseInstructions: this.options.instructions ?? undefined,
-        experimentalRawEvents: false,
-        persistExtendedHistory: false,
       });
       const prevThreadId = this.threadId;
       this.threadId = response.thread.id;
