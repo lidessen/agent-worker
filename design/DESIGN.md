@@ -127,7 +127,7 @@ WorkspaceOrchestrator.tick                          │
       status → idle
 ```
 
-Standalone path skips channels / queue / stateStore entirely: `POST /agents/:name/send` → `ManagedAgent` → `Agent.receive` (enqueues into `Inbox`) → `RunCoordinator.shouldContinue()` picks `next_message` / `next_todo` / `idle` → `executeRun` → `ContextEngine.assemble({instructions, inbox, todos, notes, memory, reminders, history, name})` → `loop.run({system, prompt: notification+snapshot})` → events streamed to per-agent JSONL.
+Standalone path skips channels / queue / stateStore entirely: `POST /agents/:name/send` → `ManagedAgent` → `Agent.push` (enqueues into `Inbox`) → `RunCoordinator.shouldContinue()` picks `next_message` / `next_todo` / `idle` → `executeRun` → `ContextEngine.assemble({instructions, inbox, todos, notes, memory, reminders, history, name})` → `loop.run({system, prompt: notification+snapshot})` → events streamed to per-agent JSONL.
 
 Core types: `BusEvent` (shared), `LoopEvent` (loop), `Instruction` / `InboxEntry` / `PromptSection` / `Task` / `Attempt` / `Handoff` / `Artifact` / `Worktree` (workspace), `AgentState` / `Turn` / `AssembledPrompt` (agent).
 
@@ -140,6 +140,10 @@ Core types: `BusEvent` (shared), `LoopEvent` (loop), `Instruction` / `InboxEntry
 **Loop abstraction decouples runtime from backend.** `AgentLoop` is minimal: `run(prompt)` returning a streaming `LoopEvent` iterable, plus optional `setTools` / `setMcpConfig`. AI SDK loops inject workspace tools directly via `prepareStep`; CLI loops (Claude Code, Codex, Cursor) receive a generated MCP config file and run the tool server as a stdio subprocess. Tool capability is committed once per run. Runtime is chosen at agent-create time via `RuntimeConfig.type` and can be swapped without touching agent or workspace code.
 
 **Workspace kernel state (Task → Attempt → Handoff → Artifact) with attempt-scoped worktrees.** The workspace owns multi-agent coordination records, not the agent. A `Task` is a unit of work; an `Attempt` is one runtime execution with lifecycle-bound resources; a `Handoff` is an explicit shift with decisions/blockers/next-steps; `Artifact`s point to concrete outputs. Git worktrees are created on-demand by `worktree_*` MCP tools during a running attempt, bound to its lifecycle, and torn down at terminal status — branches survive as audit trail. Per-run tool rebuilding attaches `activeAttemptId` so `worktree_*` tools are visible only while an attempt is active.
+
+**Restart recovery is workspace-led, with runtime-local session continuity.** Daemon restart restores workspace manifests, workspace state stores, status, inbox references, chronicle/timeline/docs/resources, and active workspace loops. Running attempts recovered from disk are marked failed with a chronicle entry rather than silently resumed as if the process never died. Provider session continuity stays runtime-local: Codex persists a `threadIdFile`; other runtimes may add their own session files later. The workspace ledger and chronicle are the durable cross-runtime recovery surface, not a universal transcript store.
+
+**Control boundaries are resolved from workspace policy into runtime knobs.** Workspace YAML can define `policy` at workspace and agent scope; agent fields override workspace fields one by one. The resolved policy flows into runtime config as concrete backend controls such as Claude Code `permissionMode`, Codex `fullAuto`, and Codex `sandbox`. Filesystem scope is still expressed as runner `cwd` plus `allowedPaths`, with attempt worktrees and shared sandbox paths attached per run. Git-specific policy, approval UI, and bash-level command guards remain outside the current design.
 
 ## Key Decisions
 
@@ -157,6 +161,7 @@ Core types: `BusEvent` (shared), `LoopEvent` (loop), `Instruction` / `InboxEntry
 - **Local-first.** Default bind is loopback; remote access via Tailscale. No cloud sync.
 - **Bun runtime.** App code is Bun; library code uses Node APIs for compatibility.
 - **Static tool capability per run.** Tool set is committed before `loop.run()` starts; no mid-run capability changes.
+- **Runtime-local usage/session semantics.** Context usage and provider session ids stay inside loop implementations because each backend reports and resumes differently.
 - **OAuth-declaring MCP servers rejected.** `readAgentMcpConfig` throws if a server entry has an `oauth` field.
 - **CLI runtimes over stdio only.** Codex deadlocked on HTTP MCP transport; all CLI runtimes (Claude Code, Codex, Cursor) now share the stdio subprocess path.
 
@@ -166,5 +171,6 @@ Core types: `BusEvent` (shared), `LoopEvent` (loop), `Instruction` / `InboxEntry
 - Cross-run persistent memory stores (memory re-hydrates from JSONL inbox / notes / chronicle; nothing beyond).
 - Direct agent-to-agent messaging — all traffic goes through channels and inbox.
 - Transactional guarantees across kernel state updates — eventual consistency via the event log is the contract.
+- Universal transcript persistence across all runtimes — workspace ledger, chronicle, notes, memory, and runtime-local session files are the recovery contract.
 - Non-local runtimes (remote SSH, cloud runners).
 - Unifying standalone and workspace modes into one runtime.
