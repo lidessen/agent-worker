@@ -78,14 +78,7 @@ function isZodTypeRecord(value: unknown): value is Record<string, ZodTypeAny> {
 }
 
 function getZodObjectShape(schema: z.ZodObject<any>): Record<string, ZodTypeAny> {
-  const shape = (schema as unknown as { shape?: unknown }).shape;
-  if (typeof shape === "function") {
-    return (shape as () => Record<string, ZodTypeAny>)();
-  }
-  if (shape && typeof shape === "object") {
-    return shape as Record<string, ZodTypeAny>;
-  }
-  return {};
+  return schema.shape;
 }
 
 async function runTool(toolDef: unknown, args: Record<string, unknown>): Promise<unknown> {
