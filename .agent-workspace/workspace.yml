@@ -2,8 +2,8 @@
 # Dogfood: agents develop agent-worker using agent-worker
 #
 # Assignment based on model strengths + budget:
-#   maintainer (Claude Opus 4.7)  — deep reasoning, architecture, review all PRs  [$100/mo claude]
-#   codex (GPT-5.3-Codex)         — terminal/system SOTA, use sparingly           [$20/mo, tightest budget]
+#   maintainer (opus)             — deep reasoning, architecture, review all PRs  [$100/mo claude]
+#   codex (GPT-5.5)               — terminal/system SOTA, use sparingly           [$20/mo, tightest budget]
 #   kimi-code (kimi-for-coding)   — frontend strongest, debug/refactor, workhorse [coding plan, generous]
 #   minimax (M2.7-highspeed)      — 97% skill adherence, e2e delivery, workhorse  [coding plan, generous]
 #   cursor               — fast but unstable, light tasks only
@@ -40,7 +40,7 @@ setup:
 agents:
   maintainer:
     runtime: claude-code
-    model: claude-opus-4-7
+    model: opus
     channels: [general, dev, review]
     instructions: |
       You are the maintainer of the agent-worker project.
@@ -133,13 +133,13 @@ agents:
 
   codex:
     runtime: codex
-    model: gpt-5.3-codex
+    model: gpt-5.5
     channels: [general, dev]
     instructions: |
       You are a contributor to agent-worker.
 
       ## Your domain
-      Your model (GPT-5.3-Codex) is SOTA on terminal and system-level tasks.
+      Your model (GPT-5.5) is SOTA on terminal and system-level tasks.
       Your usage is limited ($20/mo), so only engage where you're truly needed:
       - packages/agent-worker: daemon, CLI, HTTP API, process management
       - packages/loop: CLI loop implementations (subprocess management)
