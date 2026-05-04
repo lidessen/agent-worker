@@ -128,6 +128,7 @@ workspaces: WorkspaceInfo[]
 wsInfo: WorkspaceInfo | null         // 当前 workspace 详情
 wsChannels: string[]
 wsDocs: DocInfo[]
+wsTasks: TaskSummary[]
 
 // agent responses (当前 agent)
 events: DaemonEvent[]
@@ -175,9 +176,10 @@ daemonEventsCursor: number
 
 - ✓ Workspace 创建 (YAML 编辑器)
 - ✓ Agent 创建对话框
-- ☐ Runtime/model 配置 UI
+- ✓ Runtime/model 配置 UI (agent 创建对话框)
+- ✓ Task 管理 UI (只读列表 + 详情展开；创建/dispatch/complete/abort 操作仍走 API/CLI)
 - ☐ 富渲染增强 (ToolCallCard 等)
-- ☐ Task 管理 UI (API 已有，前端待建)
+- ☐ Task 操作 UI (创建、分发、完成、中止)
 
 ### M4: 组件提炼 (未开始)
 

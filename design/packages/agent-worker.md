@@ -85,9 +85,14 @@ Grouped by concern:
 
 **Runtime is chosen at agent-create time.** `resolve-runtime.ts` + `loop-factory.ts` commit the loop implementation once. Runtime swap requires recreating the agent. MCP config is written to a temp file per-loop and cleaned up on disposal; OAuth-declaring MCP entries are rejected up front.
 
+**Recovery is manifest + log replay, not process resurrection.** `WorkspaceRegistry` persists workspace manifests and restores them on daemon start; `ManagedWorkspace` restarts each workspace's orchestrators from the resolved config and file-backed workspace stores. Workspace state recovery is explicit: inbox entries are reloaded and `markRunStart()` requeues seen-but-unacked work, while orphaned running attempts are stamped failed so future dispatch can proceed. Runtime session continuity is delegated to the loop factory and backend-specific state files, currently Codex's per-agent `codex-thread.json`.
+
+**Control policy is resolved before loop creation.** Workspace config loading resolves `WorkspaceDef.policy` + `AgentDef.policy` into each `ResolvedAgent`. `workspace-registry.ts` passes those fields into `createLoopFromConfig`, where they become backend options (`permissionMode`, `fullAuto`, `sandbox`) alongside `cwd`, `allowedPaths`, `env`, and MCP servers. The daemon does not invent a generic autonomy mode; it translates resolved policy into runtime-native controls.
+
 ## Non-goals
 
 - Distributing across multiple daemon processes.
 - Per-user auth or multi-tenant isolation.
 - Command-line-local state (no `~/.aw/state` that bypasses the daemon).
 - Hot-swapping runtimes on a live agent.
+- A universal approval UI or git-command policy layer.

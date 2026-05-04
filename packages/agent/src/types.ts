@@ -53,7 +53,7 @@ export interface AgentLoop {
   setTools?(tools: ToolSet): void;
   /** Set prepareStep hook. Present when supports includes "prepareStep". */
   setPrepareStep?(fn: PrepareStepFunction): void;
-  /** Add MCP server config for CLI loops. Present when supports is empty (CLI). */
+  /** Add MCP server config for runtimes that consume generated MCP config files. */
   setMcpConfig?(configPath: string): void;
   /** Add live MCP server objects for SDK-capable loops. */
   setMcpServers?(servers: Record<string, unknown>): void;

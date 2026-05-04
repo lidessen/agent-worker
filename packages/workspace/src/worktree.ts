@@ -1,11 +1,12 @@
 /**
- * Thin wrapper over `git worktree` for per-agent execution isolation.
+ * Thin wrapper over `git worktree` for attempt-scoped execution isolation.
  *
  * Design: docs/design/phase-1-worktree-isolation/README.md
  *
- * Callers provision one worktree per coder agent at workspace creation
- * time. Branch naming and path selection live in `workspace-registry`;
- * this module only executes git commands and stays narrow on purpose.
+ * Callers provision worktrees through attempt-scoped MCP tools during a
+ * running attempt. Branch naming is chosen by the caller; runtime code
+ * allocates the worktree path. This module only executes git commands and
+ * stays narrow on purpose.
  */
 
 import { execa } from "execa";

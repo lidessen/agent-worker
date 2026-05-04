@@ -4,21 +4,25 @@
     "article-refactor": {
       "source": "lidessen/skills",
       "sourceType": "github",
+      "skillPath": "skills/article-refactor/SKILL.md",
       "computedHash": "f3477f633258d51d1c1314b0984c6b86991bdaad1d1a52343103ec8cff4755e4"
     },
     "design-driven": {
       "source": "lidessen/skills",
       "sourceType": "github",
+      "skillPath": "skills/design-driven/SKILL.md",
       "computedHash": "a8e4f61b63a0f8738291e4e030ac84e2712da2d71ffd9402afad762ca95dbe43"
     },
     "harness": {
       "source": "lidessen/skills",
       "sourceType": "github",
+      "skillPath": "skills/harness/SKILL.md",
       "computedHash": "dcadff9ac9acc09261f01cb863b4b237bc8e32f6553bf705569fee45201e1d67"
     },
     "writing-profile": {
       "source": "lidessen/skills",
       "sourceType": "github",
+      "skillPath": "skills/writing-profile/SKILL.md",
       "computedHash": "f29e071e8006a618024439e132c9fc26824b94487e9503b6789a9a2e8cc653b8"
     }
   }
