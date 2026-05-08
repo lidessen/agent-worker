@@ -59,6 +59,27 @@ describe("loop-factory allowedPaths plumbing", () => {
     expect(loop).toBeDefined();
   });
 
+  test("createRuntimeBindingFromConfig wraps an already selected loop", async () => {
+    const { createRuntimeBindingFromConfig } = await import("../src/loop-factory.ts");
+
+    const binding = await createRuntimeBindingFromConfig({
+      type: "mock",
+      model: "mock-model",
+      cwd: "/home/agent",
+      allowedPaths: ["/shared/workspace"],
+      mockResponse: "ok",
+    });
+
+    expect(binding.id).toBe("mock:mock-model@/home/agent");
+    expect(binding.runtimeType).toBe("mock");
+    expect(binding.model).toBe("mock-model");
+    expect(binding.loop).toBeDefined();
+    expect(binding.metadata).toEqual({
+      cwd: "/home/agent",
+      allowedPaths: ["/shared/workspace"],
+    });
+  });
+
   test("createLoopFromConfig writes temp MCP config for config-file runtimes", async () => {
     const { createLoopFromConfig } = await import("../src/loop-factory.ts");
 

@@ -6,7 +6,7 @@ See [../DESIGN.md](../DESIGN.md) for the system-level context.
 
 ## Overview
 
-`agent-worker` web UI 是 agent-worker 系统的浏览器前端，跑在 Mac Mini 上，从手机/浏览器远程访问。提供 workspace 管理、agent 监控、channel 通信、文档查看等完整功能。
+`agent-worker` web UI 是 agent-worker 系统的浏览器前端，跑在 Mac Mini 上，从手机/浏览器远程访问。目标模型下，前端展示 harness、workspace、runtime actor、channel、task、文档和事件，而不是把 standalone agent chat 当成默认心智模型。
 
 **后端**: 复用 daemon 作为唯一 server 进程 (`packages/agent-worker/src/daemon.ts`)，提供 REST + streaming API + SPA 静态文件服务。
 
@@ -25,7 +25,7 @@ See [../DESIGN.md](../DESIGN.md) for the system-level context.
 │  SPA 前端     │   + REST API        │  Daemon (已有)            │
 │  (semajsx)   │ ◄──────────────────► │  packages/agent-worker   │
 └──────────────┘   Authorization:     ├─────────────────────────┤
-                   Bearer header      │  /agents/*              │
+                   Bearer header      │  /agents/* (migration)  │
                                       │  /workspaces/*          │
                                       │  /events/*              │
                                       └─────────────────────────┘
@@ -55,14 +55,14 @@ semajsx 组件包 (`@semajsx/blocks`, `@semajsx/chat`) **推迟到 Phase 4** —
 
 ```
 GET    /health                              — daemon 状态
-GET    /agents                              — 列出 agents
-POST   /agents                              — 创建 agent (RuntimeConfig)
-GET    /agents/:name                        — agent 详情
-DELETE /agents/:name                        — 删除 agent
-POST   /agents/:name/send                   — 发送消息
+GET    /agents                              — 列出 runtime actors / harness members (migration)
+POST   /agents                              — deprecated；仅 PersonalHarness 可接管，否则拒绝
+GET    /agents/:name                        — actor/member 详情
+DELETE /agents/:name                        — deprecated；目标应删除 harness member/runtime binding
+POST   /agents/:name/send                   — deprecated；仅 PersonalHarness 可接管，否则拒绝
 GET    /agents/:name/responses              — 文本响应 (cursor-based)
 GET    /agents/:name/events                 — 事件日志 (cursor-based)
-GET    /agents/:name/state                  — agent state, inbox, todos
+GET    /agents/:name/state                  — actor/member state；inbox/todos 仅 personal harness 有意义
 
 GET    /workspaces                          — 列出 workspaces
 POST   /workspaces                          — 从 YAML 创建 workspace
@@ -99,8 +99,8 @@ GET    /events                              — 全局事件日志 (cursor-based
 | 页面              | 路径                            | 数据源                                                            |
 | ----------------- | ------------------------------- | ----------------------------------------------------------------- |
 | Dashboard         | `/`                             | `/health`, `/agents`, `/workspaces`                               |
-| Agent Chat        | `/agents/:name`                 | `/agents/:name/state` + `/agents/:name/responses` + stream        |
-| Agent Inspector   | `/agents/:name` (侧边栏)       | `/agents/:name/state` — 可折叠 state/inbox/todos 面板             |
+| Runtime Actor     | `/agents/:name`                 | `/agents/:name/state` + `/agents/:name/responses` + stream (migration) |
+| Actor Inspector   | `/agents/:name` (侧边栏)       | `/agents/:name/state` — runtime/harness member 状态；personal harness 才显示 inbox/todos |
 | Workspace         | `/workspaces/:key`              | `/workspaces/:key/status` + `/workspaces/:key/events` + docs APIs |
 | Workspace Settings| `/workspaces/:key` (侧边栏)     | workspace 详情、agents 列表、channels 概览                        |
 | Channel           | `/workspaces/:key/channels/:ch` | `/workspaces/:key/channels/:ch` + stream                          |

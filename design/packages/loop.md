@@ -89,7 +89,7 @@ Correlation rule: `callId` is provided by AI SDK / Claude Code / Cursor; **Codex
 
 ## Key mechanisms
 
-**Capability-first API, feature-detect at runtime.** `supports[]` + optional-method probing is the contract between loop and caller. No abstract base class with noop defaults; if a method isn't there, the capability isn't there. Callers like `packages/agent/bridge` and the workspace runner pick a transport based on these flags.
+**Capability-first API, feature-detect at runtime.** `supports[]` + optional-method probing is the contract between loop and caller. No abstract base class with noop defaults; if a method isn't there, the capability isn't there. `AgentRuntime` and harness runner closures pick a transport based on these flags.
 
 **MCP config is pre-wired, not injected mid-run.** Loops receive structured MCP servers or a config path before `run()` starts; once `run()` is in flight the tool set is frozen. Claude Code and Cursor take server objects through SDK options; Codex transforms generated JSON into TOML `-c` overrides. Config-file MCP uses the stdio workspace proxy because Codex deadlocked on HTTP MCP transport.
 

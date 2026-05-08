@@ -2,7 +2,10 @@
 
 日期：2026-04-25
 
-状态：目标设计草案
+状态：目标设计草案 / 参考材料。核心方向已通过
+`design/decisions/002-adopt-workspace-event-harness-core.md` 采纳，并已推广到
+`design/DESIGN.md` 与相关 package docs；本文保留更完整的探索、术语和待定问题，
+不再替代当前权威设计。
 
 ## 核心理论
 
@@ -770,6 +773,11 @@ Order:
 8. Split current `lead/worker` prompts into context-layer profiles: workspace coordination, task execution, governance/review, and observation.
 9. Build the Track-centered console and Governance Inbox after invocation records exist.
 
+Later adoption note: ADR 003 changes the broader agent model from
+workspace-vs-standalone paths to `HarnessEnvironment -> AgentRuntime`.
+Workspace remains the first mature harness implementation, but runtime actors
+should not own long-term context/tools/policy themselves.
+
 ## Non-goals
 
 - No blockchain or external consensus layer.
@@ -777,4 +785,4 @@ Order:
 - No direct worker-to-worker private coordination as the main path.
 - No raw transcript as default long-term context.
 - No contract ceremony for low-risk local actions.
-- No unification of workspace and standalone runtime paths.
+- No assumption that every future harness must be implemented as a workspace.

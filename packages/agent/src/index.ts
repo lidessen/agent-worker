@@ -11,6 +11,21 @@ export { MemoryManager, InMemoryMemoryStorage } from "./memory.ts";
 export { ReminderManager } from "./reminder.ts";
 export { RunCoordinator } from "./run-coordinator.ts";
 
+// ── Runtime boundary ───────────────────────────────────────────────────────
+export { AgentRuntime, renderPacket } from "./runtime.ts";
+export type {
+  AgentRuntimeRunInput,
+  AgentRuntimeRunResult,
+  ArtifactCandidate,
+  ContextPacket,
+  ExecutionResult,
+  HandoffDraft,
+  RunPolicy,
+  RuntimeBinding,
+  RuntimeTrace,
+  ToolCapabilitySet,
+} from "./runtime.ts";
+
 // ── Bridge (CLI loop infrastructure) ────────────────────────────────────────
 export { AgentMcpServer, LoopWiring } from "./bridge/index.ts";
 export type { LoopWiringDeps } from "./bridge/index.ts";

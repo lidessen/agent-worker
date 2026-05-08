@@ -6,7 +6,7 @@
  */
 import { writeFile, unlink } from "node:fs/promises";
 import { join } from "node:path";
-import type { AgentLoop } from "@agent-worker/agent";
+import type { AgentLoop, RuntimeBinding } from "@agent-worker/agent";
 import type { RuntimeConfig } from "./types.ts";
 import { extractProvider, getDefaultModel, resolveProvider } from "@agent-worker/loop";
 
@@ -73,6 +73,28 @@ export async function createLoopFromConfig(config: RuntimeConfig): Promise<Agent
   }
 
   return loop;
+}
+
+export async function createRuntimeBindingFromConfig(
+  config: RuntimeConfig,
+): Promise<RuntimeBinding> {
+  const loop = await createLoopFromConfig(config);
+  return {
+    id: runtimeBindingId(config),
+    runtimeType: config.type,
+    model: config.model,
+    loop,
+    metadata: {
+      cwd: config.cwd,
+      allowedPaths: config.allowedPaths,
+    },
+  };
+}
+
+function runtimeBindingId(config: RuntimeConfig): string {
+  const model = config.model ? `:${config.model}` : "";
+  const cwd = config.cwd ? `@${config.cwd}` : "";
+  return `${config.type}${model}${cwd}`;
 }
 
 async function createAiSdkLoop(config: RuntimeConfig): Promise<AgentLoop> {
