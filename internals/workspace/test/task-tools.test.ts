@@ -299,13 +299,13 @@ describe("task_dispatch", () => {
     expect(result).toContain("unavailable");
   });
 
-  test("refuses to dispatch a task that already has an active attempt", async () => {
+  test("refuses to dispatch a task that already has an active Wake", async () => {
     const { store, tools, queue: _queue } = setupWithQueue();
     const task = await store.createTask({ workspaceId: "test-ws", title: "t", goal: "g" });
     await tools.task_dispatch({ taskId: task.id, worker: "codex" });
 
     const second = await tools.task_dispatch({ taskId: task.id, worker: "cursor" });
-    expect(second).toContain("already has an active attempt");
+    expect(second).toContain("already has an active Wake");
   });
 
   test("refuses to dispatch a terminal task", async () => {

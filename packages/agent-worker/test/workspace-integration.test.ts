@@ -179,7 +179,6 @@ describe("Unified daemon (workspace routes)", () => {
     expect(detailed.task).toMatchObject({ id: first.id });
     expect(detailed.wakes).toEqual([]);
     expect(detailed.handoffs).toEqual([]);
-    expect(detailed.artifacts).toEqual([]);
   });
 
   test("listWorkspaceTasks accepts a status filter", async () => {

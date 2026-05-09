@@ -10,7 +10,6 @@
     "allowJs": true,
 
     "moduleResolution": "bundler",
-    "baseUrl": ".",
     "paths": {
       "agent-worker": ["./packages/agent-worker/src/index.ts"],
       "@agent-worker/agent": ["./internals/agent/src/index.ts"],
