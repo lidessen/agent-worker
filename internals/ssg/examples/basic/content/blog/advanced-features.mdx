@@ -1,0 +1,50 @@
+---
+title: Advanced MDX Features
+date: 2024-01-20
+---
+
+This post demonstrates how to use custom components in MDX.
+
+## Using Callout Components
+
+You can use callout components to highlight important information:
+
+<Callout type="info" title="Information">
+  This is an informational callout that provides helpful context.
+</Callout>
+
+<Callout type="warning" title="Warning">
+  Be careful when using this feature in production!
+</Callout>
+
+<Callout type="success" title="Success">
+  Your configuration is correct.
+</Callout>
+
+## Code Examples
+
+Use the CodeBlock component for better code display:
+
+<CodeBlock language="typescript" title="signal.ts">
+{`import { signal } from '@semajsx/signal';
+
+const count = signal(0);
+count.value++; // Reactive update`}
+
+</CodeBlock>
+
+<CodeBlock language="jsx" title="Component.tsx">
+  {`function App() {
+  return <div>Hello World</div>;
+}`}
+</CodeBlock>
+
+## Benefits
+
+<Callout type="info">
+  Custom components make your content more interactive and visually appealing.
+</Callout>
+
+- Better visual hierarchy
+- Reusable across all MDX files
+- Consistent styling

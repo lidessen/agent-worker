@@ -1,0 +1,50 @@
+---
+title: Input
+description: A text input field with optional label and multiple size variants.
+order: 4
+category: Forms
+---
+
+## Preview
+
+<ComponentPreview label="Default">
+  <Input placeholder="Enter your name..." />
+</ComponentPreview>
+
+<ComponentPreview label="With Label">
+  <Input label="Email" type="email" placeholder="you@example.com" />
+</ComponentPreview>
+
+<ComponentPreview label="Sizes">
+  <Input size="sm" placeholder="Small" />
+  <Input size="md" placeholder="Medium" />
+  <Input size="lg" placeholder="Large" />
+</ComponentPreview>
+
+<ComponentPreview label="Disabled">
+  <Input placeholder="Disabled input" disabled />
+</ComponentPreview>
+
+## Usage
+
+```tsx
+import { Input } from "@semajsx/ui/components/input";
+
+<Input placeholder="Enter your name" />
+<Input label="Email" type="email" size="lg" />
+<Input placeholder="Read only" readOnly />
+```
+
+## Props
+
+| Prop          | Type                                                                        | Default  | Description                |
+| ------------- | --------------------------------------------------------------------------- | -------- | -------------------------- |
+| `type`        | `"text" \| "email" \| "password" \| "number" \| "search" \| "url" \| "tel"` | `"text"` | Input type                 |
+| `label`       | `string`                                                                    | —        | Label text above the input |
+| `placeholder` | `string`                                                                    | —        | Placeholder text           |
+| `value`       | `string`                                                                    | —        | Current value              |
+| `size`        | `"sm" \| "md" \| "lg"`                                                      | `"md"`   | Size preset                |
+| `disabled`    | `boolean`                                                                   | `false`  | Disabled state             |
+| `readOnly`    | `boolean`                                                                   | `false`  | Read-only state            |
+| `name`        | `string`                                                                    | —        | HTML name attribute        |
+| `id`          | `string`                                                                    | —        | HTML id attribute          |

@@ -1,0 +1,35 @@
+---
+title: Badge
+description: Small labels for status indicators, tags, and category labels.
+order: 2
+category: Data Display
+---
+
+## Preview
+
+<ComponentPreview label="Colors">
+  <Badge>Default</Badge>
+  <Badge color="success">Success</Badge>
+  <Badge color="warning">Warning</Badge>
+  <Badge color="danger">Danger</Badge>
+  <Badge color="info">Info</Badge>
+  <Badge color="tip">Tip</Badge>
+</ComponentPreview>
+
+## Usage
+
+```tsx
+import { Badge } from "@semajsx/ui/components/badge";
+
+<Badge>Default</Badge>
+<Badge color="success">Published</Badge>
+<Badge color="warning">Draft</Badge>
+<Badge color="danger">Deprecated</Badge>
+```
+
+## Props
+
+| Prop       | Type                                                                 | Default     | Description   |
+| ---------- | -------------------------------------------------------------------- | ----------- | ------------- |
+| `color`    | `"default" \| "success" \| "warning" \| "danger" \| "info" \| "tip"` | `"default"` | Badge color   |
+| `children` | `JSXNode`                                                            | —           | Badge content |

@@ -1,0 +1,56 @@
+---
+title: Steps
+description: A numbered step list for tutorials, walkthroughs, and sequential instructions.
+order: 11
+category: Navigation
+---
+
+## Preview
+
+<ComponentPreview label="Default">
+  <Steps>
+    <Step number={1} title="Install the package">
+      Run `bun add @semajsx/ui` in your project.
+    </Step>
+    <Step number={2} title="Import the component">
+      Add the import to your file.
+    </Step>
+    <Step number={3} title="Use in your JSX">
+      Render the component with your props.
+    </Step>
+  </Steps>
+</ComponentPreview>
+
+## Usage
+
+```tsx
+import { Steps, Step } from "@semajsx/ui/components/steps";
+
+<Steps>
+  <Step number={1} title="Install">
+    Run the install command.
+  </Step>
+  <Step number={2} title="Configure">
+    Set up your config file.
+  </Step>
+  <Step number={3} title="Deploy">
+    Push to production.
+  </Step>
+</Steps>;
+```
+
+## Components
+
+### Steps
+
+Container for the step list.
+
+### Step
+
+Individual step item.
+
+| Prop       | Type      | Default | Description              |
+| ---------- | --------- | ------- | ------------------------ |
+| `title`    | `string`  | —       | Step heading             |
+| `number`   | `number`  | —       | Step number              |
+| `children` | `JSXNode` | —       | Step description content |

@@ -1,0 +1,10 @@
+{
+  "extends": "@semajsx/configs/tsconfig.lib.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "skipLibCheck": true
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist", "src/**/*.test.ts", "src/react.ts", "src/vue.ts"]
+}

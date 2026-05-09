@@ -1,0 +1,42 @@
+---
+title: Avatar
+description: Displays a user avatar with image support or initials fallback.
+order: 6
+category: Data Display
+---
+
+## Preview
+
+<ComponentPreview label="Initials">
+  <Avatar initials="AB" size="sm" />
+  <Avatar initials="CD" size="md" />
+  <Avatar initials="EF" size="lg" />
+</ComponentPreview>
+
+<ComponentPreview label="Sizes">
+  <Avatar initials="S" size="sm" />
+  <Avatar initials="M" size="md" />
+  <Avatar initials="L" size="lg" />
+</ComponentPreview>
+
+## Usage
+
+```tsx
+import { Avatar } from "@semajsx/ui/components/avatar";
+
+// With image
+<Avatar src="/photo.jpg" alt="John Doe" />
+
+// With initials fallback
+<Avatar initials="JD" />
+<Avatar initials="AB" size="lg" />
+```
+
+## Props
+
+| Prop       | Type                   | Default | Description                      |
+| ---------- | ---------------------- | ------- | -------------------------------- |
+| `src`      | `string`               | —       | Image source URL                 |
+| `alt`      | `string`               | —       | Alt text for the image           |
+| `initials` | `string`               | —       | Initials fallback when no image  |
+| `size`     | `"sm" \| "md" \| "lg"` | `"md"`  | Size preset (32px / 40px / 48px) |

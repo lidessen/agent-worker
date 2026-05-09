@@ -1,0 +1,42 @@
+---
+title: Separator
+description: A visual divider to separate content sections horizontally or vertically.
+order: 7
+category: Layout
+---
+
+## Preview
+
+<ComponentPreview label="Horizontal">
+  <div style="width: 300px; text-align: center;">
+    <p style="margin: 0; color: #6e6e73; font-size: 0.875rem;">Content above</p>
+    <Separator />
+    <p style="margin: 0; color: #6e6e73; font-size: 0.875rem;">Content below</p>
+  </div>
+</ComponentPreview>
+
+<ComponentPreview label="Vertical">
+  <div style="display: flex; align-items: center; gap: 0; height: 40px;">
+    <span style="color: #6e6e73; font-size: 0.875rem;">Left</span>
+    <Separator orientation="vertical" />
+    <span style="color: #6e6e73; font-size: 0.875rem;">Right</span>
+  </div>
+</ComponentPreview>
+
+## Usage
+
+```tsx
+import { Separator } from "@semajsx/ui/components/separator";
+
+// Horizontal (default)
+<Separator />
+
+// Vertical
+<Separator orientation="vertical" />
+```
+
+## Props
+
+| Prop          | Type                         | Default        | Description |
+| ------------- | ---------------------------- | -------------- | ----------- |
+| `orientation` | `"horizontal" \| "vertical"` | `"horizontal"` | Orientation |

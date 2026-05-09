@@ -1,0 +1,31 @@
+{
+  "name": "@semajsx/chat",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Chat UI components for rendering agent events, tool calls, and conversations",
+  "keywords": [
+    "chat",
+    "components",
+    "events",
+    "ui"
+  ],
+  "license": "MIT",
+  "author": "lidessen",
+  "type": "module",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "default": "./dist/index.mjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "dependencies": {
+    "@semajsx/core": "workspace:*",
+    "@semajsx/dom": "workspace:*",
+    "@semajsx/signal": "workspace:*",
+    "@semajsx/style": "workspace:*"
+  },
+  "devDependencies": {
+    "@semajsx/configs": "workspace:*"
+  }
+}

@@ -1,4 +1,5 @@
 {
+  "$schema": "https://json.schemastore.org/tsconfig",
   "compilerOptions": {
     "lib": ["ESNext"],
     "types": ["@types/bun"],
@@ -9,12 +10,29 @@
     "allowJs": true,
 
     "moduleResolution": "bundler",
+    "baseUrl": ".",
     "paths": {
       "agent-worker": ["./packages/agent-worker/src/index.ts"],
-      "@agent-worker/agent": ["./packages/agent/src/index.ts"],
-      "@agent-worker/loop": ["./packages/loop/src/index.ts"],
-      "@agent-worker/shared": ["./packages/shared/src/index.ts"],
-      "@agent-worker/workspace": ["./packages/workspace/src/index.ts"]
+      "@agent-worker/agent": ["./internals/agent/src/index.ts"],
+      "@agent-worker/loop": ["./internals/loop/src/index.ts"],
+      "@agent-worker/shared": ["./internals/shared/src/index.ts"],
+      "@agent-worker/workspace": ["./internals/workspace/src/index.ts"],
+      "@semajsx/blocks": ["./internals/blocks/src/index.ts"],
+      "@semajsx/chat": ["./internals/chat/src/index.ts"],
+      "@semajsx/core": ["./internals/core/src/index.ts"],
+      "@semajsx/dom": ["./internals/dom/src/index.ts"],
+      "@semajsx/icons": ["./internals/icons/src/index.ts"],
+      "@semajsx/logger": ["./internals/logger/src/index.ts"],
+      "@semajsx/mermaid": ["./internals/mermaid/src/index.ts"],
+      "@semajsx/prompt": ["./internals/prompt/src/index.ts"],
+      "@semajsx/signal": ["./internals/signal/src/index.ts"],
+      "@semajsx/ssg": ["./internals/ssg/src/index.ts"],
+      "@semajsx/ssr": ["./internals/ssr/src/index.ts"],
+      "@semajsx/style": ["./internals/style/src/index.ts"],
+      "@semajsx/tailwind": ["./internals/tailwind/src/index.ts"],
+      "@semajsx/terminal": ["./internals/terminal/src/index.ts"],
+      "@semajsx/ui": ["./internals/ui/src/index.ts"],
+      "@semajsx/utils": ["./internals/utils/src/index.ts"]
     },
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,

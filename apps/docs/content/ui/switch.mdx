@@ -1,0 +1,42 @@
+---
+title: Switch
+description: A toggle switch for boolean settings and preferences.
+order: 5
+category: Forms
+---
+
+## Preview
+
+<ComponentPreview label="Off / On">
+  <Switch />
+  <Switch checked />
+</ComponentPreview>
+
+<ComponentPreview label="With Labels">
+  <Switch label="Dark mode" />
+  <Switch label="Notifications" checked />
+</ComponentPreview>
+
+<ComponentPreview label="Disabled">
+  <Switch label="Disabled" disabled />
+  <Switch label="Disabled (on)" checked disabled />
+</ComponentPreview>
+
+## Usage
+
+```tsx
+import { Switch } from "@semajsx/ui/components/switch";
+
+<Switch label="Dark mode" />
+<Switch label="Notifications" checked />
+<Switch disabled />
+```
+
+## Props
+
+| Prop       | Type      | Default | Description         |
+| ---------- | --------- | ------- | ------------------- |
+| `label`    | `string`  | —       | Label text          |
+| `checked`  | `boolean` | `false` | Checked state       |
+| `disabled` | `boolean` | `false` | Disabled state      |
+| `name`     | `string`  | —       | HTML name attribute |

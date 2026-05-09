@@ -107,8 +107,17 @@ export class Daemon {
 
   constructor(config: DaemonConfig = {}) {
     const dataDir = config.dataDir ?? defaultDataDir();
-    // Default webDistDir: from daemon.ts (packages/agent-worker/src/) → up 3 to packages/ → web/dist
-    const defaultWebDist = resolve(fileURLToPath(import.meta.url), "..", "..", "..", "web", "dist");
+    // Default webDistDir: from daemon.ts (packages/agent-worker/src/) → up 4 to repo root → internals/web/dist
+    const defaultWebDist = resolve(
+      fileURLToPath(import.meta.url),
+      "..",
+      "..",
+      "..",
+      "..",
+      "internals",
+      "web",
+      "dist",
+    );
     this.config = {
       port: config.port ?? 7420,
       host: config.host ?? "0.0.0.0",

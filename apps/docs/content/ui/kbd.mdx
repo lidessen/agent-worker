@@ -1,0 +1,48 @@
+---
+title: Kbd
+description: Displays keyboard keys and shortcuts with a native key-cap appearance.
+order: 8
+category: Data Display
+---
+
+## Preview
+
+<ComponentPreview label="Single Keys">
+  <Kbd>Ctrl</Kbd>
+  <Kbd>Shift</Kbd>
+  <Kbd>Enter</Kbd>
+  <Kbd>Esc</Kbd>
+</ComponentPreview>
+
+<ComponentPreview label="Keyboard Shortcuts">
+  <span style="display: inline-flex; align-items: center; gap: 0.25rem;">
+    <Kbd>Cmd</Kbd>
+    <span style="color: #86868b; font-size: 0.8125rem;">+</span>
+    <Kbd>K</Kbd>
+  </span>
+  <span style="display: inline-flex; align-items: center; gap: 0.25rem; margin-left: 1.5rem;">
+    <Kbd>Ctrl</Kbd>
+    <span style="color: #86868b; font-size: 0.8125rem;">+</span>
+    <Kbd>Shift</Kbd>
+    <span style="color: #86868b; font-size: 0.8125rem;">+</span>
+    <Kbd>P</Kbd>
+  </span>
+</ComponentPreview>
+
+## Usage
+
+```tsx
+import { Kbd } from "@semajsx/ui/components/kbd";
+
+<Kbd>Ctrl</Kbd>
+
+<p>
+  Press <Kbd>Cmd</Kbd> + <Kbd>K</Kbd> to open the command palette.
+</p>
+```
+
+## Props
+
+| Prop       | Type      | Default | Description |
+| ---------- | --------- | ------- | ----------- |
+| `children` | `JSXNode` | —       | Key label   |

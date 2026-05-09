@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "display": "Application",
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    // Applications typically need DOM
+    "lib": ["ES2021", "DOM", "DOM.Iterable"],
+
+    // JSX support
+    "jsx": "react-jsx",
+
+    // Build options for applications
+    "composite": false,
+    "noEmit": true
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "exclude": ["node_modules", "dist", "coverage"]
+}

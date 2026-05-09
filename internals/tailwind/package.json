@@ -1,0 +1,35 @@
+{
+  "name": "@semajsx/tailwind",
+  "version": "0.1.1",
+  "private": true,
+  "description": "Tailwind-style utility classes for SemaJSX - type-safe and tree-shakeable",
+  "keywords": [
+    "css",
+    "tailwind",
+    "tree-shaking",
+    "type-safe",
+    "utility-classes"
+  ],
+  "license": "MIT",
+  "author": "lidessen",
+  "type": "module",
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "exports": {
+    ".": "./src/index.ts",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest",
+    "test:run": "vitest run"
+  },
+  "dependencies": {
+    "@semajsx/style": "workspace:*"
+  },
+  "devDependencies": {
+    "@semajsx/configs": "workspace:*",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.4"
+  }
+}

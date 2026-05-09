@@ -1,0 +1,34 @@
+{
+  "name": "@semajsx/signal",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Fine-grained reactive signal system for SemaJSX",
+  "keywords": [
+    "computed",
+    "effect",
+    "reactive",
+    "reactivity",
+    "signal"
+  ],
+  "license": "MIT",
+  "author": "lidessen",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@semajsx/utils": "workspace:*"
+  },
+  "devDependencies": {
+    "@semajsx/configs": "workspace:*",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.4"
+  }
+}

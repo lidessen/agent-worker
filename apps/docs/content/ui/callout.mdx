@@ -1,0 +1,52 @@
+---
+title: Callout
+description: Alert-style callout boxes for tips, warnings, errors, and informational content.
+order: 9
+category: Feedback
+---
+
+## Preview
+
+<ComponentPreview label="Info">
+  <Callout type="info">This is an informational callout with useful context.</Callout>
+</ComponentPreview>
+
+<ComponentPreview label="Warning">
+  <Callout type="warning">Be careful with this operation — it cannot be undone.</Callout>
+</ComponentPreview>
+
+<ComponentPreview label="Success">
+  <Callout type="success">Your changes have been saved successfully.</Callout>
+</ComponentPreview>
+
+<ComponentPreview label="Error">
+  <Callout type="error">Something went wrong. Please try again.</Callout>
+</ComponentPreview>
+
+<ComponentPreview label="Tip">
+  <Callout type="tip">You can use keyboard shortcuts for faster navigation.</Callout>
+</ComponentPreview>
+
+<ComponentPreview label="With Title">
+  <Callout type="info" title="Did you know?">
+    Signals automatically track dependencies and update only what changed.
+  </Callout>
+</ComponentPreview>
+
+## Usage
+
+```tsx
+import { Callout } from "@semajsx/ui/components/callout";
+
+<Callout type="info">Helpful information here.</Callout>
+<Callout type="warning" title="Warning">This action is destructive.</Callout>
+<Callout type="tip">Pro tip: use signals for fine-grained reactivity.</Callout>
+```
+
+## Props
+
+| Prop       | Type                                                   | Default  | Description                  |
+| ---------- | ------------------------------------------------------ | -------- | ---------------------------- |
+| `type`     | `"info" \| "warning" \| "success" \| "error" \| "tip"` | `"info"` | Callout type                 |
+| `title`    | `string`                                               | —        | Optional title above content |
+| `children` | `JSXNode`                                              | —        | Callout content              |

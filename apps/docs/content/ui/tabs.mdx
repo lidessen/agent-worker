@@ -1,0 +1,66 @@
+---
+title: Tabs
+description: A tabbed interface for organizing content into switchable panels.
+order: 10
+category: Navigation
+---
+
+## Preview
+
+<ComponentPreview label="Default" interactive>
+  <Tabs defaultValue="preview">
+    <TabList>
+      <Tab value="preview">Preview</Tab>
+      <Tab value="code">Code</Tab>
+      <Tab value="docs">Docs</Tab>
+    </TabList>
+    <TabPanel value="preview">This is the preview panel content.</TabPanel>
+    <TabPanel value="code">This is the code panel content.</TabPanel>
+    <TabPanel value="docs">This is the docs panel content.</TabPanel>
+  </Tabs>
+</ComponentPreview>
+
+## Usage
+
+```tsx
+import { Tabs, TabList, Tab, TabPanel } from "@semajsx/ui/components/tabs";
+
+<Tabs defaultValue="tab1">
+  <TabList>
+    <Tab value="tab1">First</Tab>
+    <Tab value="tab2">Second</Tab>
+  </TabList>
+  <TabPanel value="tab1">First panel content</TabPanel>
+  <TabPanel value="tab2">Second panel content</TabPanel>
+</Tabs>;
+```
+
+## Components
+
+### Tabs
+
+Container component that manages tab state.
+
+| Prop           | Type     | Default | Description                |
+| -------------- | -------- | ------- | -------------------------- |
+| `defaultValue` | `string` | —       | Initially active tab value |
+
+### TabList
+
+Horizontal container for tab triggers.
+
+### Tab
+
+Individual tab trigger button.
+
+| Prop    | Type     | Default | Description           |
+| ------- | -------- | ------- | --------------------- |
+| `value` | `string` | —       | Unique tab identifier |
+
+### TabPanel
+
+Content panel shown when its tab is active.
+
+| Prop    | Type     | Default | Description             |
+| ------- | -------- | ------- | ----------------------- |
+| `value` | `string` | —       | Matching tab identifier |
