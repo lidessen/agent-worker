@@ -52,7 +52,7 @@ interface TaskSummary {
   id: string;
   status: string;
   title: string;
-  activeAttemptId?: string;
+  activeWakeId?: string;
   artifactRefs?: string[];
 }
 
@@ -85,8 +85,8 @@ async function main() {
           console.log(
             `${dim(`[${fmtTime()}]`)} ${cyan("task_status")} ${bold(t.id)} ${prev.status} → ${yellow(t.status)}`,
           );
-        } else if (prev.activeAttemptId !== t.activeAttemptId) {
-          const change = t.activeAttemptId ? `active=${t.activeAttemptId}` : "active=cleared";
+        } else if (prev.activeWakeId !== t.activeWakeId) {
+          const change = t.activeWakeId ? `active=${t.activeWakeId}` : "active=cleared";
           console.log(`${dim(`[${fmtTime()}]`)} ${cyan("task_active")} ${bold(t.id)} ${change}`);
         }
         taskState.set(t.id, t);

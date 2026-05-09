@@ -448,21 +448,20 @@ export class WorkspaceOrchestrator {
     inboxEntries: InboxEntry[],
     instruction?: Instruction,
   ): Promise<string> {
-    // Phase-1 v3: surface the agent's active attempt's worktrees
-    // (if any) so the prompt's "Worktrees" section can render
-    // them. The runner closure also reads this to pick the
-    // per-run cwd, but we re-query here so the prompt and the
-    // runner see exactly the same state.
+    // Surface the agent's active Wake's worktrees (if any) so the
+    // prompt's "Worktrees" section can render them. The runner closure
+    // also reads this to pick the per-run cwd, but we re-query here so
+    // the prompt and the runner see exactly the same state.
     let worktrees: import("@agent-worker/workspace").Worktree[] | undefined;
     if (this.config.stateStore) {
       try {
-        const active = await this.config.stateStore.findActiveAttempt(this.config.name);
+        const active = await this.config.stateStore.findActiveWake(this.config.name);
         if (active?.worktrees && active.worktrees.length > 0) {
           worktrees = [...active.worktrees];
         }
       } catch {
-        // best-effort; missing worktrees just means the prompt
-        // has no Worktrees section this run.
+        // best-effort; missing worktrees just means the prompt has no
+        // Worktrees section this run.
       }
     }
     return assemblePrompt(this.sections, {

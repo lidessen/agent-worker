@@ -1,7 +1,7 @@
 import type {
   Artifact,
-  Attempt,
-  AttemptStatus,
+  Wake,
+  WakeStatus,
   Handoff,
   HandoffKind,
   SourceRef,
@@ -21,6 +21,10 @@ import { nanoid } from "../../utils.ts";
  * Phase 2b intentionally keeps this minimal: no role-gated access, no
  * auto-accept / auto-open heuristics. All transitions are driven explicitly
  * by the agent calling these tools.
+ *
+ * Wake (renamed from Attempt) is the bounded-life unit per
+ * design/decisions/005-session-orchestration-model.md. Task and Artifact
+ * remain in the kernel as migration source.
  */
 
 export interface TaskTools {
@@ -45,7 +49,7 @@ export interface TaskTools {
     acceptanceCriteria?: string;
   }): Promise<string>;
 
-  attempt_create(args: {
+  wake_create(args: {
     taskId: string;
     agentName?: string;
     role?: AgentRole;
@@ -55,11 +59,11 @@ export interface TaskTools {
     cwd?: string;
     worktreePath?: string;
   }): Promise<string>;
-  attempt_list(args: { taskId: string }): Promise<string>;
-  attempt_get(args: { id: string }): Promise<string>;
-  attempt_update(args: {
+  wake_list(args: { taskId: string }): Promise<string>;
+  wake_get(args: { id: string }): Promise<string>;
+  wake_update(args: {
     id: string;
-    status?: AttemptStatus;
+    status?: WakeStatus;
     resultSummary?: string;
     outputHandoffId?: string;
     sessionId?: string;
@@ -68,15 +72,14 @@ export interface TaskTools {
 
   handoff_create(args: {
     taskId: string;
-    fromAttemptId: string;
-    toAttemptId?: string;
+    closingWakeId: string;
     kind: HandoffKind;
     summary: string;
     completed?: string[];
     pending?: string[];
     blockers?: string[];
     decisions?: string[];
-    nextSteps?: string[];
+    resources?: string[];
     artifactRefs?: string[];
     touchedPaths?: string[];
   }): Promise<string>;
@@ -84,7 +87,7 @@ export interface TaskTools {
 
   artifact_create(args: {
     taskId: string;
-    createdByAttemptId: string;
+    createdByWakeId: string;
     kind: string;
     title: string;
     ref: string;
@@ -106,7 +109,7 @@ const ALLOWED_STATUS = new Set<TaskStatus>([
   "failed",
 ]);
 
-const ALLOWED_ATTEMPT_STATUS = new Set<AttemptStatus>([
+const ALLOWED_WAKE_STATUS = new Set<WakeStatus>([
   "running",
   "completed",
   "failed",
@@ -122,8 +125,8 @@ function isTaskStatus(value: unknown): value is TaskStatus {
   return typeof value === "string" && ALLOWED_STATUS.has(value as TaskStatus);
 }
 
-function isAttemptStatus(value: unknown): value is AttemptStatus {
-  return typeof value === "string" && ALLOWED_ATTEMPT_STATUS.has(value as AttemptStatus);
+function isWakeStatus(value: unknown): value is WakeStatus {
+  return typeof value === "string" && ALLOWED_WAKE_STATUS.has(value as WakeStatus);
 }
 
 function isHandoffKind(value: unknown): value is HandoffKind {
@@ -134,20 +137,20 @@ function isAgentRole(value: unknown): value is AgentRole {
   return typeof value === "string" && ALLOWED_ROLES.has(value as AgentRole);
 }
 
-function formatAttempt(attempt: Attempt): string {
+function formatWake(wake: Wake): string {
   const lines: string[] = [];
-  lines.push(`- [${attempt.id}] ${attempt.agentName} (${attempt.role}) [${attempt.status}]`);
-  lines.push(`  task: ${attempt.taskId}`);
-  if (attempt.runtimeType) lines.push(`  runtime: ${attempt.runtimeType}`);
-  if (attempt.sessionId) lines.push(`  session: ${attempt.sessionId}`);
-  if (attempt.worktrees && attempt.worktrees.length > 0) {
-    for (const wt of attempt.worktrees) {
+  lines.push(`- [${wake.id}] ${wake.agentName} (${wake.role}) [${wake.status}]`);
+  lines.push(`  task: ${wake.taskId}`);
+  if (wake.runtimeType) lines.push(`  runtime: ${wake.runtimeType}`);
+  if (wake.sessionId) lines.push(`  session: ${wake.sessionId}`);
+  if (wake.worktrees && wake.worktrees.length > 0) {
+    for (const wt of wake.worktrees) {
       lines.push(`  worktree[${wt.name}]: ${wt.path} (${wt.branch})`);
     }
   }
-  if (attempt.inputHandoffId) lines.push(`  inputHandoff: ${attempt.inputHandoffId}`);
-  if (attempt.outputHandoffId) lines.push(`  outputHandoff: ${attempt.outputHandoffId}`);
-  if (attempt.resultSummary) lines.push(`  summary: ${attempt.resultSummary}`);
+  if (wake.inputHandoffId) lines.push(`  inputHandoff: ${wake.inputHandoffId}`);
+  if (wake.outputHandoffId) lines.push(`  outputHandoff: ${wake.outputHandoffId}`);
+  if (wake.resultSummary) lines.push(`  summary: ${wake.resultSummary}`);
   return lines.join("\n");
 }
 
@@ -155,14 +158,12 @@ function formatHandoff(handoff: Handoff): string {
   const lines: string[] = [];
   lines.push(`- [${handoff.id}] ${handoff.kind} by ${handoff.createdBy}`);
   lines.push(`  task: ${handoff.taskId}`);
-  lines.push(
-    `  from: ${handoff.fromAttemptId}${handoff.toAttemptId ? ` → ${handoff.toAttemptId}` : ""}`,
-  );
+  lines.push(`  closingWake: ${handoff.closingWakeId}`);
   lines.push(`  summary: ${handoff.summary}`);
   if (handoff.completed.length > 0) lines.push(`  completed: ${handoff.completed.join("; ")}`);
   if (handoff.pending.length > 0) lines.push(`  pending: ${handoff.pending.join("; ")}`);
   if (handoff.blockers.length > 0) lines.push(`  blockers: ${handoff.blockers.join("; ")}`);
-  if (handoff.nextSteps.length > 0) lines.push(`  next: ${handoff.nextSteps.join("; ")}`);
+  if (handoff.resources.length > 0) lines.push(`  resources: ${handoff.resources.join("; ")}`);
   return lines.join("\n");
 }
 
@@ -171,7 +172,7 @@ function formatArtifact(artifact: Artifact): string {
   lines.push(`- [${artifact.id}] ${artifact.kind}: ${artifact.title}`);
   lines.push(`  task: ${artifact.taskId}`);
   lines.push(`  ref: ${artifact.ref}`);
-  lines.push(`  createdBy: ${artifact.createdByAttemptId}`);
+  lines.push(`  createdBy: ${artifact.createdByWakeId}`);
   if (artifact.version != null) lines.push(`  version: ${artifact.version}`);
   if (artifact.checksum) lines.push(`  checksum: ${artifact.checksum}`);
   return lines.join("\n");
@@ -182,7 +183,7 @@ function formatTask(task: Task): string {
   lines.push(`- [${task.id}] ${task.title} [${task.status}]`);
   if (task.ownerLeadId) lines.push(`  owner: ${task.ownerLeadId}`);
   if (task.priority != null) lines.push(`  priority: ${task.priority}`);
-  if (task.activeAttemptId) lines.push(`  active attempt: ${task.activeAttemptId}`);
+  if (task.activeWakeId) lines.push(`  active wake: ${task.activeWakeId}`);
   lines.push(`  goal: ${task.goal}`);
   if (task.acceptanceCriteria) lines.push(`  accept: ${task.acceptanceCriteria}`);
   if (task.sourceRefs.length > 0) {
@@ -225,15 +226,15 @@ export function createTaskTools(
       // Chronicle is observational; a failure here is non-fatal.
     }
   }
-  // Serialise mutations that read a task's active-attempt state and then
-  // write to it. The check-then-act sequence happens across async `await`
+  // Serialise mutations that read a task's active-Wake state and then write
+  // to it. The check-then-act sequence happens across async `await`
   // boundaries, so two concurrent dispatches on the same task can both pass
-  // the "no active attempt" guard and then both install their own attempts.
-  // A per-task lock prevents that interleave within a single process.
+  // the "no active Wake" guard and then both install their own Wakes. A
+  // per-task lock prevents that interleave within a single process.
   const inFlightTasks = new Set<string>();
   async function withTaskLock<T>(taskId: string, fn: () => Promise<T>): Promise<T | string> {
     if (inFlightTasks.has(taskId)) {
-      return `Error: task ${taskId} has another active-attempt mutation in flight — retry in a moment.`;
+      return `Error: task ${taskId} has another active-Wake mutation in flight — retry in a moment.`;
     }
     inFlightTasks.add(taskId);
     try {
@@ -337,16 +338,16 @@ export function createTaskTools(
       return `Task ${updated.id} updated [${updated.status}]: ${updated.title}`;
     },
 
-    // ── Attempt tools ──────────────────────────────────────────────────
+    // ── Wake tools ─────────────────────────────────────────────────────
 
-    async attempt_create(args): Promise<string> {
+    async wake_create(args): Promise<string> {
       if (!args.taskId) return "Error: 'taskId' is required.";
       const role: AgentRole = args.role ?? "worker";
       if (!isAgentRole(role)) return `Error: invalid role "${args.role}".`;
 
       const result = await withTaskLock(args.taskId, async () => {
         try {
-          const attempt = await store.createAttempt({
+          const wake = await store.createWake({
             taskId: args.taskId,
             agentName: args.agentName ?? agentName,
             role,
@@ -356,17 +357,17 @@ export function createTaskTools(
             cwd: args.cwd,
           });
 
-          // Wire as active only when the task has no active attempt.
+          // Wire as active only when the task has no active Wake.
           const task = await store.getTask(args.taskId);
-          if (task && !task.activeAttemptId) {
+          if (task && !task.activeWakeId) {
             await store.updateTask(args.taskId, {
-              activeAttemptId: attempt.id,
+              activeWakeId: wake.id,
               status:
                 task.status === "open" || task.status === "draft" ? "in_progress" : task.status,
             });
           }
 
-          return `Attempt ${attempt.id} started on task ${attempt.taskId} [${attempt.status}]`;
+          return `Wake ${wake.id} started on task ${wake.taskId} [${wake.status}]`;
         } catch (err) {
           return `Error: ${err instanceof Error ? err.message : String(err)}`;
         }
@@ -374,37 +375,37 @@ export function createTaskTools(
       return typeof result === "string" ? result : String(result);
     },
 
-    async attempt_list(args): Promise<string> {
+    async wake_list(args): Promise<string> {
       if (!args.taskId) return "Error: 'taskId' is required.";
-      const attempts = await store.listAttempts(args.taskId);
-      if (attempts.length === 0) return `No attempts for task ${args.taskId}.`;
-      return `Attempts (${attempts.length}):\n${attempts.map(formatAttempt).join("\n")}`;
+      const wakes = await store.listWakes(args.taskId);
+      if (wakes.length === 0) return `No wakes for task ${args.taskId}.`;
+      return `Wakes (${wakes.length}):\n${wakes.map(formatWake).join("\n")}`;
     },
 
-    async attempt_get(args): Promise<string> {
+    async wake_get(args): Promise<string> {
       if (!args.id) return "Error: 'id' is required.";
-      const attempt = await store.getAttempt(args.id);
-      if (!attempt) return `Attempt ${args.id} not found.`;
-      return formatAttempt(attempt);
+      const wake = await store.getWake(args.id);
+      if (!wake) return `Wake ${args.id} not found.`;
+      return formatWake(wake);
     },
 
-    async attempt_update(args): Promise<string> {
+    async wake_update(args): Promise<string> {
       if (!args.id) return "Error: 'id' is required.";
-      if (args.status != null && !isAttemptStatus(args.status)) {
-        return `Error: invalid attempt status "${args.status}".`;
+      if (args.status != null && !isWakeStatus(args.status)) {
+        return `Error: invalid wake status "${args.status}".`;
       }
-      const current = await store.getAttempt(args.id);
-      if (!current) return `Attempt ${args.id} not found.`;
+      const current = await store.getWake(args.id);
+      if (!current) return `Wake ${args.id} not found.`;
 
-      const patch: Parameters<WorkspaceStateStore["updateAttempt"]>[1] = {};
+      const patch: Parameters<WorkspaceStateStore["updateWake"]>[1] = {};
       if (args.status !== undefined) patch.status = args.status;
       if (args.resultSummary !== undefined) patch.resultSummary = args.resultSummary;
       if (args.outputHandoffId !== undefined) patch.outputHandoffId = args.outputHandoffId;
       if (args.sessionId !== undefined) patch.sessionId = args.sessionId;
       if (args.lastHeartbeatAt !== undefined) patch.lastHeartbeatAt = args.lastHeartbeatAt;
-      // All four of these are logically terminal for the current attempt —
-      // `handed_off` means the attempt relinquished control, even though the
-      // task continues. Stamp endedAt and clear activeAttemptId for all of
+      // All four of these are logically terminal for the current Wake —
+      // `handed_off` means the Wake relinquished control, even though the
+      // task continues. Stamp endedAt and clear activeWakeId for all of
       // them so a follow-up dispatch isn't blocked by a stale reference.
       if (
         args.status === "completed" ||
@@ -415,29 +416,29 @@ export function createTaskTools(
         patch.endedAt = Date.now();
       }
 
-      const updated = await store.updateAttempt(args.id, patch);
+      const updated = await store.updateWake(args.id, patch);
 
-      // If the attempt is terminal, clear the task's activeAttemptId.
+      // If the Wake is terminal, clear the task's activeWakeId.
       if (patch.endedAt) {
         const task = await store.getTask(updated.taskId);
-        if (task && task.activeAttemptId === updated.id) {
-          await store.updateTask(updated.taskId, { activeAttemptId: undefined });
+        if (task && task.activeWakeId === updated.id) {
+          await store.updateTask(updated.taskId, { activeWakeId: undefined });
         }
       }
 
       if (args.status !== undefined) {
         await chronicle(
-          `attempt_update [${updated.id}] on task ${updated.taskId} → ${updated.status}`,
+          `wake_update [${updated.id}] on task ${updated.taskId} → ${updated.status}`,
         );
       }
-      return `Attempt ${updated.id} updated [${updated.status}]`;
+      return `Wake ${updated.id} updated [${updated.status}]`;
     },
 
     // ── Handoff tools ──────────────────────────────────────────────────
 
     async handoff_create(args): Promise<string> {
-      if (!args.taskId || !args.fromAttemptId || !args.summary) {
-        return "Error: 'taskId', 'fromAttemptId', and 'summary' are required.";
+      if (!args.taskId || !args.closingWakeId || !args.summary) {
+        return "Error: 'taskId', 'closingWakeId', and 'summary' are required.";
       }
       if (!isHandoffKind(args.kind)) {
         return `Error: invalid handoff kind "${args.kind}".`;
@@ -445,8 +446,7 @@ export function createTaskTools(
       try {
         const handoff = await store.createHandoff({
           taskId: args.taskId,
-          fromAttemptId: args.fromAttemptId,
-          toAttemptId: args.toAttemptId,
+          closingWakeId: args.closingWakeId,
           createdBy: agentName,
           kind: args.kind,
           summary: args.summary,
@@ -454,7 +454,7 @@ export function createTaskTools(
           pending: args.pending,
           blockers: args.blockers,
           decisions: args.decisions,
-          nextSteps: args.nextSteps,
+          resources: args.resources,
           artifactRefs: args.artifactRefs,
           touchedPaths: args.touchedPaths,
         });
@@ -474,13 +474,13 @@ export function createTaskTools(
     // ── Artifact tools ─────────────────────────────────────────────────
 
     async artifact_create(args): Promise<string> {
-      if (!args.taskId || !args.createdByAttemptId || !args.kind || !args.title || !args.ref) {
-        return "Error: 'taskId', 'createdByAttemptId', 'kind', 'title', and 'ref' are required.";
+      if (!args.taskId || !args.createdByWakeId || !args.kind || !args.title || !args.ref) {
+        return "Error: 'taskId', 'createdByWakeId', 'kind', 'title', and 'ref' are required.";
       }
       try {
         const artifact = await store.createArtifact({
           taskId: args.taskId,
-          createdByAttemptId: args.createdByAttemptId,
+          createdByWakeId: args.createdByWakeId,
           kind: args.kind,
           title: args.title,
           ref: args.ref,
@@ -527,30 +527,28 @@ export function createTaskTools(
         if (task.status === "completed" || task.status === "aborted" || task.status === "failed") {
           return `Error: task ${task.id} is already ${task.status}.`;
         }
-        if (task.activeAttemptId) {
-          return `Error: task ${task.id} already has an active attempt (${task.activeAttemptId}). Cancel or complete it before dispatching again.`;
+        if (task.activeWakeId) {
+          return `Error: task ${task.id} already has an active Wake (${task.activeWakeId}). Cancel or complete it before dispatching again.`;
         }
 
-        let attempt: Attempt;
+        let wake: Wake;
         try {
-          // Phase 1 v3: worktrees are no longer attached at
-          // dispatch time. The worker creates them via the
-          // attempt-scoped `worktree_create` tool during its
-          // run; the resulting entries land on
-          // `attempt.worktrees` and are cleaned up on terminal
-          // status via the `attempt.terminal` event listener
+          // Worktrees are created on-demand by the worker via the
+          // Wake-scoped `worktree_create` tool during its run; the
+          // resulting entries land on `wake.worktrees` and are cleaned up
+          // on terminal status via the `wake.terminal` event listener
           // wired in workspace-registry.
-          attempt = await store.createAttempt({
+          wake = await store.createWake({
             taskId: task.id,
             agentName: workerName,
             role: "worker",
           });
         } catch (err) {
-          return `Error creating attempt: ${err instanceof Error ? err.message : String(err)}`;
+          return `Error creating Wake: ${err instanceof Error ? err.message : String(err)}`;
         }
 
         await store.updateTask(task.id, {
-          activeAttemptId: attempt.id,
+          activeWakeId: wake.id,
           status: task.status === "draft" || task.status === "open" ? "in_progress" : task.status,
         });
 
@@ -558,25 +556,25 @@ export function createTaskTools(
         const instruction = {
           id: nanoid(),
           agentName: workerName,
-          messageId: `dispatch:${attempt.id}`,
+          messageId: `dispatch:${wake.id}`,
           channel: "dispatch",
-          content: formatDispatchInstruction(task, attempt, agentName),
+          content: formatDispatchInstruction(task, wake, agentName),
           priority,
           enqueuedAt: new Date().toISOString(),
         };
         deps.instructionQueue!.enqueue(instruction);
 
         await chronicle(
-          `task_dispatch [${task.id}] → @${workerName} as ${attempt.id}: ${task.title}`,
+          `task_dispatch [${task.id}] → @${workerName} as ${wake.id}: ${task.title}`,
         );
-        return `Dispatched task ${task.id} to @${workerName} as attempt ${attempt.id}`;
+        return `Dispatched task ${task.id} to @${workerName} as wake ${wake.id}`;
       });
       return typeof result === "string" ? result : String(result);
     },
   };
 }
 
-function formatDispatchInstruction(task: Task, attempt: Attempt, from: string): string {
+function formatDispatchInstruction(task: Task, wake: Wake, from: string): string {
   const lines = [
     `You have been assigned task [${task.id}] by @${from}.`,
     "",
@@ -588,7 +586,7 @@ function formatDispatchInstruction(task: Task, attempt: Attempt, from: string): 
   }
   lines.push(
     "",
-    `Attempt id: ${attempt.id}. When finished, call attempt_update with the terminal status ` +
+    `Wake id: ${wake.id}. When finished, call wake_update with the terminal status ` +
       `and handoff_create with a structured summary. Register concrete outputs via artifact_create.`,
   );
   return lines.join("\n");
@@ -651,11 +649,11 @@ export const TASK_TOOL_DEFS = {
     },
     required: ["id"],
   },
-  attempt_create: {
+  wake_create: {
     description:
-      "Start a runtime attempt on a task. Defaults role to 'worker' and agentName to the caller. " +
-      "If the task has no active attempt yet, wires this attempt as active and advances task " +
-      "status to 'in_progress'.",
+      "Start a Wake (one bounded agent runtime instance) on a task. Defaults role to 'worker' and " +
+      "agentName to the caller. If the task has no active Wake yet, wires this Wake as active and " +
+      "advances task status to 'in_progress'.",
     parameters: {
       taskId: { type: "string", description: "Task id" },
       agentName: { type: "string", description: "Agent name (default: caller)" },
@@ -668,26 +666,26 @@ export const TASK_TOOL_DEFS = {
     },
     required: ["taskId"],
   },
-  attempt_list: {
-    description: "List attempts for a task in started-order.",
+  wake_list: {
+    description: "List Wakes for a task in started-order.",
     parameters: {
       taskId: { type: "string", description: "Task id" },
     },
     required: ["taskId"],
   },
-  attempt_get: {
-    description: "Fetch an attempt by id.",
+  wake_get: {
+    description: "Fetch a Wake by id.",
     parameters: {
-      id: { type: "string", description: "Attempt id" },
+      id: { type: "string", description: "Wake id" },
     },
     required: ["id"],
   },
-  attempt_update: {
+  wake_update: {
     description:
-      "Update an attempt. Terminal statuses (completed | failed | cancelled) stamp endedAt and " +
-      "clear the task's activeAttemptId.",
+      "Update a Wake. Terminal statuses (completed | failed | cancelled | handed_off) stamp endedAt " +
+      "and clear the task's activeWakeId.",
     parameters: {
-      id: { type: "string", description: "Attempt id" },
+      id: { type: "string", description: "Wake id" },
       status: {
         type: "string",
         description: "running | completed | failed | cancelled | handed_off",
@@ -702,22 +700,21 @@ export const TASK_TOOL_DEFS = {
   handoff_create: {
     description:
       "Record a structured handoff on a task. `kind` is 'progress' | 'blocked' | 'completed' | " +
-      "'aborted'. `fromAttemptId` must be an existing attempt on the same task.",
+      "'aborted'. `closingWakeId` is the Wake that produced this handoff.",
     parameters: {
       taskId: { type: "string", description: "Task id" },
-      fromAttemptId: { type: "string", description: "Source attempt id" },
-      toAttemptId: { type: "string", description: "Destination attempt id (optional)" },
+      closingWakeId: { type: "string", description: "Wake that produced this handoff" },
       kind: { type: "string", description: "progress | blocked | completed | aborted" },
       summary: { type: "string", description: "One-paragraph summary" },
       completed: { type: "array", description: "What got done" },
       pending: { type: "array", description: "What still needs to happen" },
       blockers: { type: "array", description: "Blockers encountered" },
       decisions: { type: "array", description: "Key decisions made" },
-      nextSteps: { type: "array", description: "Recommended next steps" },
-      artifactRefs: { type: "array", description: "Ids of artifacts produced" },
+      resources: { type: "array", description: "Refs to durable outputs (Resource ids)" },
+      artifactRefs: { type: "array", description: "Deprecated: artifact ids; use resources" },
       touchedPaths: { type: "array", description: "Files / paths touched" },
     },
-    required: ["taskId", "fromAttemptId", "kind", "summary"],
+    required: ["taskId", "closingWakeId", "kind", "summary"],
   },
   handoff_list: {
     description: "List handoffs for a task in time-order.",
@@ -729,17 +726,18 @@ export const TASK_TOOL_DEFS = {
   artifact_create: {
     description:
       "Register a concrete execution output as an Artifact. `ref` is a scheme-prefixed " +
-      "identifier (file:/path, git:sha, url:…).",
+      "identifier (file:/path, git:sha, url:…). Note: Artifact is being merged into Resource " +
+      "in a follow-on blueprint.",
     parameters: {
       taskId: { type: "string", description: "Task id" },
-      createdByAttemptId: { type: "string", description: "Attempt that produced it" },
+      createdByWakeId: { type: "string", description: "Wake that produced it" },
       kind: { type: "string", description: "e.g. 'file', 'commit', 'url', 'patch'" },
       title: { type: "string", description: "Short human-readable title" },
       ref: { type: "string", description: "Scheme-prefixed reference" },
       checksum: { type: "string", description: "Optional integrity hash" },
       version: { type: "number", description: "Optional version number" },
     },
-    required: ["taskId", "createdByAttemptId", "kind", "title", "ref"],
+    required: ["taskId", "createdByWakeId", "kind", "title", "ref"],
   },
   artifact_list: {
     description: "List artifacts for a task in created-order.",
@@ -750,7 +748,7 @@ export const TASK_TOOL_DEFS = {
   },
   task_dispatch: {
     description:
-      "Hand a task to a worker: creates an Attempt, advances the task to in_progress, and " +
+      "Hand a task to a worker: creates a Wake, advances the task to in_progress, and " +
       "enqueues an instruction on the worker's queue. Only available when the workspace has " +
       "an instruction queue (i.e. on live Workspace runtimes, not bare test harnesses).",
     parameters: {

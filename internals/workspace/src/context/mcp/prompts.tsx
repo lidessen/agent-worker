@@ -60,8 +60,8 @@ export const workspacePromptSection: PromptSection = async (ctx) => {
               </item>
               <item>
                 Call `task_dispatch taskId=... worker=@name` to hand the open task to a
-                worker-capable teammate (see the Teammates list below). Dispatch creates the
-                Attempt, advances the task to `in_progress`, and enqueues the assignment on the
+                worker-capable teammate (see the Teammates list below). Dispatch creates the Wake,
+                advances the task to `in_progress`, and enqueues the assignment on the
                 worker&apos;s queue. Only dispatch to agents shown in the Teammates list.
               </item>
               <item>
@@ -86,25 +86,25 @@ export const workspacePromptSection: PromptSection = async (ctx) => {
           <item>
             You only work on a task when you have received an explicit dispatch instruction. A
             dispatch arrives as a message on the synthetic `dispatch` channel with body `You have
-            been assigned task [task_id] by @lead ... Attempt id: att_xxx`. That is the only trigger
+            been assigned task [task_id] by @lead ... Wake id: wake_xxx`. That is the only trigger
             for you to do real work.
           </item>
           <item>
-            **Do NOT adopt an active attempt just because `task_list` / `task_get` shows one.** An
-            active attempt may belong to a different worker that the lead dispatched in parallel.
-            Before doing any work, call `attempt_get` on the active attempt id and verify `agentName
-            === you`. If it does not match, call `no_action` with reason "active attempt belongs to
-            a different worker" and stop.
+            **Do NOT adopt an active Wake just because `task_list` / `task_get` shows one.** An
+            active Wake may belong to a different worker that the lead dispatched in parallel.
+            Before doing any work, call `wake_get` on the active Wake id and verify `agentName
+            === you`. If it does not match, call `no_action` with reason "active Wake belongs to a
+            different worker" and stop.
           </item>
           <item>
-            When you receive a dispatch instruction, it already carries a task id and an attempt id.
-            Start work immediately — do NOT call `attempt_create` when acting on a dispatch; use the
+            When you receive a dispatch instruction, it already carries a task id and a Wake id.
+            Start work immediately — do NOT call `wake_create` when acting on a dispatch; use the
             ids from the instruction body.
           </item>
           <item>
-            When you finish, call `attempt_update` with `id=&lt;attempt id from the dispatch&gt;`
-            and the terminal status (`completed` | `failed` | `cancelled` | `handed_off`). Never
-            call `attempt_create` to "close" an attempt.
+            When you finish, call `wake_update` with `id=&lt;wake id from the dispatch&gt;` and the
+            terminal status (`completed` | `failed` | `cancelled` | `handed_off`). Never call
+            `wake_create` to "close" a Wake.
           </item>
           <item>
             Record structured progress with `handoff_create kind=progress` during long work,
@@ -115,7 +115,7 @@ export const workspacePromptSection: PromptSection = async (ctx) => {
             review and mark the task complete.
           </item>
           <item>
-            **After the terminal `attempt_update` call, send ONE short `channel_send` to the default
+            **After the terminal `wake_update` call, send ONE short `channel_send` to the default
             channel** telling the lead you&apos;re done (e.g. "完成 task_xxx，详见 handoff
             hnd_yyy"). This is the only way the lead wakes up to review — without it your work sits
             in the ledger unseen.
@@ -124,7 +124,7 @@ export const workspacePromptSection: PromptSection = async (ctx) => {
             **Do NOT send intermediate acknowledgment messages to the channel** (e.g. "收到，开始
             实现"). Those wake the lead mid-work for no reason — the lead starts verifying against
             files that don&apos;t exist yet and wastes a run. Keep all your thinking in plain text
-            and only call `channel_send` once, after the terminal `attempt_update`.
+            and only call `channel_send` once, after the terminal `wake_update`.
           </item>
           <item>
             Before calling `artifact_create`, call `artifact_list` first to avoid registering a
@@ -155,7 +155,7 @@ export const workspacePromptSection: PromptSection = async (ctx) => {
       {ctx.worktrees && ctx.worktrees.length > 0 && (
         <>
           <br />
-          <line>Worktrees (current attempt)</line>
+          <line>Worktrees (current Wake)</line>
           {ctx.worktrees.map((wt) => (
             <field
               key={`wt.${wt.name}`}
@@ -275,7 +275,7 @@ export const docsPromptSection: PromptSection = async (ctx) => {
  * Task ledger section — shown to the lead only. Lists draft/open/in_progress
  * tasks so the lead can reason about what's pending without re-parsing
  * channel history. Workers are intentionally excluded; they get their task
- * context through attempt assignment, not through a global ledger dump.
+ * context through Wake assignment, not through a global ledger dump.
  */
 export const taskLedgerSection: PromptSection = async (ctx) => {
   if (ctx.role !== "lead") return null;
@@ -323,7 +323,7 @@ function groupTasksByStatus(tasks: readonly Task[]): Array<[TaskStatus, Task[]]>
 function formatLedgerEntry(task: Task): string {
   const parts = [`[${task.id}] ${task.title}`];
   if (task.ownerLeadId) parts.push(`owner=${task.ownerLeadId}`);
-  if (task.activeAttemptId) parts.push(`active=${task.activeAttemptId}`);
+  if (task.activeWakeId) parts.push(`active=${task.activeWakeId}`);
   return parts.join(" — ");
 }
 

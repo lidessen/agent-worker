@@ -177,7 +177,7 @@ describe("Unified daemon (workspace routes)", () => {
     // getWorkspaceTask returns the task plus empty lifecycle lists at this point.
     const detailed = await client.getWorkspaceTask("test-ws", first.id);
     expect(detailed.task).toMatchObject({ id: first.id });
-    expect(detailed.attempts).toEqual([]);
+    expect(detailed.wakes).toEqual([]);
     expect(detailed.handoffs).toEqual([]);
     expect(detailed.artifacts).toEqual([]);
   });
@@ -228,16 +228,16 @@ describe("Unified daemon (workspace routes)", () => {
     const dispatched = await client.dispatchWorkspaceTask("test-ws", task.id, {
       worker: "alice",
     });
-    const taskAfter = dispatched.task as { status: string; activeAttemptId?: string };
-    const attempt = dispatched.attempt as { id: string; agentName: string };
+    const taskAfter = dispatched.task as { status: string; activeWakeId?: string };
+    const attempt = dispatched.wake as { id: string; agentName: string };
     expect(taskAfter.status).toBe("in_progress");
-    expect(taskAfter.activeAttemptId).toBe(attempt.id);
+    expect(taskAfter.activeWakeId).toBe(attempt.id);
     expect(attempt.agentName).toBe("alice");
 
     // getWorkspaceTask should now show the attempt alongside the task.
     const detail = await client.getWorkspaceTask("test-ws", task.id);
-    expect(detail.attempts).toHaveLength(1);
-    const loaded = detail.attempts[0] as { id: string; status: string };
+    expect(detail.wakes).toHaveLength(1);
+    const loaded = detail.wakes[0] as { id: string; status: string };
     expect(loaded.id).toBe(attempt.id);
     expect(loaded.status).toBe("running");
   });
@@ -286,17 +286,17 @@ describe("Unified daemon (workspace routes)", () => {
     const dispatched = await client.dispatchWorkspaceTask("test-ws", taskId, {
       worker: "alice",
     });
-    const attemptId = (dispatched.attempt as { id: string }).id;
+    const attemptId = (dispatched.wake as { id: string }).id;
 
     const closed = await client.completeWorkspaceTask("test-ws", taskId, {
       summary: "Shipped audit log with tests",
     });
 
-    const t = closed.task as { status: string; activeAttemptId?: string };
+    const t = closed.task as { status: string; activeWakeId?: string };
     expect(t.status).toBe("completed");
-    expect(t.activeAttemptId).toBeUndefined();
+    expect(t.activeWakeId).toBeUndefined();
 
-    const attempts = closed.attempts as Array<{ id: string; status: string; endedAt?: number }>;
+    const attempts = closed.wakes as Array<{ id: string; status: string; endedAt?: number }>;
     const closedAttempt = attempts.find((a) => a.id === attemptId);
     expect(closedAttempt?.status).toBe("completed");
     expect(closedAttempt?.endedAt).toBeGreaterThan(0);
@@ -325,7 +325,7 @@ describe("Unified daemon (workspace routes)", () => {
     const dispatched = await client.dispatchWorkspaceTask("test-ws", taskId, {
       worker: "alice",
     });
-    const attemptId = (dispatched.attempt as { id: string }).id;
+    const attemptId = (dispatched.wake as { id: string }).id;
 
     const closed = await client.abortWorkspaceTask("test-ws", taskId, {
       reason: "Requirements changed",
@@ -335,19 +335,19 @@ describe("Unified daemon (workspace routes)", () => {
     // Assert by attempt id rather than position — ordering is not
     // guaranteed by the store interface and may differ once we have
     // multiple historical attempts per task.
-    const attempts = closed.attempts as Array<{ id: string; status: string }>;
+    const attempts = closed.wakes as Array<{ id: string; status: string }>;
     const ours = attempts.find((a) => a.id === attemptId);
     expect(ours?.status).toBe("cancelled");
 
     const handoffs = closed.handoffs as Array<{
       kind: string;
       summary: string;
-      fromAttemptId: string;
+      closingWakeId: string;
     }>;
     const handoff = handoffs.find((h) => h.kind === "aborted");
     expect(handoff).toBeDefined();
     expect(handoff?.summary).toBe("Requirements changed");
-    expect(handoff?.fromAttemptId).toBe(attemptId);
+    expect(handoff?.closingWakeId).toBe(attemptId);
   });
 
   test("completeWorkspaceTask works even without an active attempt", async () => {
@@ -574,9 +574,9 @@ storage: file
     //   3. POST /tool-call worktree_create against the worker's
     //      active attempt → expect a real worktree on disk +
     //      branch in the source repo + entry on attempt.worktrees
-    //   4. POST /tool-call attempt_update status=completed →
+    //   4. POST /tool-call wake_update status=completed →
     //      expect the worktree to be cleaned up via the
-    //      `attempt.terminal` event listener; branch survives.
+    //      `wake.terminal` event listener; branch survives.
     const scratchRepo = realpathSync(mkdtempSync(join(tmpdir(), "aw-phase1v3-repo-")));
     try {
       await execa("git", ["-C", scratchRepo, "init", "-b", "main"]);
@@ -638,8 +638,8 @@ lead: lead
         `http://${daemonInfo.host}:${daemonInfo.port}/workspaces/phase1v3/tasks/${taskId}`,
         { headers: { Authorization: `Bearer ${daemonInfo.token}` } },
       );
-      const taskBody = (await tasksRes.json()) as { task: { activeAttemptId?: string } };
-      const attemptId = taskBody.task.activeAttemptId;
+      const taskBody = (await tasksRes.json()) as { task: { activeWakeId?: string } };
+      const attemptId = taskBody.task.activeWakeId;
       expect(attemptId).toBeDefined();
 
       // 3. Coder calls worktree_create. The /tool-call route
@@ -683,7 +683,7 @@ lead: lead
 
       // 4. Mark the attempt completed → terminal event →
       // worktree cleanup.
-      const updateRes = await callTool("coder", "attempt_update", {
+      const updateRes = await callTool("coder", "wake_update", {
         id: attemptId,
         status: "completed",
         resultSummary: "done",
@@ -766,8 +766,8 @@ lead: lead
         `http://${daemonInfo.host}:${daemonInfo.port}/workspaces/multi-wt/tasks/${taskId}`,
         { headers: { Authorization: `Bearer ${daemonInfo.token}` } },
       );
-      const taskBody = (await taskRes.json()) as { task: { activeAttemptId?: string } };
-      const attemptId = taskBody.task.activeAttemptId!;
+      const taskBody = (await taskRes.json()) as { task: { activeWakeId?: string } };
+      const attemptId = taskBody.task.activeWakeId!;
 
       // Worktree 1: primary repo
       const wt1 = await callTool("coder", "worktree_create", {
@@ -793,7 +793,7 @@ lead: lead
       expect(list.content).toContain(repoB);
 
       // Terminal status cleans BOTH worktrees, both branches survive
-      await callTool("coder", "attempt_update", {
+      await callTool("coder", "wake_update", {
         id: attemptId,
         status: "completed",
         resultSummary: "done",

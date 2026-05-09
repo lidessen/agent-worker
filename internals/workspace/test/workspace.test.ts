@@ -286,15 +286,15 @@ describe("Workspace", () => {
         goal: "g",
         status: "in_progress",
       });
-      const attempt = await ws1.stateStore.createAttempt({
+      const attempt = await ws1.stateStore.createWake({
         taskId: task.id,
         agentName: "alice",
         role: "worker",
       });
-      await ws1.stateStore.updateTask(task.id, { activeAttemptId: attempt.id });
+      await ws1.stateStore.updateTask(task.id, { activeWakeId: attempt.id });
 
       // Sanity check: still "running" before restart.
-      const before = await ws1.stateStore.getAttempt(attempt.id);
+      const before = await ws1.stateStore.getWake(attempt.id);
       expect(before?.status).toBe("running");
 
       await ws1.shutdown();
@@ -309,13 +309,13 @@ describe("Workspace", () => {
         storageDir,
       });
 
-      const recoveredAttempt = await ws2.stateStore.getAttempt(attempt.id);
+      const recoveredAttempt = await ws2.stateStore.getWake(attempt.id);
       expect(recoveredAttempt?.status).toBe("failed");
       expect(recoveredAttempt?.endedAt).toBeGreaterThan(0);
       expect(recoveredAttempt?.resultSummary).toContain("orphaned");
 
       const recoveredTask = await ws2.stateStore.getTask(task.id);
-      expect(recoveredTask?.activeAttemptId).toBeUndefined();
+      expect(recoveredTask?.activeWakeId).toBeUndefined();
 
       // A system-authored aborted handoff should have been created so
       // the timeline shows why the attempt ended.
@@ -323,7 +323,7 @@ describe("Workspace", () => {
       expect(handoffs).toHaveLength(1);
       expect(handoffs[0]?.kind).toBe("aborted");
       expect(handoffs[0]?.createdBy).toBe("system");
-      expect(handoffs[0]?.fromAttemptId).toBe(attempt.id);
+      expect(handoffs[0]?.closingWakeId).toBe(attempt.id);
 
       // Chronicle should have a "recovery" category entry.
       const chronicle = await ws2.contextProvider.chronicle.read({ category: "recovery" });
@@ -345,13 +345,13 @@ describe("Workspace", () => {
         title: "t",
         goal: "g",
       });
-      const attempt = await ws1.stateStore.createAttempt({
+      const attempt = await ws1.stateStore.createWake({
         taskId: task.id,
         agentName: "alice",
         role: "worker",
       });
       // Transition to a terminal state before restart.
-      await ws1.stateStore.updateAttempt(attempt.id, {
+      await ws1.stateStore.updateWake(attempt.id, {
         status: "completed",
         endedAt: Date.now(),
         resultSummary: "done",
@@ -364,7 +364,7 @@ describe("Workspace", () => {
         storageDir,
       });
 
-      const recovered = await ws2.stateStore.getAttempt(attempt.id);
+      const recovered = await ws2.stateStore.getWake(attempt.id);
       expect(recovered?.status).toBe("completed");
       // No aborted handoff was created — recovery skipped this attempt.
       const handoffs = await ws2.stateStore.listHandoffs(task.id);
@@ -390,18 +390,18 @@ describe("Workspace", () => {
         title: "b",
         goal: "g",
       });
-      const attemptA = await ws1.stateStore.createAttempt({
+      const attemptA = await ws1.stateStore.createWake({
         taskId: taskA.id,
         agentName: "alice",
         role: "worker",
       });
-      const attemptB = await ws1.stateStore.createAttempt({
+      const attemptB = await ws1.stateStore.createWake({
         taskId: taskB.id,
         agentName: "alice",
         role: "worker",
       });
-      await ws1.stateStore.updateTask(taskA.id, { activeAttemptId: attemptA.id });
-      await ws1.stateStore.updateTask(taskB.id, { activeAttemptId: attemptB.id });
+      await ws1.stateStore.updateTask(taskA.id, { activeWakeId: attemptA.id });
+      await ws1.stateStore.updateTask(taskB.id, { activeWakeId: attemptB.id });
       await ws1.shutdown();
 
       const ws2 = await createWorkspace({
@@ -410,15 +410,15 @@ describe("Workspace", () => {
         storageDir,
       });
 
-      const recoveredA = await ws2.stateStore.getAttempt(attemptA.id);
-      const recoveredB = await ws2.stateStore.getAttempt(attemptB.id);
+      const recoveredA = await ws2.stateStore.getWake(attemptA.id);
+      const recoveredB = await ws2.stateStore.getWake(attemptB.id);
       expect(recoveredA?.status).toBe("failed");
       expect(recoveredB?.status).toBe("failed");
 
       const chronicle = await ws2.contextProvider.chronicle.read({ category: "recovery" });
       expect(chronicle).toHaveLength(1);
-      // Single entry summarising both recoveries rather than one per attempt.
-      expect(chronicle[0]?.content).toContain("2 orphaned attempt");
+      // Single entry summarising both recoveries rather than one per Wake.
+      expect(chronicle[0]?.content).toContain("2 orphaned Wake");
       expect(chronicle[0]?.content).toContain(attemptA.id);
       expect(chronicle[0]?.content).toContain(attemptB.id);
 

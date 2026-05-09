@@ -232,7 +232,7 @@ describe("taskLedgerSection", () => {
     expect(workerText).not.toContain("Task ledger workflow");
     expect(workerText).toContain("task-scoped worker");
     expect(workerText).toContain("handoff_create");
-    expect(workerText).toContain("attempt_update");
+    expect(workerText).toContain("wake_update");
   });
 
   test("groups active tasks by status with counts in the header", async () => {

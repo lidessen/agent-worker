@@ -46,12 +46,12 @@ Documents:
 
 Tasks:
   task ls [--status ...]           List tasks in the workspace ledger
-  task get <id>                    Show a task with its attempts / handoffs / artifacts
+  task get <id>                    Show a task with its Wakes / handoffs / artifacts
   task new <title> --goal '...'    Create a new task (default status: draft)
   task update <id> --status open   Patch status / title / goal / owner / acceptance
   task dispatch <id> --to <worker> Hand a task to a worker
-  task complete <id> [--summary]   Close active attempt + mark task completed
-  task abort <id> [--reason]       Cancel active attempt + mark task aborted
+  task complete <id> [--summary]   Close active Wake + mark task completed
+  task abort <id> [--reason]       Cancel active Wake + mark task aborted
 
 Auth:
   auth <provider>             Save API key (anthropic, openai, google, deepseek, ...)

@@ -242,21 +242,21 @@ describe("WorkspaceOrchestrator pause/resume", () => {
       pollInterval: 20,
       onInstruction: async (_prompt, instruction) => {
         // Dispatched instructions arrive on the synthetic "dispatch" channel
-        // and carry "Attempt id: att_<hex>" in their content.
+        // and carry "Wake id: wake_<hex>" in their content.
         if (instruction.channel !== "dispatch") return;
-        const attemptMatch = instruction.content.match(/Attempt id: (att_[a-f0-9]+)/);
+        const wakeMatch = instruction.content.match(/Wake id: (wake_[a-f0-9]+)/);
         const taskMatch = instruction.content.match(/task \[(task_[a-f0-9]+)\]/);
-        if (!attemptMatch || !taskMatch) return;
-        const attemptId = attemptMatch[1]!;
+        if (!wakeMatch || !taskMatch) return;
+        const wakeId = wakeMatch[1]!;
         const taskId = taskMatch[1]!;
         await workerTools.handoff_create({
           taskId,
-          fromAttemptId: attemptId,
+          closingWakeId: wakeId,
           kind: "completed",
           summary: "Worker finished via e2e test",
           completed: ["the whole thing"],
         });
-        await workerTools.attempt_update({ id: attemptId, status: "completed" });
+        await workerTools.wake_update({ id: wakeId, status: "completed" });
       },
     });
 
@@ -278,16 +278,16 @@ describe("WorkspaceOrchestrator pause/resume", () => {
 
     for (let i = 0; i < 40; i++) {
       const task = await workspace.stateStore.getTask(taskId);
-      if (!task?.activeAttemptId) break;
+      if (!task?.activeWakeId) break;
       await Bun.sleep(25);
     }
 
     const finalTask = await workspace.stateStore.getTask(taskId);
-    expect(finalTask?.activeAttemptId).toBeUndefined();
+    expect(finalTask?.activeWakeId).toBeUndefined();
 
-    const attempts = await workspace.stateStore.listAttempts(taskId);
-    expect(attempts).toHaveLength(1);
-    expect(attempts[0]?.status).toBe("completed");
+    const wakes = await workspace.stateStore.listWakes(taskId);
+    expect(wakes).toHaveLength(1);
+    expect(wakes[0]?.status).toBe("completed");
 
     const handoffs = await workspace.stateStore.listHandoffs(taskId);
     expect(handoffs).toHaveLength(1);

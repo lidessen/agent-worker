@@ -99,7 +99,7 @@ export type {
   RuntimeResolver,
 } from "./config/index.ts";
 
-// ── Kernel state (Task / Attempt / Handoff / Artifact) ────────────────────
+// ── Kernel state (Task / Wake / Handoff / Artifact) ───────────────────────
 export { InMemoryWorkspaceStateStore, FileWorkspaceStateStore } from "./state/index.ts";
 export { buildLeadHooks } from "./loop/lead-hooks.ts";
 export type { BuildLeadHooksOptions } from "./loop/lead-hooks.ts";
@@ -109,18 +109,19 @@ export type {
   Task,
   CreateTaskInput,
   TaskPatch,
-  AttemptStatus,
-  Attempt,
-  CreateAttemptInput,
-  AttemptPatch,
+  WakeStatus,
+  Wake,
+  CreateWakeInput,
+  WakePatch,
   Worktree,
   HandoffKind,
+  HandoffExtensionPayload,
   Handoff,
   CreateHandoffInput,
   Artifact,
   CreateArtifactInput,
   WorkspaceStateStore,
-  AttemptTerminalListener,
+  WakeTerminalListener,
   TaskFilter,
 } from "./state/index.ts";
 

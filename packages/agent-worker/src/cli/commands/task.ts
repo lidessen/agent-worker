@@ -43,10 +43,10 @@ export async function task(args: string[]): Promise<void> {
             title: string;
             status: string;
             ownerLeadId?: string;
-            activeAttemptId?: string;
+            activeWakeId?: string;
           };
           const owner = t.ownerLeadId ? ` owner=${t.ownerLeadId}` : "";
-          const active = t.activeAttemptId ? ` active=${t.activeAttemptId}` : "";
+          const active = t.activeWakeId ? ` active=${t.activeWakeId}` : "";
           console.log(`[${t.id}] ${t.title} [${t.status}]${owner}${active}`);
         }
         break;
@@ -71,7 +71,7 @@ export async function task(args: string[]): Promise<void> {
           goal: string;
           status: string;
           ownerLeadId?: string;
-          activeAttemptId?: string;
+          activeWakeId?: string;
           acceptanceCriteria?: string;
           artifactRefs: string[];
         };
@@ -79,14 +79,14 @@ export async function task(args: string[]): Promise<void> {
         console.log(`  title:  ${t.title}`);
         console.log(`  status: ${t.status}`);
         if (t.ownerLeadId) console.log(`  owner:  ${t.ownerLeadId}`);
-        if (t.activeAttemptId) console.log(`  active: ${t.activeAttemptId}`);
+        if (t.activeWakeId) console.log(`  active: ${t.activeWakeId}`);
         console.log(`  goal:   ${t.goal}`);
         if (t.acceptanceCriteria) console.log(`  accept: ${t.acceptanceCriteria}`);
-        if (detail.attempts.length > 0) {
-          console.log(`  attempts (${detail.attempts.length}):`);
-          for (const raw of detail.attempts) {
-            const a = raw as { id: string; agentName: string; status: string };
-            console.log(`    - ${a.id} ${a.agentName} [${a.status}]`);
+        if (detail.wakes.length > 0) {
+          console.log(`  wakes (${detail.wakes.length}):`);
+          for (const raw of detail.wakes) {
+            const w = raw as { id: string; agentName: string; status: string };
+            console.log(`    - ${w.id} ${w.agentName} [${w.status}]`);
           }
         }
         if (detail.handoffs.length > 0) {
@@ -169,8 +169,8 @@ export async function task(args: string[]): Promise<void> {
         }
         const result = await client.dispatchWorkspaceTask(workspace, id, { worker });
         const t = result.task as { id: string; status: string };
-        const att = result.attempt as { id: string };
-        console.log(`Dispatched task ${t.id} [${t.status}] to @${worker} as attempt ${att.id}`);
+        const w = result.wake as { id: string };
+        console.log(`Dispatched task ${t.id} [${t.status}] to @${worker} as Wake ${w.id}`);
         break;
       }
       case "complete": {

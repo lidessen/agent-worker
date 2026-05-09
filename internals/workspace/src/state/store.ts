@@ -1,35 +1,37 @@
 // ── Workspace state store interface ───────────────────────────────────────
 //
 // Defines the minimal contract for reading and writing kernel state
-// objects (Task / Attempt / Handoff / Artifact). In-memory and file-backed
-// implementations live under ./stores/.
+// objects (Task / Wake / Handoff / Artifact). In-memory and file-backed
+// implementations live here and in ./file-store.ts.
 //
-// This module has no orchestration wiring — it is the persistence seam that
-// Phase 2 lead intake and Phase 3 worker attempt lifecycle will consume.
+// Wake replaces the previous Attempt record per
+// design/decisions/005-session-orchestration-model.md. Task and Artifact
+// are kept as migration source; their kernel-residency will be removed in
+// follow-on blueprints.
 
 import type {
   Artifact,
-  Attempt,
-  AttemptPatch,
-  AttemptStatus,
   CreateArtifactInput,
-  CreateAttemptInput,
   CreateHandoffInput,
   CreateTaskInput,
+  CreateWakeInput,
   Handoff,
   Task,
   TaskPatch,
   TaskStatus,
+  Wake,
+  WakePatch,
+  WakeStatus,
 } from "./types.ts";
-import { TERMINAL_ATTEMPT_STATUSES } from "./types.ts";
+import { TERMINAL_WAKE_STATUSES } from "./types.ts";
 
 export interface TaskFilter {
   status?: TaskStatus[];
   ownerLeadId?: string;
 }
 
-/** Callback for attempt lifecycle events — see `WorkspaceStateStore.on`. */
-export type AttemptTerminalListener = (attempt: Attempt) => void | Promise<void>;
+/** Callback for Wake lifecycle events — see `WorkspaceStateStore.on`. */
+export type WakeTerminalListener = (wake: Wake) => void | Promise<void>;
 
 export interface WorkspaceStateStore {
   // ── Task ────────────────────────────────────────────────────────────
@@ -38,25 +40,24 @@ export interface WorkspaceStateStore {
   updateTask(id: string, patch: TaskPatch): Promise<Task>;
   listTasks(filter?: TaskFilter): Promise<Task[]>;
 
-  // ── Attempt ─────────────────────────────────────────────────────────
-  createAttempt(input: CreateAttemptInput): Promise<Attempt>;
-  getAttempt(id: string): Promise<Attempt | null>;
-  updateAttempt(id: string, patch: AttemptPatch): Promise<Attempt>;
-  listAttempts(taskId: string): Promise<Attempt[]>;
+  // ── Wake ────────────────────────────────────────────────────────────
+  createWake(input: CreateWakeInput): Promise<Wake>;
+  getWake(id: string): Promise<Wake | null>;
+  updateWake(id: string, patch: WakePatch): Promise<Wake>;
+  listWakes(taskId: string): Promise<Wake[]>;
   /**
-   * Find the agent's current running Attempt, if any. Used by the
-   * per-run tool injector to closure attempt-scoped tools over the
-   * active attempt id. Returns the oldest running attempt when
-   * there are multiple (there should be at most one by
-   * invariant).
+   * Find the agent's current running Wake, if any. Used by the per-run
+   * tool injector to closure Wake-scoped tools over the active Wake id.
+   * Returns the oldest running Wake when there are multiple (there should
+   * be at most one by invariant).
    */
-  findActiveAttempt(agentName: string): Promise<Attempt | null>;
+  findActiveWake(agentName: string): Promise<Wake | null>;
   /**
-   * All attempts across all tasks. Used by workspace init to
-   * collect the unique set of worktree repo paths for crash
-   * recovery `pruneWorktrees` scans.
+   * All Wakes across all tasks. Used by workspace init to collect the
+   * unique set of worktree repo paths for crash recovery `pruneWorktrees`
+   * scans.
    */
-  listAllAttempts(): Promise<Attempt[]>;
+  listAllWakes(): Promise<Wake[]>;
 
   // ── Handoff ─────────────────────────────────────────────────────────
   createHandoff(input: CreateHandoffInput): Promise<Handoff>;
@@ -70,16 +71,15 @@ export interface WorkspaceStateStore {
 
   // ── Lifecycle events ────────────────────────────────────────────────
   /**
-   * Subscribe to attempt lifecycle events. `attempt.terminal`
-   * fires when `updateAttempt` flips a running attempt to any
-   * terminal status (`completed` / `failed` / `cancelled` /
-   * `handed_off`). Listeners are called sequentially with the
-   * post-update attempt snapshot; exceptions are logged and
-   * swallowed so one bad listener doesn't break the update.
+   * Subscribe to Wake lifecycle events. `wake.terminal` fires when
+   * `updateWake` flips a running Wake to any terminal status
+   * (`completed` / `failed` / `cancelled` / `handed_off`). Listeners are
+   * called sequentially with the post-update Wake snapshot; exceptions are
+   * logged and swallowed so one bad listener doesn't break the update.
    *
    * Returns an unsubscribe function.
    */
-  on(event: "attempt.terminal", listener: AttemptTerminalListener): () => void;
+  on(event: "wake.terminal", listener: WakeTerminalListener): () => void;
 }
 
 // ── In-memory implementation ──────────────────────────────────────────────
@@ -93,38 +93,37 @@ function genId(prefix: string): string {
 
 /**
  * Simple in-memory implementation suitable for tests and ephemeral runs.
- * Not safe for multi-process use. A file-backed store arrives in a later PR.
+ * Not safe for multi-process use. A file-backed store lives in file-store.ts.
  */
 export class InMemoryWorkspaceStateStore implements WorkspaceStateStore {
   private tasks = new Map<string, Task>();
-  private attempts = new Map<string, Attempt>();
+  private wakes = new Map<string, Wake>();
   private handoffs = new Map<string, Handoff>();
   private artifacts = new Map<string, Artifact>();
-  /** `attempt.terminal` listeners. */
-  protected attemptTerminalListeners = new Set<AttemptTerminalListener>();
+  /** `wake.terminal` listeners. */
+  protected wakeTerminalListeners = new Set<WakeTerminalListener>();
 
-  on(event: "attempt.terminal", listener: AttemptTerminalListener): () => void {
-    if (event !== "attempt.terminal") {
+  on(event: "wake.terminal", listener: WakeTerminalListener): () => void {
+    if (event !== "wake.terminal") {
       throw new Error(`Unknown WorkspaceStateStore event: ${event}`);
     }
-    this.attemptTerminalListeners.add(listener);
+    this.wakeTerminalListeners.add(listener);
     return () => {
-      this.attemptTerminalListeners.delete(listener);
+      this.wakeTerminalListeners.delete(listener);
     };
   }
 
   /**
-   * Fire `attempt.terminal` listeners sequentially. Errors are
-   * caught and logged; listener faults must not break the
-   * triggering update path.
+   * Fire `wake.terminal` listeners sequentially. Errors are caught and
+   * logged; listener faults must not break the triggering update path.
    */
-  protected async emitAttemptTerminal(attempt: Attempt): Promise<void> {
-    for (const listener of this.attemptTerminalListeners) {
+  protected async emitWakeTerminal(wake: Wake): Promise<void> {
+    for (const listener of this.wakeTerminalListeners) {
       try {
-        await listener(attempt);
+        await listener(wake);
       } catch (err) {
         console.error(
-          `[state-store] attempt.terminal listener failed for ${attempt.id}:`,
+          `[state-store] wake.terminal listener failed for ${wake.id}:`,
           err instanceof Error ? err.message : err,
         );
       }
@@ -132,12 +131,12 @@ export class InMemoryWorkspaceStateStore implements WorkspaceStateStore {
   }
 
   /**
-   * Internal helper: detect a non-terminal → terminal status
-   * transition between two snapshots of the same attempt.
+   * Internal helper: detect a non-terminal → terminal status transition
+   * between two snapshots of the same Wake.
    */
-  protected isTerminalTransition(prev: AttemptStatus, next: AttemptStatus): boolean {
-    const wasTerminal = (TERMINAL_ATTEMPT_STATUSES as readonly AttemptStatus[]).includes(prev);
-    const isTerminal = (TERMINAL_ATTEMPT_STATUSES as readonly AttemptStatus[]).includes(next);
+  protected isTerminalTransition(prev: WakeStatus, next: WakeStatus): boolean {
+    const wasTerminal = (TERMINAL_WAKE_STATUSES as readonly WakeStatus[]).includes(prev);
+    const isTerminal = (TERMINAL_WAKE_STATUSES as readonly WakeStatus[]).includes(next);
     return !wasTerminal && isTerminal;
   }
 
@@ -196,14 +195,14 @@ export class InMemoryWorkspaceStateStore implements WorkspaceStateStore {
     return out;
   }
 
-  // ── Attempt ─────────────────────────────────────────────────────────
+  // ── Wake ────────────────────────────────────────────────────────────
 
-  async createAttempt(input: CreateAttemptInput): Promise<Attempt> {
+  async createWake(input: CreateWakeInput): Promise<Wake> {
     if (!this.tasks.has(input.taskId)) {
-      throw new Error(`createAttempt: task not found: ${input.taskId}`);
+      throw new Error(`createWake: task not found: ${input.taskId}`);
     }
-    const attempt: Attempt = {
-      id: genId("att"),
+    const wake: Wake = {
+      id: genId("wake"),
       taskId: input.taskId,
       agentName: input.agentName,
       role: input.role,
@@ -215,56 +214,56 @@ export class InMemoryWorkspaceStateStore implements WorkspaceStateStore {
       cwd: input.cwd,
       pid: input.pid,
     };
-    this.attempts.set(attempt.id, attempt);
-    return attempt;
+    this.wakes.set(wake.id, wake);
+    return wake;
   }
 
-  async getAttempt(id: string): Promise<Attempt | null> {
-    return this.attempts.get(id) ?? null;
+  async getWake(id: string): Promise<Wake | null> {
+    return this.wakes.get(id) ?? null;
   }
 
-  async updateAttempt(id: string, patch: AttemptPatch): Promise<Attempt> {
-    const current = this.attempts.get(id);
-    if (!current) throw new Error(`Attempt not found: ${id}`);
-    const updated: Attempt = {
+  async updateWake(id: string, patch: WakePatch): Promise<Wake> {
+    const current = this.wakes.get(id);
+    if (!current) throw new Error(`Wake not found: ${id}`);
+    const updated: Wake = {
       ...current,
       ...patch,
       id: current.id,
       taskId: current.taskId,
       startedAt: current.startedAt,
     };
-    this.attempts.set(id, updated);
+    this.wakes.set(id, updated);
 
-    // Phase-1 v3: fire attempt.terminal on running → terminal
-    // status transition so cleanup hooks (worktree teardown,
-    // chronicle entry, etc.) can react without polling.
+    // Fire wake.terminal on running → terminal status transition so
+    // cleanup hooks (worktree teardown, chronicle entry, etc.) can react
+    // without polling.
     if (
       patch.status !== undefined &&
       this.isTerminalTransition(current.status, updated.status)
     ) {
-      await this.emitAttemptTerminal(updated);
+      await this.emitWakeTerminal(updated);
     }
     return updated;
   }
 
-  async listAttempts(taskId: string): Promise<Attempt[]> {
-    return Array.from(this.attempts.values())
-      .filter((a) => a.taskId === taskId)
+  async listWakes(taskId: string): Promise<Wake[]> {
+    return Array.from(this.wakes.values())
+      .filter((w) => w.taskId === taskId)
       .sort((a, b) => a.startedAt - b.startedAt);
   }
 
-  async findActiveAttempt(agentName: string): Promise<Attempt | null> {
-    let best: Attempt | null = null;
-    for (const attempt of this.attempts.values()) {
-      if (attempt.agentName !== agentName) continue;
-      if (attempt.status !== "running") continue;
-      if (!best || attempt.startedAt < best.startedAt) best = attempt;
+  async findActiveWake(agentName: string): Promise<Wake | null> {
+    let best: Wake | null = null;
+    for (const wake of this.wakes.values()) {
+      if (wake.agentName !== agentName) continue;
+      if (wake.status !== "running") continue;
+      if (!best || wake.startedAt < best.startedAt) best = wake;
     }
     return best;
   }
 
-  async listAllAttempts(): Promise<Attempt[]> {
-    return Array.from(this.attempts.values()).sort((a, b) => a.startedAt - b.startedAt);
+  async listAllWakes(): Promise<Wake[]> {
+    return Array.from(this.wakes.values()).sort((a, b) => a.startedAt - b.startedAt);
   }
 
   // ── Handoff ─────────────────────────────────────────────────────────
@@ -273,14 +272,13 @@ export class InMemoryWorkspaceStateStore implements WorkspaceStateStore {
     if (!this.tasks.has(input.taskId)) {
       throw new Error(`createHandoff: task not found: ${input.taskId}`);
     }
-    if (!this.attempts.has(input.fromAttemptId)) {
-      throw new Error(`createHandoff: fromAttempt not found: ${input.fromAttemptId}`);
+    if (!this.wakes.has(input.closingWakeId)) {
+      throw new Error(`createHandoff: closingWake not found: ${input.closingWakeId}`);
     }
     const handoff: Handoff = {
       id: genId("hnd"),
       taskId: input.taskId,
-      fromAttemptId: input.fromAttemptId,
-      toAttemptId: input.toAttemptId,
+      closingWakeId: input.closingWakeId,
       createdAt: Date.now(),
       createdBy: input.createdBy,
       kind: input.kind,
@@ -289,7 +287,9 @@ export class InMemoryWorkspaceStateStore implements WorkspaceStateStore {
       pending: input.pending ?? [],
       blockers: input.blockers ?? [],
       decisions: input.decisions ?? [],
-      nextSteps: input.nextSteps ?? [],
+      resources: input.resources ?? [],
+      workLogPointer: input.workLogPointer,
+      extensions: input.extensions ?? {},
       artifactRefs: input.artifactRefs ?? [],
       touchedPaths: input.touchedPaths,
       runtimeRefs: input.runtimeRefs,
@@ -320,7 +320,7 @@ export class InMemoryWorkspaceStateStore implements WorkspaceStateStore {
       kind: input.kind,
       title: input.title,
       ref: input.ref,
-      createdByAttemptId: input.createdByAttemptId,
+      createdByWakeId: input.createdByWakeId,
       createdAt: Date.now(),
       checksum: input.checksum,
       version: input.version,

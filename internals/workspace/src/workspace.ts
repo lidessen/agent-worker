@@ -41,7 +41,7 @@ export class Workspace implements WorkspaceRuntime {
   readonly bridge: ChannelBridgeInterface;
   readonly instructionQueue: InstructionQueueInterface;
   /**
-   * Kernel state store — Task/Attempt/Handoff/Artifact canonical records.
+   * Kernel state store — Task / Wake / Handoff / Artifact canonical records.
    * Phase 1 wires this in as an in-memory store; a file-backed
    * implementation will arrive with the persistence work.
    */
@@ -106,7 +106,7 @@ export class Workspace implements WorkspaceRuntime {
     // Instruction queue
     this.instructionQueue = new InstructionQueue(config.queueConfig);
 
-    // Kernel state store (Task / Attempt / Handoff / Artifact).
+    // Kernel state store (Task / Wake / Handoff / Artifact).
     // File-backed when the workspace has a storage dir; in-memory otherwise.
     this.stateStore = this.storageDir
       ? new FileWorkspaceStateStore(join(this.storageDir, "state"))
@@ -132,47 +132,45 @@ export class Workspace implements WorkspaceRuntime {
       await this.inboxStore.load(agentName);
     }
 
-    // Best-effort worktree prune across every distinct repo any
-    // attempt has touched. Crash recovery: a worktree dir nuked
-    // out from under git leaves a dangling ref; pruning clears
-    // those before orphan recovery's terminal-event listener
-    // tries to remove the (already gone) directory. Run BEFORE
-    // recoverOrphanedAttempts so the cleanup path sees a tidy
-    // git state. The set comes from the state store itself, not
+    // Best-effort worktree prune across every distinct repo any Wake has
+    // touched. Crash recovery: a worktree dir nuked out from under git
+    // leaves a dangling ref; pruning clears those before orphan recovery's
+    // terminal-event listener tries to remove the (already gone)
+    // directory. Run BEFORE recoverOrphanedWakes so the cleanup path sees
+    // a tidy git state. The set comes from the state store itself, not
     // from any workspace-level config.
     await this.pruneOrphanWorktreeRefs();
 
-    // Recover orphaned attempts. If the state store was replayed from
-    // disk and still has attempts marked "running", the process that
-    // owned them is gone — mark them as failed so a future dispatch
-    // isn't permanently blocked by a stale active-attempt pointer.
-    // The terminal transition fires `attempt.terminal` which the
-    // workspace registry has already subscribed to for worktree
-    // cleanup.
-    await this.recoverOrphanedAttempts();
+    // Recover orphaned Wakes. If the state store was replayed from disk
+    // and still has Wakes marked "running", the process that owned them
+    // is gone — mark them as failed so a future dispatch isn't
+    // permanently blocked by a stale active-Wake pointer. The terminal
+    // transition fires `wake.terminal` which the workspace registry has
+    // already subscribed to for worktree cleanup.
+    await this.recoverOrphanedWakes();
 
     this.initialized = true;
   }
 
   /**
-   * Walk every attempt's worktrees, collect the unique source
-   * repo paths, and run `pruneWorktrees` on each. Best-effort —
-   * each failure is logged but doesn't block init.
+   * Walk every Wake's worktrees, collect the unique source repo paths, and
+   * run `pruneWorktrees` on each. Best-effort — each failure is logged but
+   * doesn't block init.
    */
   private async pruneOrphanWorktreeRefs(): Promise<void> {
-    let attempts: Awaited<ReturnType<typeof this.stateStore.listAllAttempts>>;
+    let wakes: Awaited<ReturnType<typeof this.stateStore.listAllWakes>>;
     try {
-      attempts = await this.stateStore.listAllAttempts();
+      wakes = await this.stateStore.listAllWakes();
     } catch (err) {
       console.error(
-        `[workspace ${this.name}] could not list attempts for worktree prune:`,
+        `[workspace ${this.name}] could not list Wakes for worktree prune:`,
         err instanceof Error ? err.message : err,
       );
       return;
     }
     const repos = new Set<string>();
-    for (const attempt of attempts) {
-      for (const wt of attempt.worktrees ?? []) {
+    for (const wake of wakes) {
+      for (const wt of wake.worktrees ?? []) {
         repos.add(wt.repoPath);
       }
     }
@@ -189,51 +187,51 @@ export class Workspace implements WorkspaceRuntime {
   }
 
   /**
-   * Scan the kernel state store for attempts that are still marked
-   * "running" at workspace init time. These are orphaned by definition
-   * (no live runtime could possibly be holding them — the process that
-   * was running them died before it could stamp a terminal status).
+   * Scan the kernel state store for Wakes that are still marked "running"
+   * at workspace init time. These are orphaned by definition (no live
+   * runtime could possibly be holding them — the process that was running
+   * them died before it could stamp a terminal status).
    *
    * For each orphan:
-   *   1. Mark the attempt as failed with an endedAt timestamp and a
-   *      systemic resultSummary.
-   *   2. Clear the owning task's activeAttemptId so re-dispatch works.
-   *   3. Record a `kind: "aborted"` handoff from "system" explaining
-   *      that the attempt was orphaned.
+   *   1. Mark the Wake as failed with an endedAt timestamp and a systemic
+   *      resultSummary.
+   *   2. Clear the owning task's activeWakeId so re-dispatch works.
+   *   3. Record a `kind: "aborted"` handoff from "system" explaining that
+   *      the Wake was orphaned.
    *   4. Append a chronicle entry under the "recovery" category.
    *
    * Best-effort: individual failures are logged but do not block init.
    */
-  private async recoverOrphanedAttempts(): Promise<void> {
+  private async recoverOrphanedWakes(): Promise<void> {
     let recovered: string[] = [];
     try {
       const tasks = await this.stateStore.listTasks();
       for (const task of tasks) {
-        const attempts = await this.stateStore.listAttempts(task.id);
-        for (const attempt of attempts) {
-          if (attempt.status !== "running") continue;
+        const wakes = await this.stateStore.listWakes(task.id);
+        for (const wake of wakes) {
+          if (wake.status !== "running") continue;
           const summary = "orphaned by workspace restart — marked failed on init";
           try {
-            await this.stateStore.updateAttempt(attempt.id, {
+            await this.stateStore.updateWake(wake.id, {
               status: "failed",
               endedAt: Date.now(),
               resultSummary: summary,
             });
-            if (task.activeAttemptId === attempt.id) {
-              await this.stateStore.updateTask(task.id, { activeAttemptId: undefined });
+            if (task.activeWakeId === wake.id) {
+              await this.stateStore.updateTask(task.id, { activeWakeId: undefined });
             }
             await this.stateStore.createHandoff({
               taskId: task.id,
-              fromAttemptId: attempt.id,
+              closingWakeId: wake.id,
               createdBy: "system",
               kind: "aborted",
               summary,
               blockers: ["process restart"],
             });
-            recovered.push(attempt.id);
+            recovered.push(wake.id);
           } catch (err) {
             console.error(
-              `[workspace ${this.name}] orphan recovery failed for attempt ${attempt.id}:`,
+              `[workspace ${this.name}] orphan recovery failed for Wake ${wake.id}:`,
               err,
             );
           }
@@ -251,7 +249,7 @@ export class Workspace implements WorkspaceRuntime {
       await this.contextProvider.chronicle.append({
         author: "system",
         category: "recovery",
-        content: `Marked ${recovered.length} orphaned attempt(s) as failed on workspace restart: ${recovered.join(", ")}`,
+        content: `Marked ${recovered.length} orphaned Wake(s) as failed on workspace restart: ${recovered.join(", ")}`,
       });
     } catch {
       // Chronicle is observational; a failure here is non-fatal.

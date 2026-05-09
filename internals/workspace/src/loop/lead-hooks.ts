@@ -30,7 +30,7 @@ interface TaskSnapshot {
   id: string;
   title: string;
   status: TaskStatus;
-  activeAttemptId?: string;
+  activeWakeId?: string;
   updatedAt: number;
 }
 
@@ -41,7 +41,7 @@ function snapshotTask(task: Task): TaskSnapshot {
     id: task.id,
     title: task.title,
     status: task.status,
-    activeAttemptId: task.activeAttemptId,
+    activeWakeId: task.activeWakeId,
     updatedAt: task.updatedAt,
   };
 }
@@ -53,12 +53,12 @@ function diffSnapshots(
   added: TaskSnapshot[];
   removed: TaskSnapshot[];
   statusChanged: Array<{ from: TaskStatus; to: TaskStatus; snapshot: TaskSnapshot }>;
-  activeAttemptChanged: TaskSnapshot[];
+  activeWakeChanged: TaskSnapshot[];
 } {
   const added: TaskSnapshot[] = [];
   const removed: TaskSnapshot[] = [];
   const statusChanged: Array<{ from: TaskStatus; to: TaskStatus; snapshot: TaskSnapshot }> = [];
-  const activeAttemptChanged: TaskSnapshot[] = [];
+  const activeWakeChanged: TaskSnapshot[] = [];
 
   for (const [id, curr] of next) {
     const before = prev.get(id);
@@ -68,15 +68,15 @@ function diffSnapshots(
     }
     if (before.status !== curr.status) {
       statusChanged.push({ from: before.status, to: curr.status, snapshot: curr });
-    } else if (before.activeAttemptId !== curr.activeAttemptId) {
-      activeAttemptChanged.push(curr);
+    } else if (before.activeWakeId !== curr.activeWakeId) {
+      activeWakeChanged.push(curr);
     }
   }
   for (const [id, before] of prev) {
     if (!next.has(id)) removed.push(before);
   }
 
-  return { added, removed, statusChanged, activeAttemptChanged };
+  return { added, removed, statusChanged, activeWakeChanged };
 }
 
 function formatDelta(
@@ -95,12 +95,12 @@ function formatDelta(
       lines.push(`- [${entry.snapshot.id}] ${entry.snapshot.title}: ${entry.from} → ${entry.to}`);
     }
   }
-  if (diff.activeAttemptChanged.length > 0) {
+  if (diff.activeWakeChanged.length > 0) {
     if (lines.length > 0) lines.push("");
-    lines.push("**Active attempt changes:**");
-    for (const t of diff.activeAttemptChanged) {
-      const attemptDesc = t.activeAttemptId ? `now ${t.activeAttemptId}` : "cleared";
-      lines.push(`- [${t.id}] ${t.title}: ${attemptDesc}`);
+    lines.push("**Active wake changes:**");
+    for (const t of diff.activeWakeChanged) {
+      const wakeDesc = t.activeWakeId ? `now ${t.activeWakeId}` : "cleared";
+      lines.push(`- [${t.id}] ${t.title}: ${wakeDesc}`);
     }
   }
   if (diff.removed.length > 0) {
@@ -118,8 +118,8 @@ function formatDelta(
       if (h.blockers.length > 0) {
         lines.push(`  blockers: ${h.blockers.join("; ")}`);
       }
-      if (h.nextSteps.length > 0) {
-        lines.push(`  next: ${h.nextSteps.join("; ")}`);
+      if (h.pending.length > 0) {
+        lines.push(`  pending: ${h.pending.join("; ")}`);
       }
     }
   }

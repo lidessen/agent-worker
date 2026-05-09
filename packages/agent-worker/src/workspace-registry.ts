@@ -386,22 +386,22 @@ export class WorkspaceRegistry {
       resolved.kickoff = interpolate(resolved.def.kickoff, templateVars);
     }
 
-    // Capture the final sandbox cwd + allowedPaths per agent so
-    // debug and integration tests can inspect the static path
-    // scope. Worktree-backed cwd overrides happen per-run inside
-    // the runner closure (see `createRunner`) and don't show up
-    // here — the snapshot is the "no active attempt" baseline.
+    // Capture the final sandbox cwd + allowedPaths per agent so debug and
+    // integration tests can inspect the static path scope. Worktree-
+    // backed cwd overrides happen per-run inside the runner closure (see
+    // `createRunner`) and don't show up here — the snapshot is the "no
+    // active Wake" baseline.
     const agentScopes: Record<
       string,
       { cwd: string | undefined; allowedPaths: readonly string[]; worktreePath?: string }
     > = {};
 
-    // Phase-1 v3 worktree cleanup: subscribe ONCE per workspace
-    // to `attempt.terminal`. When an attempt flips to any
-    // terminal status, walk its worktrees and remove each one.
-    // Branches are preserved (committed work survives cleanup).
-    const unsubscribeTerminal = workspace.stateStore.on("attempt.terminal", async (attempt) => {
-      for (const wt of attempt.worktrees ?? []) {
+    // Worktree cleanup: subscribe ONCE per workspace to `wake.terminal`.
+    // When a Wake flips to any terminal status, walk its worktrees and
+    // remove each one. Branches are preserved (committed work survives
+    // cleanup).
+    const unsubscribeTerminal = workspace.stateStore.on("wake.terminal", async (wake) => {
+      for (const wt of wake.worktrees ?? []) {
         try {
           await removeWorktree(wt.repoPath, wt.path);
         } catch (err) {
@@ -716,16 +716,15 @@ export class WorkspaceRegistry {
         return;
       }
 
-      // Phase-1 v3: rebuild the workspace tool set per run so
-      // attempt-scoped tools (worktree_*) are closure-bound to
-      // the current active attempt. The orchestrator-passed
-      // `tools` arg is the static baseline (channel / inbox /
-      // team / chronicle / task ledger); we re-create it here
-      // with `activeAttemptId` set so worktree_* shows up iff
-      // the agent is mid-dispatch.
+      // Rebuild the workspace tool set per run so Wake-scoped tools
+      // (worktree_*) are closure-bound to the current active Wake. The
+      // orchestrator-passed `tools` arg is the static baseline
+      // (channel / inbox / team / chronicle / task ledger); we re-create
+      // it here with `activeWakeId` set so worktree_* shows up iff the
+      // agent is mid-dispatch.
       let perRunTools = tools;
       try {
-        const active = await workspace.stateStore.findActiveAttempt(agent.name);
+        const active = await workspace.stateStore.findActiveWake(agent.name);
         const { createWorkspaceTools } = await import("@agent-worker/workspace");
         perRunTools = createWorkspaceTools(
           agent.name,
@@ -739,7 +738,7 @@ export class WorkspaceRegistry {
             workspaceKey,
             dataDir: this._dataDir,
             instructionQueue: workspace.instructionQueue,
-            activeAttemptId: active?.id,
+            activeWakeId: active?.id,
           },
         );
       } catch (err) {

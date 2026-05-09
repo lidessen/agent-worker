@@ -58,7 +58,7 @@ describe("buildLeadHooks.onCheckpoint", () => {
     expect(inject.content).toContain("draft → open");
   });
 
-  test("reports activeAttempt changes without a full status transition", async () => {
+  test("reports activeWake changes without a full status transition", async () => {
     const store = new InMemoryWorkspaceStateStore();
     const task = await store.createTask({
       workspaceId: "w1",
@@ -71,30 +71,30 @@ describe("buildLeadHooks.onCheckpoint", () => {
 
     // Advance task to in_progress with an active attempt — exercise the
     // status-changed branch.
-    const attempt = await store.createAttempt({
+    const attempt = await store.createWake({
       taskId: task.id,
       agentName: "codex",
       role: "worker",
     });
-    await store.updateTask(task.id, { status: "in_progress", activeAttemptId: attempt.id });
+    await store.updateTask(task.id, { status: "in_progress", activeWakeId: attempt.id });
 
     const first = await hooks.onCheckpoint!({ reason: "run_start", runNumber: 2 });
     const firstInject = first as { kind: "inject"; content: string };
     expect(firstInject.content).toContain("Status changes");
 
-    // Now only the activeAttemptId changes (re-dispatch). Status stays
+    // Now only the activeWakeId changes (re-dispatch). Status stays
     // in_progress.
-    const other = await store.createAttempt({
+    const other = await store.createWake({
       taskId: task.id,
       agentName: "cursor",
       role: "worker",
     });
-    await store.updateTask(task.id, { activeAttemptId: other.id });
+    await store.updateTask(task.id, { activeWakeId: other.id });
 
     const second = await hooks.onCheckpoint!({ reason: "run_start", runNumber: 3 });
     const secondInject = second as { kind: "inject"; content: string };
     expect(secondInject.kind).toBe("inject");
-    expect(secondInject.content).toContain("Active attempt changes");
+    expect(secondInject.content).toContain("Active wake changes");
     expect(secondInject.content).toContain(other.id);
   });
 
@@ -127,7 +127,7 @@ describe("buildLeadHooks.onCheckpoint", () => {
   test("reports new handoffs authored between runs", async () => {
     const store = new InMemoryWorkspaceStateStore();
     const task = await store.createTask({ workspaceId: "w1", title: "t", goal: "g" });
-    const attempt = await store.createAttempt({
+    const attempt = await store.createWake({
       taskId: task.id,
       agentName: "codex",
       role: "worker",
@@ -138,7 +138,7 @@ describe("buildLeadHooks.onCheckpoint", () => {
     // should NOT be reported as new.
     await store.createHandoff({
       taskId: task.id,
-      fromAttemptId: attempt.id,
+      closingWakeId: attempt.id,
       createdBy: "codex",
       kind: "progress",
       summary: "preexisting backlog entry",
@@ -149,7 +149,7 @@ describe("buildLeadHooks.onCheckpoint", () => {
     // Workers emit more handoffs between runs.
     await store.createHandoff({
       taskId: task.id,
-      fromAttemptId: attempt.id,
+      closingWakeId: attempt.id,
       createdBy: "codex",
       kind: "blocked",
       summary: "waiting on credentials",
@@ -157,11 +157,11 @@ describe("buildLeadHooks.onCheckpoint", () => {
     });
     await store.createHandoff({
       taskId: task.id,
-      fromAttemptId: attempt.id,
+      closingWakeId: attempt.id,
       createdBy: "codex",
       kind: "progress",
       summary: "resumed after creds arrived",
-      nextSteps: ["wire auth flow"],
+      pending: ["wire auth flow"],
     });
 
     const second = await hooks.onCheckpoint!({ reason: "run_start", runNumber: 2 });
@@ -181,7 +181,7 @@ describe("buildLeadHooks.onCheckpoint", () => {
   test("handoff cursor advances so the same handoff isn't reported twice", async () => {
     const store = new InMemoryWorkspaceStateStore();
     const task = await store.createTask({ workspaceId: "w1", title: "t", goal: "g" });
-    const attempt = await store.createAttempt({
+    const attempt = await store.createWake({
       taskId: task.id,
       agentName: "codex",
       role: "worker",
@@ -192,7 +192,7 @@ describe("buildLeadHooks.onCheckpoint", () => {
 
     await store.createHandoff({
       taskId: task.id,
-      fromAttemptId: attempt.id,
+      closingWakeId: attempt.id,
       createdBy: "codex",
       kind: "progress",
       summary: "halfway",
@@ -214,7 +214,7 @@ describe("buildLeadHooks.onCheckpoint", () => {
       goal: "g",
       status: "in_progress",
     });
-    const attempt = await store.createAttempt({
+    const attempt = await store.createWake({
       taskId: task.id,
       agentName: "codex",
       role: "worker",
@@ -227,7 +227,7 @@ describe("buildLeadHooks.onCheckpoint", () => {
     // out of the active set.
     await store.createHandoff({
       taskId: task.id,
-      fromAttemptId: attempt.id,
+      closingWakeId: attempt.id,
       createdBy: "codex",
       kind: "completed",
       summary: "shipped",

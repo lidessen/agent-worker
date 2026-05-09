@@ -27,11 +27,10 @@ export interface PromptContext {
   /** Shared workspace sandbox directory (visible to all agents). */
   workspaceSandboxDir?: string;
   /**
-   * Phase-1 v3 worktrees attached to the agent's current
-   * attempt. Resolved per-run by the orchestrator from the
-   * state store. Empty / absent when the agent has no active
-   * attempt or the active attempt has not created any
-   * worktrees yet.
+   * Worktrees attached to the agent's current Wake. Resolved per-run by
+   * the orchestrator from the state store. Empty / absent when the agent
+   * has no active Wake or the active Wake has not created any worktrees
+   * yet.
    */
   worktrees?: readonly Worktree[];
   /** Kernel state store — task ledger visible to the lead. Undefined in legacy callers. */

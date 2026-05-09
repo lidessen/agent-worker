@@ -102,7 +102,7 @@ export interface PolicyDef {
  * - `worker` — task-scoped executor. The default for all agents unless
  *   explicitly overridden. Note: the static `AgentDef` is a worker-capable
  *   template; actual task-scoped worker instances are materialized at
- *   runtime as Attempts bound to a (task, agent) pair.
+ *   runtime as Wakes bound to a (task, agent) pair.
  * - `observer` — automation / bot / reporter member. Not launched as a
  *   task-scoped worker. The existing `on_demand: true` flag already covers
  *   many of these cases; mark explicitly when you want hook / profile
@@ -137,7 +137,7 @@ export interface AgentDef {
    *   - agents[name] === workspace.lead → "lead"
    *   - else → "worker"
    * Set this to "observer" for automation/bot members that should NOT be
-   * derived into task-scoped Attempts.
+   * derived into task-scoped Wakes.
    */
   role?: AgentRole;
   // (no `worktree` field — worktrees are created at runtime via the
@@ -249,7 +249,7 @@ export interface ResolvedAgent {
   on_demand?: boolean;
   /** Resolved role: explicit AgentDef.role wins, else derived from workspace.lead. */
   role: AgentRole;
-  // (no resolved worktree field — worktrees are runtime-created, attempt-scoped)
+  // (no resolved worktree field — worktrees are runtime-created, Wake-scoped)
   /** External MCP servers merged from the agent definition. */
   mcpServers?: Record<string, McpServerDef>;
   /**

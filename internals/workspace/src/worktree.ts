@@ -1,10 +1,10 @@
 /**
- * Thin wrapper over `git worktree` for attempt-scoped execution isolation.
+ * Thin wrapper over `git worktree` for Wake-scoped execution isolation.
  *
  * Design: docs/design/phase-1-worktree-isolation/README.md
  *
- * Callers provision worktrees through attempt-scoped MCP tools during a
- * running attempt. Branch naming is chosen by the caller; runtime code
+ * Callers provision worktrees through Wake-scoped MCP tools during a
+ * running Wake. Branch naming is chosen by the caller; runtime code
  * allocates the worktree path. This module only executes git commands and
  * stays narrow on purpose.
  */

@@ -54,16 +54,16 @@ describe("FileWorkspaceStateStore", () => {
     expect(replayed?.priority).toBe(2);
   });
 
-  test("attempt lifecycle replays correctly", async () => {
+  test("wake lifecycle replays correctly", async () => {
     const first = new FileWorkspaceStateStore(dir);
     await first.ready;
     const task = await first.createTask({ workspaceId: "w1", title: "t", goal: "g" });
-    const attempt = await first.createAttempt({
+    const wake = await first.createWake({
       taskId: task.id,
       agentName: "codex",
       role: "worker",
     });
-    await first.updateAttempt(attempt.id, {
+    await first.updateWake(wake.id, {
       status: "completed",
       resultSummary: "ok",
       endedAt: Date.now(),
@@ -71,7 +71,7 @@ describe("FileWorkspaceStateStore", () => {
 
     const second = new FileWorkspaceStateStore(dir);
     await second.ready;
-    const replayed = await second.getAttempt(attempt.id);
+    const replayed = await second.getWake(wake.id);
     expect(replayed?.status).toBe("completed");
     expect(replayed?.resultSummary).toBe("ok");
     expect(replayed?.endedAt).toBeGreaterThan(0);
@@ -81,14 +81,14 @@ describe("FileWorkspaceStateStore", () => {
     const first = new FileWorkspaceStateStore(dir);
     await first.ready;
     const task = await first.createTask({ workspaceId: "w1", title: "t", goal: "g" });
-    const attempt = await first.createAttempt({
+    const wake = await first.createWake({
       taskId: task.id,
       agentName: "codex",
       role: "worker",
     });
     await first.createHandoff({
       taskId: task.id,
-      fromAttemptId: attempt.id,
+      closingWakeId: wake.id,
       createdBy: "codex",
       kind: "progress",
       summary: "halfway",
@@ -96,7 +96,7 @@ describe("FileWorkspaceStateStore", () => {
     });
     await first.createArtifact({
       taskId: task.id,
-      createdByAttemptId: attempt.id,
+      createdByWakeId: wake.id,
       kind: "file",
       title: "diff.patch",
       ref: "file:/tmp/diff.patch",
@@ -132,14 +132,14 @@ describe("FileWorkspaceStateStore", () => {
     expect(open.map((t) => t.title)).toEqual(["b", "c"]);
   });
 
-  test("rejects creating an attempt for an unknown task after replay", async () => {
+  test("rejects creating a Wake for an unknown task after replay", async () => {
     const first = new FileWorkspaceStateStore(dir);
     await first.ready;
     // No tasks created.
     const second = new FileWorkspaceStateStore(dir);
     await second.ready;
     await expect(
-      second.createAttempt({ taskId: "task_missing", agentName: "codex", role: "worker" }),
+      second.createWake({ taskId: "task_missing", agentName: "codex", role: "worker" }),
     ).rejects.toThrow("task not found");
   });
 
@@ -150,7 +150,7 @@ describe("FileWorkspaceStateStore", () => {
     const first = new FileWorkspaceStateStore(dir);
     await first.ready;
     const task = await first.createTask({ workspaceId: "w1", title: "t", goal: "g" });
-    const attempt = await first.createAttempt({
+    const wake = await first.createWake({
       taskId: task.id,
       agentName: "codex",
       role: "worker",
@@ -169,7 +169,7 @@ describe("FileWorkspaceStateStore", () => {
         kind: "file",
         title: "orphan.txt",
         ref: "file:/tmp/orphan.txt",
-        createdByAttemptId: attempt.id,
+        createdByWakeId: wake.id,
         createdAt: Date.now(),
       }) + "\n",
     );

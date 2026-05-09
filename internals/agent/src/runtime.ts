@@ -49,14 +49,21 @@ export interface RuntimeTrace {
   auditRefs?: string[];
 }
 
+/**
+ * Runtime-emitted draft of the Handoff generic core. The harness picks up
+ * this draft, calls its own `produceExtension` hook (see decision 005) to
+ * attach a per-harness extension, and commits the workspace `Handoff`
+ * record. The runtime itself does not commit anything.
+ */
 export interface HandoffDraft {
   kind?: "progress" | "blocked" | "completed" | "aborted";
   summary: string;
   completed?: string[];
   pending?: string[];
-  nextSteps?: string[];
   decisions?: string[];
   blockers?: string[];
+  /** Refs to durable outputs produced during this Wake (Resource ids). */
+  resources?: string[];
   metadata?: Record<string, unknown>;
 }
 

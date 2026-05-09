@@ -1,9 +1,9 @@
 // ── File-backed workspace state store ─────────────────────────────────────
 //
-// Persists Task / Attempt / Handoff / Artifact snapshots as JSONL files in a
-// dedicated directory. Reads on startup replay each file with
-// last-write-wins semantics per id. Writes are append-only so a partial
-// crash leaves the store in a replayable state.
+// Persists Task / Wake / Handoff / Artifact snapshots as JSONL files in a
+// dedicated directory. Reads on startup replay each file with last-write-
+// wins semantics per id. Writes are append-only so a partial crash leaves
+// the store in a replayable state.
 //
 // Not safe for multi-process use — the in-memory cache is owned by a single
 // WorkspaceStateStore instance. Concurrent writes from the same process are
@@ -11,35 +11,35 @@
 //
 // This implementation deliberately shares the happy path with the in-memory
 // store: the mutations run against in-memory maps first (for invariants like
-// FK checks and active-attempt mirroring), then append a full snapshot to
-// disk. Reload re-executes the same mutations in order.
+// FK checks and active-Wake mirroring), then append a full snapshot to disk.
+// Reload re-executes the same mutations in order.
 
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { appendJsonl, readFrom } from "@agent-worker/shared";
 import type {
   Artifact,
-  Attempt,
-  AttemptPatch,
-  AttemptStatus,
   CreateArtifactInput,
-  CreateAttemptInput,
   CreateHandoffInput,
   CreateTaskInput,
+  CreateWakeInput,
   Handoff,
   Task,
   TaskPatch,
   TaskStatus,
+  Wake,
+  WakePatch,
+  WakeStatus,
 } from "./types.ts";
-import { TERMINAL_ATTEMPT_STATUSES } from "./types.ts";
+import { TERMINAL_WAKE_STATUSES } from "./types.ts";
 import type {
-  AttemptTerminalListener,
   TaskFilter,
+  WakeTerminalListener,
   WorkspaceStateStore,
 } from "./store.ts";
 
 const TASK_FILE = "tasks.jsonl";
-const ATTEMPT_FILE = "attempts.jsonl";
+const WAKE_FILE = "wakes.jsonl";
 const HANDOFF_FILE = "handoffs.jsonl";
 const ARTIFACT_FILE = "artifacts.jsonl";
 
@@ -54,21 +54,21 @@ function genId(prefix: string): string {
  * Each mutation writes a full snapshot to the appropriate JSONL file.
  * Replay reads all four files at construction time and rebuilds the
  * in-memory cache with last-write-wins semantics per id. Call
- * `await store.ready` before using the store if you care about seeing
- * the replay complete (Workspace can await this during init).
+ * `await store.ready` before using the store if you care about seeing the
+ * replay complete (Workspace can await this during init).
  */
 export class FileWorkspaceStateStore implements WorkspaceStateStore {
   readonly dir: string;
   readonly ready: Promise<void>;
 
   private tasks = new Map<string, Task>();
-  private attempts = new Map<string, Attempt>();
+  private wakes = new Map<string, Wake>();
   private handoffs = new Map<string, Handoff>();
   private artifacts = new Map<string, Artifact>();
-  private attemptTerminalListeners = new Set<AttemptTerminalListener>();
+  private wakeTerminalListeners = new Set<WakeTerminalListener>();
 
   private readonly taskPath: string;
-  private readonly attemptPath: string;
+  private readonly wakePath: string;
   private readonly handoffPath: string;
   private readonly artifactPath: string;
 
@@ -76,7 +76,7 @@ export class FileWorkspaceStateStore implements WorkspaceStateStore {
     this.dir = dir;
     mkdirSync(dir, { recursive: true });
     this.taskPath = join(dir, TASK_FILE);
-    this.attemptPath = join(dir, ATTEMPT_FILE);
+    this.wakePath = join(dir, WAKE_FILE);
     this.handoffPath = join(dir, HANDOFF_FILE);
     this.artifactPath = join(dir, ARTIFACT_FILE);
 
@@ -86,14 +86,14 @@ export class FileWorkspaceStateStore implements WorkspaceStateStore {
   }
 
   private async replay(): Promise<void> {
-    const [tasks, attempts, handoffs, artifacts] = await Promise.all([
+    const [tasks, wakes, handoffs, artifacts] = await Promise.all([
       this.readSnapshots<Task>(this.taskPath),
-      this.readSnapshots<Attempt>(this.attemptPath),
+      this.readSnapshots<Wake>(this.wakePath),
       this.readSnapshots<Handoff>(this.handoffPath),
       this.readSnapshots<Artifact>(this.artifactPath),
     ]);
     for (const t of tasks) this.tasks.set(t.id, t);
-    for (const a of attempts) this.attempts.set(a.id, a);
+    for (const w of wakes) this.wakes.set(w.id, w);
     for (const h of handoffs) this.handoffs.set(h.id, h);
     for (const a of artifacts) this.artifacts.set(a.id, a);
 
@@ -145,8 +145,8 @@ export class FileWorkspaceStateStore implements WorkspaceStateStore {
   private writeTask(task: Task): void {
     appendJsonl(this.taskPath, task as unknown as Record<string, unknown>);
   }
-  private writeAttempt(attempt: Attempt): void {
-    appendJsonl(this.attemptPath, attempt as unknown as Record<string, unknown>);
+  private writeWake(wake: Wake): void {
+    appendJsonl(this.wakePath, wake as unknown as Record<string, unknown>);
   }
   private writeHandoff(handoff: Handoff): void {
     appendJsonl(this.handoffPath, handoff as unknown as Record<string, unknown>);
@@ -215,15 +215,15 @@ export class FileWorkspaceStateStore implements WorkspaceStateStore {
     return out;
   }
 
-  // ── Attempt ─────────────────────────────────────────────────────────
+  // ── Wake ────────────────────────────────────────────────────────────
 
-  async createAttempt(input: CreateAttemptInput): Promise<Attempt> {
+  async createWake(input: CreateWakeInput): Promise<Wake> {
     await this.ready;
     if (!this.tasks.has(input.taskId)) {
-      throw new Error(`createAttempt: task not found: ${input.taskId}`);
+      throw new Error(`createWake: task not found: ${input.taskId}`);
     }
-    const attempt: Attempt = {
-      id: genId("att"),
+    const wake: Wake = {
+      id: genId("wake"),
       taskId: input.taskId,
       agentName: input.agentName,
       role: input.role,
@@ -235,93 +235,93 @@ export class FileWorkspaceStateStore implements WorkspaceStateStore {
       cwd: input.cwd,
       pid: input.pid,
     };
-    this.attempts.set(attempt.id, attempt);
-    this.writeAttempt(attempt);
-    return attempt;
+    this.wakes.set(wake.id, wake);
+    this.writeWake(wake);
+    return wake;
   }
 
-  async getAttempt(id: string): Promise<Attempt | null> {
+  async getWake(id: string): Promise<Wake | null> {
     await this.ready;
-    return this.attempts.get(id) ?? null;
+    return this.wakes.get(id) ?? null;
   }
 
-  async updateAttempt(id: string, patch: AttemptPatch): Promise<Attempt> {
+  async updateWake(id: string, patch: WakePatch): Promise<Wake> {
     await this.ready;
-    const current = this.attempts.get(id);
-    if (!current) throw new Error(`Attempt not found: ${id}`);
-    const updated: Attempt = {
+    const current = this.wakes.get(id);
+    if (!current) throw new Error(`Wake not found: ${id}`);
+    const updated: Wake = {
       ...current,
       ...patch,
       id: current.id,
       taskId: current.taskId,
       startedAt: current.startedAt,
     };
-    this.attempts.set(id, updated);
-    this.writeAttempt(updated);
+    this.wakes.set(id, updated);
+    this.writeWake(updated);
 
-    // Phase-1 v3: fire attempt.terminal on running → terminal
-    // status transition so cleanup hooks (worktree teardown,
-    // chronicle entry, etc.) can react without polling.
+    // Fire wake.terminal on running → terminal status transition so cleanup
+    // hooks (worktree teardown, chronicle entry, etc.) can react without
+    // polling.
     if (
       patch.status !== undefined &&
       this.isTerminalTransition(current.status, updated.status)
     ) {
-      await this.emitAttemptTerminal(updated);
+      await this.emitWakeTerminal(updated);
     }
     return updated;
   }
 
-  async listAttempts(taskId: string): Promise<Attempt[]> {
+  async listWakes(taskId: string): Promise<Wake[]> {
     await this.ready;
-    return Array.from(this.attempts.values())
-      .filter((a) => a.taskId === taskId)
+    return Array.from(this.wakes.values())
+      .filter((w) => w.taskId === taskId)
       .sort((a, b) => a.startedAt - b.startedAt);
   }
 
-  async findActiveAttempt(agentName: string): Promise<Attempt | null> {
+  async findActiveWake(agentName: string): Promise<Wake | null> {
     await this.ready;
-    let best: Attempt | null = null;
-    for (const attempt of this.attempts.values()) {
-      if (attempt.agentName !== agentName) continue;
-      if (attempt.status !== "running") continue;
-      if (!best || attempt.startedAt < best.startedAt) best = attempt;
+    let best: Wake | null = null;
+    for (const wake of this.wakes.values()) {
+      if (wake.agentName !== agentName) continue;
+      if (wake.status !== "running") continue;
+      if (!best || wake.startedAt < best.startedAt) best = wake;
     }
     return best;
   }
 
-  async listAllAttempts(): Promise<Attempt[]> {
+  async listAllWakes(): Promise<Wake[]> {
     await this.ready;
-    return Array.from(this.attempts.values()).sort((a, b) => a.startedAt - b.startedAt);
+    return Array.from(this.wakes.values()).sort((a, b) => a.startedAt - b.startedAt);
   }
 
   // ── Lifecycle events ────────────────────────────────────────────────
 
-  on(event: "attempt.terminal", listener: AttemptTerminalListener): () => void {
-    if (event !== "attempt.terminal") {
+  on(event: "wake.terminal", listener: WakeTerminalListener): () => void {
+    if (event !== "wake.terminal") {
       throw new Error(`Unknown WorkspaceStateStore event: ${event}`);
     }
-    this.attemptTerminalListeners.add(listener);
+    this.wakeTerminalListeners.add(listener);
     return () => {
-      this.attemptTerminalListeners.delete(listener);
+      this.wakeTerminalListeners.delete(listener);
     };
   }
 
-  private async emitAttemptTerminal(attempt: Attempt): Promise<void> {
-    for (const listener of this.attemptTerminalListeners) {
+  private async emitWakeTerminal(wake: Wake): Promise<void> {
+    for (const listener of this.wakeTerminalListeners) {
       try {
-        await listener(attempt);
+        await listener(wake);
       } catch (err) {
         console.error(
-          `[file-state-store] attempt.terminal listener failed for ${attempt.id}:`,
+          `[file-state-store] wake.terminal listener failed for ${wake.id}:`,
           err instanceof Error ? err.message : err,
         );
       }
     }
   }
 
-  private isTerminalTransition(prev: AttemptStatus, next: AttemptStatus): boolean {
-    const wasTerminal = (TERMINAL_ATTEMPT_STATUSES as readonly AttemptStatus[]).includes(prev);
-    const isTerminal = (TERMINAL_ATTEMPT_STATUSES as readonly AttemptStatus[]).includes(next);
+  private isTerminalTransition(prev: WakeStatus, next: WakeStatus): boolean {
+    const wasTerminal = (TERMINAL_WAKE_STATUSES as readonly WakeStatus[]).includes(prev);
+    const isTerminal = (TERMINAL_WAKE_STATUSES as readonly WakeStatus[]).includes(next);
     return !wasTerminal && isTerminal;
   }
 
@@ -332,14 +332,13 @@ export class FileWorkspaceStateStore implements WorkspaceStateStore {
     if (!this.tasks.has(input.taskId)) {
       throw new Error(`createHandoff: task not found: ${input.taskId}`);
     }
-    if (!this.attempts.has(input.fromAttemptId)) {
-      throw new Error(`createHandoff: fromAttempt not found: ${input.fromAttemptId}`);
+    if (!this.wakes.has(input.closingWakeId)) {
+      throw new Error(`createHandoff: closingWake not found: ${input.closingWakeId}`);
     }
     const handoff: Handoff = {
       id: genId("hnd"),
       taskId: input.taskId,
-      fromAttemptId: input.fromAttemptId,
-      toAttemptId: input.toAttemptId,
+      closingWakeId: input.closingWakeId,
       createdAt: Date.now(),
       createdBy: input.createdBy,
       kind: input.kind,
@@ -348,7 +347,9 @@ export class FileWorkspaceStateStore implements WorkspaceStateStore {
       pending: input.pending ?? [],
       blockers: input.blockers ?? [],
       decisions: input.decisions ?? [],
-      nextSteps: input.nextSteps ?? [],
+      resources: input.resources ?? [],
+      workLogPointer: input.workLogPointer,
+      extensions: input.extensions ?? {},
       artifactRefs: input.artifactRefs ?? [],
       touchedPaths: input.touchedPaths,
       runtimeRefs: input.runtimeRefs,
@@ -383,7 +384,7 @@ export class FileWorkspaceStateStore implements WorkspaceStateStore {
       kind: input.kind,
       title: input.title,
       ref: input.ref,
-      createdByAttemptId: input.createdByAttemptId,
+      createdByWakeId: input.createdByWakeId,
       createdAt: Date.now(),
       checksum: input.checksum,
       version: input.version,

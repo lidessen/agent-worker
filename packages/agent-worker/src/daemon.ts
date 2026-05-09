@@ -1353,17 +1353,16 @@ export class Daemon {
     // dependency shape consistent with the existing handlers).
     const { createWorkspaceTools } = await import("@agent-worker/workspace");
     const channels = handle.workspace.getAgentChannels(agent);
-    // Phase-1 v3: query the agent's active attempt so the
-    // attempt-scoped tools (worktree_*) are present in the
-    // dispatched tool set. Out-of-band callers (debug,
-    // tests, the stdio MCP proxy) get the same surface as
-    // the orchestrator's per-run injection.
-    let activeAttemptId: string | undefined;
+    // Query the agent's active Wake so the Wake-scoped tools
+    // (worktree_*) are present in the dispatched tool set. Out-of-band
+    // callers (debug, tests, the stdio MCP proxy) get the same surface
+    // as the orchestrator's per-run injection.
+    let activeWakeId: string | undefined;
     try {
-      const active = await handle.workspace.stateStore.findActiveAttempt(agent);
-      activeAttemptId = active?.id;
+      const active = await handle.workspace.stateStore.findActiveWake(agent);
+      activeWakeId = active?.id;
     } catch {
-      // No active attempt → no worktree tools, that's fine.
+      // No active Wake → no worktree tools, that's fine.
     }
     const tools = createWorkspaceTools(
       agent,
@@ -1377,7 +1376,7 @@ export class Daemon {
         workspaceKey: key,
         dataDir: this.config.dataDir,
         instructionQueue: handle.workspace.instructionQueue,
-        activeAttemptId,
+        activeWakeId,
       },
     );
 
@@ -1422,12 +1421,12 @@ export class Daemon {
     if (!task) {
       return Response.json({ error: `Task ${taskId} not found` }, { status: 404 });
     }
-    const [attempts, handoffs, artifacts] = await Promise.all([
-      store.listAttempts(taskId),
+    const [wakes, handoffs, artifacts] = await Promise.all([
+      store.listWakes(taskId),
       store.listHandoffs(taskId),
       store.listArtifacts(taskId),
     ]);
-    return Response.json({ task, attempts, handoffs, artifacts });
+    return Response.json({ task, wakes, handoffs, artifacts });
   }
 
   /** Emit a live update notification for observers (web UI, CLI polling, etc). */
@@ -1594,18 +1593,18 @@ export class Daemon {
     if (task.status === "completed" || task.status === "aborted" || task.status === "failed") {
       return Response.json({ error: `Task ${taskId} is already ${task.status}` }, { status: 409 });
     }
-    if (task.activeAttemptId) {
+    if (task.activeWakeId) {
       return Response.json(
         {
-          error: `Task ${taskId} already has an active attempt: ${task.activeAttemptId}`,
+          error: `Task ${taskId} already has an active Wake: ${task.activeWakeId}`,
         },
         { status: 409 },
       );
     }
 
-    let attempt;
+    let wake;
     try {
-      attempt = await store.createAttempt({
+      wake = await store.createWake({
         taskId: task.id,
         agentName: worker,
         role: "worker",
@@ -1618,7 +1617,7 @@ export class Daemon {
     }
 
     await store.updateTask(task.id, {
-      activeAttemptId: attempt.id,
+      activeWakeId: wake.id,
       status: task.status === "draft" || task.status === "open" ? "in_progress" : task.status,
     });
 
@@ -1631,7 +1630,7 @@ export class Daemon {
       `**Goal:** ${task.goal}`,
       task.acceptanceCriteria ? `**Acceptance criteria:** ${task.acceptanceCriteria}` : null,
       "",
-      `Attempt id: ${attempt.id}. When finished, call attempt_update with the terminal status ` +
+      `Wake id: ${wake.id}. When finished, call wake_update with the terminal status ` +
         `and handoff_create with a structured summary. Register concrete outputs via artifact_create.`,
     ]
       .filter((line): line is string => line !== null)
@@ -1639,7 +1638,7 @@ export class Daemon {
     handle.workspace.instructionQueue.enqueue({
       id: makeId(),
       agentName: worker,
-      messageId: `http-dispatch:${attempt.id}`,
+      messageId: `http-dispatch:${wake.id}`,
       channel: "dispatch",
       content,
       priority,
@@ -1649,16 +1648,16 @@ export class Daemon {
     this.emitTaskChanged(handle.key, "dispatched", task.id);
     await this.writeTaskChronicle(
       handle.workspace,
-      `task_dispatch [${task.id}] → @${worker} as ${attempt.id}: ${task.title}`,
+      `task_dispatch [${task.id}] → @${worker} as ${wake.id}: ${task.title}`,
     );
-    return Response.json({ task: await store.getTask(task.id), attempt });
+    return Response.json({ task: await store.getTask(task.id), wake });
   }
 
   /**
    * Close a task with either "completed" or "aborted" status in one shot.
    *
-   * - If the task has an active attempt, marks it as completed/cancelled,
-   *   stamps endedAt, and clears activeAttemptId (via the store's usual
+   * - If the task has an active Wake, marks it as completed/cancelled,
+   *   stamps endedAt, and clears activeWakeId (via the store's usual
    *   bookkeeping on terminal statuses).
    * - Records a handoff of the matching kind on behalf of the "user" so
    *   the timeline shows why it was closed.
@@ -1698,43 +1697,42 @@ export class Daemon {
       body.reason ??
       (kind === "completed" ? "Closed by user via HTTP" : "Aborted by user via HTTP");
 
-    // If there is an active attempt, finalize it first so the handoff
-    // references a real fromAttemptId. Only stamp the attempt if it is
-    // still running — a race where the agent self-reported via MCP in
-    // between getTask() and getAttempt() should not overwrite the agent's
-    // own terminal status / resultSummary.
+    // If there is an active Wake, finalize it first so the handoff
+    // references a real closingWakeId. Only stamp the Wake if it is still
+    // running — a race where the agent self-reported via MCP in between
+    // getTask() and getWake() should not overwrite the agent's own
+    // terminal status / resultSummary.
     //
-    // NOTE: this sequence (updateAttempt → clear activeAttemptId →
+    // NOTE: this sequence (updateWake → clear activeWakeId →
     // createHandoff → updateTask) is not transactional. A crash between
     // steps can leave inconsistent state — specifically between steps 1
-    // and 2 leaves an orphaned active-attempt pointer that would block a
-    // subsequent dispatch. Accepted gap for early development; see
-    // docs/handoffs/2026-04-13-loop-session-final.md (remaining work #5).
-    let fromAttemptId: string | undefined;
-    if (task.activeAttemptId) {
-      const currentAttempt = await store.getAttempt(task.activeAttemptId);
-      if (currentAttempt && currentAttempt.status === "running") {
-        fromAttemptId = currentAttempt.id;
-        await store.updateAttempt(fromAttemptId, {
+    // and 2 leaves an orphaned active-Wake pointer that would block a
+    // subsequent dispatch. Accepted gap for early development.
+    let closingWakeId: string | undefined;
+    if (task.activeWakeId) {
+      const currentWake = await store.getWake(task.activeWakeId);
+      if (currentWake && currentWake.status === "running") {
+        closingWakeId = currentWake.id;
+        await store.updateWake(closingWakeId, {
           status: kind === "completed" ? "completed" : "cancelled",
           resultSummary: summary,
           endedAt: Date.now(),
         });
-        // Clear the activeAttemptId so the next snapshot is consistent.
-        await store.updateTask(task.id, { activeAttemptId: undefined });
-      } else if (currentAttempt) {
-        // Attempt already terminal — record it as the handoff source but
+        // Clear the activeWakeId so the next snapshot is consistent.
+        await store.updateTask(task.id, { activeWakeId: undefined });
+      } else if (currentWake) {
+        // Wake already terminal — record it as the handoff source but
         // don't re-stamp anything. Also clear the orphaned pointer.
-        fromAttemptId = currentAttempt.id;
-        await store.updateTask(task.id, { activeAttemptId: undefined });
+        closingWakeId = currentWake.id;
+        await store.updateTask(task.id, { activeWakeId: undefined });
       }
     }
 
-    if (fromAttemptId) {
+    if (closingWakeId) {
       try {
         await store.createHandoff({
           taskId: task.id,
-          fromAttemptId,
+          closingWakeId,
           createdBy: "user",
           kind,
           summary,
@@ -1757,12 +1755,12 @@ export class Daemon {
       `task_${kind} [${task.id}]: ${task.title}${summary ? ` — ${summary.slice(0, 160)}` : ""}`,
     );
 
-    const [refreshedTask, attempts, handoffs] = await Promise.all([
+    const [refreshedTask, wakes, handoffs] = await Promise.all([
       store.getTask(task.id),
-      store.listAttempts(task.id),
+      store.listWakes(task.id),
       store.listHandoffs(task.id),
     ]);
-    return Response.json({ task: refreshedTask, attempts, handoffs });
+    return Response.json({ task: refreshedTask, wakes, handoffs });
   }
 
   private handleWorkspaceEventsStream(key: string, url: URL): Response {

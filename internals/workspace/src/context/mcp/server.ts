@@ -5,7 +5,7 @@ import { createInboxTools } from "./inbox.ts";
 import { createTeamTools } from "./team.ts";
 import { createResourceTools } from "./resource.ts";
 import { createTaskTools, TASK_TOOL_DEFS } from "./task.ts";
-import { createAttemptTools, ATTEMPT_TOOL_DEFS } from "./attempt-tools.ts";
+import { createWakeTools, WAKE_TOOL_DEFS } from "./wake-tools.ts";
 
 export interface WorkspaceToolSet {
   [name: string]: (args: Record<string, unknown>) => Promise<string>;
@@ -15,23 +15,22 @@ export interface WorkspaceToolsOptions {
   stateStore?: WorkspaceStateStore;
   /** Workspace name — used as the `workspaceId` when creating tasks. */
   workspaceName?: string;
-  /** Workspace key (`name` or `name:tag`) — used by attempt-scoped
-   *  tools for filesystem path layout. Defaults to `workspaceName`. */
+  /** Workspace key (`name` or `name:tag`) — used by Wake-scoped tools for
+   *  filesystem path layout. Defaults to `workspaceName`. */
   workspaceKey?: string;
-  /** Daemon data directory — root of `workspace-data/`. Required to
-   *  enable attempt-scoped tools (worktree_*). */
+  /** Daemon data directory — root of `workspace-data/`. Required to enable
+   *  Wake-scoped tools (worktree_*). */
   dataDir?: string;
   /** Instruction queue — enables task_dispatch when present. */
   instructionQueue?: InstructionQueueInterface;
   /**
-   * The active attempt for this agent at tool-injection time.
-   * When set, attempt-scoped tools (worktree_*) are added to the
-   * returned tool set, closure-bound to this attempt id. The
-   * orchestrator computes this per-run via
-   * `stateStore.findActiveAttempt(agentName)`. Undefined → no
-   * worktree tools (the agent is between dispatches).
+   * The active Wake for this agent at tool-injection time. When set,
+   * Wake-scoped tools (worktree_*) are added to the returned tool set,
+   * closure-bound to this Wake id. The orchestrator computes this per-run
+   * via `stateStore.findActiveWake(agentName)`. Undefined → no worktree
+   * tools (the agent is between dispatches).
    */
-  activeAttemptId?: string;
+  activeWakeId?: string;
 }
 
 /** Create all workspace tools for a given agent. */
@@ -53,13 +52,13 @@ export function createWorkspaceTools(
           chronicle: provider.chronicle,
         })
       : null;
-  // Attempt-scoped tools are present iff the orchestrator passed
-  // an active attempt id AND the registry passed dataDir +
-  // workspaceKey. Tool factory closures over the attempt id so
-  // every call inside this run targets the same attempt.
-  const attemptTools =
-    options.stateStore && options.dataDir && options.activeAttemptId
-      ? createAttemptTools(agentName, options.activeAttemptId, {
+  // Wake-scoped tools are present iff the orchestrator passed an active
+  // Wake id AND the registry passed dataDir + workspaceKey. Tool factory
+  // closures over the Wake id so every call inside this run targets the
+  // same Wake.
+  const wakeTools =
+    options.stateStore && options.dataDir && options.activeWakeId
+      ? createWakeTools(agentName, options.activeWakeId, {
           stateStore: options.stateStore,
           workspaceKey: options.workspaceKey ?? options.workspaceName ?? "default",
           dataDir: options.dataDir,
@@ -170,14 +169,13 @@ export function createWorkspaceTools(
           task_get: (args) => taskTools.task_get(args as Parameters<typeof taskTools.task_get>[0]),
           task_update: (args) =>
             taskTools.task_update(args as Parameters<typeof taskTools.task_update>[0]),
-          attempt_create: (args) =>
-            taskTools.attempt_create(args as Parameters<typeof taskTools.attempt_create>[0]),
-          attempt_list: (args) =>
-            taskTools.attempt_list(args as Parameters<typeof taskTools.attempt_list>[0]),
-          attempt_get: (args) =>
-            taskTools.attempt_get(args as Parameters<typeof taskTools.attempt_get>[0]),
-          attempt_update: (args) =>
-            taskTools.attempt_update(args as Parameters<typeof taskTools.attempt_update>[0]),
+          wake_create: (args) =>
+            taskTools.wake_create(args as Parameters<typeof taskTools.wake_create>[0]),
+          wake_list: (args) =>
+            taskTools.wake_list(args as Parameters<typeof taskTools.wake_list>[0]),
+          wake_get: (args) => taskTools.wake_get(args as Parameters<typeof taskTools.wake_get>[0]),
+          wake_update: (args) =>
+            taskTools.wake_update(args as Parameters<typeof taskTools.wake_update>[0]),
           handoff_create: (args) =>
             taskTools.handoff_create(args as Parameters<typeof taskTools.handoff_create>[0]),
           handoff_list: (args) =>
@@ -191,20 +189,20 @@ export function createWorkspaceTools(
         }
       : {}),
 
-    // Phase-1 v3: attempt-scoped tools — only present when the
-    // orchestrator has bound this tool set to an active attempt.
-    // Workers between dispatches don't see them, which matches
-    // the "tools have a lifecycle scope" mental model.
-    ...(attemptTools
+    // Wake-scoped tools — only present when the orchestrator has bound
+    // this tool set to an active Wake. Workers between dispatches don't
+    // see them, which matches the "tools have a lifecycle scope" mental
+    // model.
+    ...(wakeTools
       ? {
           worktree_create: (args) =>
-            attemptTools.worktree_create(
-              args as Parameters<typeof attemptTools.worktree_create>[0],
+            wakeTools.worktree_create(
+              args as Parameters<typeof wakeTools.worktree_create>[0],
             ),
-          worktree_list: () => attemptTools.worktree_list(),
+          worktree_list: () => wakeTools.worktree_list(),
           worktree_remove: (args) =>
-            attemptTools.worktree_remove(
-              args as Parameters<typeof attemptTools.worktree_remove>[0],
+            wakeTools.worktree_remove(
+              args as Parameters<typeof wakeTools.worktree_remove>[0],
             ),
         }
       : {}),
@@ -389,5 +387,5 @@ export const WORKSPACE_TOOL_DEFS = {
     required: [],
   },
   ...TASK_TOOL_DEFS,
-  ...ATTEMPT_TOOL_DEFS,
+  ...WAKE_TOOL_DEFS,
 } as const;

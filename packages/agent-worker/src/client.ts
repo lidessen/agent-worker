@@ -414,13 +414,13 @@ export class AwClient {
     return this.request(`/workspaces/${encodeURIComponent(key)}/tasks${qs ? `?${qs}` : ""}`);
   }
 
-  /** Fetch a single task with its attempts, handoffs, and artifacts. */
+  /** Fetch a single task with its Wakes, handoffs, and artifacts. */
   async getWorkspaceTask(
     key: string,
     taskId: string,
   ): Promise<{
     task: Record<string, unknown>;
-    attempts: Record<string, unknown>[];
+    wakes: Record<string, unknown>[];
     handoffs: Record<string, unknown>[];
     artifacts: Record<string, unknown>[];
   }> {
@@ -473,12 +473,12 @@ export class AwClient {
     );
   }
 
-  /** Dispatch a task to a worker — creates an Attempt and enqueues the assignment. */
+  /** Dispatch a task to a worker — creates a Wake and enqueues the assignment. */
   async dispatchWorkspaceTask(
     key: string,
     taskId: string,
     body: { worker: string; priority?: "immediate" | "normal" | "background" },
-  ): Promise<{ task: Record<string, unknown>; attempt: Record<string, unknown> }> {
+  ): Promise<{ task: Record<string, unknown>; wake: Record<string, unknown> }> {
     return this.request(
       `/workspaces/${encodeURIComponent(key)}/tasks/${encodeURIComponent(taskId)}/dispatch`,
       {
@@ -490,8 +490,8 @@ export class AwClient {
   }
 
   /**
-   * Close a task with status "completed" — finalizes the active attempt
-   * (if any), records a completed handoff, and transitions the task.
+   * Close a task with status "completed" — finalizes the active Wake (if
+   * any), records a completed handoff, and transitions the task.
    */
   async completeWorkspaceTask(
     key: string,
@@ -499,7 +499,7 @@ export class AwClient {
     body?: { summary?: string },
   ): Promise<{
     task: Record<string, unknown>;
-    attempts: Record<string, unknown>[];
+    wakes: Record<string, unknown>[];
     handoffs: Record<string, unknown>[];
   }> {
     return this.request(
@@ -513,9 +513,9 @@ export class AwClient {
   }
 
   /**
-   * Close a task with status "aborted" — finalizes the active attempt
-   * (if any) as cancelled, records an aborted handoff, and transitions
-   * the task.
+   * Close a task with status "aborted" — finalizes the active Wake (if
+   * any) as cancelled, records an aborted handoff, and transitions the
+   * task.
    */
   async abortWorkspaceTask(
     key: string,
@@ -523,7 +523,7 @@ export class AwClient {
     body?: { reason?: string },
   ): Promise<{
     task: Record<string, unknown>;
-    attempts: Record<string, unknown>[];
+    wakes: Record<string, unknown>[];
     handoffs: Record<string, unknown>[];
   }> {
     return this.request(

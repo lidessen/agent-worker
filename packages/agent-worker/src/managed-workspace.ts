@@ -2,7 +2,7 @@ import { writeFileSync } from "node:fs";
 import type { Workspace } from "@agent-worker/workspace";
 import type { ResolvedWorkspace } from "@agent-worker/workspace";
 import { removeWorktree } from "@agent-worker/workspace";
-import type { Attempt } from "@agent-worker/workspace";
+import type { Wake } from "@agent-worker/workspace";
 import type { WorkspaceOrchestrator } from "./orchestrator.ts";
 import type { EventBus } from "@agent-worker/shared";
 import type {
@@ -32,24 +32,21 @@ export class ManagedWorkspace {
   private _mentionListener: ((msg: import("@agent-worker/workspace").Message) => void) | null =
     null;
   /**
-   * Per-agent baseline runner scope: the sandbox cwd and the
-   * static `allowedPaths` set captured at workspace-create
-   * time. Phase-1 v3 worktrees override `cwd` per-run inside
-   * the runner closure based on the agent's active attempt;
-   * this snapshot is the "no active attempt" state and remains
-   * useful for debug + tests. `worktreePath` is always
-   * undefined here — runtime worktrees never appear in the
-   * static snapshot.
+   * Per-agent baseline runner scope: the sandbox cwd and the static
+   * `allowedPaths` set captured at workspace-create time. Worktrees
+   * override `cwd` per-run inside the runner closure based on the agent's
+   * active Wake; this snapshot is the "no active Wake" state and remains
+   * useful for debug + tests. `worktreePath` is always undefined here —
+   * runtime worktrees never appear in the static snapshot.
    */
   private readonly _agentScopes: ReadonlyMap<
     string,
     { cwd: string | undefined; allowedPaths: readonly string[]; worktreePath?: string }
   >;
   /**
-   * Disposers to run on `stop()` — currently the
-   * `attempt.terminal` event subscription installed by
-   * workspace-registry. Kept generic so future per-workspace
-   * subscriptions can register here too.
+   * Disposers to run on `stop()` — currently the `wake.terminal` event
+   * subscription installed by workspace-registry. Kept generic so future
+   * per-workspace subscriptions can register here too.
    */
   private readonly _onDispose: Array<() => void>;
 
@@ -68,10 +65,9 @@ export class ManagedWorkspace {
       { cwd: string | undefined; allowedPaths: readonly string[]; worktreePath?: string }
     >;
     /**
-     * Optional disposer(s) to run on `stop()`. Used by
-     * workspace-registry to unsubscribe its
-     * `attempt.terminal` listener so the closure doesn't leak
-     * across restart cycles.
+     * Optional disposer(s) to run on `stop()`. Used by workspace-registry
+     * to unsubscribe its `wake.terminal` listener so the closure doesn't
+     * leak across restart cycles.
      */
     onDispose?: (() => void) | Array<() => void>;
   }) {
@@ -97,12 +93,11 @@ export class ManagedWorkspace {
   }
 
   /**
-   * Return the baseline runner scope (sandbox cwd +
-   * `allowedPaths`) captured for an agent at workspace-create
-   * time. Phase-1 v3 worktrees attach to attempts at runtime
-   * and are NOT reflected here — query the state store for
-   * the agent's active attempt to see runtime worktrees.
-   * Undefined when the agent name is unknown.
+   * Return the baseline runner scope (sandbox cwd + `allowedPaths`)
+   * captured for an agent at workspace-create time. Worktrees attach to
+   * Wakes at runtime and are NOT reflected here — query the state store
+   * for the agent's active Wake to see runtime worktrees. Undefined when
+   * the agent name is unknown.
    */
   agentRunnerScope(
     agentName: string,
@@ -295,19 +290,17 @@ export class ManagedWorkspace {
       }
     }
 
-    // Phase-1 v3 worktree cleanup: walk every non-terminal
-    // attempt (the `attempt.terminal` listener has already
-    // cleaned the rest) and remove each worktree manually
-    // before `workspace.shutdown()`. This catches workspaces
-    // stopped while attempts were still running — e.g.
-    // `aw rm @ws` mid-task.
+    // Worktree cleanup: walk every non-terminal Wake (the `wake.terminal`
+    // listener has already cleaned the rest) and remove each worktree
+    // manually before `workspace.shutdown()`. This catches workspaces
+    // stopped while Wakes were still running — e.g. `aw rm @ws` mid-task.
     try {
-      const attempts = await this.workspace.stateStore.listAllAttempts();
-      const nonTerminal: Attempt[] = attempts.filter(
-        (a) => a.status === "running" && a.worktrees && a.worktrees.length > 0,
+      const wakes = await this.workspace.stateStore.listAllWakes();
+      const nonTerminal: Wake[] = wakes.filter(
+        (w) => w.status === "running" && w.worktrees && w.worktrees.length > 0,
       );
-      for (const attempt of nonTerminal) {
-        for (const wt of attempt.worktrees ?? []) {
+      for (const wake of nonTerminal) {
+        for (const wt of wake.worktrees ?? []) {
           try {
             await removeWorktree(wt.repoPath, wt.path);
           } catch (err) {
@@ -325,9 +318,9 @@ export class ManagedWorkspace {
       );
     }
 
-    // Run any registered disposers (e.g. unsubscribe from the
-    // state store's attempt.terminal listener so the closure
-    // doesn't leak across restart cycles).
+    // Run any registered disposers (e.g. unsubscribe from the state
+    // store's wake.terminal listener so the closure doesn't leak across
+    // restart cycles).
     for (const dispose of this._onDispose) {
       try {
         dispose();

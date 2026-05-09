@@ -88,36 +88,101 @@ does today.
 
 ## Build
 
-- [ ] Rename types in `internals/workspace/src/state/types.ts`:
-      `Attempt → Wake`, plus all id-field renames listed in scope.
-- [ ] Update `Handoff` schema: add core fields (`closingWakeId`,
-      `taskRef`, `resources`, `workLogPointer?`, `extensions`); remove
-      `nextSteps`, `fromAttemptId`, `toAttemptId`.
-- [ ] Update `internals/workspace/src/state/store.ts` and
-      `file-store.ts` to use new keys.
-- [ ] Rename MCP tools: `attempt_list / attempt_get` →
-      `wake_list / wake_get` in `internals/workspace/src/context/mcp/`.
-      Keep `handoff_*` tool surface but update its payload shape.
-- [ ] Update `internals/workspace/src/mcp-server.ts`'s per-run binding
-      from `activeAttemptId` to `activeWakeId`.
-- [ ] Update `internals/agent/src/runtime.ts` and types: `HandoffDraft`
-      now carries the generic core fields (no extensions; that's still
-      a harness-side concern).
-- [ ] Update `packages/agent-worker/src/orchestrator.ts` and runner closure
-      wiring to use the new field names.
-- [ ] Update `internals/web` consumers — any surfaces displaying
-      attempt ids switch to wake ids.
-- [ ] Add round-trip test for the new `Handoff` shape with empty
-      extensions map.
-- [ ] Sweep call sites with grep: `attemptId`, `Attempt[A-Z]`,
-      `fromAttemptId`, `toAttemptId` — ensure none remain (except in
-      explicitly historical test fixtures or migration comments).
-- [ ] `bun run typecheck` clean.
-- [ ] `bun test` clean for the four packages above.
+- Renamed `Attempt → Wake` across `internals/workspace/src/state/`
+  (`types.ts`, `store.ts`, `file-store.ts`, `index.ts` re-exports). All
+  id-field renames applied: `attemptId → wakeId`,
+  `activeAttemptId → activeWakeId`, `fromAttemptId → closingWakeId` (on
+  Handoff), `createdByAttemptId → createdByWakeId` (on Artifact).
+  Dropped `toAttemptId` from Handoff.
+- Added the new `Handoff` core fields (`closingWakeId`, `resources`,
+  `workLogPointer?`, `extensions`). Dropped `nextSteps` (folded into
+  `pending`). Kept `artifactRefs`, `touchedPaths`, `runtimeRefs` as
+  transitional fields with explicit comments flagging the cleanup
+  trajectory.
+- Renamed `internals/workspace/src/context/mcp/attempt-tools.ts` →
+  `wake-tools.ts` (via `git mv`); rewrote internals to use `Wake`
+  vocabulary (`createWakeTools`, `WakeScopedTools`, `WAKE_TOOL_DEFS`).
+- Renamed all four MCP tools in `task.ts`: `attempt_create / list / get
+  / update` → `wake_create / list / get / update`. Updated tool
+  descriptions and `formatWake` / `formatHandoff` / `formatArtifact`
+  output. `task_dispatch` now writes `Wake id: <wake_id>` into the
+  dispatch instruction (was "Attempt id: <att_id>").
+- Updated `internals/workspace/src/context/mcp/server.ts`: rebound
+  `activeAttemptId → activeWakeId`, swapped the import to
+  `wake-tools.ts`, replaced `ATTEMPT_TOOL_DEFS` with `WAKE_TOOL_DEFS`,
+  updated all 4 task-tool registrations.
+- Updated `internals/workspace/src/workspace.ts`:
+  `recoverOrphanedAttempts → recoverOrphanedWakes`,
+  `pruneOrphanWorktreeRefs` walks `listAllWakes`. Updated all comments.
+- Updated `internals/workspace/src/loop/lead-hooks.ts`:
+  `activeAttemptId → activeWakeId`, `activeAttemptChanged →
+  activeWakeChanged`, header text "Active attempt changes" → "Active
+  wake changes", folded `nextSteps` rendering into the `pending`
+  rendering branch.
+- Updated `internals/workspace/src/context/mcp/prompts.tsx`: worker /
+  lead instruction prose now talks about Wake ids and `wake_*` tool
+  calls; ledger formatter uses `activeWakeId`.
+- Updated `internals/workspace/src/loop/prompt.tsx`,
+  `worktree.ts`, `types.ts`, `config/types.ts`, and the `index.ts`
+  re-export — type names, comments, and field names all migrated.
+- Updated `internals/agent/src/runtime.ts` `HandoffDraft`: now carries
+  the generic-core fields (`completed`, `pending`, `decisions`,
+  `blockers`, `resources`); dropped `nextSteps` and the
+  `ArtifactCandidate` references in favor of resource refs. Doc-string
+  notes the harness-side `produceExtension` step.
+- Updated `packages/agent-worker/src/`: `daemon.ts` (HTTP dispatch +
+  close paths now read/write Wake fields, response shape uses `wakes`
+  not `attempts`), `orchestrator.ts` (`findActiveWake` for prompt
+  worktrees), `managed-workspace.ts` (worktree sweep walks
+  `listAllWakes`, `Wake` type import), `workspace-registry.ts`
+  (subscribes to `wake.terminal`, per-run tool rebuild uses
+  `activeWakeId`), `client.ts` (response shapes renamed), `cli/index.ts`
+  + `cli/commands/task.ts` (help text + ls/get/dispatch output).
+- Updated `internals/web/src/api/types.ts`: `AttemptSummary →
+  WakeSummary`, `TaskDetail.attempts → TaskDetail.wakes`, Handoff
+  schema reflects core+resources+extensions, Artifact
+  `createdByAttemptId → createdByWakeId`.
+- Updated `internals/web/src/pages/workspace.tsx`: task-detail
+  rendering uses `wakes` instead of `attempts`, Handoff renders
+  `pending` instead of the dropped `nextSteps`, ledger row uses
+  `activeWakeId`.
+- Updated tests across `internals/workspace/test/` (state.test.ts,
+  file-store.test.ts, lead-hooks.test.ts, task-tools.test.ts,
+  workspace.test.ts, prompt.test.ts) and
+  `packages/agent-worker/test/` (orchestrator.test.ts,
+  workspace-integration.test.ts) to use the new method/field names
+  (most via a single `sed` pass; assertion strings adjusted by hand).
+- Added a round-trip test in `internals/workspace/test/state.test.ts`
+  ("createHandoff round-trips an opaque per-harness extension
+  payload") that writes a Handoff with both a populated `extensions`
+  map and `resources` / `workLogPointer` fields, then reads it back
+  and verifies all three are preserved verbatim.
+- Updated `scripts/watch-validation.ts` and the `claude-code` loop
+  comment to use the new vocabulary.
+- Final grep sweep returns only intentional rename callouts in three
+  comment lines in `internals/workspace/src/state/types.ts`.
 
 ## Verify
 
-(filled after Build completes)
+- **Typecheck NOT YET RUN**: `bun install` reproducibly hangs at
+  "Resolving dependencies" on this machine in the harness's
+  background-execution path (same issue surfaced after the semajsx
+  merge — see commit `712fe9b`). The user opted to "park" the install
+  problem for now; once `bun install` succeeds, run:
+    - `bun run typecheck` (covers all six `@agent-worker/*` packages
+      in the per-package enumeration).
+    - `bun test` for `internals/shared`, `internals/loop`,
+      `internals/agent`, `internals/workspace`,
+      `packages/agent-worker`.
+    - `bun run lint` (the `@semajsx/*` side runs through vitest, not
+      affected by this slice).
+- The rename was structural and mechanical (sed-driven for the bulk
+  test files, carefully hand-edited for code with semantic field
+  shape changes). High confidence the diff is internally consistent —
+  the final straggler-grep returns only comment annotations of the
+  form "Wake … (renamed from fromAttemptId)". Remaining risk: a few
+  test descriptions still say "attempt" (cosmetic), and any callers
+  outside this monorepo's tracked code (none expected) would break.
 
 ---
 

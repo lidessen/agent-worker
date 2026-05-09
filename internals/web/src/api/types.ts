@@ -121,7 +121,7 @@ export interface TaskSummary {
   status: TaskStatus;
   priority?: number;
   ownerLeadId?: string;
-  activeAttemptId?: string;
+  activeWakeId?: string;
   acceptanceCriteria?: string;
   artifactRefs: string[];
   sourceRefs: Array<{ kind: string; ref?: string; excerpt?: string; ts: number }>;
@@ -129,7 +129,7 @@ export interface TaskSummary {
   updatedAt: number;
 }
 
-export interface AttemptSummary {
+export interface WakeSummary {
   id: string;
   taskId: string;
   agentName: string;
@@ -145,8 +145,7 @@ export interface AttemptSummary {
 export interface HandoffSummary {
   id: string;
   taskId: string;
-  fromAttemptId: string;
-  toAttemptId?: string;
+  closingWakeId: string;
   createdAt: number;
   createdBy: string;
   kind: "progress" | "blocked" | "completed" | "aborted";
@@ -154,8 +153,9 @@ export interface HandoffSummary {
   completed: string[];
   pending: string[];
   blockers: string[];
-  nextSteps: string[];
+  resources: string[];
   artifactRefs: string[];
+  extensions?: Record<string, unknown>;
 }
 
 export interface ArtifactSummary {
@@ -164,13 +164,13 @@ export interface ArtifactSummary {
   kind: string;
   title: string;
   ref: string;
-  createdByAttemptId: string;
+  createdByWakeId: string;
   createdAt: number;
 }
 
 export interface TaskDetail {
   task: TaskSummary;
-  attempts: AttemptSummary[];
+  wakes: WakeSummary[];
   handoffs: HandoffSummary[];
   artifacts: ArtifactSummary[];
 }

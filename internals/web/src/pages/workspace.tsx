@@ -173,18 +173,18 @@ export const WorkspacePage: RuntimeComponent<Record<string, never>> = (_props, c
     if (!detail) {
       return <div class={styles.taskDetailLoading}>Loading…</div>;
     }
-    const { attempts, handoffs, artifacts } = detail;
+    const { wakes, handoffs, artifacts } = detail;
     return (
       <div class={styles.taskDetail}>
-        {attempts.length > 0 && (
+        {wakes.length > 0 && (
           <div class={styles.taskDetailSection}>
-            <div class={styles.taskDetailHeader}>Attempts ({attempts.length})</div>
-            {attempts.map((a) => (
+            <div class={styles.taskDetailHeader}>Wakes ({wakes.length})</div>
+            {wakes.map((w) => (
               <div class={styles.taskDetailItem}>
-                <code>{a.id}</code> {a.agentName}{" "}
-                <span class={styles.taskDetailBadge}>{a.status}</span>
-                {a.resultSummary ? (
-                  <div class={styles.taskDetailText}>{a.resultSummary}</div>
+                <code>{w.id}</code> {w.agentName}{" "}
+                <span class={styles.taskDetailBadge}>{w.status}</span>
+                {w.resultSummary ? (
+                  <div class={styles.taskDetailText}>{w.resultSummary}</div>
                 ) : null}
               </div>
             ))}
@@ -202,8 +202,8 @@ export const WorkspacePage: RuntimeComponent<Record<string, never>> = (_props, c
                 {h.blockers.length > 0 && (
                   <div class={styles.taskDetailText}>blockers: {h.blockers.join("; ")}</div>
                 )}
-                {h.nextSteps.length > 0 && (
-                  <div class={styles.taskDetailText}>next: {h.nextSteps.join("; ")}</div>
+                {h.pending.length > 0 && (
+                  <div class={styles.taskDetailText}>pending: {h.pending.join("; ")}</div>
                 )}
               </div>
             ))}
@@ -220,8 +220,8 @@ export const WorkspacePage: RuntimeComponent<Record<string, never>> = (_props, c
             ))}
           </div>
         )}
-        {attempts.length === 0 && handoffs.length === 0 && artifacts.length === 0 && (
-          <div class={styles.taskDetailText}>No attempts, handoffs, or artifacts yet.</div>
+        {wakes.length === 0 && handoffs.length === 0 && artifacts.length === 0 && (
+          <div class={styles.taskDetailText}>No Wakes, handoffs, or artifacts yet.</div>
         )}
       </div>
     );
@@ -329,7 +329,7 @@ export const WorkspacePage: RuntimeComponent<Record<string, never>> = (_props, c
         {sorted.map((task) => {
           const metaParts: string[] = [];
           if (task.ownerLeadId) metaParts.push(`owner: ${task.ownerLeadId}`);
-          if (task.activeAttemptId) metaParts.push(`active: ${task.activeAttemptId}`);
+          if (task.activeWakeId) metaParts.push(`active: ${task.activeWakeId}`);
           if (task.artifactRefs.length > 0)
             metaParts.push(`artifacts: ${task.artifactRefs.length}`);
           const isExpanded = expanded === task.id;

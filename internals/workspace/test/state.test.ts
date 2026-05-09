@@ -40,7 +40,7 @@ describe("InMemoryWorkspaceStateStore — Task", () => {
     const next = await store.updateTask(task.id, {
       status: "open",
       title: "t'",
-      // Attempting to change workspaceId at compile time is prevented by
+      // Trying to change workspaceId at compile time is prevented by
       // TaskPatch's Omit. This test only verifies the runtime invariants.
     });
 
@@ -88,11 +88,11 @@ describe("InMemoryWorkspaceStateStore — Task", () => {
   });
 });
 
-describe("InMemoryWorkspaceStateStore — Attempt", () => {
-  test("createAttempt requires an existing task", async () => {
+describe("InMemoryWorkspaceStateStore — Wake", () => {
+  test("createWake requires an existing task", async () => {
     const store = freshStore();
     await expect(
-      store.createAttempt({
+      store.createWake({
         taskId: "task_nope",
         agentName: "worker",
         role: "worker",
@@ -100,70 +100,70 @@ describe("InMemoryWorkspaceStateStore — Attempt", () => {
     ).rejects.toThrow("task not found");
   });
 
-  test("createAttempt defaults status to running and stamps startedAt", async () => {
+  test("createWake defaults status to running and stamps startedAt", async () => {
     const store = freshStore();
     const task = await store.createTask({ workspaceId: "w1", title: "t", goal: "g" });
-    const attempt = await store.createAttempt({
+    const wake = await store.createWake({
       taskId: task.id,
       agentName: "codex",
       role: "worker",
     });
 
-    expect(attempt.id).toMatch(/^att_/);
-    expect(attempt.status).toBe("running");
-    expect(attempt.startedAt).toBeGreaterThan(0);
-    expect(attempt.endedAt).toBeUndefined();
+    expect(wake.id).toMatch(/^wake_/);
+    expect(wake.status).toBe("running");
+    expect(wake.startedAt).toBeGreaterThan(0);
+    expect(wake.endedAt).toBeUndefined();
   });
 
-  test("updateAttempt preserves id, taskId, startedAt", async () => {
+  test("updateWake preserves id, taskId, startedAt", async () => {
     const store = freshStore();
     const task = await store.createTask({ workspaceId: "w1", title: "t", goal: "g" });
-    const attempt = await store.createAttempt({
+    const wake = await store.createWake({
       taskId: task.id,
       agentName: "codex",
       role: "worker",
     });
 
-    const completed = await store.updateAttempt(attempt.id, {
+    const completed = await store.updateWake(wake.id, {
       status: "completed",
       endedAt: Date.now(),
       resultSummary: "ok",
     });
 
-    expect(completed.id).toBe(attempt.id);
+    expect(completed.id).toBe(wake.id);
     expect(completed.taskId).toBe(task.id);
-    expect(completed.startedAt).toBe(attempt.startedAt);
+    expect(completed.startedAt).toBe(wake.startedAt);
     expect(completed.status).toBe("completed");
     expect(completed.resultSummary).toBe("ok");
   });
 
-  test("listAttempts returns attempts for a task in started-order", async () => {
+  test("listWakes returns Wakes for a task in started-order", async () => {
     const store = freshStore();
     const task = await store.createTask({ workspaceId: "w1", title: "t", goal: "g" });
-    const first = await store.createAttempt({
+    const first = await store.createWake({
       taskId: task.id,
       agentName: "codex",
       role: "worker",
     });
     await new Promise((r) => setTimeout(r, 5));
-    const second = await store.createAttempt({
+    const second = await store.createWake({
       taskId: task.id,
       agentName: "codex",
       role: "worker",
     });
 
-    const attempts = await store.listAttempts(task.id);
-    expect(attempts.map((a) => a.id)).toEqual([first.id, second.id]);
+    const wakes = await store.listWakes(task.id);
+    expect(wakes.map((w) => w.id)).toEqual([first.id, second.id]);
   });
 });
 
 describe("InMemoryWorkspaceStateStore — Handoff", () => {
-  test("createHandoff requires an existing task and fromAttempt", async () => {
+  test("createHandoff requires an existing task and closingWake", async () => {
     const store = freshStore();
     await expect(
       store.createHandoff({
         taskId: "task_nope",
-        fromAttemptId: "att_nope",
+        closingWakeId: "wake_nope",
         createdBy: "codex",
         kind: "progress",
         summary: "x",
@@ -174,7 +174,7 @@ describe("InMemoryWorkspaceStateStore — Handoff", () => {
   test("createHandoff fills defaults and returns a persistable record", async () => {
     const store = freshStore();
     const task = await store.createTask({ workspaceId: "w1", title: "t", goal: "g" });
-    const attempt = await store.createAttempt({
+    const wake = await store.createWake({
       taskId: task.id,
       agentName: "codex",
       role: "worker",
@@ -182,7 +182,7 @@ describe("InMemoryWorkspaceStateStore — Handoff", () => {
 
     const handoff = await store.createHandoff({
       taskId: task.id,
-      fromAttemptId: attempt.id,
+      closingWakeId: wake.id,
       createdBy: "codex",
       kind: "progress",
       summary: "halfway",
@@ -192,11 +192,45 @@ describe("InMemoryWorkspaceStateStore — Handoff", () => {
     expect(handoff.completed).toEqual([]);
     expect(handoff.pending).toEqual([]);
     expect(handoff.blockers).toEqual([]);
+    expect(handoff.resources).toEqual([]);
+    expect(handoff.extensions).toEqual({});
     expect(handoff.summary).toBe("halfway");
 
     const listed = await store.listHandoffs(task.id);
     expect(listed).toHaveLength(1);
     expect(listed[0]!.id).toBe(handoff.id);
+  });
+
+  test("createHandoff round-trips an opaque per-harness extension payload", async () => {
+    const store = freshStore();
+    const task = await store.createTask({ workspaceId: "w1", title: "t", goal: "g" });
+    const wake = await store.createWake({
+      taskId: task.id,
+      agentName: "codex",
+      role: "worker",
+    });
+
+    const handoff = await store.createHandoff({
+      taskId: task.id,
+      closingWakeId: wake.id,
+      createdBy: "codex",
+      kind: "progress",
+      summary: "halfway",
+      resources: ["res_one", "res_two"],
+      workLogPointer: "worklog/2026-05-09",
+      extensions: {
+        "coding-harness": { branch: "feature/wake-foundation", testStatus: "green" },
+      },
+    });
+
+    const fetched = await store.getHandoff(handoff.id);
+    expect(fetched).not.toBeNull();
+    expect(fetched!.resources).toEqual(["res_one", "res_two"]);
+    expect(fetched!.workLogPointer).toBe("worklog/2026-05-09");
+    expect(fetched!.extensions["coding-harness"]).toEqual({
+      branch: "feature/wake-foundation",
+      testStatus: "green",
+    });
   });
 });
 
@@ -204,7 +238,7 @@ describe("InMemoryWorkspaceStateStore — Artifact", () => {
   test("createArtifact appends to the owning task's artifactRefs", async () => {
     const store = freshStore();
     const task = await store.createTask({ workspaceId: "w1", title: "t", goal: "g" });
-    const attempt = await store.createAttempt({
+    const wake = await store.createWake({
       taskId: task.id,
       agentName: "codex",
       role: "worker",
@@ -215,7 +249,7 @@ describe("InMemoryWorkspaceStateStore — Artifact", () => {
       kind: "file",
       title: "diff.patch",
       ref: "file:/tmp/diff.patch",
-      createdByAttemptId: attempt.id,
+      createdByWakeId: wake.id,
     });
 
     expect(artifact.id).toMatch(/^art_/);
@@ -228,12 +262,12 @@ describe("InMemoryWorkspaceStateStore — Artifact", () => {
     const store = freshStore();
     const taskA = await store.createTask({ workspaceId: "w1", title: "a", goal: "g" });
     const taskB = await store.createTask({ workspaceId: "w1", title: "b", goal: "g" });
-    const attemptA = await store.createAttempt({
+    const wakeA = await store.createWake({
       taskId: taskA.id,
       agentName: "codex",
       role: "worker",
     });
-    const attemptB = await store.createAttempt({
+    const wakeB = await store.createWake({
       taskId: taskB.id,
       agentName: "codex",
       role: "worker",
@@ -244,14 +278,14 @@ describe("InMemoryWorkspaceStateStore — Artifact", () => {
       kind: "file",
       title: "a.txt",
       ref: "file:/tmp/a.txt",
-      createdByAttemptId: attemptA.id,
+      createdByWakeId: wakeA.id,
     });
     await store.createArtifact({
       taskId: taskB.id,
       kind: "file",
       title: "b.txt",
       ref: "file:/tmp/b.txt",
-      createdByAttemptId: attemptB.id,
+      createdByWakeId: wakeB.id,
     });
 
     const aArtifacts = await store.listArtifacts(taskA.id);

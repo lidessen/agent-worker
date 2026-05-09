@@ -117,7 +117,7 @@ describe("task_get", () => {
 });
 
 describe("attempt lifecycle", () => {
-  test("attempt_create wires itself as active and advances the task to in_progress", async () => {
+  test("wake_create wires itself as active and advances the task to in_progress", async () => {
     const { store, tools } = setup("worker-a");
     const task = await store.createTask({
       workspaceId: "test-ws",
@@ -126,15 +126,15 @@ describe("attempt lifecycle", () => {
       status: "open",
     });
 
-    const result = await tools.attempt_create({ taskId: task.id });
+    const result = await tools.wake_create({ taskId: task.id });
     expect(result).toContain("[running]");
 
     const refreshed = await store.getTask(task.id);
     expect(refreshed?.status).toBe("in_progress");
-    expect(refreshed?.activeAttemptId).toBeTruthy();
+    expect(refreshed?.activeWakeId).toBeTruthy();
   });
 
-  test("attempt_update(completed) clears the task's activeAttemptId and stamps endedAt", async () => {
+  test("wake_update(completed) clears the task's activeWakeId and stamps endedAt", async () => {
     const { store, tools } = setup("worker-a");
     const task = await store.createTask({
       workspaceId: "test-ws",
@@ -142,11 +142,11 @@ describe("attempt lifecycle", () => {
       goal: "g",
       status: "open",
     });
-    await tools.attempt_create({ taskId: task.id });
+    await tools.wake_create({ taskId: task.id });
     const taskAfterCreate = await store.getTask(task.id);
-    const attemptId = taskAfterCreate!.activeAttemptId!;
+    const attemptId = taskAfterCreate!.activeWakeId!;
 
-    const update = await tools.attempt_update({
+    const update = await tools.wake_update({
       id: attemptId,
       status: "completed",
       resultSummary: "all green",
@@ -154,28 +154,28 @@ describe("attempt lifecycle", () => {
     expect(update).toContain("[completed]");
 
     const refreshed = await store.getTask(task.id);
-    expect(refreshed?.activeAttemptId).toBeUndefined();
+    expect(refreshed?.activeWakeId).toBeUndefined();
 
-    const attempt = await store.getAttempt(attemptId);
+    const attempt = await store.getWake(attemptId);
     expect(attempt?.status).toBe("completed");
     expect(attempt?.endedAt).toBeGreaterThan(0);
     expect(attempt?.resultSummary).toBe("all green");
   });
 
-  test("attempt_list returns attempts for a task", async () => {
+  test("wake_list returns Wakes for a task", async () => {
     const { store, tools } = setup("worker-a");
     const task = await store.createTask({ workspaceId: "test-ws", title: "t", goal: "g" });
-    await tools.attempt_create({ taskId: task.id });
-    await tools.attempt_create({ taskId: task.id, agentName: "worker-b" });
+    await tools.wake_create({ taskId: task.id });
+    await tools.wake_create({ taskId: task.id, agentName: "worker-b" });
 
-    const result = await tools.attempt_list({ taskId: task.id });
-    expect(result).toContain("Attempts (2)");
+    const result = await tools.wake_list({ taskId: task.id });
+    expect(result).toContain("Wakes (2)");
   });
 
-  test("attempt_create rejects invalid role", async () => {
+  test("wake_create rejects invalid role", async () => {
     const { store, tools } = setup();
     const task = await store.createTask({ workspaceId: "test-ws", title: "t", goal: "g" });
-    const result = await tools.attempt_create({
+    const result = await tools.wake_create({
       taskId: task.id,
       role: "boss" as unknown as "worker",
     });
@@ -187,13 +187,13 @@ describe("handoff_create + handoff_list", () => {
   test("records and lists structured handoffs for a task", async () => {
     const { store, tools } = setup("worker-a");
     const task = await store.createTask({ workspaceId: "test-ws", title: "t", goal: "g" });
-    await tools.attempt_create({ taskId: task.id });
+    await tools.wake_create({ taskId: task.id });
     const t = await store.getTask(task.id);
-    const attemptId = t!.activeAttemptId!;
+    const attemptId = t!.activeWakeId!;
 
     const create = await tools.handoff_create({
       taskId: task.id,
-      fromAttemptId: attemptId,
+      closingWakeId: attemptId,
       kind: "progress",
       summary: "halfway",
       completed: ["step 1"],
@@ -211,7 +211,7 @@ describe("handoff_create + handoff_list", () => {
     const { tools } = setup();
     const result = await tools.handoff_create({
       taskId: "task_nope",
-      fromAttemptId: "att_nope",
+      closingWakeId: "wake_nope",
       kind: "garbage" as unknown as "progress",
       summary: "x",
     });
@@ -223,13 +223,13 @@ describe("artifact_create + artifact_list", () => {
   test("registers an artifact and mirrors it into the task's artifactRefs", async () => {
     const { store, tools } = setup("worker-a");
     const task = await store.createTask({ workspaceId: "test-ws", title: "t", goal: "g" });
-    await tools.attempt_create({ taskId: task.id });
+    await tools.wake_create({ taskId: task.id });
     const t = await store.getTask(task.id);
-    const attemptId = t!.activeAttemptId!;
+    const attemptId = t!.activeWakeId!;
 
     const result = await tools.artifact_create({
       taskId: task.id,
-      createdByAttemptId: attemptId,
+      createdByWakeId: attemptId,
       kind: "file",
       title: "diff.patch",
       ref: "file:/tmp/diff.patch",
@@ -281,7 +281,7 @@ describe("task_update", () => {
 });
 
 describe("task_dispatch", () => {
-  test("creates an Attempt, advances the task, and enqueues an instruction", async () => {
+  test("creates a Wake, advances the task, and enqueues an instruction", async () => {
     const { store, tools, queue } = setupWithQueue("lead");
     const task = await store.createTask({
       workspaceId: "test-ws",
@@ -296,9 +296,9 @@ describe("task_dispatch", () => {
 
     const refreshed = await store.getTask(task.id);
     expect(refreshed?.status).toBe("in_progress");
-    expect(refreshed?.activeAttemptId).toBeTruthy();
+    expect(refreshed?.activeWakeId).toBeTruthy();
 
-    const attempts = await store.listAttempts(task.id);
+    const attempts = await store.listWakes(task.id);
     expect(attempts).toHaveLength(1);
     expect(attempts[0]!.agentName).toBe("codex");
     expect(attempts[0]!.role).toBe("worker");
@@ -368,10 +368,10 @@ describe("task_dispatch", () => {
     expect(failures[0]).toMatch(/in flight|already has an active attempt/);
 
     // Only one attempt should exist, and the task should reference it.
-    const attempts = await store.listAttempts(task.id);
+    const attempts = await store.listWakes(task.id);
     expect(attempts).toHaveLength(1);
     const refreshed = await store.getTask(task.id);
-    expect(refreshed?.activeAttemptId).toBe(attempts[0]!.id);
+    expect(refreshed?.activeWakeId).toBe(attempts[0]!.id);
 
     // Exactly one instruction should have been enqueued for the winning worker.
     const winner = attempts[0]!.agentName;
@@ -411,7 +411,7 @@ describe("task_dispatch", () => {
 
     const afterDispatch = await store.getTask(task.id);
     expect(afterDispatch?.status).toBe("in_progress");
-    expect(afterDispatch?.activeAttemptId).toBeTruthy();
+    expect(afterDispatch?.activeWakeId).toBeTruthy();
 
     const instruction = queue.dequeue("codex");
     expect(instruction).not.toBeNull();
@@ -420,14 +420,14 @@ describe("task_dispatch", () => {
 
     // Parse the attempt id out of the instruction body so the "worker" can
     // act on exactly what the dispatch told it to use.
-    const attemptIdMatch = instruction!.content.match(/Attempt id: (att_[a-f0-9]+)/);
+    const attemptIdMatch = instruction!.content.match(/Wake id: (wake_[a-f0-9]+)/);
     expect(attemptIdMatch).not.toBeNull();
     const attemptId = attemptIdMatch![1]!;
 
     // 4. Worker registers an artifact and records a progress handoff.
     const artifact = await workerTools.artifact_create({
       taskId: task.id,
-      createdByAttemptId: attemptId,
+      createdByWakeId: attemptId,
       kind: "file",
       title: "auth.ts",
       ref: "file:/repo/src/auth.ts",
@@ -436,7 +436,7 @@ describe("task_dispatch", () => {
 
     const handoff = await workerTools.handoff_create({
       taskId: task.id,
-      fromAttemptId: attemptId,
+      closingWakeId: attemptId,
       kind: "completed",
       summary: "Implemented middleware with unit tests",
       completed: ["JWT verification", "401 on missing token", "integration test"],
@@ -445,8 +445,8 @@ describe("task_dispatch", () => {
     });
     expect(handoff).toContain("recorded");
 
-    // 5. Worker closes the attempt. This clears activeAttemptId automatically.
-    const close = await workerTools.attempt_update({
+    // 5. Worker closes the attempt. This clears activeWakeId automatically.
+    const close = await workerTools.wake_update({
       id: attemptId,
       status: "completed",
       resultSummary: "Shipped",
@@ -454,7 +454,7 @@ describe("task_dispatch", () => {
     expect(close).toContain("[completed]");
 
     const beforeClose = await store.getTask(task.id);
-    expect(beforeClose?.activeAttemptId).toBeUndefined();
+    expect(beforeClose?.activeWakeId).toBeUndefined();
 
     // 6. Lead reviews and marks the task completed.
     const finish = await leadTools.task_update({ id: task.id, status: "completed" });
@@ -470,31 +470,31 @@ describe("task_dispatch", () => {
     expect(handoffs[0]!.kind).toBe("completed");
     expect(handoffs[0]!.summary).toContain("middleware");
 
-    const attempts = await store.listAttempts(task.id);
+    const attempts = await store.listWakes(task.id);
     expect(attempts).toHaveLength(1);
     expect(attempts[0]!.status).toBe("completed");
     expect(attempts[0]!.endedAt).toBeGreaterThan(0);
   });
 
-  test("handed_off status clears activeAttemptId and unblocks re-dispatch", async () => {
+  test("handed_off status clears activeWakeId and unblocks re-dispatch", async () => {
     const { store, tools } = setupWithQueue();
     const task = await store.createTask({ workspaceId: "test-ws", title: "t", goal: "g" });
     await tools.task_dispatch({ taskId: task.id, worker: "codex" });
 
-    const attempts = await store.listAttempts(task.id);
+    const attempts = await store.listWakes(task.id);
     const attemptId = attempts[0]!.id;
 
-    const update = await tools.attempt_update({ id: attemptId, status: "handed_off" });
+    const update = await tools.wake_update({ id: attemptId, status: "handed_off" });
     expect(update).toContain("[handed_off]");
 
     const afterHandoff = await store.getTask(task.id);
-    expect(afterHandoff?.activeAttemptId).toBeUndefined();
+    expect(afterHandoff?.activeWakeId).toBeUndefined();
 
     // Now the lead can hand the task to someone else.
     const redispatch = await tools.task_dispatch({ taskId: task.id, worker: "cursor" });
     expect(redispatch).toContain("Dispatched");
 
-    const allAttempts = await store.listAttempts(task.id);
+    const allAttempts = await store.listWakes(task.id);
     expect(allAttempts).toHaveLength(2);
   });
 });

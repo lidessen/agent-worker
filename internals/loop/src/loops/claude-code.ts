@@ -186,7 +186,7 @@ export function buildOptions(args: {
     includeHookEvents: false,
     // 40 is enough for a worker to finish a small task end-to-end:
     // read instruction + context + bash write/read + artifact_create × 2 +
-    // handoff_create + attempt_update + final channel_send. 12 was too low
+    // handoff_create + wake_update + final channel_send. 12 was too low
     // and caused mid-run truncation (observed during validation).
     maxTurns: 40,
     executable: scriptRuntime === "bun" ? "bun" : "node",

@@ -1,11 +1,16 @@
 // ── Workspace kernel state objects ─────────────────────────────────────────
 //
-// These are the first-class state objects produced by the workspace-led
-// hierarchical design (see docs/design/workspace-led-hierarchical-agent-system/
-// state-and-context-model.md). `Task` is the canonical unit of work. `Attempt`
-// is a single runtime execution bound to a (task, agent) pair. `Handoff`
-// records a structured transfer/shift. `Artifact` is a reference to a
-// concrete execution output.
+// First-class state objects produced by the workspace harness. `Wake` is a
+// single short-lived agent instance bound to a (task, agent) pair (renamed
+// from `Attempt` per design/decisions/005). `Handoff` is the structured
+// transfer between consecutive Wakes — a fixed generic core plus a typed
+// `extensions` map populated by per-harness produceExtension /
+// consumeExtension hooks (hooks themselves are not implemented in this
+// slice).
+//
+// `Task` and `Artifact` remain in the kernel for now as migration source —
+// per decision 005, `Task` will move to a harness-layer projection and
+// `Artifact` will be merged into `Resource` in follow-on blueprints.
 //
 // This module is pure data — the store lives in ./store.ts and ./stores/.
 // No orchestration wiring lives here.
@@ -51,8 +56,8 @@ export interface Task {
   priority?: number;
   /** The lead agent that currently owns this task's intake / scheduling. */
   ownerLeadId?: string;
-  /** The currently active Attempt id, if any. Set when status transitions to in_progress. */
-  activeAttemptId?: string;
+  /** The currently active Wake id, if any. Set when status transitions to in_progress. */
+  activeWakeId?: string;
   /** Where the task originated — message id, user, kickoff, etc. */
   sourceRefs: SourceRef[];
   /** Optional acceptance-criteria text (plain-text checklist or narrative). */
@@ -78,21 +83,24 @@ export interface CreateTaskInput {
 /** Partial patch accepted by updateTask. `id`/`createdAt` cannot be changed. */
 export type TaskPatch = Partial<Omit<Task, "id" | "createdAt" | "workspaceId">>;
 
-// ── Attempt ────────────────────────────────────────────────────────────────
+// ── Wake ───────────────────────────────────────────────────────────────────
 
 /**
- * One execution of a task by a specific agent. An Attempt is NOT the same as
- * a static agent definition (AgentSpec / AgentDef) — it's the task-scoped
- * runtime instance derived from that spec at assignment time.
+ * One short-lived agent instance — one runtime invocation against a task.
+ * A Wake's life is bounded by task completion, context-window exhaustion,
+ * or harness decision. Cross-Wake state lives in the harness's task
+ * projection plus the Handoff chain; no Wake holds state for a future Wake.
  *
- * Multiple concurrent Attempts may exist for one AgentSpec. Lead is an
+ * Renamed from `Attempt` per design/decisions/005-session-orchestration-model.md.
+ *
+ * Multiple concurrent Wakes may exist for one AgentSpec. Lead is an
  * exception — lead is workspace-scoped, not task-scoped, and therefore
- * typically does not have Attempts of its own.
+ * typically does not have Wakes of its own.
  */
-export type AttemptStatus = "running" | "completed" | "failed" | "cancelled" | "handed_off";
+export type WakeStatus = "running" | "completed" | "failed" | "cancelled" | "handed_off";
 
-/** Terminal statuses — used to gate `attempt.terminal` event emission. */
-export const TERMINAL_ATTEMPT_STATUSES: readonly AttemptStatus[] = [
+/** Terminal statuses — used to gate `wake.terminal` event emission. */
+export const TERMINAL_WAKE_STATUSES: readonly WakeStatus[] = [
   "completed",
   "failed",
   "cancelled",
@@ -100,13 +108,12 @@ export const TERMINAL_ATTEMPT_STATUSES: readonly AttemptStatus[] = [
 ];
 
 /**
- * Git worktree provisioned by an attempt via the `worktree_create`
- * MCP tool. Attempt-scoped: lifecycle follows the attempt, the
- * workspace itself never holds git state directly. See
- * `docs/design/phase-1-worktree-isolation/README.md` (v3).
+ * Git worktree provisioned by a Wake via the `worktree_create` MCP tool.
+ * Wake-scoped: lifecycle follows the Wake, the workspace itself never
+ * holds git state directly.
  */
 export interface Worktree {
-  /** Attempt-scoped unique identifier. Caller-provided. */
+  /** Wake-scoped unique identifier. Caller-provided. */
   name: string;
   /** Canonical absolute path to the source git repository. */
   repoPath: string;
@@ -120,15 +127,15 @@ export interface Worktree {
   createdAt: number;
 }
 
-export interface Attempt {
+export interface Wake {
   id: string;
   taskId: string;
   agentName: string;
   role: AgentRole;
-  status: AttemptStatus;
+  status: WakeStatus;
   startedAt: number;
   endedAt?: number;
-  /** Handoff consumed at start — e.g. from a previous attempt. */
+  /** Handoff consumed at start — e.g. from a previous Wake. */
   inputHandoffId?: string;
   /** Handoff produced at end — progress / blocked / completed / aborted. */
   outputHandoffId?: string;
@@ -138,21 +145,20 @@ export interface Attempt {
   sessionId?: string;
   cwd?: string;
   /**
-   * Worktrees provisioned by this attempt through the
-   * `worktree_create` MCP tool. Each entry is torn down when the
-   * attempt transitions to any terminal status. Branches are
-   * preserved so completed work survives cleanup.
+   * Worktrees provisioned by this Wake through the `worktree_create` MCP
+   * tool. Each entry is torn down when the Wake transitions to any terminal
+   * status. Branches are preserved so completed work survives cleanup.
    */
   worktrees?: readonly Worktree[];
   pid?: number;
   lastHeartbeatAt?: number;
 }
 
-export interface CreateAttemptInput {
+export interface CreateWakeInput {
   taskId: string;
   agentName: string;
   role: AgentRole;
-  status?: AttemptStatus;
+  status?: WakeStatus;
   inputHandoffId?: string;
   runtimeType?: string;
   sessionId?: string;
@@ -160,19 +166,46 @@ export interface CreateAttemptInput {
   pid?: number;
 }
 
-export type AttemptPatch = Partial<Omit<Attempt, "id" | "taskId" | "startedAt">>;
+export type WakePatch = Partial<Omit<Wake, "id" | "taskId" | "startedAt">>;
 
 // ── Handoff ────────────────────────────────────────────────────────────────
 
-/** Structured shift record between attempts (or between lead and worker). */
+/** Structured shift record between Wakes (or between lead and worker). */
 export type HandoffKind = "progress" | "blocked" | "completed" | "aborted";
 
+/**
+ * Opaque per-harness extension payload. Each harness type owns the schema
+ * keyed under `harnessTypeId` in `Handoff.extensions`. The kernel does not
+ * inspect the payload — produce / consume hooks are run by the orchestrator
+ * at Wake close / start (hook protocol lands in a later blueprint).
+ */
+export type HandoffExtensionPayload = unknown;
+
+/**
+ * Cross-Wake transfer with a fixed generic core every Handoff carries plus
+ * an optional per-harness extension map keyed by `harnessTypeId`.
+ *
+ * Generic core (per design/decisions/005):
+ * - closingWakeId, taskId, kind, summary, pending, decisions, blockers
+ * - resources: refs to durable outputs (Resource ids)
+ * - workLogPointer?: anchor into the work log (populated when the work-log
+ *   aggregator lands; kept as an optional placeholder for now)
+ *
+ * Per-harness extension:
+ * - extensions: keyed by harnessTypeId, opaque payload populated by the
+ *   harness's produceExtension hook.
+ *
+ * Migration / transitional fields kept this slice (will be cleaned up as
+ * follow-on blueprints land):
+ * - artifactRefs: deprecated; will be removed when Artifact merges into Resource
+ * - touchedPaths, runtimeRefs: free-form runtime breadcrumbs; may move into
+ *   a per-runtime extension later
+ */
 export interface Handoff {
   id: string;
   taskId: string;
-  fromAttemptId: string;
-  /** Destination attempt, if the handoff is directed. */
-  toAttemptId?: string;
+  /** Wake that produced this Handoff (renamed from fromAttemptId). */
+  closingWakeId: string;
   createdAt: number;
   /** Agent name or system identifier that authored the handoff. */
   createdBy: string;
@@ -182,9 +215,17 @@ export interface Handoff {
   pending: string[];
   blockers: string[];
   decisions: string[];
-  nextSteps: string[];
+  /** Refs to durable outputs (Resource ids). Replaces the implicit artifact links. */
+  resources: string[];
+  /** Anchor into the work log. Placeholder — populated when the work-log aggregator lands. */
+  workLogPointer?: string;
+  /** Opaque per-harness extension payloads keyed by harnessTypeId. */
+  extensions: Record<string, HandoffExtensionPayload>;
+
+  // --- Transitional fields (will be cleaned up by follow-on blueprints) ---
+  /** Deprecated — will be removed when Artifact merges into Resource. */
   artifactRefs: string[];
-  /** Files / paths touched during the attempt, for quick orientation. */
+  /** Files / paths touched during the Wake, for quick orientation. */
   touchedPaths?: string[];
   /** Free-form runtime breadcrumbs (session ids, branch names, etc.). */
   runtimeRefs?: Record<string, unknown>;
@@ -192,8 +233,8 @@ export interface Handoff {
 
 export interface CreateHandoffInput {
   taskId: string;
-  fromAttemptId: string;
-  toAttemptId?: string;
+  /** Wake that produced this Handoff (renamed from fromAttemptId). */
+  closingWakeId: string;
   createdBy: string;
   kind: HandoffKind;
   summary: string;
@@ -201,7 +242,9 @@ export interface CreateHandoffInput {
   pending?: string[];
   blockers?: string[];
   decisions?: string[];
-  nextSteps?: string[];
+  resources?: string[];
+  workLogPointer?: string;
+  extensions?: Record<string, HandoffExtensionPayload>;
   artifactRefs?: string[];
   touchedPaths?: string[];
   runtimeRefs?: Record<string, unknown>;
@@ -210,9 +253,12 @@ export interface CreateHandoffInput {
 // ── Artifact ───────────────────────────────────────────────────────────────
 
 /**
- * A reference to a concrete output produced during an Attempt. The store
- * holds the reference, not the content. The `ref` field is a free-form URL
- * or scheme-prefixed identifier (e.g. "file:/path", "git:sha", "url:...").
+ * A reference to a concrete output produced during a Wake. The store holds
+ * the reference, not the content. The `ref` field is a free-form URL or
+ * scheme-prefixed identifier (e.g. "file:/path", "git:sha", "url:...").
+ *
+ * Per decision 005 this type is being merged into `Resource`. Kept here as
+ * migration source until the merge blueprint lands.
  */
 export interface Artifact {
   id: string;
@@ -220,7 +266,8 @@ export interface Artifact {
   kind: string;
   title: string;
   ref: string;
-  createdByAttemptId: string;
+  /** Wake that produced this artifact (renamed from createdByAttemptId). */
+  createdByWakeId: string;
   createdAt: number;
   checksum?: string;
   version?: number;
@@ -231,7 +278,7 @@ export interface CreateArtifactInput {
   kind: string;
   title: string;
   ref: string;
-  createdByAttemptId: string;
+  createdByWakeId: string;
   checksum?: string;
   version?: number;
 }
