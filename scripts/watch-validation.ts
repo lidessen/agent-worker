@@ -4,8 +4,8 @@
  * workspace-led hierarchical validation checklist.
  *
  * Polls the validation workspace's task ledger once per second and
- * prints every state transition + every new handoff + every new
- * artifact as they happen. Run in a second terminal while the real
+ * prints every state transition + every new handoff (with the
+ * resources it referenced). Run in a second terminal while the real
  * claude-code / codex agents drive the workspace.
  *
  * Usage:
@@ -53,7 +53,6 @@ interface TaskSummary {
   status: string;
   title: string;
   activeWakeId?: string;
-  artifactRefs?: string[];
 }
 
 async function main() {
@@ -67,7 +66,6 @@ async function main() {
 
   const taskState = new Map<string, TaskSummary>();
   const seenHandoffs = new Set<string>();
-  const seenArtifacts = new Set<string>();
   let lastChronicleCount = 0;
 
   async function tick() {
@@ -98,25 +96,14 @@ async function main() {
             kind: string;
             summary: string;
             createdBy: string;
+            resources?: string[];
           };
           if (!seenHandoffs.has(h.id)) {
             seenHandoffs.add(h.id);
+            const resourcesNote =
+              h.resources && h.resources.length > 0 ? ` resources=${h.resources.join(",")}` : "";
             console.log(
-              `${dim(`[${fmtTime()}]`)} ${blue("handoff")}     ${bold(h.id)} [${h.kind}] by ${h.createdBy}: ${h.summary.slice(0, 120)}`,
-            );
-          }
-        }
-        for (const raw of detail.artifacts) {
-          const a = raw as {
-            id: string;
-            kind: string;
-            title: string;
-            ref: string;
-          };
-          if (!seenArtifacts.has(a.id)) {
-            seenArtifacts.add(a.id);
-            console.log(
-              `${dim(`[${fmtTime()}]`)} ${green("artifact")}    ${bold(a.id)} ${a.kind}: ${a.title} (${a.ref})`,
+              `${dim(`[${fmtTime()}]`)} ${blue("handoff")}     ${bold(h.id)} [${h.kind}] by ${h.createdBy}: ${h.summary.slice(0, 120)}${resourcesNote}`,
             );
           }
         }

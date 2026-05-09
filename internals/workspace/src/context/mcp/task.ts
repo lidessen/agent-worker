@@ -1,5 +1,4 @@
 import type {
-  Artifact,
   Wake,
   WakeStatus,
   Handoff,
@@ -14,17 +13,18 @@ import type { InstructionQueueInterface, Priority } from "../../types.ts";
 import { nanoid } from "../../utils.ts";
 
 /**
- * Lead-side task management tools. These expose the workspace kernel state
- * store to agents as first-class MCP tools so the lead can intake, open,
- * update, and close tasks without owning the persistence layer directly.
+ * Task / Wake / Handoff MCP tools. These expose the workspace kernel state
+ * store to agents so the lead can intake, open, update, and close tasks
+ * without owning the persistence layer directly.
  *
- * Phase 2b intentionally keeps this minimal: no role-gated access, no
- * auto-accept / auto-open heuristics. All transitions are driven explicitly
- * by the agent calling these tools.
- *
- * Wake (renamed from Attempt) is the bounded-life unit per
- * design/decisions/005-session-orchestration-model.md. Task and Artifact
- * remain in the kernel as migration source.
+ * Per design/decisions/005-session-orchestration-model.md:
+ * - `Wake` is the bounded-life unit (one short-lived agent runtime).
+ * - `Handoff` is the cross-Wake transfer with a generic core plus an
+ *   opaque per-harness extension map.
+ * - `Task` remains in the kernel as a transitional concept; a follow-on
+ *   blueprint will move it to a harness-layer projection.
+ * - `Artifact` is gone — concrete outputs are referenced as `Resource`
+ *   ids in `Handoff.resources`. Use `resource_create` to register them.
  */
 
 export interface TaskTools {
@@ -57,7 +57,6 @@ export interface TaskTools {
     runtimeType?: string;
     sessionId?: string;
     cwd?: string;
-    worktreePath?: string;
   }): Promise<string>;
   wake_list(args: { taskId: string }): Promise<string>;
   wake_get(args: { id: string }): Promise<string>;
@@ -80,21 +79,8 @@ export interface TaskTools {
     blockers?: string[];
     decisions?: string[];
     resources?: string[];
-    artifactRefs?: string[];
-    touchedPaths?: string[];
   }): Promise<string>;
   handoff_list(args: { taskId: string }): Promise<string>;
-
-  artifact_create(args: {
-    taskId: string;
-    createdByWakeId: string;
-    kind: string;
-    title: string;
-    ref: string;
-    checksum?: string;
-    version?: number;
-  }): Promise<string>;
-  artifact_list(args: { taskId: string }): Promise<string>;
 
   task_dispatch(args: { taskId: string; worker: string; priority?: Priority }): Promise<string>;
 }
@@ -167,17 +153,6 @@ function formatHandoff(handoff: Handoff): string {
   return lines.join("\n");
 }
 
-function formatArtifact(artifact: Artifact): string {
-  const lines: string[] = [];
-  lines.push(`- [${artifact.id}] ${artifact.kind}: ${artifact.title}`);
-  lines.push(`  task: ${artifact.taskId}`);
-  lines.push(`  ref: ${artifact.ref}`);
-  lines.push(`  createdBy: ${artifact.createdByWakeId}`);
-  if (artifact.version != null) lines.push(`  version: ${artifact.version}`);
-  if (artifact.checksum) lines.push(`  checksum: ${artifact.checksum}`);
-  return lines.join("\n");
-}
-
 function formatTask(task: Task): string {
   const lines: string[] = [];
   lines.push(`- [${task.id}] ${task.title} [${task.status}]`);
@@ -189,9 +164,6 @@ function formatTask(task: Task): string {
   if (task.sourceRefs.length > 0) {
     const summary = task.sourceRefs.map((s) => (s.ref ? `${s.kind}:${s.ref}` : s.kind)).join(", ");
     lines.push(`  sources: ${summary}`);
-  }
-  if (task.artifactRefs.length > 0) {
-    lines.push(`  artifacts: ${task.artifactRefs.length}`);
   }
   return lines.join("\n");
 }
@@ -226,6 +198,7 @@ export function createTaskTools(
       // Chronicle is observational; a failure here is non-fatal.
     }
   }
+
   // Serialise mutations that read a task's active-Wake state and then write
   // to it. The check-then-act sequence happens across async `await`
   // boundaries, so two concurrent dispatches on the same task can both pass
@@ -243,6 +216,7 @@ export function createTaskTools(
       inFlightTasks.delete(taskId);
     }
   }
+
   return {
     async task_create(args): Promise<string> {
       const title = (args.title ?? "").trim();
@@ -403,10 +377,9 @@ export function createTaskTools(
       if (args.outputHandoffId !== undefined) patch.outputHandoffId = args.outputHandoffId;
       if (args.sessionId !== undefined) patch.sessionId = args.sessionId;
       if (args.lastHeartbeatAt !== undefined) patch.lastHeartbeatAt = args.lastHeartbeatAt;
-      // All four of these are logically terminal for the current Wake —
-      // `handed_off` means the Wake relinquished control, even though the
-      // task continues. Stamp endedAt and clear activeWakeId for all of
-      // them so a follow-up dispatch isn't blocked by a stale reference.
+      // Terminal statuses stamp endedAt so a follow-up dispatch isn't
+      // blocked by a stale reference. `handed_off` means the Wake
+      // relinquished control even though the task continues.
       if (
         args.status === "completed" ||
         args.status === "failed" ||
@@ -455,8 +428,6 @@ export function createTaskTools(
           blockers: args.blockers,
           decisions: args.decisions,
           resources: args.resources,
-          artifactRefs: args.artifactRefs,
-          touchedPaths: args.touchedPaths,
         });
         return `Handoff ${handoff.id} recorded on task ${handoff.taskId} (${handoff.kind})`;
       } catch (err) {
@@ -471,35 +442,6 @@ export function createTaskTools(
       return `Handoffs (${handoffs.length}):\n${handoffs.map(formatHandoff).join("\n")}`;
     },
 
-    // ── Artifact tools ─────────────────────────────────────────────────
-
-    async artifact_create(args): Promise<string> {
-      if (!args.taskId || !args.createdByWakeId || !args.kind || !args.title || !args.ref) {
-        return "Error: 'taskId', 'createdByWakeId', 'kind', 'title', and 'ref' are required.";
-      }
-      try {
-        const artifact = await store.createArtifact({
-          taskId: args.taskId,
-          createdByWakeId: args.createdByWakeId,
-          kind: args.kind,
-          title: args.title,
-          ref: args.ref,
-          checksum: args.checksum,
-          version: args.version,
-        });
-        return `Artifact ${artifact.id} registered on task ${artifact.taskId}`;
-      } catch (err) {
-        return `Error: ${err instanceof Error ? err.message : String(err)}`;
-      }
-    },
-
-    async artifact_list(args): Promise<string> {
-      if (!args.taskId) return "Error: 'taskId' is required.";
-      const artifacts = await store.listArtifacts(args.taskId);
-      if (artifacts.length === 0) return `No artifacts for task ${args.taskId}.`;
-      return `Artifacts (${artifacts.length}):\n${artifacts.map(formatArtifact).join("\n")}`;
-    },
-
     // ── Dispatch: lead hands a task to a worker ────────────────────────
 
     async task_dispatch(args): Promise<string> {
@@ -510,12 +452,6 @@ export function createTaskTools(
         return "Error: 'taskId' and 'worker' are required.";
       }
 
-      // Normalize the worker handle up front. The orchestrator polls the
-      // instruction queue by bare agent name, so "@implementer" vs
-      // "implementer" is a silent bug: the enqueue goes through fine but
-      // the worker's queue never has an entry with a matching agentName
-      // and the dispatch is effectively a no-op from the queue side.
-      // Strip leading @ so both forms route the same way.
       const workerName = args.worker.replace(/^@+/, "");
       if (!workerName) {
         return "Error: 'worker' must name a real agent (got just '@').";
@@ -533,11 +469,6 @@ export function createTaskTools(
 
         let wake: Wake;
         try {
-          // Worktrees are created on-demand by the worker via the
-          // Wake-scoped `worktree_create` tool during its run; the
-          // resulting entries land on `wake.worktrees` and are cleaned up
-          // on terminal status via the `wake.terminal` event listener
-          // wired in workspace-registry.
           wake = await store.createWake({
             taskId: task.id,
             agentName: workerName,
@@ -587,7 +518,8 @@ function formatDispatchInstruction(task: Task, wake: Wake, from: string): string
   lines.push(
     "",
     `Wake id: ${wake.id}. When finished, call wake_update with the terminal status ` +
-      `and handoff_create with a structured summary. Register concrete outputs via artifact_create.`,
+      `and handoff_create with a structured summary. Register concrete outputs via resource_create ` +
+      `and reference them in handoff.resources.`,
   );
   return lines.join("\n");
 }
@@ -662,7 +594,6 @@ export const TASK_TOOL_DEFS = {
       runtimeType: { type: "string", description: "Runtime (codex, claude-code, …)" },
       sessionId: { type: "string", description: "Runtime session/thread id" },
       cwd: { type: "string", description: "Working directory" },
-      worktreePath: { type: "string", description: "Git worktree path" },
     },
     required: ["taskId"],
   },
@@ -700,7 +631,8 @@ export const TASK_TOOL_DEFS = {
   handoff_create: {
     description:
       "Record a structured handoff on a task. `kind` is 'progress' | 'blocked' | 'completed' | " +
-      "'aborted'. `closingWakeId` is the Wake that produced this handoff.",
+      "'aborted'. `closingWakeId` is the Wake that produced this handoff. List concrete outputs " +
+      "as Resource ids in `resources`; create them first via `resource_create`.",
     parameters: {
       taskId: { type: "string", description: "Task id" },
       closingWakeId: { type: "string", description: "Wake that produced this handoff" },
@@ -710,37 +642,12 @@ export const TASK_TOOL_DEFS = {
       pending: { type: "array", description: "What still needs to happen" },
       blockers: { type: "array", description: "Blockers encountered" },
       decisions: { type: "array", description: "Key decisions made" },
-      resources: { type: "array", description: "Refs to durable outputs (Resource ids)" },
-      artifactRefs: { type: "array", description: "Deprecated: artifact ids; use resources" },
-      touchedPaths: { type: "array", description: "Files / paths touched" },
+      resources: { type: "array", description: "Resource ids of concrete outputs" },
     },
     required: ["taskId", "closingWakeId", "kind", "summary"],
   },
   handoff_list: {
     description: "List handoffs for a task in time-order.",
-    parameters: {
-      taskId: { type: "string", description: "Task id" },
-    },
-    required: ["taskId"],
-  },
-  artifact_create: {
-    description:
-      "Register a concrete execution output as an Artifact. `ref` is a scheme-prefixed " +
-      "identifier (file:/path, git:sha, url:…). Note: Artifact is being merged into Resource " +
-      "in a follow-on blueprint.",
-    parameters: {
-      taskId: { type: "string", description: "Task id" },
-      createdByWakeId: { type: "string", description: "Wake that produced it" },
-      kind: { type: "string", description: "e.g. 'file', 'commit', 'url', 'patch'" },
-      title: { type: "string", description: "Short human-readable title" },
-      ref: { type: "string", description: "Scheme-prefixed reference" },
-      checksum: { type: "string", description: "Optional integrity hash" },
-      version: { type: "number", description: "Optional version number" },
-    },
-    required: ["taskId", "createdByWakeId", "kind", "title", "ref"],
-  },
-  artifact_list: {
-    description: "List artifacts for a task in created-order.",
     parameters: {
       taskId: { type: "string", description: "Task id" },
     },

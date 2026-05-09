@@ -89,7 +89,6 @@ describe("AgentRuntime", () => {
     expect(output.result.status).toBe("completed");
     expect(output.result.usage).toEqual({ inputTokens: 2, outputTokens: 3, totalTokens: 5 });
     expect(output.handoffDraft).toEqual({ summary: "completed summary" });
-    expect(output.artifactCandidates).toEqual([]);
   });
 
   test("applies run-scoped direct tool capabilities", async () => {

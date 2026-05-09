@@ -173,7 +173,7 @@ export const WorkspacePage: RuntimeComponent<Record<string, never>> = (_props, c
     if (!detail) {
       return <div class={styles.taskDetailLoading}>Loading…</div>;
     }
-    const { wakes, handoffs, artifacts } = detail;
+    const { wakes, handoffs } = detail;
     return (
       <div class={styles.taskDetail}>
         {wakes.length > 0 && (
@@ -205,23 +205,15 @@ export const WorkspacePage: RuntimeComponent<Record<string, never>> = (_props, c
                 {h.pending.length > 0 && (
                   <div class={styles.taskDetailText}>pending: {h.pending.join("; ")}</div>
                 )}
+                {h.resources.length > 0 && (
+                  <div class={styles.taskDetailText}>resources: {h.resources.join(", ")}</div>
+                )}
               </div>
             ))}
           </div>
         )}
-        {artifacts.length > 0 && (
-          <div class={styles.taskDetailSection}>
-            <div class={styles.taskDetailHeader}>Artifacts ({artifacts.length})</div>
-            {artifacts.map((x) => (
-              <div class={styles.taskDetailItem}>
-                <code>{x.id}</code> {x.kind}: {x.title}
-                <div class={styles.taskDetailText}>{x.ref}</div>
-              </div>
-            ))}
-          </div>
-        )}
-        {wakes.length === 0 && handoffs.length === 0 && artifacts.length === 0 && (
-          <div class={styles.taskDetailText}>No Wakes, handoffs, or artifacts yet.</div>
+        {wakes.length === 0 && handoffs.length === 0 && (
+          <div class={styles.taskDetailText}>No Wakes or handoffs yet.</div>
         )}
       </div>
     );
@@ -330,8 +322,6 @@ export const WorkspacePage: RuntimeComponent<Record<string, never>> = (_props, c
           const metaParts: string[] = [];
           if (task.ownerLeadId) metaParts.push(`owner: ${task.ownerLeadId}`);
           if (task.activeWakeId) metaParts.push(`active: ${task.activeWakeId}`);
-          if (task.artifactRefs.length > 0)
-            metaParts.push(`artifacts: ${task.artifactRefs.length}`);
           const isExpanded = expanded === task.id;
           const detail = details[task.id];
           return (

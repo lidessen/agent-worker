@@ -16,7 +16,6 @@ describe("InMemoryWorkspaceStateStore — Task", () => {
 
     expect(task.id).toMatch(/^task_/);
     expect(task.status).toBe("draft");
-    expect(task.artifactRefs).toEqual([]);
     expect(task.sourceRefs).toEqual([]);
     expect(task.createdAt).toBeGreaterThan(0);
     expect(task.updatedAt).toBe(task.createdAt);
@@ -234,64 +233,3 @@ describe("InMemoryWorkspaceStateStore — Handoff", () => {
   });
 });
 
-describe("InMemoryWorkspaceStateStore — Artifact", () => {
-  test("createArtifact appends to the owning task's artifactRefs", async () => {
-    const store = freshStore();
-    const task = await store.createTask({ workspaceId: "w1", title: "t", goal: "g" });
-    const wake = await store.createWake({
-      taskId: task.id,
-      agentName: "codex",
-      role: "worker",
-    });
-
-    const artifact = await store.createArtifact({
-      taskId: task.id,
-      kind: "file",
-      title: "diff.patch",
-      ref: "file:/tmp/diff.patch",
-      createdByWakeId: wake.id,
-    });
-
-    expect(artifact.id).toMatch(/^art_/);
-
-    const refreshedTask = await store.getTask(task.id);
-    expect(refreshedTask?.artifactRefs).toContain(artifact.id);
-  });
-
-  test("listArtifacts is scoped per task", async () => {
-    const store = freshStore();
-    const taskA = await store.createTask({ workspaceId: "w1", title: "a", goal: "g" });
-    const taskB = await store.createTask({ workspaceId: "w1", title: "b", goal: "g" });
-    const wakeA = await store.createWake({
-      taskId: taskA.id,
-      agentName: "codex",
-      role: "worker",
-    });
-    const wakeB = await store.createWake({
-      taskId: taskB.id,
-      agentName: "codex",
-      role: "worker",
-    });
-
-    await store.createArtifact({
-      taskId: taskA.id,
-      kind: "file",
-      title: "a.txt",
-      ref: "file:/tmp/a.txt",
-      createdByWakeId: wakeA.id,
-    });
-    await store.createArtifact({
-      taskId: taskB.id,
-      kind: "file",
-      title: "b.txt",
-      ref: "file:/tmp/b.txt",
-      createdByWakeId: wakeB.id,
-    });
-
-    const aArtifacts = await store.listArtifacts(taskA.id);
-    const bArtifacts = await store.listArtifacts(taskB.id);
-
-    expect(aArtifacts.map((x) => x.title)).toEqual(["a.txt"]);
-    expect(bArtifacts.map((x) => x.title)).toEqual(["b.txt"]);
-  });
-});

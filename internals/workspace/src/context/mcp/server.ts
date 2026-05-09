@@ -180,10 +180,6 @@ export function createWorkspaceTools(
             taskTools.handoff_create(args as Parameters<typeof taskTools.handoff_create>[0]),
           handoff_list: (args) =>
             taskTools.handoff_list(args as Parameters<typeof taskTools.handoff_list>[0]),
-          artifact_create: (args) =>
-            taskTools.artifact_create(args as Parameters<typeof taskTools.artifact_create>[0]),
-          artifact_list: (args) =>
-            taskTools.artifact_list(args as Parameters<typeof taskTools.artifact_list>[0]),
           task_dispatch: (args) =>
             taskTools.task_dispatch(args as Parameters<typeof taskTools.task_dispatch>[0]),
         }

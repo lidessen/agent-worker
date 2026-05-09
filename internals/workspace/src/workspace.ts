@@ -41,7 +41,7 @@ export class Workspace implements WorkspaceRuntime {
   readonly bridge: ChannelBridgeInterface;
   readonly instructionQueue: InstructionQueueInterface;
   /**
-   * Kernel state store — Task / Wake / Handoff / Artifact canonical records.
+   * Kernel state store — Task / Wake / Handoff canonical records.
    * Phase 1 wires this in as an in-memory store; a file-backed
    * implementation will arrive with the persistence work.
    */
@@ -106,7 +106,7 @@ export class Workspace implements WorkspaceRuntime {
     // Instruction queue
     this.instructionQueue = new InstructionQueue(config.queueConfig);
 
-    // Kernel state store (Task / Wake / Handoff / Artifact).
+    // Kernel state store (Task / Wake / Handoff).
     // File-backed when the workspace has a storage dir; in-memory otherwise.
     this.stateStore = this.storageDir
       ? new FileWorkspaceStateStore(join(this.storageDir, "state"))

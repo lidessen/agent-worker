@@ -1421,12 +1421,11 @@ export class Daemon {
     if (!task) {
       return Response.json({ error: `Task ${taskId} not found` }, { status: 404 });
     }
-    const [wakes, handoffs, artifacts] = await Promise.all([
+    const [wakes, handoffs] = await Promise.all([
       store.listWakes(taskId),
       store.listHandoffs(taskId),
-      store.listArtifacts(taskId),
     ]);
-    return Response.json({ task, wakes, handoffs, artifacts });
+    return Response.json({ task, wakes, handoffs });
   }
 
   /** Emit a live update notification for observers (web UI, CLI polling, etc). */
@@ -1631,7 +1630,8 @@ export class Daemon {
       task.acceptanceCriteria ? `**Acceptance criteria:** ${task.acceptanceCriteria}` : null,
       "",
       `Wake id: ${wake.id}. When finished, call wake_update with the terminal status ` +
-        `and handoff_create with a structured summary. Register concrete outputs via artifact_create.`,
+        `and handoff_create with a structured summary. Register concrete outputs via resource_create ` +
+        `and reference them in handoff.resources.`,
     ]
       .filter((line): line is string => line !== null)
       .join("\n");

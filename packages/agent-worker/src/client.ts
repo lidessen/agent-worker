@@ -414,7 +414,7 @@ export class AwClient {
     return this.request(`/workspaces/${encodeURIComponent(key)}/tasks${qs ? `?${qs}` : ""}`);
   }
 
-  /** Fetch a single task with its Wakes, handoffs, and artifacts. */
+  /** Fetch a single task with its Wakes and handoffs. */
   async getWorkspaceTask(
     key: string,
     taskId: string,
@@ -422,7 +422,6 @@ export class AwClient {
     task: Record<string, unknown>;
     wakes: Record<string, unknown>[];
     handoffs: Record<string, unknown>[];
-    artifacts: Record<string, unknown>[];
   }> {
     return this.request(
       `/workspaces/${encodeURIComponent(key)}/tasks/${encodeURIComponent(taskId)}`,

@@ -77,7 +77,7 @@ describe("FileWorkspaceStateStore", () => {
     expect(replayed?.endedAt).toBeGreaterThan(0);
   });
 
-  test("handoffs and artifacts replay with task cross-refs intact", async () => {
+  test("handoffs replay with task cross-refs intact", async () => {
     const first = new FileWorkspaceStateStore(dir);
     await first.ready;
     const task = await first.createTask({ workspaceId: "w1", title: "t", goal: "g" });
@@ -93,13 +93,7 @@ describe("FileWorkspaceStateStore", () => {
       kind: "progress",
       summary: "halfway",
       completed: ["step 1"],
-    });
-    await first.createArtifact({
-      taskId: task.id,
-      createdByWakeId: wake.id,
-      kind: "file",
-      title: "diff.patch",
-      ref: "file:/tmp/diff.patch",
+      resources: ["res_one"],
     });
 
     const second = new FileWorkspaceStateStore(dir);
@@ -108,15 +102,8 @@ describe("FileWorkspaceStateStore", () => {
     const handoffs = await second.listHandoffs(task.id);
     expect(handoffs).toHaveLength(1);
     expect(handoffs[0]!.summary).toBe("halfway");
-
-    const artifacts = await second.listArtifacts(task.id);
-    expect(artifacts).toHaveLength(1);
-    expect(artifacts[0]!.title).toBe("diff.patch");
-
-    // The owning task should have been re-persisted with the artifact ref
-    // so replay picks it up too.
-    const replayedTask = await second.getTask(task.id);
-    expect(replayedTask?.artifactRefs).toEqual([artifacts[0]!.id]);
+    expect(handoffs[0]!.resources).toEqual(["res_one"]);
+    expect(handoffs[0]!.extensions).toEqual({});
   });
 
   test("listTasks filter applies across replay", async () => {
@@ -141,45 +128,6 @@ describe("FileWorkspaceStateStore", () => {
     await expect(
       second.createWake({ taskId: "task_missing", agentName: "codex", role: "worker" }),
     ).rejects.toThrow("task not found");
-  });
-
-  test("replay reconciles artifacts whose task mirror never got the second write", async () => {
-    const { appendFileSync } = await import("node:fs");
-    const { join } = await import("node:path");
-
-    const first = new FileWorkspaceStateStore(dir);
-    await first.ready;
-    const task = await first.createTask({ workspaceId: "w1", title: "t", goal: "g" });
-    const wake = await first.createWake({
-      taskId: task.id,
-      agentName: "codex",
-      role: "worker",
-    });
-
-    // Simulate a crash that lost the task-mirror write: manually append an
-    // artifact row to artifacts.jsonl without the corresponding updated task
-    // snapshot. Replay should still reconcile it.
-    const artifactId = "art_orphaned123";
-    appendFileSync(
-      join(dir, "artifacts.jsonl"),
-      JSON.stringify({
-        ts: Date.now(),
-        id: artifactId,
-        taskId: task.id,
-        kind: "file",
-        title: "orphan.txt",
-        ref: "file:/tmp/orphan.txt",
-        createdByWakeId: wake.id,
-        createdAt: Date.now(),
-      }) + "\n",
-    );
-
-    const second = new FileWorkspaceStateStore(dir);
-    await second.ready;
-    const refreshed = await second.getTask(task.id);
-    expect(refreshed?.artifactRefs).toContain(artifactId);
-    const artifacts = await second.listArtifacts(task.id);
-    expect(artifacts.map((a) => a.id)).toContain(artifactId);
   });
 
   test("replay survives a torn/malformed trailing line", async () => {

@@ -13,8 +13,6 @@ export type {
   HandoffExtensionPayload,
   Handoff,
   CreateHandoffInput,
-  Artifact,
-  CreateArtifactInput,
 } from "./types.ts";
 export { TERMINAL_WAKE_STATUSES } from "./types.ts";
 

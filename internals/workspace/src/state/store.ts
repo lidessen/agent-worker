@@ -1,17 +1,13 @@
 // ── Workspace state store interface ───────────────────────────────────────
 //
-// Defines the minimal contract for reading and writing kernel state
-// objects (Task / Wake / Handoff / Artifact). In-memory and file-backed
-// implementations live here and in ./file-store.ts.
+// Defines the minimal contract for reading and writing the kernel state
+// records: Task, Wake, Handoff. (Artifact is gone — concrete outputs live
+// as Resources, referenced in Handoff.resources.)
 //
-// Wake replaces the previous Attempt record per
-// design/decisions/005-session-orchestration-model.md. Task and Artifact
-// are kept as migration source; their kernel-residency will be removed in
-// follow-on blueprints.
+// In-memory and file-backed implementations live here and in
+// ./file-store.ts.
 
 import type {
-  Artifact,
-  CreateArtifactInput,
   CreateHandoffInput,
   CreateTaskInput,
   CreateWakeInput,
@@ -64,11 +60,6 @@ export interface WorkspaceStateStore {
   getHandoff(id: string): Promise<Handoff | null>;
   listHandoffs(taskId: string): Promise<Handoff[]>;
 
-  // ── Artifact ────────────────────────────────────────────────────────
-  createArtifact(input: CreateArtifactInput): Promise<Artifact>;
-  getArtifact(id: string): Promise<Artifact | null>;
-  listArtifacts(taskId: string): Promise<Artifact[]>;
-
   // ── Lifecycle events ────────────────────────────────────────────────
   /**
    * Subscribe to Wake lifecycle events. `wake.terminal` fires when
@@ -99,7 +90,6 @@ export class InMemoryWorkspaceStateStore implements WorkspaceStateStore {
   private tasks = new Map<string, Task>();
   private wakes = new Map<string, Wake>();
   private handoffs = new Map<string, Handoff>();
-  private artifacts = new Map<string, Artifact>();
   /** `wake.terminal` listeners. */
   protected wakeTerminalListeners = new Set<WakeTerminalListener>();
 
@@ -154,7 +144,6 @@ export class InMemoryWorkspaceStateStore implements WorkspaceStateStore {
       ownerLeadId: input.ownerLeadId,
       sourceRefs: input.sourceRefs ?? [],
       acceptanceCriteria: input.acceptanceCriteria,
-      artifactRefs: [],
       createdAt: now,
       updatedAt: now,
     };
@@ -190,7 +179,6 @@ export class InMemoryWorkspaceStateStore implements WorkspaceStateStore {
     if (filter?.ownerLeadId) {
       out = out.filter((t) => t.ownerLeadId === filter.ownerLeadId);
     }
-    // Stable order: creation time ascending.
     out.sort((a, b) => a.createdAt - b.createdAt);
     return out;
   }
@@ -234,9 +222,6 @@ export class InMemoryWorkspaceStateStore implements WorkspaceStateStore {
     };
     this.wakes.set(id, updated);
 
-    // Fire wake.terminal on running → terminal status transition so
-    // cleanup hooks (worktree teardown, chronicle entry, etc.) can react
-    // without polling.
     if (
       patch.status !== undefined &&
       this.isTerminalTransition(current.status, updated.status)
@@ -290,9 +275,6 @@ export class InMemoryWorkspaceStateStore implements WorkspaceStateStore {
       resources: input.resources ?? [],
       workLogPointer: input.workLogPointer,
       extensions: input.extensions ?? {},
-      artifactRefs: input.artifactRefs ?? [],
-      touchedPaths: input.touchedPaths,
-      runtimeRefs: input.runtimeRefs,
     };
     this.handoffs.set(handoff.id, handoff);
     return handoff;
@@ -305,43 +287,6 @@ export class InMemoryWorkspaceStateStore implements WorkspaceStateStore {
   async listHandoffs(taskId: string): Promise<Handoff[]> {
     return Array.from(this.handoffs.values())
       .filter((h) => h.taskId === taskId)
-      .sort((a, b) => a.createdAt - b.createdAt);
-  }
-
-  // ── Artifact ────────────────────────────────────────────────────────
-
-  async createArtifact(input: CreateArtifactInput): Promise<Artifact> {
-    const task = this.tasks.get(input.taskId);
-    if (!task) throw new Error(`createArtifact: task not found: ${input.taskId}`);
-
-    const artifact: Artifact = {
-      id: genId("art"),
-      taskId: input.taskId,
-      kind: input.kind,
-      title: input.title,
-      ref: input.ref,
-      createdByWakeId: input.createdByWakeId,
-      createdAt: Date.now(),
-      checksum: input.checksum,
-      version: input.version,
-    };
-    this.artifacts.set(artifact.id, artifact);
-
-    // Mirror the artifact id into the task's artifactRefs for quick lookup.
-    task.artifactRefs = [...task.artifactRefs, artifact.id];
-    task.updatedAt = artifact.createdAt;
-    this.tasks.set(task.id, task);
-
-    return artifact;
-  }
-
-  async getArtifact(id: string): Promise<Artifact | null> {
-    return this.artifacts.get(id) ?? null;
-  }
-
-  async listArtifacts(taskId: string): Promise<Artifact[]> {
-    return Array.from(this.artifacts.values())
-      .filter((a) => a.taskId === taskId)
       .sort((a, b) => a.createdAt - b.createdAt);
   }
 }

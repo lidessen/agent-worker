@@ -67,14 +67,6 @@ export interface HandoffDraft {
   metadata?: Record<string, unknown>;
 }
 
-export interface ArtifactCandidate {
-  kind: "file" | "commit" | "url" | "patch" | "text" | "other";
-  ref?: string;
-  content?: string;
-  checksum?: string;
-  metadata?: Record<string, unknown>;
-}
-
 export interface ExecutionResult {
   status: "completed" | "failed" | "cancelled";
   usage?: TokenUsage;
@@ -94,7 +86,6 @@ export interface AgentRuntimeRunResult {
   trace: RuntimeTrace;
   result: ExecutionResult;
   handoffDraft?: HandoffDraft;
-  artifactCandidates: ArtifactCandidate[];
 }
 
 export class AgentRuntime {
@@ -133,7 +124,6 @@ export class AgentRuntime {
           backendSessionRefs: binding.sessionRefs,
         },
         handoffDraft: text ? { summary: text } : undefined,
-        artifactCandidates: [],
       };
     } catch (error) {
       const completedAt = Date.now();
@@ -150,7 +140,6 @@ export class AgentRuntime {
           error: error instanceof Error ? error.message : String(error),
           backendSessionRefs: binding.sessionRefs,
         },
-        artifactCandidates: [],
       };
     }
   }

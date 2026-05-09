@@ -73,7 +73,6 @@ export async function task(args: string[]): Promise<void> {
           ownerLeadId?: string;
           activeWakeId?: string;
           acceptanceCriteria?: string;
-          artifactRefs: string[];
         };
         console.log(`Task ${t.id}`);
         console.log(`  title:  ${t.title}`);
@@ -92,15 +91,11 @@ export async function task(args: string[]): Promise<void> {
         if (detail.handoffs.length > 0) {
           console.log(`  handoffs (${detail.handoffs.length}):`);
           for (const raw of detail.handoffs) {
-            const h = raw as { id: string; kind: string; summary: string };
+            const h = raw as { id: string; kind: string; summary: string; resources: string[] };
             console.log(`    - ${h.id} ${h.kind}: ${h.summary}`);
-          }
-        }
-        if (detail.artifacts.length > 0) {
-          console.log(`  artifacts (${detail.artifacts.length}):`);
-          for (const raw of detail.artifacts) {
-            const x = raw as { id: string; kind: string; title: string; ref: string };
-            console.log(`    - ${x.id} ${x.kind}: ${x.title} (${x.ref})`);
+            if (h.resources && h.resources.length > 0) {
+              console.log(`      resources: ${h.resources.join(", ")}`);
+            }
           }
         }
         break;

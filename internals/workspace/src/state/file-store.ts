@@ -1,25 +1,18 @@
 // ── File-backed workspace state store ─────────────────────────────────────
 //
-// Persists Task / Wake / Handoff / Artifact snapshots as JSONL files in a
-// dedicated directory. Reads on startup replay each file with last-write-
-// wins semantics per id. Writes are append-only so a partial crash leaves
-// the store in a replayable state.
+// Persists Task, Wake, and Handoff snapshots as JSONL files in a dedicated
+// directory. Reads on startup replay each file with last-write-wins
+// semantics per id. Writes are append-only so a partial crash leaves the
+// store in a replayable state.
 //
 // Not safe for multi-process use — the in-memory cache is owned by a single
 // WorkspaceStateStore instance. Concurrent writes from the same process are
 // serialised by the synchronous appendFileSync call.
-//
-// This implementation deliberately shares the happy path with the in-memory
-// store: the mutations run against in-memory maps first (for invariants like
-// FK checks and active-Wake mirroring), then append a full snapshot to disk.
-// Reload re-executes the same mutations in order.
 
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { appendJsonl, readFrom } from "@agent-worker/shared";
 import type {
-  Artifact,
-  CreateArtifactInput,
   CreateHandoffInput,
   CreateTaskInput,
   CreateWakeInput,
@@ -41,7 +34,6 @@ import type {
 const TASK_FILE = "tasks.jsonl";
 const WAKE_FILE = "wakes.jsonl";
 const HANDOFF_FILE = "handoffs.jsonl";
-const ARTIFACT_FILE = "artifacts.jsonl";
 
 function genId(prefix: string): string {
   const rnd = crypto.randomUUID().replace(/-/g, "").slice(0, 12);
@@ -52,7 +44,7 @@ function genId(prefix: string): string {
  * File-backed implementation of WorkspaceStateStore.
  *
  * Each mutation writes a full snapshot to the appropriate JSONL file.
- * Replay reads all four files at construction time and rebuilds the
+ * Replay reads all three files at construction time and rebuilds the
  * in-memory cache with last-write-wins semantics per id. Call
  * `await store.ready` before using the store if you care about seeing the
  * replay complete (Workspace can await this during init).
@@ -64,13 +56,11 @@ export class FileWorkspaceStateStore implements WorkspaceStateStore {
   private tasks = new Map<string, Task>();
   private wakes = new Map<string, Wake>();
   private handoffs = new Map<string, Handoff>();
-  private artifacts = new Map<string, Artifact>();
   private wakeTerminalListeners = new Set<WakeTerminalListener>();
 
   private readonly taskPath: string;
   private readonly wakePath: string;
   private readonly handoffPath: string;
-  private readonly artifactPath: string;
 
   constructor(dir: string) {
     this.dir = dir;
@@ -78,40 +68,18 @@ export class FileWorkspaceStateStore implements WorkspaceStateStore {
     this.taskPath = join(dir, TASK_FILE);
     this.wakePath = join(dir, WAKE_FILE);
     this.handoffPath = join(dir, HANDOFF_FILE);
-    this.artifactPath = join(dir, ARTIFACT_FILE);
-
-    // Replay is async but the API is sync-friendly: anyone who needs to
-    // guarantee it finished before reads can `await store.ready`.
     this.ready = this.replay();
   }
 
   private async replay(): Promise<void> {
-    const [tasks, wakes, handoffs, artifacts] = await Promise.all([
+    const [tasks, wakes, handoffs] = await Promise.all([
       this.readSnapshots<Task>(this.taskPath),
       this.readSnapshots<Wake>(this.wakePath),
       this.readSnapshots<Handoff>(this.handoffPath),
-      this.readSnapshots<Artifact>(this.artifactPath),
     ]);
     for (const t of tasks) this.tasks.set(t.id, t);
     for (const w of wakes) this.wakes.set(w.id, w);
     for (const h of handoffs) this.handoffs.set(h.id, h);
-    for (const a of artifacts) this.artifacts.set(a.id, a);
-
-    // Reconcile artifacts into their owning tasks' artifactRefs. Writing the
-    // artifact row and the task row is two separate appendFileSync calls, so
-    // a crash between them can leave artifacts.jsonl with an entry that
-    // tasks.jsonl doesn't yet mirror. Patch the in-memory task so callers
-    // see a consistent view; the artifact rows are authoritative.
-    for (const artifact of this.artifacts.values()) {
-      const task = this.tasks.get(artifact.taskId);
-      if (!task) continue;
-      if (!task.artifactRefs.includes(artifact.id)) {
-        this.tasks.set(task.id, {
-          ...task,
-          artifactRefs: [...task.artifactRefs, artifact.id],
-        });
-      }
-    }
   }
 
   private async readSnapshots<T extends { id: string }>(path: string): Promise<T[]> {
@@ -127,11 +95,8 @@ export class FileWorkspaceStateStore implements WorkspaceStateStore {
       try {
         entry = JSON.parse(line) as { ts?: number } & T;
       } catch {
-        // Swallow malformed lines. If this is the last line in the file, the
-        // next successful append will extend past it with a clean newline.
         continue;
       }
-      // Skip rows that don't look like snapshots (no id).
       if (!entry || typeof entry !== "object" || !("id" in entry) || typeof entry.id !== "string") {
         continue;
       }
@@ -151,9 +116,6 @@ export class FileWorkspaceStateStore implements WorkspaceStateStore {
   private writeHandoff(handoff: Handoff): void {
     appendJsonl(this.handoffPath, handoff as unknown as Record<string, unknown>);
   }
-  private writeArtifact(artifact: Artifact): void {
-    appendJsonl(this.artifactPath, artifact as unknown as Record<string, unknown>);
-  }
 
   // ── Task ────────────────────────────────────────────────────────────
 
@@ -170,7 +132,6 @@ export class FileWorkspaceStateStore implements WorkspaceStateStore {
       ownerLeadId: input.ownerLeadId,
       sourceRefs: input.sourceRefs ?? [],
       acceptanceCriteria: input.acceptanceCriteria,
-      artifactRefs: [],
       createdAt: now,
       updatedAt: now,
     };
@@ -259,9 +220,6 @@ export class FileWorkspaceStateStore implements WorkspaceStateStore {
     this.wakes.set(id, updated);
     this.writeWake(updated);
 
-    // Fire wake.terminal on running → terminal status transition so cleanup
-    // hooks (worktree teardown, chronicle entry, etc.) can react without
-    // polling.
     if (
       patch.status !== undefined &&
       this.isTerminalTransition(current.status, updated.status)
@@ -350,9 +308,6 @@ export class FileWorkspaceStateStore implements WorkspaceStateStore {
       resources: input.resources ?? [],
       workLogPointer: input.workLogPointer,
       extensions: input.extensions ?? {},
-      artifactRefs: input.artifactRefs ?? [],
-      touchedPaths: input.touchedPaths,
-      runtimeRefs: input.runtimeRefs,
     };
     this.handoffs.set(handoff.id, handoff);
     this.writeHandoff(handoff);
@@ -368,52 +323,6 @@ export class FileWorkspaceStateStore implements WorkspaceStateStore {
     await this.ready;
     return Array.from(this.handoffs.values())
       .filter((h) => h.taskId === taskId)
-      .sort((a, b) => a.createdAt - b.createdAt);
-  }
-
-  // ── Artifact ────────────────────────────────────────────────────────
-
-  async createArtifact(input: CreateArtifactInput): Promise<Artifact> {
-    await this.ready;
-    const task = this.tasks.get(input.taskId);
-    if (!task) throw new Error(`createArtifact: task not found: ${input.taskId}`);
-
-    const artifact: Artifact = {
-      id: genId("art"),
-      taskId: input.taskId,
-      kind: input.kind,
-      title: input.title,
-      ref: input.ref,
-      createdByWakeId: input.createdByWakeId,
-      createdAt: Date.now(),
-      checksum: input.checksum,
-      version: input.version,
-    };
-    this.artifacts.set(artifact.id, artifact);
-    this.writeArtifact(artifact);
-
-    // Mirror the artifact id into the task's artifactRefs + persist the
-    // updated task snapshot so a replay sees the same cross-reference.
-    const updatedTask: Task = {
-      ...task,
-      artifactRefs: [...task.artifactRefs, artifact.id],
-      updatedAt: artifact.createdAt,
-    };
-    this.tasks.set(task.id, updatedTask);
-    this.writeTask(updatedTask);
-
-    return artifact;
-  }
-
-  async getArtifact(id: string): Promise<Artifact | null> {
-    await this.ready;
-    return this.artifacts.get(id) ?? null;
-  }
-
-  async listArtifacts(taskId: string): Promise<Artifact[]> {
-    await this.ready;
-    return Array.from(this.artifacts.values())
-      .filter((a) => a.taskId === taskId)
       .sort((a, b) => a.createdAt - b.createdAt);
   }
 }

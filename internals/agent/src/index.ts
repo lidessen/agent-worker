@@ -16,7 +16,6 @@ export { AgentRuntime, renderPacket } from "./runtime.ts";
 export type {
   AgentRuntimeRunInput,
   AgentRuntimeRunResult,
-  ArtifactCandidate,
   ContextPacket,
   ExecutionResult,
   HandoffDraft,

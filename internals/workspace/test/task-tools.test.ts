@@ -219,31 +219,6 @@ describe("handoff_create + handoff_list", () => {
   });
 });
 
-describe("artifact_create + artifact_list", () => {
-  test("registers an artifact and mirrors it into the task's artifactRefs", async () => {
-    const { store, tools } = setup("worker-a");
-    const task = await store.createTask({ workspaceId: "test-ws", title: "t", goal: "g" });
-    await tools.wake_create({ taskId: task.id });
-    const t = await store.getTask(task.id);
-    const attemptId = t!.activeWakeId!;
-
-    const result = await tools.artifact_create({
-      taskId: task.id,
-      createdByWakeId: attemptId,
-      kind: "file",
-      title: "diff.patch",
-      ref: "file:/tmp/diff.patch",
-    });
-    expect(result).toContain("registered");
-
-    const refreshed = await store.getTask(task.id);
-    expect(refreshed?.artifactRefs).toHaveLength(1);
-
-    const list = await tools.artifact_list({ taskId: task.id });
-    expect(list).toContain("diff.patch");
-  });
-});
-
 describe("task_update", () => {
   test("updates status and returns the new state", async () => {
     const { store, tools } = setup();
@@ -424,24 +399,16 @@ describe("task_dispatch", () => {
     expect(attemptIdMatch).not.toBeNull();
     const attemptId = attemptIdMatch![1]!;
 
-    // 4. Worker registers an artifact and records a progress handoff.
-    const artifact = await workerTools.artifact_create({
-      taskId: task.id,
-      createdByWakeId: attemptId,
-      kind: "file",
-      title: "auth.ts",
-      ref: "file:/repo/src/auth.ts",
-    });
-    expect(artifact).toContain("registered");
-
+    // 4. Worker records a completed handoff (concrete outputs would be
+    // registered via resource_create then referenced in handoff.resources;
+    // for this minimal test we assert just the handoff itself).
     const handoff = await workerTools.handoff_create({
       taskId: task.id,
       closingWakeId: attemptId,
       kind: "completed",
       summary: "Implemented middleware with unit tests",
       completed: ["JWT verification", "401 on missing token", "integration test"],
-      artifactRefs: [artifact.match(/art_[a-f0-9]+/)![0]],
-      touchedPaths: ["src/auth.ts", "test/auth.test.ts"],
+      resources: ["res_auth_file", "res_auth_test"],
     });
     expect(handoff).toContain("recorded");
 
@@ -462,18 +429,18 @@ describe("task_dispatch", () => {
 
     const final = await store.getTask(task.id);
     expect(final?.status).toBe("completed");
-    expect(final?.artifactRefs).toHaveLength(1);
 
-    // Handoff + attempt + artifact should all be discoverable from the task.
+    // Handoff + Wake should be discoverable from the task.
     const handoffs = await store.listHandoffs(task.id);
     expect(handoffs).toHaveLength(1);
     expect(handoffs[0]!.kind).toBe("completed");
     expect(handoffs[0]!.summary).toContain("middleware");
+    expect(handoffs[0]!.resources).toEqual(["res_auth_file", "res_auth_test"]);
 
-    const attempts = await store.listWakes(task.id);
-    expect(attempts).toHaveLength(1);
-    expect(attempts[0]!.status).toBe("completed");
-    expect(attempts[0]!.endedAt).toBeGreaterThan(0);
+    const wakes = await store.listWakes(task.id);
+    expect(wakes).toHaveLength(1);
+    expect(wakes[0]!.status).toBe("completed");
+    expect(wakes[0]!.endedAt).toBeGreaterThan(0);
   });
 
   test("handed_off status clears activeWakeId and unblocks re-dispatch", async () => {

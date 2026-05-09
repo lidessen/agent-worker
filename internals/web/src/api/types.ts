@@ -123,7 +123,6 @@ export interface TaskSummary {
   ownerLeadId?: string;
   activeWakeId?: string;
   acceptanceCriteria?: string;
-  artifactRefs: string[];
   sourceRefs: Array<{ kind: string; ref?: string; excerpt?: string; ts: number }>;
   createdAt: number;
   updatedAt: number;
@@ -153,26 +152,16 @@ export interface HandoffSummary {
   completed: string[];
   pending: string[];
   blockers: string[];
+  decisions: string[];
   resources: string[];
-  artifactRefs: string[];
-  extensions?: Record<string, unknown>;
-}
-
-export interface ArtifactSummary {
-  id: string;
-  taskId: string;
-  kind: string;
-  title: string;
-  ref: string;
-  createdByWakeId: string;
-  createdAt: number;
+  workLogPointer?: string;
+  extensions: Record<string, unknown>;
 }
 
 export interface TaskDetail {
   task: TaskSummary;
   wakes: WakeSummary[];
   handoffs: HandoffSummary[];
-  artifacts: ArtifactSummary[];
 }
 
 // ── Runtime configuration (for HTTP-created agents) ──────────────────────

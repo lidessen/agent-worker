@@ -111,8 +111,9 @@ export const workspacePromptSection: PromptSection = async (ctx) => {
             `kind=blocked` when stuck, and `kind=completed` at the end.
           </item>
           <item>
-            Register concrete outputs (files, commits, URLs) with `artifact_create` so the lead can
-            review and mark the task complete.
+            Register concrete outputs (files, commits, URLs, large blobs) with `resource_create`,
+            then list those Resource ids in `handoff_create`'s `resources` field so the lead can
+            review them and mark the task complete.
           </item>
           <item>
             **After the terminal `wake_update` call, send ONE short `channel_send` to the default
@@ -125,11 +126,6 @@ export const workspacePromptSection: PromptSection = async (ctx) => {
             实现"). Those wake the lead mid-work for no reason — the lead starts verifying against
             files that don&apos;t exist yet and wastes a run. Keep all your thinking in plain text
             and only call `channel_send` once, after the terminal `wake_update`.
-          </item>
-          <item>
-            Before calling `artifact_create`, call `artifact_list` first to avoid registering a
-            duplicate for a ref you already wrote in a prior run (recovery loops can re-enter the
-            same work).
           </item>
           <br />
         </>

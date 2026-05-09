@@ -1,19 +1,20 @@
 // ── Workspace kernel state objects ─────────────────────────────────────────
 //
-// First-class state objects produced by the workspace harness. `Wake` is a
-// single short-lived agent instance bound to a (task, agent) pair (renamed
-// from `Attempt` per design/decisions/005). `Handoff` is the structured
-// transfer between consecutive Wakes — a fixed generic core plus a typed
-// `extensions` map populated by per-harness produceExtension /
-// consumeExtension hooks (hooks themselves are not implemented in this
-// slice).
+// `Wake` is one short-lived agent instance bound to a (task, agent) pair.
+// `Handoff` is the structured cross-Wake transfer carrying a generic core
+// plus a typed `extensions` map keyed by harness type id (per
+// design/decisions/005-session-orchestration-model.md). The hooks that
+// populate the extension are not implemented in this slice — the field is
+// reserved as opaque storage so harness-specific schemas can land later
+// without further migration.
 //
-// `Task` and `Artifact` remain in the kernel for now as migration source —
-// per decision 005, `Task` will move to a harness-layer projection and
-// `Artifact` will be merged into `Resource` in follow-on blueprints.
+// `Task` remains in the kernel for now. Decision 005 moves it into a
+// harness-layer projection over the WorkspaceEvent stream; that move is a
+// separate blueprint. `Artifact` has been dropped — concrete outputs are
+// referenced as `Resource` ids in the Handoff core.
 //
-// This module is pure data — the store lives in ./store.ts and ./stores/.
-// No orchestration wiring lives here.
+// This module is pure data. The store interface is in ./store.ts and
+// implementations under ./file-store.ts.
 
 import type { AgentRole } from "../config/types.ts";
 
@@ -35,8 +36,7 @@ export interface SourceRef {
 
 /**
  * Task lifecycle state. `draft` captures the pre-confirmation stage — no
- * separate TaskDraft object is used. See the design doc's "TaskDraft 不作为
- * 独立对象" section for the rationale.
+ * separate TaskDraft object is used.
  */
 export type TaskStatus =
   | "draft"
@@ -62,8 +62,6 @@ export interface Task {
   sourceRefs: SourceRef[];
   /** Optional acceptance-criteria text (plain-text checklist or narrative). */
   acceptanceCriteria?: string;
-  /** Ids of artifacts associated with this task. */
-  artifactRefs: string[];
   createdAt: number;
   updatedAt: number;
 }
@@ -90,12 +88,6 @@ export type TaskPatch = Partial<Omit<Task, "id" | "createdAt" | "workspaceId">>;
  * A Wake's life is bounded by task completion, context-window exhaustion,
  * or harness decision. Cross-Wake state lives in the harness's task
  * projection plus the Handoff chain; no Wake holds state for a future Wake.
- *
- * Renamed from `Attempt` per design/decisions/005-session-orchestration-model.md.
- *
- * Multiple concurrent Wakes may exist for one AgentSpec. Lead is an
- * exception — lead is workspace-scoped, not task-scoped, and therefore
- * typically does not have Wakes of its own.
  */
 export type WakeStatus = "running" | "completed" | "failed" | "cancelled" | "handed_off";
 
@@ -170,7 +162,7 @@ export type WakePatch = Partial<Omit<Wake, "id" | "taskId" | "startedAt">>;
 
 // ── Handoff ────────────────────────────────────────────────────────────────
 
-/** Structured shift record between Wakes (or between lead and worker). */
+/** Structured shift record between Wakes. */
 export type HandoffKind = "progress" | "blocked" | "completed" | "aborted";
 
 /**
@@ -182,29 +174,13 @@ export type HandoffKind = "progress" | "blocked" | "completed" | "aborted";
 export type HandoffExtensionPayload = unknown;
 
 /**
- * Cross-Wake transfer with a fixed generic core every Handoff carries plus
- * an optional per-harness extension map keyed by `harnessTypeId`.
- *
- * Generic core (per design/decisions/005):
- * - closingWakeId, taskId, kind, summary, pending, decisions, blockers
- * - resources: refs to durable outputs (Resource ids)
- * - workLogPointer?: anchor into the work log (populated when the work-log
- *   aggregator lands; kept as an optional placeholder for now)
- *
- * Per-harness extension:
- * - extensions: keyed by harnessTypeId, opaque payload populated by the
- *   harness's produceExtension hook.
- *
- * Migration / transitional fields kept this slice (will be cleaned up as
- * follow-on blueprints land):
- * - artifactRefs: deprecated; will be removed when Artifact merges into Resource
- * - touchedPaths, runtimeRefs: free-form runtime breadcrumbs; may move into
- *   a per-runtime extension later
+ * Cross-Wake transfer: a fixed generic core every Handoff carries, plus an
+ * optional per-harness extension map keyed by `harnessTypeId`.
  */
 export interface Handoff {
   id: string;
   taskId: string;
-  /** Wake that produced this Handoff (renamed from fromAttemptId). */
+  /** Wake that produced this Handoff. */
   closingWakeId: string;
   createdAt: number;
   /** Agent name or system identifier that authored the handoff. */
@@ -215,25 +191,16 @@ export interface Handoff {
   pending: string[];
   blockers: string[];
   decisions: string[];
-  /** Refs to durable outputs (Resource ids). Replaces the implicit artifact links. */
+  /** Refs to durable outputs (Resource ids). */
   resources: string[];
-  /** Anchor into the work log. Placeholder — populated when the work-log aggregator lands. */
+  /** Anchor into the work log. Populated when the work-log aggregator lands. */
   workLogPointer?: string;
   /** Opaque per-harness extension payloads keyed by harnessTypeId. */
   extensions: Record<string, HandoffExtensionPayload>;
-
-  // --- Transitional fields (will be cleaned up by follow-on blueprints) ---
-  /** Deprecated — will be removed when Artifact merges into Resource. */
-  artifactRefs: string[];
-  /** Files / paths touched during the Wake, for quick orientation. */
-  touchedPaths?: string[];
-  /** Free-form runtime breadcrumbs (session ids, branch names, etc.). */
-  runtimeRefs?: Record<string, unknown>;
 }
 
 export interface CreateHandoffInput {
   taskId: string;
-  /** Wake that produced this Handoff (renamed from fromAttemptId). */
   closingWakeId: string;
   createdBy: string;
   kind: HandoffKind;
@@ -245,40 +212,4 @@ export interface CreateHandoffInput {
   resources?: string[];
   workLogPointer?: string;
   extensions?: Record<string, HandoffExtensionPayload>;
-  artifactRefs?: string[];
-  touchedPaths?: string[];
-  runtimeRefs?: Record<string, unknown>;
-}
-
-// ── Artifact ───────────────────────────────────────────────────────────────
-
-/**
- * A reference to a concrete output produced during a Wake. The store holds
- * the reference, not the content. The `ref` field is a free-form URL or
- * scheme-prefixed identifier (e.g. "file:/path", "git:sha", "url:...").
- *
- * Per decision 005 this type is being merged into `Resource`. Kept here as
- * migration source until the merge blueprint lands.
- */
-export interface Artifact {
-  id: string;
-  taskId: string;
-  kind: string;
-  title: string;
-  ref: string;
-  /** Wake that produced this artifact (renamed from createdByAttemptId). */
-  createdByWakeId: string;
-  createdAt: number;
-  checksum?: string;
-  version?: number;
-}
-
-export interface CreateArtifactInput {
-  taskId: string;
-  kind: string;
-  title: string;
-  ref: string;
-  createdByWakeId: string;
-  checksum?: string;
-  version?: number;
 }
