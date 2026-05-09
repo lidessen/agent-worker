@@ -1,7 +1,7 @@
 # Session Orchestration Model
 
-**Status:** proposed
-**Date:** 2026-05-09
+**Status:** adopted
+**Date:** 2026-05-09 (proposed) — 2026-05-09 (adopted)
 
 ## Context
 

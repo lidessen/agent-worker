@@ -2,7 +2,7 @@
 
 > `AgentRuntime` execution boundary plus migration source for the historical standalone agent implementation. A runtime executes a bounded run supplied by a harness; it does not own long-term context, tools, memory, task state, recovery, or authority.
 
-See [../DESIGN.md](../DESIGN.md) and [../decisions/003-agent-runtime-harness-boundary.md](../decisions/003-agent-runtime-harness-boundary.md) for the runtime/harness split.
+See [../DESIGN.md](../DESIGN.md), [../decisions/003-agent-runtime-harness-boundary.md](../decisions/003-agent-runtime-harness-boundary.md) for the runtime/harness split, and [../decisions/005-session-orchestration-model.md](../decisions/005-session-orchestration-model.md) for the Wake / Handoff (core + per-harness extension) model and the runtime's context-budget signaling responsibility.
 
 ## Target shape
 
@@ -19,7 +19,8 @@ AgentRuntime.run(binding, packet, capabilities, policy)
   ├─ wire run-scoped tools / MCP servers
   ├─ call AgentLoop.run(...)
   ├─ stream RuntimeTrace / LoopEvent telemetry
-  └─ return ExecutionResult + HandoffDraft + ArtifactCandidate refs
+  │     (incl. context-budget signal as utilization climbs)
+  └─ return ExecutionResult + HandoffDraft + Resource refs
         │
         ▼
 HarnessEnvironment commits records and extracts durable facts
@@ -47,23 +48,46 @@ Outputs:
 
 - `RuntimeTrace` — runtime-local event stream and audit refs.
 - `ExecutionResult` — terminal status, usage, errors, and backend session refs.
-- `HandoffDraft` — structured execution report payload when the run is
-  task-shaped. It is not a committed workspace `Handoff` record.
-- `ArtifactCandidate` refs — observed outputs or evidence refs produced by the
-  run. They are not committed workspace `Artifact` records.
+- `HandoffDraft` — runtime-emitted draft of the Handoff generic core
+  (summary, pending, decisions, blockers, work-log pointers); the harness
+  adopts it, then runs `produceExtension(wake, events, workLog)` to
+  attach a per-harness extension before committing the workspace
+  `Handoff` record (decision 005).
+- `Resource` refs — observed outputs or evidence refs produced by the
+  run, written via the workspace resource surface; the runtime does not
+  commit them as workspace records itself.
 
 Non-outputs:
 
 - no direct workspace state mutation;
 - no durable semantic memory writes;
-- no committed `Handoff` / `Artifact` record creation;
-- no task/attempt dispatch decisions;
+- no committed `Handoff` (or its harness extension) record creation;
+- no Wake dispatch decisions;
 - no retry/recovery ownership;
 - no authority decisions for protected effects.
 
 Those belong to the harness that invoked the runtime. The harness validates and
-commits Handoff/Artifact records, assigns record ids, and decides which outputs
-become durable semantic facts.
+commits the `Handoff` record (core + per-harness extension), assigns record ids,
+and decides which outputs become durable semantic facts.
+
+### Context-budget signaling
+
+A Wake's life is bounded by either task completion, harness decision,
+or context-window exhaustion (decision 005). For the third case, the
+runtime is responsible for telling the harness when the underlying
+backend is approaching its context limit, with enough lead time for
+the harness to checkpoint cleanly via `produceExtension` before
+hard-stopping. Signaling shape (extending `LoopEvent.usage` vs. a
+dedicated `LoopEvent` variant) and the threshold policy (fixed
+percentages, natural breakpoints, etc.) are deferred to a downstream
+blueprint; the responsibility lives here.
+
+Every backend reports usage differently — token counts, cached vs.
+fresh tokens, provider-specific rate signals. The runtime adapter
+normalizes these into a harness-readable signal. Native session
+continuity files (e.g., Codex `threadIdFile`) are a same-runtime
+fast path and do not substitute for this signal — cross-runtime
+resume goes through the harness's work log, not native sessions.
 
 ## Migration source: historical standalone Agent
 
@@ -112,7 +136,7 @@ grant for one run. It does not decide which long-term facts matter and does not
 maintain a hidden memory model.
 
 **Tools are granted per run.** Tool capability is fixed before invocation and
-bound to the run/attempt identity supplied by the harness. Any protected effect
+bound to the Wake identity supplied by the harness. Any protected effect
 still goes through the harness capability boundary.
 
 **Runtime session continuity stays runtime-local.** Provider-specific resume
@@ -130,5 +154,5 @@ input, and result extraction updates personal harness state.
 - Owning workspace context or workspace tools directly.
 - Keeping a second long-term semantic memory model inside `AgentRuntime`.
 - Making `RunCoordinator` / `ContextEngine` the default path for workspace
-  attempts.
+  Wakes.
 - Preserving historical standalone behavior through compatibility shims.
