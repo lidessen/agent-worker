@@ -89,23 +89,75 @@ This is the operational meaning of GOAL invariant Inv-1 ("no agent
 instance holds cross-requirement state"). A "requirement" spans Wakes;
 a Wake does not span requirements.
 
-### 3. Handoff is the protocol between Wakes
+### 3. Handoff is the protocol between Wakes — generic core plus per-harness extension
 
 A **Handoff** is the structured knowledge transfer between consecutive
-Wakes on the same task. It carries:
+Wakes on the same task. Different harnesses are different work
+environments — a coding harness's handoff carries fundamentally
+different structural content from a writing harness's or a
+manager-style delegation harness's. The Handoff schema is therefore
+split into a **fixed generic core** every Handoff carries plus a
+**per-harness extension** populated by hooks.
 
-- What was done in the closing Wake
-- What's pending
-- Decisions made
-- Blockers
-- References to resources produced
-- A pointer (or inline excerpt) of the work log up to this point
+**Generic core** (universal, present in every Handoff):
 
-Handoff is runtime-agnostic. The next Wake may use a different
-`RuntimeBinding` (different runtime, different model), so Handoff
-content must be expressible in any runtime's native context format
-during packet construction — never serialized as a runtime-native
-transcript.
+- `closingWakeId` — the Wake ending here
+- `taskRef` — the task projection this Wake contributed to
+- `summary` — what was done in the closing Wake
+- `pending` — work items still open
+- `decisions` — decisions made during the Wake
+- `blockers` — what's stuck
+- `resources` — pointers to concrete outputs (`Resource` references)
+- `workLogPointer` — anchor into the work log for the next Wake to
+  rebuild context from
+
+The core is universal: any task across any harness can express
+progress / pending / decisions / blockers / resources without
+per-domain extension.
+
+**Per-harness extension** (optional, harness-typed):
+
+Each harness type defines (a) an optional `HandoffExtension` schema
+and (b) two hooks executed at the Handoff boundary:
+
+- `produceExtension(wake, events, workLog) → extension` — invoked when
+  a Wake closes; extracts harness-specific state from the Wake's emitted
+  events and the work log into the extension shape.
+- `consumeExtension(extension, packet) → packet'` — invoked when the
+  next Wake starts; contributes extension content into the new Wake's
+  `ContextPacket`.
+
+Concrete examples of what each harness might put in its extension:
+
+| Harness type | Extension content (illustrative) |
+|---|---|
+| Coding harness | branch state, modified files, test/build status, CI artifacts, error contexts |
+| Writing harness | chapter/section arc, character notes, tone samples, citations gathered |
+| Manager-style delegation harness | subordinate assignments, escalations, awaiting-approval list |
+| Trading / decision harness | hypotheses tested, data sources consulted, confidence levels, position state |
+
+Storage: extensions live in a `harnessTypeId`-keyed map alongside the
+core. A handoff with no extension (rare but possible — e.g., a
+generic-task harness) just has an empty map.
+
+Cross-harness-type handoff: when a task moves from one harness type to
+another (uncommon; typically only when an explicit "manager → developer"
+delegation pattern is in play), only the generic core transfers
+verbatim. Extensions from the closing harness are dropped at the
+boundary unless an explicit translation hook is registered. The
+receiving harness sees `extension = undefined` and falls back to
+core-only context construction.
+
+Schema evolution: each extension carries an optional `schemaVersion`;
+`consumeExtension` hooks must handle `undefined` and earlier versions
+gracefully or reject explicitly. A failed extension consume must not
+silently drop content — it surfaces as a Wake-startup blocker.
+
+Runtime-agnostic at every layer: neither core nor any extension may
+serialize runtime-native transcripts (no Claude `message[]`, no Codex
+thread). Native session continuity (e.g., Codex `threadIdFile`) is a
+same-runtime fast path coexisting with — not replacing — the Handoff +
+work log surface.
 
 A Handoff is necessary for any Wake that does NOT terminally complete
 the task. Voluntary terminal-success Wakes produce a final result +
@@ -202,6 +254,15 @@ criteria stay `unclear`. Both are early, but the dependency runs 005 → 004.
    gets observable when.
 7. **`Artifact` → `Resource` merge** — flagged for cleanup; does it
    happen as part of 005 or as a follow-on?
+8. **First Handoff extensions to ship** — which harness types get
+   typed `HandoffExtension` schemas in the first iteration? Coding is
+   obvious (this monorepo's first dogfood). Beyond that: writing,
+   trading, manager-delegation? Schema design for each is its own
+   blueprint.
+9. **Extension translation hooks across harness types** — when does
+   "manager → developer" cross-harness handoff become real enough to
+   need translation hooks, vs. just dropping extensions at the
+   boundary? Defer until a concrete cross-harness flow appears.
 
 ## Consequences
 
@@ -223,6 +284,12 @@ criteria stay `unclear`. Both are early, but the dependency runs 005 → 004.
   call site building Task records directly.
 - **New harness scaffold** — task-tracking harness as a worked example
   (concrete shape in blueprint).
+- **Harness type definition gains hook signatures** — every harness
+  type now declares: optional `HandoffExtension` schema,
+  `produceExtension` hook, and `consumeExtension` hook. The harness
+  registry / type system carries these alongside the existing
+  `RuntimeBinding` / `ContextPacketBuilder` / `CapabilityBoundary`
+  surfaces.
 - **Inv-2 enforcement** — binding configuration must include OSS
   fallback as a structural requirement, not a recommendation. Affects
   `RuntimeBinding` schema and binding registry.
