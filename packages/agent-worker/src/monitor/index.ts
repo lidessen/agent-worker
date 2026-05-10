@@ -7,17 +7,23 @@ export type { AggBucket } from "./samples.ts";
 export { InterventionLog } from "./interventions.ts";
 export {
   computeC1,
+  computeC2,
   computeC3,
   computeC4,
   C1_THRESHOLDS,
+  C2_THRESHOLDS,
   C3_THRESHOLDS,
   C4_THRESHOLDS,
 } from "./metrics.ts";
+export { buildInventory, classifyRuntime } from "./bindings.ts";
 export type {
   ConcurrencySample,
   C1Metrics,
+  C2Metrics,
   C3Metrics,
   C4Metrics,
+  BindingEntry,
+  BindingSource,
   Intervention,
   InterventionType,
   MonitorSnapshot,

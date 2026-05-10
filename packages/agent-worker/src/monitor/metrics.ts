@@ -1,7 +1,14 @@
 // Pure metric computation from the rolling sample store.
 // Slice 1 covers C1; slice 2 adds C3; slice 3 adds C4; slice 4 adds C2.
 
-import type { C1Metrics, C3Metrics, C4Metrics, ConcurrencySample } from "./types.ts";
+import type {
+  C1Metrics,
+  C2Metrics,
+  C3Metrics,
+  C4Metrics,
+  ConcurrencySample,
+  BindingEntry,
+} from "./types.ts";
 import type { RollingSampleStore } from "./samples.ts";
 import type { InterventionLog } from "./interventions.ts";
 
@@ -32,6 +39,34 @@ export const C3_THRESHOLDS: C3Metrics["thresholds"] = {
   rescueRatioMax: 0.05,
   perRequirementAuthAcceptanceMax: 3,
 };
+
+/** GOAL.md C2 thresholds. */
+export const C2_THRESHOLDS: C2Metrics["thresholds"] = {
+  uncoveredCountMax: 0,
+  failedCountMax: 0,
+  reachabilityMin: 0.7,
+};
+
+export function computeC2(bindings: BindingEntry[]): C2Metrics {
+  const bySource = { closed: 0, open: 0, unknown: 0 };
+  let uncoveredCount = 0;
+  for (const b of bindings) {
+    bySource[b.source]++;
+    if (!b.ossFallbackConfigured) uncoveredCount++;
+  }
+  const total = bindings.length;
+  const reachableCount = bindings.filter((b) => b.ossFallbackConfigured).length;
+  const reachability = total === 0 ? 0 : reachableCount / total;
+  return {
+    uncoveredCount,
+    failedCount: 0, // observed-success telemetry not collected yet
+    reachability,
+    totalBindings: total,
+    bySource,
+    bindings,
+    thresholds: C2_THRESHOLDS,
+  };
+}
 
 /** GOAL.md C4 thresholds, surfaced verbatim. */
 export const C4_THRESHOLDS: C4Metrics["thresholds"] = {

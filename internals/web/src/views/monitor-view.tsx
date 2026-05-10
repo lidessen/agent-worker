@@ -164,6 +164,46 @@ export function MonitorView() {
     );
   });
 
+  const c2Section = computed(monitorSnapshot, (snap) => {
+    const c2 = snap?.c2;
+    if (!c2) {
+      return (
+        <div class={s.cardBody}>
+          <div class={s.metricRow}>
+            <span class={s.metricLabel}>Loading…</span>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div class={s.cardBody}>
+        <div class={s.metricRow}>
+          <span class={s.metricLabel}>Total bindings</span>
+          <span class={s.metricValue}>{c2.totalBindings}</span>
+        </div>
+        <div class={s.metricMeta}>
+          closed {c2.bySource.closed} · open {c2.bySource.open} · unknown{" "}
+          {c2.bySource.unknown}
+        </div>
+        <div class={s.metricRow}>
+          <span class={s.metricLabel}>Uncovered (no OSS fallback)</span>
+          <span class={s.metricValue}>{c2.uncoveredCount}</span>
+        </div>
+        <div class={thresholdMaxClass(c2.uncoveredCount, c2.thresholds.uncoveredCountMax)}>
+          GOAL.md threshold: ≤ {c2.thresholds.uncoveredCountMax} (hard)
+        </div>
+        <div class={s.metricRow}>
+          <span class={s.metricLabel}>Reachability (cutoff drill)</span>
+          <span class={s.metricValue}>{pct(c2.reachability)}</span>
+        </div>
+        <div class={thresholdClass(c2.reachability, c2.thresholds.reachabilityMin)}>
+          GOAL.md threshold from month 4: ≥ {pct(c2.thresholds.reachabilityMin)}
+        </div>
+        <BindingTable bindings={c2.bindings} />
+      </div>
+    );
+  });
+
   const c4Section = computed(monitorSnapshot, (snap) => {
     const c4 = snap?.c4;
     if (!c4) {
@@ -252,8 +292,12 @@ export function MonitorView() {
         </div>
         <div class={s.summaryItem}>
           <span class={s.summaryLabel}>C2 OSS fallback</span>
-          <span class={s.summaryValue}>—</span>
-          <span class={s.summaryStatus}>slice 4 will fill</span>
+          <span class={s.summaryValue}>
+            {snap.c2 ? `reach ${pct(snap.c2.reachability)} · ${snap.c2.uncoveredCount} uncov` : "—"}
+          </span>
+          <span class={s.summaryStatus}>
+            {snap.c2 ? `${snap.c2.totalBindings} bindings` : "not measured"}
+          </span>
         </div>
         <div class={s.summaryItem}>
           <span class={s.summaryLabel}>C3 intervention</span>
@@ -307,12 +351,7 @@ export function MonitorView() {
             <div class={s.cardTitle}>C2 — OSS fallback</div>
             <div class={s.cardSubtitle}>No irreplaceable closed-source dependence</div>
           </div>
-          <div class={s.placeholder}>
-            <div class={s.placeholderTitle}>Slice 4</div>
-            <div class={s.placeholderBody}>
-              Binding inventory + reachability metric land here.
-            </div>
-          </div>
+          {c2Section}
         </div>
 
         <div class={s.card}>
@@ -333,6 +372,43 @@ export function MonitorView() {
       </div>
     </div>
   );
+}
+
+function BindingTable(props: { bindings: import("../api/types.ts").BindingEntry[] }) {
+  if (props.bindings.length === 0) {
+    return <div class={s.metricMeta}>No bindings registered.</div>;
+  }
+  return (
+    <div class={s.bindingTable}>
+      <div class={[s.bindingRow, s.bindingHead]}>
+        <span class={s.bindingCell}>harness · agent</span>
+        <span class={s.bindingCell}>runtime / model</span>
+        <span class={s.bindingCell}>source</span>
+        <span class={s.bindingCell}>fallback</span>
+      </div>
+      {props.bindings.map((b) => (
+        <div class={s.bindingRow}>
+          <span class={s.bindingCell}>
+            {b.harness} · @{b.agent}
+          </span>
+          <span class={s.bindingCell}>
+            {b.runtime}
+            {b.model && b.model !== "?" ? ` · ${b.model}` : ""}
+          </span>
+          <span class={[s.bindingCell, sourceBadgeClass(b.source)]}>{b.source}</span>
+          <span class={[s.bindingCell, b.ossFallbackConfigured ? s.bindingOk : s.bindingMiss]}>
+            {b.ossFallbackConfigured ? "yes" : "missing"}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function sourceBadgeClass(source: string) {
+  if (source === "closed") return s.bindingMiss;
+  if (source === "open") return s.bindingOk;
+  return s.bindingUnknown;
 }
 
 function RecentInterventions(props: { list: import("../api/types.ts").Intervention[] }) {
