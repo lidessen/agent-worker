@@ -156,14 +156,19 @@ export class Monitor {
           const coord = coordinationRuntime(harness);
 
           // Active requirements: queued instructions + agents with
-          // pending inbox entries are both "in flight" from the user-
-          // requirement perspective. Approximation since today there
-          // is no first-class Requirement type (decision 005's Task
-          // projection lands one).
+          // *pending* inbox entries are both "in flight" from the
+          // user-requirement perspective. Inbox entries in `seen`
+          // (already processed) or `deferred` (parked) state aren't
+          // active work — counting them as such inflates concurrency
+          // and pushes C4 silent-ratio toward 100% even when the
+          // system has nothing real to do. Approximation overall
+          // since today there is no first-class Requirement type
+          // (decision 005's Task projection lands one).
           activeRequirements += coord.instructionQueue.listAll().length;
           for (const entry of statuses) {
             const inbox = await harness.contextProvider.inbox.inspect(entry.name);
-            if (inbox.length > 0) activeRequirements++;
+            const pending = inbox.some((e) => e.state === "pending");
+            if (pending) activeRequirements++;
           }
 
           // Structural cap: each registered agent runs its own
