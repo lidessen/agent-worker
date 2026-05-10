@@ -18,6 +18,17 @@ export interface PendingAssistant {
   error?: string;
 }
 
+export interface UsageTotals {
+  /** Sum of input tokens across all completed turns this session (in-memory). */
+  inputTokens: number;
+  /** Sum of output tokens across all completed turns. */
+  outputTokens: number;
+  /** Sum of total tokens. */
+  totalTokens: number;
+  /** Number of completed assistant turns observed (the `done` count). */
+  turns: number;
+}
+
 interface ChatState {
   turns: Signal<ChatTurn[]>;
   thinking: Signal<boolean>;
@@ -25,6 +36,7 @@ interface ChatState {
   error: Signal<string | null>;
   loaded: Signal<boolean>;
   info: Signal<ChatInfo | null>;
+  usage: Signal<UsageTotals>;
 }
 
 const cache = new Map<string, ChatState>();
@@ -39,6 +51,12 @@ function getOrCreate(key: string): ChatState {
       error: signal<string | null>(null),
       loaded: signal<boolean>(false),
       info: signal<ChatInfo | null>(null),
+      usage: signal<UsageTotals>({
+        inputTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+        turns: 0,
+      }),
     };
     cache.set(key, state);
   }
@@ -47,6 +65,10 @@ function getOrCreate(key: string): ChatState {
 
 export function chatInfo(key: string): Signal<ChatInfo | null> {
   return getOrCreate(key).info;
+}
+
+export function chatUsage(key: string): Signal<UsageTotals> {
+  return getOrCreate(key).usage;
 }
 
 export function chatTurns(key: string): Signal<ChatTurn[]> {
@@ -116,6 +138,16 @@ export async function sendChatTurn(key: string, content: string): Promise<void> 
         // bubble appears. The `finally` still covers the
         // exception-on-stream-end path.
         state.thinking.value = false;
+        if (event.usage) {
+          state.usage.update((prev) => ({
+            inputTokens: prev.inputTokens + event.usage!.inputTokens,
+            outputTokens: prev.outputTokens + event.usage!.outputTokens,
+            totalTokens: prev.totalTokens + event.usage!.totalTokens,
+            turns: prev.turns + 1,
+          }));
+        } else {
+          state.usage.update((prev) => ({ ...prev, turns: prev.turns + 1 }));
+        }
       } else if (event.kind === "error") {
         state.error.value = event.message;
         state.pending.value = { content: state.pending.value?.content ?? "", error: event.message };

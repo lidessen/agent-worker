@@ -8,6 +8,7 @@ import {
   chatError,
   chatLoaded,
   chatInfo,
+  chatUsage,
   loadConversation,
   sendChatTurn,
 } from "../stores/chat.ts";
@@ -26,7 +27,33 @@ export function ChatView(props: { wsKey: string }) {
   const error = chatError(wsKey);
   const loaded = chatLoaded(wsKey);
   const info = chatInfo(wsKey);
+  const usage = chatUsage(wsKey);
   const draft = signal("");
+
+  // Auto-scroll the transcript to the bottom on new content, but
+  // only when the user is already near the bottom — don't yank them
+  // away from older content they're reading. Stickiness threshold:
+  // 120px from the bottom counts as "following along".
+  function maybeScrollDown() {
+    const el = document.querySelector("." + s.transcript);
+    if (!(el instanceof HTMLElement)) return;
+    const dist = el.scrollHeight - el.clientHeight - el.scrollTop;
+    if (dist < 120) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }
+  function forceScrollDown() {
+    const el = document.querySelector("." + s.transcript);
+    if (!(el instanceof HTMLElement)) return;
+    el.scrollTop = el.scrollHeight;
+  }
+  // Force scroll on initial load (history just arrived); keep
+  // sticky behavior on subsequent updates.
+  loaded.subscribe((isLoaded) => {
+    if (isLoaded) requestAnimationFrame(forceScrollDown);
+  });
+  turns.subscribe(() => requestAnimationFrame(maybeScrollDown));
+  pending.subscribe(() => requestAnimationFrame(maybeScrollDown));
 
   const harnessInfo = computed(harnesses, (list) => list.find((h) => h.name === wsKey));
 
@@ -112,6 +139,14 @@ export function ChatView(props: { wsKey: string }) {
         </div>
         {computed(info, (i) =>
           i?.cwd ? <div class={s.subtitle}>cwd: {i.cwd}</div> : null,
+        )}
+        {computed(usage, (u) =>
+          u.turns > 0 ? (
+            <div class={s.subtitle}>
+              session: {u.turns} turn{u.turns === 1 ? "" : "s"} · {u.totalTokens.toLocaleString()}{" "}
+              tokens ({u.inputTokens.toLocaleString()} in / {u.outputTokens.toLocaleString()} out)
+            </div>
+          ) : null,
         )}
       </div>
       {transcript}
