@@ -460,6 +460,9 @@ export class Daemon {
         if (sub === "/turn" && method === "POST") {
           return await this.handleChatTurn(key, req);
         }
+        if (sub === "/turn/stream" && method === "POST") {
+          return await this.handleChatTurnStream(key, req);
+        }
         if (sub === "/conversation" && method === "GET") {
           return this.handleChatConversation(key, url);
         }
@@ -1169,6 +1172,55 @@ export class Daemon {
       const message = err instanceof Error ? err.message : String(err);
       return Response.json({ error: message }, { status: 500 });
     }
+  }
+
+  /**
+   * POST /harnesses/:key/turn/stream — chat-typed only. SSE stream
+   * of `ChatStreamEvent`s. The generator runs the same dispatch as
+   * `/turn`; the response is text/event-stream so the web UI can
+   * render partial assistant text as it arrives.
+   */
+  private async handleChatTurnStream(key: string, req: Request): Promise<Response> {
+    const resolved = this.resolveHarness(key);
+    if (resolved instanceof Response) return resolved;
+    const handle = resolved;
+    const { SINGLE_AGENT_CHAT_HARNESS_TYPE_ID } = await import("@agent-worker/harness-chat");
+    if (handle.harness.harnessTypeId !== SINGLE_AGENT_CHAT_HARNESS_TYPE_ID) {
+      return Response.json(
+        { error: "/turn/stream is only valid for single-agent-chat harnesses" },
+        { status: 405 },
+      );
+    }
+    const body = (await req.json()) as { content?: string };
+    if (!body.content) {
+      return Response.json({ error: "content is required" }, { status: 400 });
+    }
+    const { streamChatTurn } = await import("./chat-dispatcher.ts");
+    const harness = handle.harness;
+
+    return this.createSSEStream(async (push) => {
+      let aborted = false;
+      const run = async () => {
+        try {
+          for await (const event of streamChatTurn(harness, { content: body.content! })) {
+            if (aborted) return;
+            // SSE consumer sees one JSON event per `data:` frame.
+            push(event as unknown as Record<string, unknown>);
+          }
+        } catch (err) {
+          if (!aborted) {
+            push({
+              kind: "error",
+              message: err instanceof Error ? err.message : String(err),
+            } as unknown as Record<string, unknown>);
+          }
+        }
+      };
+      void run();
+      return () => {
+        aborted = true;
+      };
+    });
   }
 
   /**

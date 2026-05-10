@@ -30,76 +30,54 @@ export interface ChatTurnResult {
 }
 
 /**
+ * Stream events emitted by the streaming chat dispatcher. The
+ * lifecycle is: one `user_turn` (immediately after persisting the
+ * user message), zero-or-more `chunk` events (each carrying the
+ * incremental text the loop produced), then exactly one `done` (or
+ * `error`). After `done`/`error` the iterator completes; consumers
+ * should treat anything after as a protocol violation.
+ */
+export type ChatStreamEvent =
+  | { kind: "user_turn"; userTurn: ChatTurn }
+  | { kind: "chunk"; text: string; accumulated: string }
+  | {
+      kind: "done";
+      assistantTurn: ChatTurn;
+      durationMs: number;
+      usage?: { inputTokens: number; outputTokens: number; totalTokens: number };
+    }
+  | { kind: "error"; message: string };
+
+/**
  * Run one chat turn against a chat-typed Harness. Throws if the
  * harness isn't chat-typed (caller must have validated) or if a turn
- * is already in flight on the same harness.
+ * is already in flight on the same harness. Internally drives the
+ * streaming generator to completion so persistence + state-machine
+ * handling lives in exactly one place.
  */
 export async function runChatTurn(
   harness: Harness,
   input: ChatTurnInput,
 ): Promise<ChatTurnResult> {
-  const runtime = chatRuntime(harness);
-
-  if (runtime.state !== "idle") {
-    throw new Error(
-      `chat busy: ${harness.name} already has a turn in flight (state=${runtime.state})`,
-    );
-  }
-
-  const runId = input.runId ?? `chat-${Date.now()}-${nanoid()}`;
-  runtime.beginThinking();
   let userTurn: ChatTurn | undefined;
-  try {
-    userTurn = await runtime.appendTurn({ role: "user", content: input.content, runId });
-    const prompt = buildChatPrompt(runtime, input.content);
-    const loopConfig = buildRuntimeConfig(runtime);
-    const loop = await createLoopFromConfig(loopConfig);
-
-    let collected = "";
-    const startedAt = Date.now();
-    const run = loop.run({
-      system: runtime.instructions ?? "",
-      prompt,
-    });
-    for await (const event of run) {
-      if (event.type === "text") collected += event.text;
+  let assistantTurn: ChatTurn | undefined;
+  let durationMs = 0;
+  let usage: ChatTurnResult["usage"] | undefined;
+  for await (const event of streamChatTurn(harness, input)) {
+    if (event.kind === "user_turn") {
+      userTurn = event.userTurn;
+    } else if (event.kind === "done") {
+      assistantTurn = event.assistantTurn;
+      durationMs = event.durationMs;
+      usage = event.usage;
+    } else if (event.kind === "error") {
+      throw new Error(event.message);
     }
-    const result = await run.result;
-
-    const assistantTurn = await runtime.appendTurn({
-      role: "assistant",
-      content: collected,
-      runId,
-    });
-    return {
-      userTurn,
-      assistantTurn,
-      durationMs: result.durationMs ?? Date.now() - startedAt,
-      usage: result.usage
-        ? {
-            inputTokens: result.usage.inputTokens ?? 0,
-            outputTokens: result.usage.outputTokens ?? 0,
-            totalTokens: result.usage.totalTokens ?? 0,
-          }
-        : undefined,
-    };
-  } catch (err) {
-    // Persist the failure so the conversation transcript reflects
-    // what actually happened — silent dropping leaves the user
-    // wondering why nothing came back.
-    const message = err instanceof Error ? err.message : String(err);
-    if (userTurn) {
-      await runtime.appendTurn({
-        role: "assistant",
-        content: "",
-        runId,
-        error: message,
-      });
-    }
-    throw err;
-  } finally {
-    runtime.endThinking();
   }
+  if (!userTurn || !assistantTurn) {
+    throw new Error("chat dispatch ended without producing user + assistant turns");
+  }
+  return { userTurn, assistantTurn, durationMs, usage };
 }
 
 /**
@@ -119,6 +97,89 @@ function buildChatPrompt(runtime: ChatRuntime, latestUserText: string): string {
   lines.push(`User: ${latestUserText}`);
   lines.push("Assistant:");
   return lines.join("\n\n");
+}
+
+/**
+ * Streaming variant of `runChatTurn`. Yields events as the loop
+ * produces them — the consumer is responsible for either driving
+ * the iterator to completion or aborting (via the abort signal on
+ * the underlying request) and the dispatcher's `endThinking` /
+ * persistence still runs in the `finally` even on abort. The
+ * non-streaming path delegates to this same generator now to keep
+ * the persistence + state-machine handling in one place.
+ */
+export async function* streamChatTurn(
+  harness: Harness,
+  input: ChatTurnInput,
+): AsyncGenerator<ChatStreamEvent> {
+  const runtime = chatRuntime(harness);
+  if (runtime.state !== "idle") {
+    yield {
+      kind: "error",
+      message: `chat busy: ${harness.name} already has a turn in flight (state=${runtime.state})`,
+    };
+    return;
+  }
+
+  const runId = input.runId ?? `chat-${Date.now()}-${nanoid()}`;
+  runtime.beginThinking();
+  let userTurn: ChatTurn | undefined;
+  let collected = "";
+  try {
+    userTurn = await runtime.appendTurn({ role: "user", content: input.content, runId });
+    yield { kind: "user_turn", userTurn };
+
+    const prompt = buildChatPrompt(runtime, input.content);
+    const loopConfig = buildRuntimeConfig(runtime);
+    const loop = await createLoopFromConfig(loopConfig);
+
+    const startedAt = Date.now();
+    const run = loop.run({ system: runtime.instructions ?? "", prompt });
+    for await (const event of run) {
+      if (event.type === "text") {
+        collected += event.text;
+        yield { kind: "chunk", text: event.text, accumulated: collected };
+      }
+    }
+    const result = await run.result;
+
+    const assistantTurn = await runtime.appendTurn({
+      role: "assistant",
+      content: collected,
+      runId,
+    });
+    yield {
+      kind: "done",
+      assistantTurn,
+      durationMs: result.durationMs ?? Date.now() - startedAt,
+      usage: result.usage
+        ? {
+            inputTokens: result.usage.inputTokens ?? 0,
+            outputTokens: result.usage.outputTokens ?? 0,
+            totalTokens: result.usage.totalTokens ?? 0,
+          }
+        : undefined,
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (userTurn) {
+      // Persist failure as an assistant turn carrying the error so
+      // the transcript reflects the attempt.
+      try {
+        await runtime.appendTurn({
+          role: "assistant",
+          content: collected,
+          runId,
+          error: message,
+        });
+      } catch {
+        // Persisting the error turn shouldn't mask the original.
+      }
+    }
+    yield { kind: "error", message };
+  } finally {
+    runtime.endThinking();
+  }
 }
 
 function buildRuntimeConfig(runtime: ChatRuntime): RuntimeConfig {

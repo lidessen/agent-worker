@@ -295,3 +295,14 @@ export interface ChatTurn {
   runId?: string;
   error?: string;
 }
+
+export type ChatStreamEvent =
+  | { kind: "user_turn"; userTurn: ChatTurn }
+  | { kind: "chunk"; text: string; accumulated: string }
+  | {
+      kind: "done";
+      assistantTurn: ChatTurn;
+      durationMs: number;
+      usage?: { inputTokens: number; outputTokens: number; totalTokens: number };
+    }
+  | { kind: "error"; message: string };
