@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "display": "Test Files",
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    // Tests may need DOM APIs
+    "lib": ["ES2021", "DOM", "DOM.Iterable"],
+
+    // JSX support for tests
+    "jsx": "react-jsx",
+
+    // Test configuration
+    "composite": false,
+    "noEmit": true,
+    "rootDir": null,
+    "outDir": null,
+
+    // Allow test utilities and looser checks for tests
+    "noUnusedLocals": false,
+    "noUnusedParameters": false
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "tests/**/*.ts",
+    "tests/**/*.tsx",
+    "examples/**/*.ts",
+    "examples/**/*.tsx"
+  ],
+  "exclude": ["node_modules", "dist", "coverage"]
+}

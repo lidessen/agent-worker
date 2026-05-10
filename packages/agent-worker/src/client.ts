@@ -8,7 +8,7 @@ import type {
   DaemonInfo,
   DaemonEvent,
   ManagedAgentInfo,
-  ManagedWorkspaceInfo,
+  ManagedHarnessInfo,
   RuntimeConfig,
 } from "./types.ts";
 import { readDaemonInfo, defaultDataDir } from "./discovery.ts";
@@ -21,7 +21,7 @@ export interface HealthInfo {
   pid: number;
   uptime: number;
   agents: number;
-  workspaces: number;
+  harnesss: number;
   runtimes?: Array<{
     name: string;
     status: string;
@@ -224,22 +224,22 @@ export class AwClient {
 
   async readResponses(
     name: string,
-    opts?: { cursor?: number; workspace?: string },
+    opts?: { cursor?: number; harness?: string },
   ): Promise<CursorResult<DaemonEvent>> {
     const params = new URLSearchParams();
     if (opts?.cursor !== undefined) params.set("cursor", String(opts.cursor));
-    if (opts?.workspace) params.set("workspace", opts.workspace);
+    if (opts?.harness) params.set("harness", opts.harness);
     const q = params.toString() ? `?${params}` : "";
     return this.request(`/agents/${encodeURIComponent(name)}/responses${q}`);
   }
 
   streamResponses(
     name: string,
-    opts?: { cursor?: number; workspace?: string },
+    opts?: { cursor?: number; harness?: string },
   ): Promise<AsyncIterable<DaemonEvent>> {
     const params = new URLSearchParams();
     if (opts?.cursor !== undefined) params.set("cursor", String(opts.cursor));
-    if (opts?.workspace) params.set("workspace", opts.workspace);
+    if (opts?.harness) params.set("harness", opts.harness);
     const q = params.toString() ? `?${params}` : "";
     return this.sseStream(`/agents/${encodeURIComponent(name)}/responses/stream${q}`);
   }
@@ -258,14 +258,14 @@ export class AwClient {
     return this.request(`/agents/${encodeURIComponent(name)}/state`);
   }
 
-  // ── Workspaces ──────────────────────────────────────────────────────
+  // ── Harnesss ──────────────────────────────────────────────────────
 
-  async listWorkspaces(): Promise<ManagedWorkspaceInfo[]> {
-    const res = await this.request<{ workspaces: ManagedWorkspaceInfo[] }>("/workspaces");
-    return res.workspaces;
+  async listHarnesss(): Promise<ManagedHarnessInfo[]> {
+    const res = await this.request<{ harnesss: ManagedHarnessInfo[] }>("/harnesss");
+    return res.harnesss;
   }
 
-  async createWorkspace(
+  async createHarness(
     source: string,
     opts?: {
       name?: string;
@@ -275,52 +275,52 @@ export class AwClient {
       vars?: Record<string, string>;
       mode?: "service" | "task";
     },
-  ): Promise<ManagedWorkspaceInfo> {
-    return this.request("/workspaces", {
+  ): Promise<ManagedHarnessInfo> {
+    return this.request("/harnesss", {
       method: "POST",
       body: JSON.stringify({ source, ...opts }),
     });
   }
 
-  async waitWorkspace(
+  async waitHarness(
     key: string,
     timeout?: string,
   ): Promise<{ status: string; result?: Record<string, unknown> }> {
     const q = timeout ? `?timeout=${timeout}` : "";
-    return this.request(`/workspaces/${encodeURIComponent(key)}/wait${q}`);
+    return this.request(`/harnesss/${encodeURIComponent(key)}/wait${q}`);
   }
 
-  async getWorkspace(key: string): Promise<ManagedWorkspaceInfo> {
-    return this.request(`/workspaces/${encodeURIComponent(key)}`);
+  async getHarness(key: string): Promise<ManagedHarnessInfo> {
+    return this.request(`/harnesss/${encodeURIComponent(key)}`);
   }
 
-  async getWorkspaceStatus(key: string): Promise<Record<string, unknown>> {
-    return this.request(`/workspaces/${encodeURIComponent(key)}/status`);
+  async getHarnessStatus(key: string): Promise<Record<string, unknown>> {
+    return this.request(`/harnesss/${encodeURIComponent(key)}/status`);
   }
 
   async listChannels(key: string): Promise<string[]> {
     const res = await this.request<{ channels: string[] }>(
-      `/workspaces/${encodeURIComponent(key)}/channels`,
+      `/harnesss/${encodeURIComponent(key)}/channels`,
     );
     return res.channels;
   }
 
   async peekInbox(key: string, agent: string): Promise<any[]> {
     const res = await this.request<{ entries: any[] }>(
-      `/workspaces/${encodeURIComponent(key)}/inbox/${encodeURIComponent(agent)}`,
+      `/harnesss/${encodeURIComponent(key)}/inbox/${encodeURIComponent(agent)}`,
     );
     return res.entries;
   }
 
-  async stopWorkspace(key: string): Promise<void> {
-    await this.request(`/workspaces/${encodeURIComponent(key)}`, { method: "DELETE" });
+  async stopHarness(key: string): Promise<void> {
+    await this.request(`/harnesss/${encodeURIComponent(key)}`, { method: "DELETE" });
   }
 
-  async sendToWorkspace(
+  async sendToHarness(
     key: string,
     opts: { content: string; from?: string; agent?: string; channel?: string },
   ): Promise<SendResult> {
-    return this.request(`/workspaces/${encodeURIComponent(key)}/send`, {
+    return this.request(`/harnesss/${encodeURIComponent(key)}/send`, {
       method: "POST",
       body: JSON.stringify(opts),
     });
@@ -337,13 +337,13 @@ export class AwClient {
     if (opts?.agent) params.set("agent", opts.agent);
     const q = params.toString() ? `?${params}` : "";
     return this.request(
-      `/workspaces/${encodeURIComponent(key)}/channels/${encodeURIComponent(channel)}${q}`,
+      `/harnesss/${encodeURIComponent(key)}/channels/${encodeURIComponent(channel)}${q}`,
     );
   }
 
   async clearChannel(key: string, channel: string): Promise<void> {
     await this.request(
-      `/workspaces/${encodeURIComponent(key)}/channels/${encodeURIComponent(channel)}`,
+      `/harnesss/${encodeURIComponent(key)}/channels/${encodeURIComponent(channel)}`,
       { method: "DELETE" },
     );
   }
@@ -357,27 +357,27 @@ export class AwClient {
     if (opts?.agent) params.set("agent", opts.agent);
     const q = params.toString() ? `?${params}` : "";
     return this.sseStream(
-      `/workspaces/${encodeURIComponent(key)}/channels/${encodeURIComponent(channel)}/stream${q}`,
+      `/harnesss/${encodeURIComponent(key)}/channels/${encodeURIComponent(channel)}/stream${q}`,
     );
   }
 
-  async readWorkspaceEvents(key: string, cursor?: number): Promise<CursorResult<DaemonEvent>> {
+  async readHarnessEvents(key: string, cursor?: number): Promise<CursorResult<DaemonEvent>> {
     const q = cursor !== undefined ? `?cursor=${cursor}` : "";
-    return this.request(`/workspaces/${encodeURIComponent(key)}/events${q}`);
+    return this.request(`/harnesss/${encodeURIComponent(key)}/events${q}`);
   }
 
-  streamWorkspaceEvents(key: string, cursor?: number): Promise<AsyncIterable<DaemonEvent>> {
+  streamHarnessEvents(key: string, cursor?: number): Promise<AsyncIterable<DaemonEvent>> {
     const q = cursor !== undefined ? `?cursor=${cursor}` : "";
-    return this.sseStream(`/workspaces/${encodeURIComponent(key)}/events/stream${q}`);
+    return this.sseStream(`/harnesss/${encodeURIComponent(key)}/events/stream${q}`);
   }
 
   /**
-   * Read entries from the workspace chronicle (append-only human-readable
+   * Read entries from the harness chronicle (append-only human-readable
    * timeline of decisions / task transitions / milestones). Optional
    * limit caps the response size (default 50, max 500); category filters
    * by the category name (e.g. "task", "decision", "milestone").
    */
-  async readWorkspaceChronicle(
+  async readHarnessChronicle(
     key: string,
     opts?: { limit?: number; category?: string },
   ): Promise<{
@@ -393,17 +393,17 @@ export class AwClient {
     if (opts?.limit !== undefined) params.set("limit", String(opts.limit));
     if (opts?.category) params.set("category", opts.category);
     const qs = params.toString();
-    return this.request(`/workspaces/${encodeURIComponent(key)}/chronicle${qs ? `?${qs}` : ""}`);
+    return this.request(`/harnesss/${encodeURIComponent(key)}/chronicle${qs ? `?${qs}` : ""}`);
   }
 
   // ── Task ledger ─────────────────────────────────────────────────────
 
   /**
-   * List tasks from the workspace's kernel state store. `status` is a
+   * List tasks from the harness's kernel state store. `status` is a
    * comma-separated filter (e.g. "draft,open,in_progress"); `ownerLeadId`
    * filters by owning lead.
    */
-  async listWorkspaceTasks(
+  async listHarnessTasks(
     key: string,
     opts?: { status?: string; ownerLeadId?: string },
   ): Promise<{ tasks: Record<string, unknown>[] }> {
@@ -411,26 +411,25 @@ export class AwClient {
     if (opts?.status) params.set("status", opts.status);
     if (opts?.ownerLeadId) params.set("ownerLeadId", opts.ownerLeadId);
     const qs = params.toString();
-    return this.request(`/workspaces/${encodeURIComponent(key)}/tasks${qs ? `?${qs}` : ""}`);
+    return this.request(`/harnesss/${encodeURIComponent(key)}/tasks${qs ? `?${qs}` : ""}`);
   }
 
-  /** Fetch a single task with its attempts, handoffs, and artifacts. */
-  async getWorkspaceTask(
+  /** Fetch a single task with its Wakes and handoffs. */
+  async getHarnessTask(
     key: string,
     taskId: string,
   ): Promise<{
     task: Record<string, unknown>;
-    attempts: Record<string, unknown>[];
+    wakes: Record<string, unknown>[];
     handoffs: Record<string, unknown>[];
-    artifacts: Record<string, unknown>[];
   }> {
     return this.request(
-      `/workspaces/${encodeURIComponent(key)}/tasks/${encodeURIComponent(taskId)}`,
+      `/harnesss/${encodeURIComponent(key)}/tasks/${encodeURIComponent(taskId)}`,
     );
   }
 
-  /** Create a new task in the workspace ledger. */
-  async createWorkspaceTask(
+  /** Create a new task in the harness ledger. */
+  async createHarnessTask(
     key: string,
     body: {
       title: string;
@@ -443,7 +442,7 @@ export class AwClient {
       sourceRef?: string;
     },
   ): Promise<{ task: Record<string, unknown> }> {
-    return this.request(`/workspaces/${encodeURIComponent(key)}/tasks`, {
+    return this.request(`/harnesss/${encodeURIComponent(key)}/tasks`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
@@ -451,7 +450,7 @@ export class AwClient {
   }
 
   /** Patch an existing task (title / goal / status / priority / owner / acceptance). */
-  async updateWorkspaceTask(
+  async updateHarnessTask(
     key: string,
     taskId: string,
     body: {
@@ -464,7 +463,7 @@ export class AwClient {
     },
   ): Promise<{ task: Record<string, unknown> }> {
     return this.request(
-      `/workspaces/${encodeURIComponent(key)}/tasks/${encodeURIComponent(taskId)}`,
+      `/harnesss/${encodeURIComponent(key)}/tasks/${encodeURIComponent(taskId)}`,
       {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -473,14 +472,14 @@ export class AwClient {
     );
   }
 
-  /** Dispatch a task to a worker — creates an Attempt and enqueues the assignment. */
-  async dispatchWorkspaceTask(
+  /** Dispatch a task to a worker — creates a Wake and enqueues the assignment. */
+  async dispatchHarnessTask(
     key: string,
     taskId: string,
     body: { worker: string; priority?: "immediate" | "normal" | "background" },
-  ): Promise<{ task: Record<string, unknown>; attempt: Record<string, unknown> }> {
+  ): Promise<{ task: Record<string, unknown>; wake: Record<string, unknown> }> {
     return this.request(
-      `/workspaces/${encodeURIComponent(key)}/tasks/${encodeURIComponent(taskId)}/dispatch`,
+      `/harnesss/${encodeURIComponent(key)}/tasks/${encodeURIComponent(taskId)}/dispatch`,
       {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -490,20 +489,20 @@ export class AwClient {
   }
 
   /**
-   * Close a task with status "completed" — finalizes the active attempt
-   * (if any), records a completed handoff, and transitions the task.
+   * Close a task with status "completed" — finalizes the active Wake (if
+   * any), records a completed handoff, and transitions the task.
    */
-  async completeWorkspaceTask(
+  async completeHarnessTask(
     key: string,
     taskId: string,
     body?: { summary?: string },
   ): Promise<{
     task: Record<string, unknown>;
-    attempts: Record<string, unknown>[];
+    wakes: Record<string, unknown>[];
     handoffs: Record<string, unknown>[];
   }> {
     return this.request(
-      `/workspaces/${encodeURIComponent(key)}/tasks/${encodeURIComponent(taskId)}/complete`,
+      `/harnesss/${encodeURIComponent(key)}/tasks/${encodeURIComponent(taskId)}/complete`,
       {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -513,21 +512,21 @@ export class AwClient {
   }
 
   /**
-   * Close a task with status "aborted" — finalizes the active attempt
-   * (if any) as cancelled, records an aborted handoff, and transitions
-   * the task.
+   * Close a task with status "aborted" — finalizes the active Wake (if
+   * any) as cancelled, records an aborted handoff, and transitions the
+   * task.
    */
-  async abortWorkspaceTask(
+  async abortHarnessTask(
     key: string,
     taskId: string,
     body?: { reason?: string },
   ): Promise<{
     task: Record<string, unknown>;
-    attempts: Record<string, unknown>[];
+    wakes: Record<string, unknown>[];
     handoffs: Record<string, unknown>[];
   }> {
     return this.request(
-      `/workspaces/${encodeURIComponent(key)}/tasks/${encodeURIComponent(taskId)}/abort`,
+      `/harnesss/${encodeURIComponent(key)}/tasks/${encodeURIComponent(taskId)}/abort`,
       {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -538,30 +537,30 @@ export class AwClient {
 
   // ── Documents ───────────────────────────────────────────────────────
 
-  async listDocs(workspace: string): Promise<DocInfo[]> {
+  async listDocs(harness: string): Promise<DocInfo[]> {
     const res = await this.request<{ docs: DocInfo[] }>(
-      `/workspaces/${encodeURIComponent(workspace)}/docs`,
+      `/harnesss/${encodeURIComponent(harness)}/docs`,
     );
     return res.docs;
   }
 
-  async readDoc(workspace: string, name: string): Promise<string> {
+  async readDoc(harness: string, name: string): Promise<string> {
     const res = await this.request<{ name: string; content: string }>(
-      `/workspaces/${encodeURIComponent(workspace)}/docs/${encodeURIComponent(name)}`,
+      `/harnesss/${encodeURIComponent(harness)}/docs/${encodeURIComponent(name)}`,
     );
     return res.content;
   }
 
-  async writeDoc(workspace: string, name: string, content: string): Promise<void> {
+  async writeDoc(harness: string, name: string, content: string): Promise<void> {
     await this.request(
-      `/workspaces/${encodeURIComponent(workspace)}/docs/${encodeURIComponent(name)}`,
+      `/harnesss/${encodeURIComponent(harness)}/docs/${encodeURIComponent(name)}`,
       { method: "PUT", body: JSON.stringify({ content }) },
     );
   }
 
-  async appendDoc(workspace: string, name: string, content: string): Promise<void> {
+  async appendDoc(harness: string, name: string, content: string): Promise<void> {
     await this.request(
-      `/workspaces/${encodeURIComponent(workspace)}/docs/${encodeURIComponent(name)}`,
+      `/harnesss/${encodeURIComponent(harness)}/docs/${encodeURIComponent(name)}`,
       { method: "PATCH", body: JSON.stringify({ content }) },
     );
   }

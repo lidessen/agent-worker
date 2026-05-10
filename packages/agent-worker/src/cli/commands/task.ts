@@ -3,7 +3,7 @@ import { wantsHelp } from "../output.ts";
 
 /**
  * `aw task <ls|get|new|update|dispatch>` — operator surface for the
- * workspace task ledger. Read paths (ls, get) are strictly observational.
+ * harness task ledger. Read paths (ls, get) are strictly observational.
  * Mutation paths (new, update, dispatch) let a human drive the system
  * without needing an agent in the loop.
  */
@@ -20,7 +20,7 @@ export async function task(args: string[]): Promise<void> {
     process.exit(1);
   }
 
-  const workspace = extractWorkspace(args) ?? "global";
+  const harness = extractHarness(args) ?? "global";
 
   try {
     const client = await ensureDaemon();
@@ -29,7 +29,7 @@ export async function task(args: string[]): Promise<void> {
       case "ls": {
         const status = getFlag(args, "--status");
         const owner = getFlag(args, "--owner");
-        const result = await client.listWorkspaceTasks(workspace, {
+        const result = await client.listHarnessTasks(harness, {
           status: status ?? undefined,
           ownerLeadId: owner ?? undefined,
         });
@@ -43,10 +43,10 @@ export async function task(args: string[]): Promise<void> {
             title: string;
             status: string;
             ownerLeadId?: string;
-            activeAttemptId?: string;
+            activeWakeId?: string;
           };
           const owner = t.ownerLeadId ? ` owner=${t.ownerLeadId}` : "";
-          const active = t.activeAttemptId ? ` active=${t.activeAttemptId}` : "";
+          const active = t.activeWakeId ? ` active=${t.activeWakeId}` : "";
           console.log(`[${t.id}] ${t.title} [${t.status}]${owner}${active}`);
         }
         break;
@@ -54,7 +54,7 @@ export async function task(args: string[]): Promise<void> {
       case "get": {
         const id = findTaskId(args);
         if (!id) {
-          console.error("Usage: aw task get <id> [@workspace]");
+          console.error("Usage: aw task get <id> [@harness]");
           process.exit(1);
         }
         if (!looksLikeTaskId(id)) {
@@ -64,58 +64,53 @@ export async function task(args: string[]): Promise<void> {
           );
           process.exit(1);
         }
-        const detail = await client.getWorkspaceTask(workspace, id);
+        const detail = await client.getHarnessTask(harness, id);
         const t = detail.task as {
           id: string;
           title: string;
           goal: string;
           status: string;
           ownerLeadId?: string;
-          activeAttemptId?: string;
+          activeWakeId?: string;
           acceptanceCriteria?: string;
-          artifactRefs: string[];
         };
         console.log(`Task ${t.id}`);
         console.log(`  title:  ${t.title}`);
         console.log(`  status: ${t.status}`);
         if (t.ownerLeadId) console.log(`  owner:  ${t.ownerLeadId}`);
-        if (t.activeAttemptId) console.log(`  active: ${t.activeAttemptId}`);
+        if (t.activeWakeId) console.log(`  active: ${t.activeWakeId}`);
         console.log(`  goal:   ${t.goal}`);
         if (t.acceptanceCriteria) console.log(`  accept: ${t.acceptanceCriteria}`);
-        if (detail.attempts.length > 0) {
-          console.log(`  attempts (${detail.attempts.length}):`);
-          for (const raw of detail.attempts) {
-            const a = raw as { id: string; agentName: string; status: string };
-            console.log(`    - ${a.id} ${a.agentName} [${a.status}]`);
+        if (detail.wakes.length > 0) {
+          console.log(`  wakes (${detail.wakes.length}):`);
+          for (const raw of detail.wakes) {
+            const w = raw as { id: string; agentName: string; status: string };
+            console.log(`    - ${w.id} ${w.agentName} [${w.status}]`);
           }
         }
         if (detail.handoffs.length > 0) {
           console.log(`  handoffs (${detail.handoffs.length}):`);
           for (const raw of detail.handoffs) {
-            const h = raw as { id: string; kind: string; summary: string };
+            const h = raw as { id: string; kind: string; summary: string; resources: string[] };
             console.log(`    - ${h.id} ${h.kind}: ${h.summary}`);
-          }
-        }
-        if (detail.artifacts.length > 0) {
-          console.log(`  artifacts (${detail.artifacts.length}):`);
-          for (const raw of detail.artifacts) {
-            const x = raw as { id: string; kind: string; title: string; ref: string };
-            console.log(`    - ${x.id} ${x.kind}: ${x.title} (${x.ref})`);
+            if (h.resources && h.resources.length > 0) {
+              console.log(`      resources: ${h.resources.join(", ")}`);
+            }
           }
         }
         break;
       }
       case "new": {
-        // First positional after "new" that isn't a flag / workspace → title.
+        // First positional after "new" that isn't a flag / harness → title.
         const title = args.slice(1).find((a) => !a.startsWith("--") && !a.startsWith("@"));
         const goal = getFlag(args, "--goal");
         if (!title || !goal) {
           console.error(
-            "Usage: aw task new <title> --goal '...' [@workspace] [--status ...] [--owner ...]",
+            "Usage: aw task new <title> --goal '...' [@harness] [--status ...] [--owner ...]",
           );
           process.exit(1);
         }
-        const result = await client.createWorkspaceTask(workspace, {
+        const result = await client.createHarnessTask(harness, {
           title,
           goal,
           status: getFlag(args, "--status"),
@@ -131,7 +126,7 @@ export async function task(args: string[]): Promise<void> {
         const id = findTaskId(args);
         if (!id) {
           console.error(
-            "Usage: aw task update <id> [@workspace] [--status ...] [--title ...] [--goal ...]",
+            "Usage: aw task update <id> [@harness] [--status ...] [--title ...] [--goal ...]",
           );
           process.exit(1);
         }
@@ -151,7 +146,7 @@ export async function task(args: string[]): Promise<void> {
           console.error("Provide at least one of --status/--title/--goal/--owner/--accept");
           process.exit(1);
         }
-        const result = await client.updateWorkspaceTask(workspace, id, patch);
+        const result = await client.updateHarnessTask(harness, id, patch);
         const t = result.task as { id: string; status: string; title: string };
         console.log(`Updated task ${t.id} [${t.status}]: ${t.title}`);
         break;
@@ -160,23 +155,23 @@ export async function task(args: string[]): Promise<void> {
         const id = findTaskId(args);
         const worker = getFlag(args, "--to") ?? getFlag(args, "--worker");
         if (!id || !worker) {
-          console.error("Usage: aw task dispatch <id> --to <worker> [@workspace]");
+          console.error("Usage: aw task dispatch <id> --to <worker> [@harness]");
           process.exit(1);
         }
         if (!looksLikeTaskId(id)) {
           console.error(`Error: '${id}' does not look like a task id (expected task_<hex>).`);
           process.exit(1);
         }
-        const result = await client.dispatchWorkspaceTask(workspace, id, { worker });
+        const result = await client.dispatchHarnessTask(harness, id, { worker });
         const t = result.task as { id: string; status: string };
-        const att = result.attempt as { id: string };
-        console.log(`Dispatched task ${t.id} [${t.status}] to @${worker} as attempt ${att.id}`);
+        const w = result.wake as { id: string };
+        console.log(`Dispatched task ${t.id} [${t.status}] to @${worker} as Wake ${w.id}`);
         break;
       }
       case "complete": {
         const id = findTaskId(args);
         if (!id) {
-          console.error("Usage: aw task complete <id> [@workspace] [--summary '...']");
+          console.error("Usage: aw task complete <id> [@harness] [--summary '...']");
           process.exit(1);
         }
         if (!looksLikeTaskId(id)) {
@@ -184,7 +179,7 @@ export async function task(args: string[]): Promise<void> {
           process.exit(1);
         }
         const summary = getFlag(args, "--summary");
-        const result = await client.completeWorkspaceTask(workspace, id, { summary });
+        const result = await client.completeHarnessTask(harness, id, { summary });
         const t = result.task as { id: string; status: string; title: string };
         console.log(`Task ${t.id} [${t.status}]: ${t.title}`);
         break;
@@ -192,7 +187,7 @@ export async function task(args: string[]): Promise<void> {
       case "abort": {
         const id = findTaskId(args);
         if (!id) {
-          console.error("Usage: aw task abort <id> [@workspace] [--reason '...']");
+          console.error("Usage: aw task abort <id> [@harness] [--reason '...']");
           process.exit(1);
         }
         if (!looksLikeTaskId(id)) {
@@ -200,7 +195,7 @@ export async function task(args: string[]): Promise<void> {
           process.exit(1);
         }
         const reason = getFlag(args, "--reason");
-        const result = await client.abortWorkspaceTask(workspace, id, { reason });
+        const result = await client.abortHarnessTask(harness, id, { reason });
         const t = result.task as { id: string; status: string; title: string };
         console.log(`Task ${t.id} [${t.status}]: ${t.title}`);
         break;
@@ -216,17 +211,17 @@ function printUsage(): void {
   console.log(
     `Usage: aw task <ls|get|new|update|dispatch|complete|abort> [options]
 
-  aw task ls [@workspace] [--status draft,open] [--owner <name>]
-  aw task get <id> [@workspace]
-  aw task new <title> --goal '...' [@workspace] [--status ...] [--owner ...] [--accept ...]
-  aw task update <id> [@workspace] [--status ...] [--title ...] [--goal ...] [--owner ...]
-  aw task dispatch <id> --to <worker> [@workspace]
-  aw task complete <id> [@workspace] [--summary '...']
-  aw task abort <id> [@workspace] [--reason '...']`,
+  aw task ls [@harness] [--status draft,open] [--owner <name>]
+  aw task get <id> [@harness]
+  aw task new <title> --goal '...' [@harness] [--status ...] [--owner ...] [--accept ...]
+  aw task update <id> [@harness] [--status ...] [--title ...] [--goal ...] [--owner ...]
+  aw task dispatch <id> --to <worker> [@harness]
+  aw task complete <id> [@harness] [--summary '...']
+  aw task abort <id> [@harness] [--reason '...']`,
   );
 }
 
-function extractWorkspace(args: string[]): string | undefined {
+function extractHarness(args: string[]): string | undefined {
   for (const arg of args) {
     if (arg.startsWith("@")) return arg.slice(1);
   }
@@ -245,7 +240,7 @@ function getFlag(args: string[], flag: string): string | undefined {
 
 /**
  * Find the first positional task id in the args. Skips --flag tokens and
- * @workspace tokens, and also skips any token that immediately follows a
+ * @harness tokens, and also skips any token that immediately follows a
  * known flag (because that token is the flag's value).
  *
  * Also validates that the candidate looks like a real task id prefix so

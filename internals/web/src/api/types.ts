@@ -1,0 +1,180 @@
+export interface HealthInfo {
+  status: string;
+  agents: number;
+  harnesss: number;
+  uptime: number;
+  runtimes?: RuntimeHealth[];
+}
+
+export interface RuntimeHealth {
+  name: string;
+  status: string;
+  available: boolean;
+}
+
+export interface AgentInfo {
+  name: string;
+  kind: string;
+  state: string;
+  runtime: string;
+  model?: string;
+  createdAt: number;
+  harness?: string;
+}
+
+export interface HarnessInfo {
+  name: string;
+  label?: string;
+  mode?: string;
+  status: string;
+  agents: string[];
+  createdAt: number;
+}
+
+export interface InboxItem {
+  id: string;
+  content: string;
+  from?: string;
+  status?: string;
+  channel?: string;
+  priority?: string;
+  timestamp?: number;
+}
+
+export interface TodoItem {
+  id: string;
+  status: string;
+  text: string;
+}
+
+export interface AgentState {
+  state: string;
+  inbox: InboxItem[];
+  todos?: TodoItem[];
+  currentTask?: string;
+  harness?: string;
+  history?: number;
+}
+
+export interface CursorResult<T> {
+  entries: T[];
+  cursor: number;
+}
+
+export interface DaemonEvent {
+  ts: number;
+  type: string;
+  [key: string]: unknown;
+}
+
+export interface ChannelMessage {
+  id: string;
+  channel: string;
+  from: string;
+  content: string;
+  timestamp: string;
+  mentions?: string[];
+  to?: string;
+}
+
+export interface DocInfo {
+  name: string;
+}
+
+export interface HarnessStatus {
+  name: string;
+  label?: string;
+  tag?: string;
+  key: string;
+  mode: string;
+  status: string;
+  agents: string[];
+  agent_details: Array<{ name: string; runtime: string }>;
+  channels: string[];
+  loops: Array<{ name: string; running: boolean }>;
+}
+
+export interface HarnessInboxEntry {
+  messageId: string;
+  channel: string;
+  priority: string;
+  state: string;
+  enqueuedAt: number;
+}
+
+// ── Task ledger (harness-led hierarchical state) ────────────────────────
+
+export type TaskStatus =
+  | "draft"
+  | "open"
+  | "in_progress"
+  | "blocked"
+  | "completed"
+  | "aborted"
+  | "failed";
+
+export interface TaskSummary {
+  id: string;
+  harnessId: string;
+  title: string;
+  goal: string;
+  status: TaskStatus;
+  priority?: number;
+  ownerLeadId?: string;
+  activeWakeId?: string;
+  acceptanceCriteria?: string;
+  sourceRefs: Array<{ kind: string; ref?: string; excerpt?: string; ts: number }>;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface WakeSummary {
+  id: string;
+  taskId: string;
+  agentName: string;
+  role: "lead" | "worker" | "observer";
+  status: "running" | "completed" | "failed" | "cancelled" | "handed_off";
+  startedAt: number;
+  endedAt?: number;
+  resultSummary?: string;
+  runtimeType?: string;
+  sessionId?: string;
+}
+
+export interface HandoffSummary {
+  id: string;
+  taskId: string;
+  closingWakeId: string;
+  createdAt: number;
+  createdBy: string;
+  kind: "progress" | "blocked" | "completed" | "aborted";
+  summary: string;
+  completed: string[];
+  pending: string[];
+  blockers: string[];
+  decisions: string[];
+  resources: string[];
+  workLogPointer?: string;
+  extensions: Record<string, unknown>;
+}
+
+export interface TaskDetail {
+  task: TaskSummary;
+  wakes: WakeSummary[];
+  handoffs: HandoffSummary[];
+}
+
+// ── Runtime configuration (for HTTP-created agents) ──────────────────────
+
+export type RuntimeType = "ai-sdk" | "claude-code" | "codex" | "cursor" | "mock";
+
+export interface RuntimeConfig {
+  type: RuntimeType;
+  model?: string;
+  instructions?: string;
+  cwd?: string;
+  env?: Record<string, string>;
+  runner?: "host" | "sandbox";
+  mockDelay?: number;
+  mockResponse?: string;
+}

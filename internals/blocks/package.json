@@ -1,0 +1,39 @@
+{
+  "name": "@semajsx/blocks",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Block rendering system for SemaJSX with pluggable registry",
+  "keywords": [
+    "blocks",
+    "components",
+    "registry",
+    "rendering"
+  ],
+  "license": "MIT",
+  "author": "lidessen",
+  "type": "module",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "default": "./dist/index.mjs"
+    },
+    "./renderers": {
+      "source": "./src/renderers/index.ts",
+      "default": "./dist/renderers/index.mjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@semajsx/core": "workspace:*",
+    "@semajsx/dom": "workspace:*",
+    "@semajsx/signal": "workspace:*",
+    "@semajsx/style": "workspace:*"
+  },
+  "devDependencies": {
+    "@semajsx/configs": "workspace:*",
+    "typescript": "^5.9.3"
+  }
+}

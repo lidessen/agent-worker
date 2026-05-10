@@ -1,0 +1,12 @@
+{
+  "extends": "@semajsx/configs/tsconfig.lib.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "skipLibCheck": true,
+    "jsxImportSource": "@semajsx/dom",
+    "allowImportingTsExtensions": true
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "exclude": ["node_modules", "dist", "src/**/*.test.ts", "src/**/*.test.tsx"]
+}

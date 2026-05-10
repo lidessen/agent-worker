@@ -2,9 +2,9 @@ import type { AgentState } from "@agent-worker/agent";
 import type { AgentKind, ManagedAgentInfo } from "./types.ts";
 
 /**
- * Lightweight stub for global workspace agents.
+ * Lightweight stub for global harness agents.
  *
- * Global agents are backed by WorkspaceAgentLoop — they don't need a real
+ * Global agents are backed by HarnessAgentLoop — they don't need a real
  * Agent/AgentLoop. This stub provides just enough for the daemon's
  * AgentRegistry to list them and for route detection (instanceof check).
  */
@@ -34,11 +34,11 @@ export class GlobalAgentStub {
       state: this.state,
       runtime: this.runtime,
       createdAt: this.createdAt,
-      workspace: "global",
+      harness: "global",
     };
   }
 
   async stop(): Promise<void> {
-    // No-op — lifecycle is managed by the workspace.
+    // No-op — lifecycle is managed by the harness.
   }
 }

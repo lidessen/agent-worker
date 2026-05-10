@@ -1,0 +1,150 @@
+import { describe, test, expect, beforeEach, afterEach } from "bun:test";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { mkdtempSync, rmSync } from "node:fs";
+import { FileHarnessStateStore } from "../src/state/file-store.ts";
+
+let dir: string;
+
+beforeEach(() => {
+  dir = mkdtempSync(join(tmpdir(), "aw-file-store-"));
+});
+
+afterEach(() => {
+  try {
+    rmSync(dir, { recursive: true, force: true });
+  } catch {
+    /* ignore */
+  }
+});
+
+describe("FileHarnessStateStore", () => {
+  test("createTask round-trips through a fresh store instance", async () => {
+    const first = new FileHarnessStateStore(dir);
+    await first.ready;
+    const created = await first.createTask({
+      harnessId: "w1",
+      title: "Ship it",
+      goal: "Merge PR",
+    });
+
+    // New instance pointed at the same dir should replay the task on startup.
+    const second = new FileHarnessStateStore(dir);
+    await second.ready;
+    const replayed = await second.getTask(created.id);
+
+    expect(replayed).not.toBeNull();
+    expect(replayed?.title).toBe("Ship it");
+    expect(replayed?.goal).toBe("Merge PR");
+    expect(replayed?.status).toBe("draft");
+  });
+
+  test("updateTask persists the last snapshot under last-write-wins semantics", async () => {
+    const first = new FileHarnessStateStore(dir);
+    await first.ready;
+    const task = await first.createTask({ harnessId: "w1", title: "t", goal: "g" });
+
+    await first.updateTask(task.id, { status: "open", priority: 1 });
+    await first.updateTask(task.id, { status: "in_progress", priority: 2 });
+
+    const second = new FileHarnessStateStore(dir);
+    await second.ready;
+    const replayed = await second.getTask(task.id);
+    expect(replayed?.status).toBe("in_progress");
+    expect(replayed?.priority).toBe(2);
+  });
+
+  test("wake lifecycle replays correctly", async () => {
+    const first = new FileHarnessStateStore(dir);
+    await first.ready;
+    const task = await first.createTask({ harnessId: "w1", title: "t", goal: "g" });
+    const wake = await first.createWake({
+      taskId: task.id,
+      agentName: "codex",
+      role: "worker",
+    });
+    await first.updateWake(wake.id, {
+      status: "completed",
+      resultSummary: "ok",
+      endedAt: Date.now(),
+    });
+
+    const second = new FileHarnessStateStore(dir);
+    await second.ready;
+    const replayed = await second.getWake(wake.id);
+    expect(replayed?.status).toBe("completed");
+    expect(replayed?.resultSummary).toBe("ok");
+    expect(replayed?.endedAt).toBeGreaterThan(0);
+  });
+
+  test("handoffs replay with task cross-refs intact", async () => {
+    const first = new FileHarnessStateStore(dir);
+    await first.ready;
+    const task = await first.createTask({ harnessId: "w1", title: "t", goal: "g" });
+    const wake = await first.createWake({
+      taskId: task.id,
+      agentName: "codex",
+      role: "worker",
+    });
+    await first.createHandoff({
+      taskId: task.id,
+      closingWakeId: wake.id,
+      createdBy: "codex",
+      kind: "progress",
+      summary: "halfway",
+      completed: ["step 1"],
+      resources: ["res_one"],
+    });
+
+    const second = new FileHarnessStateStore(dir);
+    await second.ready;
+
+    const handoffs = await second.listHandoffs(task.id);
+    expect(handoffs).toHaveLength(1);
+    expect(handoffs[0]!.summary).toBe("halfway");
+    expect(handoffs[0]!.resources).toEqual(["res_one"]);
+    expect(handoffs[0]!.extensions).toEqual({});
+  });
+
+  test("listTasks filter applies across replay", async () => {
+    const first = new FileHarnessStateStore(dir);
+    await first.ready;
+    await first.createTask({ harnessId: "w1", title: "a", goal: "g" });
+    await first.createTask({ harnessId: "w1", title: "b", goal: "g", status: "open" });
+    await first.createTask({ harnessId: "w1", title: "c", goal: "g", status: "open" });
+
+    const second = new FileHarnessStateStore(dir);
+    await second.ready;
+    const open = await second.listTasks({ status: ["open"] });
+    expect(open.map((t) => t.title)).toEqual(["b", "c"]);
+  });
+
+  test("rejects creating a Wake for an unknown task after replay", async () => {
+    const first = new FileHarnessStateStore(dir);
+    await first.ready;
+    // No tasks created.
+    const second = new FileHarnessStateStore(dir);
+    await second.ready;
+    await expect(
+      second.createWake({ taskId: "task_missing", agentName: "codex", role: "worker" }),
+    ).rejects.toThrow("task not found");
+  });
+
+  test("replay survives a torn/malformed trailing line", async () => {
+    const { appendFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+
+    const first = new FileHarnessStateStore(dir);
+    await first.ready;
+    const task = await first.createTask({ harnessId: "w1", title: "survive", goal: "g" });
+
+    // Simulate a crash that wrote half a JSON line to tasks.jsonl.
+    appendFileSync(join(dir, "tasks.jsonl"), '{"ts": 123, "id": "task_broken', "utf8");
+
+    // Replay should swallow the malformed tail and still see the original task.
+    const second = new FileHarnessStateStore(dir);
+    await second.ready;
+    const replayed = await second.getTask(task.id);
+    expect(replayed?.title).toBe("survive");
+  });
+});

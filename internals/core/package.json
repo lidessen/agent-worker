@@ -1,0 +1,34 @@
+{
+  "name": "@semajsx/core",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Core runtime for SemaJSX - VNode system and rendering primitives",
+  "keywords": [
+    "jsx",
+    "rendering",
+    "runtime",
+    "vnode"
+  ],
+  "license": "MIT",
+  "author": "lidessen",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@semajsx/signal": "workspace:*",
+    "@semajsx/utils": "workspace:*"
+  },
+  "devDependencies": {
+    "@semajsx/configs": "workspace:*",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.4"
+  }
+}

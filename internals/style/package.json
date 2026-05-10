@@ -1,0 +1,58 @@
+{
+  "name": "@semajsx/style",
+  "version": "0.1.1",
+  "private": true,
+  "description": "Modular styling system for SemaJSX - tree-shakeable CSS with native syntax",
+  "keywords": [
+    "css",
+    "css-in-js",
+    "style",
+    "styling",
+    "tree-shaking"
+  ],
+  "license": "MIT",
+  "author": "lidessen",
+  "type": "module",
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "exports": {
+    ".": "./src/index.ts",
+    "./react": "./src/react.ts",
+    "./vue": "./src/vue.ts",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest --config vitest.config.ts",
+    "test:node": "vitest --config vitest.node.config.ts",
+    "test:all": "vitest run --config vitest.config.ts && vitest run --config vitest.node.config.ts",
+    "test:run": "vitest run --config vitest.config.ts && vitest run --config vitest.node.config.ts",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@semajsx/signal": "workspace:*"
+  },
+  "devDependencies": {
+    "@semajsx/configs": "workspace:*",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "lightningcss": "^1.32.0",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.4",
+    "vue": "^3.5.32"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0",
+    "vue": ">=3.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "vue": {
+      "optional": true
+    }
+  }
+}

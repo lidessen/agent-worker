@@ -1,0 +1,21 @@
+{
+  "name": "@semajsx/docs",
+  "version": "0.1.9",
+  "private": true,
+  "description": "SemaJSX documentation site",
+  "type": "module",
+  "scripts": {
+    "build": "bun run build.tsx",
+    "dev": "bun run build.tsx --watch",
+    "clean": "rm -rf dist .ssg-state.json",
+    "serve": "bun run --bun vite preview --outDir dist"
+  },
+  "dependencies": {
+    "semajsx": "workspace:*",
+    "@shikijs/rehype": "^4.0.2"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vite": "^8.0.9"
+  }
+}

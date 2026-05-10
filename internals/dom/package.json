@@ -1,0 +1,32 @@
+{
+  "name": "@semajsx/dom",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./jsx-dev-runtime": "./src/jsx-dev-runtime.ts",
+    "./jsx-runtime": "./src/jsx-runtime.ts",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "example:vite-counter": "vite examples/vite-counter",
+    "example:context-async": "bun run examples/context-async.tsx",
+    "example:context-basic": "bun run examples/context-basic.tsx",
+    "example:context-theme": "bun run examples/context-theme.tsx",
+    "example:portal": "bun run examples/portal-example.tsx",
+    "example:ref": "bun run examples/ref-example.tsx"
+  },
+  "dependencies": {
+    "@semajsx/core": "workspace:*",
+    "@semajsx/signal": "workspace:*",
+    "@semajsx/style": "workspace:*",
+    "@semajsx/utils": "workspace:*"
+  },
+  "devDependencies": {
+    "@semajsx/configs": "workspace:*"
+  }
+}

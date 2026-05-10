@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "files": [],
+  "references": [
+    { "path": "./internals/utils" },
+    { "path": "./internals/signal" },
+    { "path": "./internals/core" },
+    { "path": "./internals/dom" },
+    { "path": "./internals/style" },
+    { "path": "./internals/prompt" },
+    { "path": "./internals/terminal" },
+    { "path": "./internals/logger" },
+    { "path": "./internals/mermaid" },
+    { "path": "./internals/ssr" },
+    { "path": "./internals/ssg" },
+    { "path": "./internals/ui" },
+    { "path": "./internals/icons" },
+    { "path": "./internals/blocks" },
+    { "path": "./internals/chat" },
+    { "path": "./internals/tailwind" },
+    { "path": "./packages/semajsx" },
+    { "path": "./apps/docs" }
+  ]
+}

@@ -18,15 +18,15 @@ Daemon:
   daemon start [-p PORT]    Start daemon (foreground)
   daemon start -d           Start daemon (background)
   daemon stop               Stop daemon
-  status                    Daemon, agents, and workspaces overview
+  status                    Daemon, agents, and harnesss overview
 
 Resources:
   add <name> [options]        Add standalone agent
-  create <config.yaml>        Create workspace (service mode)
-  run <config.yaml>           Run workspace as task (exits when done)
-  ls                          List all agents + workspaces
-  info <target>               Details about agent/workspace
-  rm <target>                 Remove agent or stop workspace
+  create <config.yaml>        Create harness (service mode)
+  run <config.yaml>           Run harness as task (exits when done)
+  ls                          List all agents + harnesss
+  info <target>               Details about agent/harness
+  rm <target>                 Remove agent or stop harness
 
 Messaging:
   send <target> "message"     Send message(s)
@@ -39,19 +39,19 @@ Inspection:
   log [<target>] [-f]         Event log (--follow for streaming)
 
 Documents:
-  doc ls [@workspace]         List documents
+  doc ls [@harness]         List documents
   doc read <name>             Read document
   doc write <name> --content  Write document
   doc append <name> --content Append to document
 
 Tasks:
-  task ls [--status ...]           List tasks in the workspace ledger
-  task get <id>                    Show a task with its attempts / handoffs / artifacts
+  task ls [--status ...]           List tasks in the harness ledger
+  task get <id>                    Show a task with its Wakes / handoffs / artifacts
   task new <title> --goal '...'    Create a new task (default status: draft)
   task update <id> --status open   Patch status / title / goal / owner / acceptance
   task dispatch <id> --to <worker> Hand a task to a worker
-  task complete <id> [--summary]   Close active attempt + mark task completed
-  task abort <id> [--reason]       Cancel active attempt + mark task aborted
+  task complete <id> [--summary]   Close active Wake + mark task completed
+  task abort <id> [--reason]       Cancel active Wake + mark task aborted
 
 Auth:
   auth <provider>             Save API key (anthropic, openai, google, deepseek, ...)
@@ -63,7 +63,7 @@ Connections:
   connect status              Show all configured connections
   connect rm <name>           Remove a saved connection
 
-Target syntax: [agent][@workspace[:tag]][#channel]
+Target syntax: [agent][@harness[:tag]][#channel]
   alice, alice@review, @review:pr-42#design
 
 The daemon is auto-started when needed. Use 'aw daemon start' for manual control.`);

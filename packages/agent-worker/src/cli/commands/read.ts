@@ -25,12 +25,12 @@ export async function read(args: string[]): Promise<void> {
 
   // Target routing per DESIGN.md:
   //   alice         → agent responses (all)
-  //   alice@review  → agent responses (workspace=review)
+  //   alice@review  → agent responses (harness=review)
   //   @review       → default channel
   //   @review#design → named channel
 
   if (target.agent) {
-    // Agent responses stream (optionally scoped to workspace)
+    // Agent responses stream (optionally scoped to harness)
     const consume = async (iter: AsyncIterable<any>) => {
       for await (const entry of iter) {
         printEntry(entry, json);
@@ -40,7 +40,7 @@ export async function read(args: string[]): Promise<void> {
     };
 
     try {
-      const stream = await client.streamResponses(target.agent, { workspace: target.workspace });
+      const stream = await client.streamResponses(target.agent, { harness: target.harness });
       await consume(stream);
     } catch {
       // SSE failed — fall back to cursor polling
@@ -48,7 +48,7 @@ export async function read(args: string[]): Promise<void> {
       while (received < count && Date.now() < deadline) {
         const result = await client.readResponses(target.agent, {
           cursor,
-          workspace: target.workspace,
+          harness: target.harness,
         });
         for (const entry of result.entries) {
           printEntry(entry, json);
@@ -58,7 +58,7 @@ export async function read(args: string[]): Promise<void> {
         if (received < count) await new Promise((r) => setTimeout(r, 1000));
       }
     }
-  } else if (target.workspace && target.channel) {
+  } else if (target.harness && target.channel) {
     // Named channel stream
     const consume = async (iter: AsyncIterable<any>) => {
       for await (const msg of iter) {
@@ -69,19 +69,19 @@ export async function read(args: string[]): Promise<void> {
     };
 
     try {
-      const stream = await client.streamChannel(target.workspace, target.channel);
+      const stream = await client.streamChannel(target.harness, target.channel);
       await consume(stream);
     } catch {
       // SSE failed — fall back to polling
-      const result = await client.readChannel(target.workspace, target.channel, { limit: count });
+      const result = await client.readChannel(target.harness, target.channel, { limit: count });
       for (const msg of result.messages) {
         printEntry(msg, json);
         received++;
       }
     }
-  } else if (target.workspace) {
-    // Default channel stream — resolve default_channel from workspace info
-    const wsInfo = await client.getWorkspace(target.workspace);
+  } else if (target.harness) {
+    // Default channel stream — resolve default_channel from harness info
+    const wsInfo = await client.getHarness(target.harness);
     const ch = wsInfo.default_channel ?? "general";
 
     const consume = async (iter: AsyncIterable<any>) => {
@@ -93,11 +93,11 @@ export async function read(args: string[]): Promise<void> {
     };
 
     try {
-      const stream = await client.streamChannel(target.workspace, ch);
+      const stream = await client.streamChannel(target.harness, ch);
       await consume(stream);
     } catch {
       // SSE failed — fall back to polling
-      const result = await client.readChannel(target.workspace, ch, { limit: count });
+      const result = await client.readChannel(target.harness, ch, { limit: count });
       for (const msg of result.messages) {
         printEntry(msg, json);
         received++;

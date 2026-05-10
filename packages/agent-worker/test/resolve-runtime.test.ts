@@ -1,4 +1,5 @@
 import { test, expect, describe, beforeEach, afterEach } from "bun:test";
+import { getDefaultModel } from "@agent-worker/loop";
 import { resolveRuntime, detectAiSdkModel } from "../src/resolve-runtime.ts";
 
 // ── detectAiSdkModel ─────────────────────────────────────────────────────
@@ -38,7 +39,7 @@ describe("detectAiSdkModel", () => {
 
   test("returns anthropic model when ANTHROPIC_API_KEY is set", () => {
     process.env.ANTHROPIC_API_KEY = "sk-test";
-    expect(detectAiSdkModel()).toBe("anthropic:claude-sonnet-4-6");
+    expect(detectAiSdkModel()).toBe(getDefaultModel("anthropic"));
   });
 
   test("ignores env override and returns undefined", () => {
@@ -48,7 +49,7 @@ describe("detectAiSdkModel", () => {
 
   test("returns openai model when OPENAI_API_KEY is set", () => {
     process.env.OPENAI_API_KEY = "sk-test";
-    expect(detectAiSdkModel()).toBe("openai:gpt-5.4");
+    expect(detectAiSdkModel()).toBe(getDefaultModel("openai"));
   });
 
   test("returns google model when GOOGLE_GENERATIVE_AI_API_KEY is set", () => {
@@ -64,7 +65,7 @@ describe("detectAiSdkModel", () => {
   test("prefers anthropic over openai when both are set", () => {
     process.env.ANTHROPIC_API_KEY = "sk-ant";
     process.env.OPENAI_API_KEY = "sk-oai";
-    expect(detectAiSdkModel()).toBe("anthropic:claude-sonnet-4-6");
+    expect(detectAiSdkModel()).toBe(getDefaultModel("anthropic"));
   });
 });
 
@@ -140,7 +141,7 @@ describe("resolveRuntime", () => {
       process.env.ANTHROPIC_API_KEY = "sk-test";
       const r = await resolveRuntime("ai-sdk", undefined);
       expect(r.runtime).toBe("ai-sdk");
-      expect(r.model).toBe("anthropic:claude-sonnet-4-6");
+      expect(r.model).toBe(getDefaultModel("anthropic"));
     });
 
     test("ignores env override when auto-detecting (throws)", async () => {
@@ -154,7 +155,7 @@ describe("resolveRuntime", () => {
       process.env.OPENAI_API_KEY = "sk-test";
       const r = await resolveRuntime("ai-sdk", undefined);
       expect(r.runtime).toBe("ai-sdk");
-      expect(r.model).toBe("openai:gpt-5.4");
+      expect(r.model).toBe(getDefaultModel("openai"));
     });
 
     test("throws when no API key available", async () => {

@@ -1,0 +1,24 @@
+{
+  "name": "@semajsx/logger",
+  "version": "0.1.2",
+  "private": true,
+  "description": "Rich terminal logging utility for SemaJSX",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "example:basic": "bun run examples/logger/basic.tsx",
+    "example:showcase": "bun run examples/logger/showcase.tsx"
+  },
+  "dependencies": {
+    "@semajsx/core": "workspace:*",
+    "@semajsx/terminal": "workspace:*"
+  },
+  "devDependencies": {
+    "@semajsx/configs": "workspace:*",
+    "typescript": "^5.9.3"
+  }
+}

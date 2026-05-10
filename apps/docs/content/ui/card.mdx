@@ -1,0 +1,52 @@
+---
+title: Card
+description: A content container with feature and link variants for organizing information.
+order: 3
+category: Layout
+---
+
+## Preview
+
+<ComponentPreview label="Feature Card">
+  <Card heading="Fast Build" description="Lightning fast builds with zero configuration needed." />
+</ComponentPreview>
+
+<ComponentPreview label="Link Card">
+  <Card
+    variant="link"
+    heading="Getting Started"
+    description="Learn the basics in 5 minutes."
+    href="/reference/getting-started"
+  />
+</ComponentPreview>
+
+## Usage
+
+```tsx
+import { Card } from "@semajsx/ui/components/card";
+
+// Feature card with icon
+<Card
+  icon={<span>⚡</span>}
+  heading="Fast"
+  description="Built for speed"
+/>
+
+// Link card for navigation
+<Card
+  variant="link"
+  heading="Guide"
+  description="Get started quickly"
+  href="/docs"
+/>
+```
+
+## Props
+
+| Prop          | Type                  | Default     | Description                 |
+| ------------- | --------------------- | ----------- | --------------------------- |
+| `variant`     | `"feature" \| "link"` | `"feature"` | Card variant                |
+| `icon`        | `JSXNode`             | —           | Icon content (emoji or JSX) |
+| `heading`     | `string`              | —           | Card heading                |
+| `description` | `string`              | —           | Card description            |
+| `href`        | `string`              | —           | Link URL (for link variant) |

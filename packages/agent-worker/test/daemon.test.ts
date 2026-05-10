@@ -74,9 +74,9 @@ describe("Daemon", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as Record<string, unknown>;
     expect(body.status).toBe("ok");
-    // Global agents may be auto-registered from workspace discovery
+    // Global agents may be auto-registered from harness discovery
     expect(typeof body.agents).toBe("number");
-    expect(body.workspaces).toBe(1); // global workspace always exists
+    expect(body.harnesss).toBe(1); // global harness always exists
   });
 
   test("writes daemon.json for discovery", async () => {
@@ -174,9 +174,9 @@ describe("Daemon", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as { agents: Array<Record<string, unknown>> };
     expect(Array.isArray(body.agents)).toBe(true);
-    // If any global agents were discovered, they should have kind: "config" and workspace: "global"
+    // If any global agents were discovered, they should have kind: "config" and harness: "global"
     for (const agent of body.agents) {
-      if (agent.workspace === "global") {
+      if (agent.harness === "global") {
         expect(agent.kind).toBe("config");
       }
     }

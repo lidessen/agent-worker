@@ -1,0 +1,56 @@
+---
+title: Interactive Islands Demo
+date: 2024-01-25
+---
+
+This post demonstrates interactive islands in MDX content.
+
+## What are Islands?
+
+Islands are interactive components that hydrate on the client side while the rest of the page remains static.
+
+<Callout type="info" title="Key Concept">
+  Islands provide interactivity without shipping JavaScript for the entire page.
+</Callout>
+
+## Interactive Counter
+
+Here's an interactive counter that works after hydration:
+
+<Counter initial={5} />
+
+You can have multiple counters with different initial values:
+
+<Counter initial={0} />
+
+<Counter initial={100} />
+
+## How It Works
+
+<CodeBlock language="typescript" title="Counter.tsx">
+  {`export const Counter = island(
+  function Counter({ initial = 0 }) {
+    const count = signal(initial);
+    return (
+      <button onClick={() => count.value++}>
+        Count: {count}
+      </button>
+    );
+  },
+  import.meta.url,
+);`}
+</CodeBlock>
+
+<Callout type="success" title="Benefits">
+  - Static content loads instantly - Only interactive parts need JavaScript - Better performance and
+  SEO
+</Callout>
+
+## Summary
+
+Islands architecture lets you:
+
+1. Pre-render static content at build time
+2. Hydrate only interactive components
+3. Reduce JavaScript bundle size
+4. Improve page load performance

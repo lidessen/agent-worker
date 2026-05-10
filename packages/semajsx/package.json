@@ -1,0 +1,246 @@
+{
+  "name": "semajsx",
+  "version": "0.11.0",
+  "description": "A signal-based reactive JSX runtime for building modern web applications",
+  "keywords": [
+    "framework",
+    "jsx",
+    "reactive",
+    "signal",
+    "typescript",
+    "ui"
+  ],
+  "license": "MIT",
+  "author": "lidessen",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/semajsx/semajsx",
+    "directory": "packages/semajsx"
+  },
+  "bin": {
+    "semajsx": "./dist/cli/index.mjs"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "default": "./dist/index.mjs"
+    },
+    "./blocks": {
+      "source": "./src/blocks/index.ts",
+      "default": "./dist/blocks/index.mjs"
+    },
+    "./blocks/renderers": {
+      "source": "./src/blocks/renderers.ts",
+      "default": "./dist/blocks/renderers.mjs"
+    },
+    "./chat": {
+      "source": "./src/chat/index.ts",
+      "default": "./dist/chat/index.mjs"
+    },
+    "./cli": {
+      "source": "./src/cli/index.ts",
+      "default": "./dist/cli/index.mjs"
+    },
+    "./dom": {
+      "source": "./src/dom/index.ts",
+      "default": "./dist/dom/index.mjs"
+    },
+    "./dom/jsx-dev-runtime": {
+      "source": "./src/dom/jsx-dev-runtime.ts",
+      "default": "./dist/dom/jsx-dev-runtime.mjs"
+    },
+    "./dom/jsx-runtime": {
+      "source": "./src/dom/jsx-runtime.ts",
+      "default": "./dist/dom/jsx-runtime.mjs"
+    },
+    "./icons": {
+      "source": "./src/icons/index.ts",
+      "default": "./dist/icons/index.mjs"
+    },
+    "./prompt": {
+      "source": "./src/prompt/index.ts",
+      "default": "./dist/prompt/index.mjs"
+    },
+    "./prompt/jsx-dev-runtime": {
+      "source": "./src/prompt/jsx-dev-runtime.ts",
+      "default": "./dist/prompt/jsx-dev-runtime.mjs"
+    },
+    "./prompt/jsx-runtime": {
+      "source": "./src/prompt/jsx-runtime.ts",
+      "default": "./dist/prompt/jsx-runtime.mjs"
+    },
+    "./signal": {
+      "source": "./src/signal/index.ts",
+      "default": "./dist/signal/index.mjs"
+    },
+    "./ssg": {
+      "source": "./src/ssg/index.ts",
+      "default": "./dist/ssg/index.mjs"
+    },
+    "./ssg/plugins/docs-theme": {
+      "source": "./src/ssg/plugins/docs-theme.ts",
+      "default": "./dist/ssg/plugins/docs-theme.mjs"
+    },
+    "./ssg/plugins/lucide": {
+      "source": "./src/ssg/plugins/lucide.ts",
+      "default": "./dist/ssg/plugins/lucide.mjs"
+    },
+    "./ssr": {
+      "source": "./src/ssr/index.ts",
+      "default": "./dist/ssr/index.mjs"
+    },
+    "./ssr/client": {
+      "source": "./src/ssr/client.ts",
+      "default": "./dist/ssr/client.mjs"
+    },
+    "./style": {
+      "source": "./src/style/index.ts",
+      "default": "./dist/style/index.mjs"
+    },
+    "./style/react": {
+      "source": "./src/style/react.ts",
+      "default": "./dist/style/react.mjs"
+    },
+    "./style/vue": {
+      "source": "./src/style/vue.ts",
+      "default": "./dist/style/vue.mjs"
+    },
+    "./tailwind": {
+      "source": "./src/tailwind/index.ts",
+      "default": "./dist/tailwind/index.mjs"
+    },
+    "./terminal": {
+      "source": "./src/terminal/index.ts",
+      "default": "./dist/terminal/index.mjs"
+    },
+    "./terminal/jsx-dev-runtime": {
+      "source": "./src/terminal/jsx-dev-runtime.ts",
+      "default": "./dist/terminal/jsx-dev-runtime.mjs"
+    },
+    "./terminal/jsx-runtime": {
+      "source": "./src/terminal/jsx-runtime.ts",
+      "default": "./dist/terminal/jsx-runtime.mjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": "./dist/index.mjs",
+      "./blocks": "./dist/blocks/index.mjs",
+      "./blocks/renderers": "./dist/blocks/renderers.mjs",
+      "./chat": "./dist/chat/index.mjs",
+      "./cli": "./dist/cli/index.mjs",
+      "./dom": "./dist/dom/index.mjs",
+      "./dom/jsx-dev-runtime": "./dist/dom/jsx-dev-runtime.mjs",
+      "./dom/jsx-runtime": "./dist/dom/jsx-runtime.mjs",
+      "./icons": "./dist/icons/index.mjs",
+      "./prompt": "./dist/prompt/index.mjs",
+      "./prompt/jsx-dev-runtime": "./dist/prompt/jsx-dev-runtime.mjs",
+      "./prompt/jsx-runtime": "./dist/prompt/jsx-runtime.mjs",
+      "./signal": "./dist/signal/index.mjs",
+      "./ssg": "./dist/ssg/index.mjs",
+      "./ssg/plugins/docs-theme": "./dist/ssg/plugins/docs-theme.mjs",
+      "./ssg/plugins/lucide": "./dist/ssg/plugins/lucide.mjs",
+      "./ssr": "./dist/ssr/index.mjs",
+      "./ssr/client": "./dist/ssr/client.mjs",
+      "./style": "./dist/style/index.mjs",
+      "./style/react": "./dist/style/react.mjs",
+      "./style/vue": "./dist/style/vue.mjs",
+      "./tailwind": "./dist/tailwind/index.mjs",
+      "./terminal": "./dist/terminal/index.mjs",
+      "./terminal/jsx-dev-runtime": "./dist/terminal/jsx-dev-runtime.mjs",
+      "./terminal/jsx-runtime": "./dist/terminal/jsx-runtime.mjs",
+      "./package.json": "./package.json"
+    }
+  },
+  "scripts": {
+    "build": "tsdown && mkdir -p dist/ssg/plugins/fonts && cp ../ssg/src/plugins/docs-theme/fonts/* dist/ssg/plugins/fonts/",
+    "dev": "tsdown --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest",
+    "test:unit": "vitest --config vitest.unit.config.ts",
+    "test:unit:run": "vitest run --config vitest.unit.config.ts",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest run --coverage --config vitest.unit.config.ts",
+    "test:terminal": "vitest run tests/terminal --config vitest.unit.config.ts",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "bun run build"
+  },
+  "dependencies": {
+    "ansi-escapes": "^7.3.0",
+    "cac": "^7.0.0",
+    "chalk": "^5.6.2",
+    "cli-boxes": "^4.0.1",
+    "glob": "^13.0.6",
+    "gray-matter": "^4.0.3",
+    "lightningcss": "^1.32.0",
+    "lucide": "^1.8.0",
+    "minimatch": "^10.2.5",
+    "remark-gfm": "^4.0.1",
+    "slice-ansi": "^9.0.0",
+    "string-width": "^8.2.0",
+    "wrap-ansi": "^10.0.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@semajsx/blocks": "workspace:*",
+    "@semajsx/chat": "workspace:*",
+    "@semajsx/configs": "workspace:*",
+    "@semajsx/core": "workspace:*",
+    "@semajsx/dom": "workspace:*",
+    "@semajsx/icons": "workspace:*",
+    "@semajsx/logger": "workspace:*",
+    "@semajsx/prompt": "workspace:*",
+    "@semajsx/signal": "workspace:*",
+    "@semajsx/ssg": "workspace:*",
+    "@semajsx/ssr": "workspace:*",
+    "@semajsx/style": "workspace:*",
+    "@semajsx/tailwind": "workspace:*",
+    "@semajsx/terminal": "workspace:*",
+    "@semajsx/utils": "workspace:*",
+    "@types/bun": "latest",
+    "@types/node": "^25.6.0",
+    "@vitest/browser": "^4.1.4",
+    "@vitest/browser-playwright": "^4.1.4",
+    "esbuild": "^0.27.0",
+    "playwright": "^1.59.1",
+    "tsdown": "^0.21.9",
+    "typescript": "^5.9.3",
+    "vite": "^8.0.9",
+    "vitest": "^4.1.4"
+  },
+  "peerDependencies": {
+    "@mdx-js/mdx": "^3.1.1",
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0",
+    "vite": "^7.0.0",
+    "vue": ">=3.0.0",
+    "yoga-layout-prebuilt": "^1.10.0"
+  },
+  "peerDependenciesMeta": {
+    "@mdx-js/mdx": {
+      "optional": true
+    },
+    "vite": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    },
+    "vue": {
+      "optional": true
+    },
+    "yoga-layout-prebuilt": {
+      "optional": true
+    }
+  }
+}

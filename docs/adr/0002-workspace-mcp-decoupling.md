@@ -9,7 +9,7 @@ The current architecture tightly couples workspace and agent at the code level. 
 
 1. Only agents built with `@agent-worker/agent` + `@agent-worker/loop` can participate in a workspace.
 2. External tools (Claude Code, Cursor, custom MCP clients) cannot join an existing workspace.
-3. The `@agent-worker/workspace` package depends on `@agent-worker/agent` and `@agent-worker/loop`, creating a circular conceptual dependency — workspace knows how to drive agents, agents know workspace tool schemas.
+3. The `@agent-worker/harness` package depends on `@agent-worker/agent` and `@agent-worker/loop`, creating a circular conceptual dependency — workspace knows how to drive agents, agents know workspace tool schemas.
 
 We want any MCP-capable client to connect to a workspace and collaborate with other agents, without changes to the config format or CLI.
 
@@ -70,7 +70,7 @@ Pure LLM execution abstraction. Does not know about agent or workspace.
 - Loop tools — `grep`, `web_fetch`, `web_search`, `web_browse`
 - `ToolRelevanceEngine` — dynamic per-step tool filtering
 
-#### `@agent-worker/workspace` — **pure collaboration infrastructure MCP server**
+#### `@agent-worker/harness` — **pure collaboration infrastructure MCP server**
 
 Provides channels, documents, inboxes, and message routing as an MCP server. Does not know what an "agent loop" is, does not import `@agent-worker/agent` or `@agent-worker/loop`.
 

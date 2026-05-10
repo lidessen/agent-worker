@@ -14,12 +14,12 @@ export type {
 
 // ── Registries ────────────────────────────────────────────────────────────
 export { AgentRegistry } from "./agent-registry.ts";
-export { WorkspaceRegistry } from "./workspace-registry.ts";
+export { HarnessRegistry } from "./harness-registry.ts";
 
 // ── Managed instances ─────────────────────────────────────────────────────
 export { ManagedAgent } from "./managed-agent.ts";
 export { GlobalAgentStub } from "./global-agent-stub.ts";
-export { ManagedWorkspace } from "./managed-workspace.ts";
+export { ManagedHarness } from "./managed-harness.ts";
 export type { AgentHandle } from "./agent-registry.ts";
 
 // ── Event log ─────────────────────────────────────────────────────────────
@@ -47,12 +47,12 @@ export type {
   AgentKind,
   ManagedAgentInfo,
   CreateAgentInput,
-  ManagedWorkspaceInfo,
-  CreateWorkspaceInput,
+  ManagedHarnessInfo,
+  CreateHarnessInput,
   RuntimeType,
   RuntimeConfig,
-  WorkspaceMode,
-  WorkspaceStatus,
+  HarnessMode,
+  HarnessStatus,
   RunnerKind,
   RunnerConfig,
 } from "./types.ts";
@@ -71,14 +71,14 @@ export type { AgentConfig, AgentState, AgentLoop } from "@agent-worker/agent";
 export { AiSdkLoop, ClaudeCodeLoop, CodexLoop, CursorLoop, MockLoop } from "@agent-worker/loop";
 export type { LoopRun, LoopEvent, LoopResult, LoopStatus } from "@agent-worker/loop";
 
-export { Workspace, createWorkspace } from "@agent-worker/workspace";
-export type { WorkspaceDef, ResolvedWorkspace, ResolvedAgent } from "@agent-worker/workspace";
+export { Harness, createHarness } from "@agent-worker/harness";
+export type { HarnessDef, ResolvedHarness, ResolvedAgent } from "@agent-worker/harness";
 
-// ── Orchestrator (moved from workspace) ──────────────────────────────────
-export { WorkspaceOrchestrator, createOrchestrator } from "./orchestrator.ts";
+// ── Orchestrator (moved from harness) ──────────────────────────────────
+export { HarnessOrchestrator, createOrchestrator } from "./orchestrator.ts";
 export type { OrchestratorConfig } from "./orchestrator.ts";
 
-// ── Runtime resolution (moved from workspace) ───────────────────────────
+// ── Runtime resolution (moved from harness) ───────────────────────────
 export { resolveRuntime, discoverCliRuntime, detectAiSdkModel } from "./resolve-runtime.ts";
 export type { RuntimeResolution } from "./resolve-runtime.ts";
 

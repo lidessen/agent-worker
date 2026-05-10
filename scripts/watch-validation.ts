@@ -1,36 +1,36 @@
 #!/usr/bin/env bun
 /**
  * watch-validation.ts — companion observability script for the
- * workspace-led hierarchical validation checklist.
+ * harness-led hierarchical validation checklist.
  *
- * Polls the validation workspace's task ledger once per second and
- * prints every state transition + every new handoff + every new
- * artifact as they happen. Run in a second terminal while the real
- * claude-code / codex agents drive the workspace.
+ * Polls the validation harness's task ledger once per second and
+ * prints every state transition + every new handoff (with the
+ * resources it referenced). Run in a second terminal while the real
+ * claude-code / codex agents drive the harness.
  *
  * Usage:
  *   bun run scripts/watch-validation.ts
- *   bun run scripts/watch-validation.ts --workspace hierarchical-validation
+ *   bun run scripts/watch-validation.ts --harness hierarchical-validation
  *
- * Checklist: docs/design/workspace-led-hierarchical-agent-system/validation-checklist.md
+ * Checklist: docs/design/harness-led-hierarchical-agent-system/validation-checklist.md
  */
 
 import { ensureDaemon } from "../packages/agent-worker/src/client.ts";
 
-function parseArgs(): { workspace: string; pollMs: number } {
+function parseArgs(): { harness: string; pollMs: number } {
   const args = process.argv.slice(2);
-  let workspace = "hierarchical-validation";
+  let harness = "hierarchical-validation";
   let pollMs = 1000;
   for (let i = 0; i < args.length; i++) {
-    if (args[i] === "--workspace" && args[i + 1]) {
-      workspace = args[i + 1]!;
+    if (args[i] === "--harness" && args[i + 1]) {
+      harness = args[i + 1]!;
       i++;
     } else if (args[i] === "--poll-ms" && args[i + 1]) {
       pollMs = parseInt(args[i + 1]!, 10);
       i++;
     }
   }
-  return { workspace, pollMs };
+  return { harness, pollMs };
 }
 
 function fmtTime(d = new Date()): string {
@@ -52,27 +52,25 @@ interface TaskSummary {
   id: string;
   status: string;
   title: string;
-  activeAttemptId?: string;
-  artifactRefs?: string[];
+  activeWakeId?: string;
 }
 
 async function main() {
-  const { workspace, pollMs } = parseArgs();
+  const { harness, pollMs } = parseArgs();
   console.log(dim(`[${fmtTime()}] connecting to daemon…`));
 
   const client = await ensureDaemon();
   console.log(
-    dim(`[${fmtTime()}] watching @${workspace} (poll every ${pollMs}ms — ctrl-c to stop)`),
+    dim(`[${fmtTime()}] watching @${harness} (poll every ${pollMs}ms — ctrl-c to stop)`),
   );
 
   const taskState = new Map<string, TaskSummary>();
   const seenHandoffs = new Set<string>();
-  const seenArtifacts = new Set<string>();
   let lastChronicleCount = 0;
 
   async function tick() {
     try {
-      const result = await client.listWorkspaceTasks(workspace);
+      const result = await client.listHarnessTasks(harness);
 
       for (const raw of result.tasks) {
         const t = raw as TaskSummary;
@@ -85,45 +83,34 @@ async function main() {
           console.log(
             `${dim(`[${fmtTime()}]`)} ${cyan("task_status")} ${bold(t.id)} ${prev.status} → ${yellow(t.status)}`,
           );
-        } else if (prev.activeAttemptId !== t.activeAttemptId) {
-          const change = t.activeAttemptId ? `active=${t.activeAttemptId}` : "active=cleared";
+        } else if (prev.activeWakeId !== t.activeWakeId) {
+          const change = t.activeWakeId ? `active=${t.activeWakeId}` : "active=cleared";
           console.log(`${dim(`[${fmtTime()}]`)} ${cyan("task_active")} ${bold(t.id)} ${change}`);
         }
         taskState.set(t.id, t);
 
-        const detail = await client.getWorkspaceTask(workspace, t.id);
+        const detail = await client.getHarnessTask(harness, t.id);
         for (const raw of detail.handoffs) {
           const h = raw as {
             id: string;
             kind: string;
             summary: string;
             createdBy: string;
+            resources?: string[];
           };
           if (!seenHandoffs.has(h.id)) {
             seenHandoffs.add(h.id);
+            const resourcesNote =
+              h.resources && h.resources.length > 0 ? ` resources=${h.resources.join(",")}` : "";
             console.log(
-              `${dim(`[${fmtTime()}]`)} ${blue("handoff")}     ${bold(h.id)} [${h.kind}] by ${h.createdBy}: ${h.summary.slice(0, 120)}`,
-            );
-          }
-        }
-        for (const raw of detail.artifacts) {
-          const a = raw as {
-            id: string;
-            kind: string;
-            title: string;
-            ref: string;
-          };
-          if (!seenArtifacts.has(a.id)) {
-            seenArtifacts.add(a.id);
-            console.log(
-              `${dim(`[${fmtTime()}]`)} ${green("artifact")}    ${bold(a.id)} ${a.kind}: ${a.title} (${a.ref})`,
+              `${dim(`[${fmtTime()}]`)} ${blue("handoff")}     ${bold(h.id)} [${h.kind}] by ${h.createdBy}: ${h.summary.slice(0, 120)}${resourcesNote}`,
             );
           }
         }
       }
 
       // Chronicle — print new entries since last tick.
-      const chronicle = await client.readWorkspaceChronicle(workspace, {
+      const chronicle = await client.readHarnessChronicle(harness, {
         category: "task",
         limit: 200,
       });

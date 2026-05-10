@@ -111,10 +111,10 @@ async function sendMessage(
   content: string,
   from: string | undefined,
 ): Promise<void> {
-  if (target.agent && !target.workspace) {
+  if (target.agent && !target.harness) {
     await client.sendToAgent(target.agent, [{ content, from }]);
-  } else if (target.workspace) {
-    await client.sendToWorkspace(target.workspace, {
+  } else if (target.harness) {
+    await client.sendToHarness(target.harness, {
       content,
       from,
       agent: target.agent,
@@ -131,12 +131,12 @@ async function streamAgentStatus(
   activity: ReturnType<typeof signal<string>>,
   abortSignal: AbortSignal,
 ): Promise<void> {
-  if (!target.agent && !target.workspace) return;
+  if (!target.agent && !target.harness) return;
 
   const update = (event: any) => {
     const agent = event.agent ? `${event.agent}: ` : "";
-    // Normalize: workspace events have "workspace.agent_*" prefix
-    const type = (event.type as string).replace(/^workspace\.agent_/, "");
+    // Normalize: harness events have "harness.agent_*" prefix
+    const type = (event.type as string).replace(/^harness\.agent_/, "");
     switch (type) {
       case "state_change":
         activity.value = event.state === "idle" ? "" : `${agent}${event.state}`;
@@ -163,13 +163,13 @@ async function streamAgentStatus(
   };
 
   try {
-    const current = target.workspace
-      ? await client.readWorkspaceEvents(target.workspace)
+    const current = target.harness
+      ? await client.readHarnessEvents(target.harness)
       : await client.readAgentEvents(target.agent!);
     const startCursor = current.cursor;
 
-    const stream = target.workspace
-      ? await client.streamWorkspaceEvents(target.workspace, startCursor)
+    const stream = target.harness
+      ? await client.streamHarnessEvents(target.harness, startCursor)
       : await client.streamAgentEvents(target.agent!, startCursor);
     for await (const event of stream) {
       if (abortSignal.aborted) break;
@@ -190,7 +190,7 @@ async function streamResponses(
   push: (entry: any) => void,
   abortSignal: AbortSignal,
 ): Promise<void> {
-  if (target.agent && !target.workspace) {
+  if (target.agent && !target.harness) {
     const current = await client.readResponses(target.agent!);
     const startCursor = current.cursor;
 
@@ -200,19 +200,19 @@ async function streamResponses(
       push,
       () => !abortSignal.aborted,
     );
-  } else if (target.workspace) {
-    const ch = target.channel ?? (await resolveDefaultChannel(client, target.workspace));
+  } else if (target.harness) {
+    const ch = target.channel ?? (await resolveDefaultChannel(client, target.harness));
 
-    const existing = await client.readChannel(target.workspace!, ch, { limit: 1 });
+    const existing = await client.readChannel(target.harness!, ch, { limit: 1 });
     let lastSeenId: string | undefined =
       existing.messages.length > 0
         ? existing.messages[existing.messages.length - 1]!.id
         : undefined;
 
     await streamWithFallback(
-      () => client.streamChannel(target.workspace!, ch),
+      () => client.streamChannel(target.harness!, ch),
       async (cursor) => {
-        const result = await client.readChannel(target.workspace!, ch, {
+        const result = await client.readChannel(target.harness!, ch, {
           limit: 50,
           since: lastSeenId,
         });
@@ -258,9 +258,9 @@ async function streamWithFallback(
   }
 }
 
-async function resolveDefaultChannel(client: AwClient, workspace: string): Promise<string> {
+async function resolveDefaultChannel(client: AwClient, harness: string): Promise<string> {
   try {
-    const info = await client.getWorkspace(workspace);
+    const info = await client.getHarness(harness);
     return info.default_channel ?? "general";
   } catch {
     return "general";
@@ -306,8 +306,8 @@ export async function repl(args: string[]): Promise<void> {
   }
 
   const target = parseTarget(raw);
-  if (!target.agent && !target.workspace) {
-    console.error("Target required (e.g., aw repl alice, aw repl @workspace)");
+  if (!target.agent && !target.harness) {
+    console.error("Target required (e.g., aw repl alice, aw repl @harness)");
     process.exit(1);
   }
 
@@ -315,12 +315,12 @@ export async function repl(args: string[]): Promise<void> {
   const json = args.includes("--json");
   const client = await ensureDaemon();
 
-  const label = target.agent ?? `@${target.workspace}`;
+  const label = target.agent ?? `@${target.harness}`;
   try {
-    if (target.agent && !target.workspace) {
+    if (target.agent && !target.harness) {
       await client.getAgent(target.agent);
-    } else if (target.workspace) {
-      await client.getWorkspace(target.workspace);
+    } else if (target.harness) {
+      await client.getHarness(target.harness);
     }
   } catch {
     console.error(`"${label}" not found`);

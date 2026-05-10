@@ -16,10 +16,10 @@ export async function status(args: string[]): Promise<void> {
   const client = AwClient.fromInfo(info);
 
   try {
-    const [health, agents, workspaces] = await Promise.all([
+    const [health, agents, harnesss] = await Promise.all([
       client.health(),
       client.listAgents(),
-      client.listWorkspaces(),
+      client.listHarnesss(),
     ]);
 
     // ── Daemon ──
@@ -29,7 +29,7 @@ export async function status(args: string[]): Promise<void> {
     console.log(`  URL:       http://${info.host}:${info.port}`);
     console.log(`  Web UI:    http://${info.host}:${info.port}/`);
     console.log(`  Agents:    ${health.agents}`);
-    console.log(`  Workspaces: ${health.workspaces}`);
+    console.log(`  Harnesss: ${health.harnesss}`);
 
     // ── Agents ──
     if (agents.length > 0) {
@@ -38,15 +38,15 @@ export async function status(args: string[]): Promise<void> {
         const runtime = a.runtime ?? a.kind;
         const model = (a as any).model ? ` (${(a as any).model})` : "";
         const state = (a as any).state ?? "unknown";
-        const ws = a.workspace ? ` @ ${a.workspace}` : "";
+        const ws = a.harness ? ` @ ${a.harness}` : "";
         console.log(`  ${a.name}  ${state}  ${runtime}${model}${ws}`);
       }
     }
 
-    // ── Workspaces ──
-    if (workspaces.length > 0) {
-      console.log("\nWorkspaces:");
-      for (const w of workspaces) {
+    // ── Harnesss ──
+    if (harnesss.length > 0) {
+      console.log("\nHarnesss:");
+      for (const w of harnesss) {
         const key = w.tag ? `${w.name}:${w.tag}` : w.name;
         const agentList = w.agents?.join(", ") ?? "";
         const mode = (w as any).mode ? `[${(w as any).mode}]` : "";

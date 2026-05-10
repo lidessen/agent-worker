@@ -1,33 +1,53 @@
 {
   "name": "@agent-worker/monorepo",
   "private": true,
+  "type": "module",
   "workspaces": [
+    "internals/*",
     "packages/*",
-    "vendor/semajsx/packages/*"
+    "apps/*"
   ],
   "scripts": {
     "aw": "sh -c 'if command -v bun >/dev/null 2>&1; then exec bun packages/agent-worker/src/cli/index.ts \"$@\"; else exec node --import tsx packages/agent-worker/src/cli/index.ts \"$@\"; fi' --",
     "aw:node": "node --import tsx packages/agent-worker/src/cli/index.ts",
-    "typecheck": "tsgo -p packages/shared/tsconfig.json && tsgo -p packages/loop/tsconfig.json && tsgo -p packages/agent/tsconfig.json && tsgo -p packages/workspace/tsconfig.json && tsgo -p packages/agent-worker/tsconfig.json && tsgo -p packages/web/tsconfig.json",
-    "test": "bun test packages/shared/src/event-bus.test.ts packages/loop/test packages/agent/test packages/workspace/test packages/agent-worker/test",
+    "typecheck": "tsgo --build --pretty tsconfig.build.json && tsgo -p internals/shared/tsconfig.json && tsgo -p internals/loop/tsconfig.json && tsgo -p internals/agent/tsconfig.json && tsgo -p internals/workspace/tsconfig.json && tsgo -p packages/agent-worker/tsconfig.json && tsgo -p internals/web/tsconfig.json",
+    "test": "bun test internals/shared/src/event-bus.test.ts internals/loop/test internals/agent/test internals/workspace/test packages/agent-worker/test",
+    "test:vitest": "vitest",
+    "test:vitest:run": "vitest run",
+    "test:vitest:unit": "vitest --config vitest.unit.config.ts",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
     "fmt": "oxfmt --write .",
-    "fmt:check": "oxfmt --check ."
+    "fmt:check": "oxfmt --check .",
+    "build": "bun run --filter './packages/*' build",
+    "release": "bun run build && changeset publish"
   },
   "dependencies": {
-    "@ai-sdk/deepseek": "^2.0.24",
+    "@ai-sdk/deepseek": "^2.0.32",
     "@hono/node-server": "^1.19.11",
-    "ai": "^6.0.116",
+    "ai": "^6.0.174",
     "execa": "^9.6.1",
     "hono": "^4.12.7"
   },
   "devDependencies": {
+    "@changesets/changelog-github": "^0.6.0",
+    "@changesets/cli": "^2.31.0",
+    "@commitlint/cli": "^20.5.0",
+    "@commitlint/config-conventional": "^20.5.0",
     "@types/bun": "latest",
+    "@types/node": "^25.6.0",
     "@typescript/native-preview": "^7.0.0-dev.20260310.1",
-    "oxfmt": "^0.37.0",
-    "oxlint": "^1.52.0",
+    "@vitest/coverage-v8": "^4.1.4",
+    "happy-dom": "^20.9.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
+    "oxfmt": "^0.45.0",
+    "oxlint": "^1.60.0",
     "tsx": "^4.20.6",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.4"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }

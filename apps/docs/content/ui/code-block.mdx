@@ -1,0 +1,57 @@
+---
+title: CodeBlock
+description: Code display component with language labels and syntax highlighting support.
+order: 12
+category: Data Display
+---
+
+## Preview
+
+The CodeBlock component is primarily used through markdown code fences in MDX content. When you write fenced code blocks in your documentation, they are automatically rendered using CodeBlock with Shiki syntax highlighting.
+
+```tsx
+const greeting = "Hello, SemaJSX!";
+console.log(greeting);
+```
+
+```css
+.my-component {
+  color: var(--sui-colors-primary);
+  padding: var(--sui-space-md);
+}
+```
+
+## Usage
+
+In MDX files, code blocks are automatically rendered with the CodeBlock component:
+
+````md
+```tsx
+import { Button } from "@semajsx/ui/components/button";
+
+<Button variant="outline">Click me</Button>;
+```
+````
+
+For programmatic use:
+
+```tsx
+import { CodeBlock } from "@semajsx/ui/components/code-block";
+
+<CodeBlock language="tsx">{`const x = 1;`}</CodeBlock>;
+```
+
+## Props
+
+### CodeBlock
+
+| Prop       | Type     | Default | Description                        |
+| ---------- | -------- | ------- | ---------------------------------- |
+| `language` | `string` | —       | Programming language for the label |
+| `children` | `string` | —       | Code content                       |
+
+### InlineCode
+
+| Prop       | Type      | Default | Description         |
+| ---------- | --------- | ------- | ------------------- |
+| `children` | `JSXNode` | —       | Inline code content |

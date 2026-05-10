@@ -1,0 +1,34 @@
+{
+  "name": "@semajsx/terminal",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./jsx-dev-runtime": "./src/jsx-dev-runtime.ts",
+    "./jsx-runtime": "./src/jsx-runtime.ts",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "example:counter": "bun run examples/terminal-counter/app.tsx",
+    "example:print": "bun run examples/terminal-print/simple-print.tsx"
+  },
+  "dependencies": {
+    "@semajsx/core": "workspace:*",
+    "@semajsx/signal": "workspace:*",
+    "@semajsx/utils": "workspace:*",
+    "ansi-escapes": "^7.3.0",
+    "chalk": "^5.6.2",
+    "cli-boxes": "^4.0.1",
+    "slice-ansi": "^9.0.0",
+    "string-width": "^8.2.0",
+    "wrap-ansi": "^10.0.0",
+    "yoga-layout-prebuilt": "^1.10.0"
+  },
+  "devDependencies": {
+    "@semajsx/configs": "workspace:*"
+  }
+}

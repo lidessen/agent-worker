@@ -1,0 +1,4 @@
+{
+  "extends": "@semajsx/configs/tsconfig.test.json",
+  "include": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "tests/**/*.tsx"]
+}

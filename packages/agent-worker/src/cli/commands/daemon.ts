@@ -78,7 +78,7 @@ async function daemonStart(args: string[]): Promise<void> {
   }
 
   // Load saved secrets into process.env so runtimes can resolve API keys
-  const { loadSecrets } = await import("@agent-worker/workspace");
+  const { loadSecrets } = await import("@agent-worker/harness");
   const secrets = await loadSecrets();
   for (const [key, value] of Object.entries(secrets)) {
     if (!process.env[key]) {

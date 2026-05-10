@@ -1,6 +1,6 @@
 import type { AgentConfig, AgentState, AgentLoop } from "@agent-worker/agent";
 import type { LoopToolsOptions } from "@agent-worker/loop";
-import type { McpServerDef } from "@agent-worker/workspace";
+import type { McpServerDef } from "@agent-worker/harness";
 
 // ── Daemon configuration ──────────────────────────────────────────────────
 
@@ -17,7 +17,7 @@ export interface DaemonConfig {
   token?: string;
   /** MCP hub port. Default: 42424. Set to 0 for auto-assign (useful in tests). */
   mcpPort?: number;
-  /** Directory containing the built web UI (SPA). Default: packages/web/dist relative to project root. */
+  /** Directory containing the built web UI (SPA). Default: internals/web/dist relative to project root. */
   webDistDir?: string;
 }
 
@@ -30,7 +30,7 @@ export interface DaemonInfo {
   token: string;
   startedAt: number;
   listenHost?: string;
-  /** Port of the workspace MCP hub (debug + agent tools via MCP protocol). */
+  /** Port of the harness MCP hub (debug + agent tools via MCP protocol). */
   mcpPort?: number;
 }
 
@@ -44,8 +44,8 @@ export interface ManagedAgentInfo {
   state: AgentState;
   runtime?: string;
   createdAt: number;
-  /** Workspace this agent belongs to, if any. */
-  workspace?: string;
+  /** Harness this agent belongs to, if any. */
+  harness?: string;
 }
 
 export interface CreateAgentInput {
@@ -59,16 +59,16 @@ export interface CreateAgentInput {
   kind?: AgentKind;
   /** Runtime type label (e.g. "mock", "claude-code"). */
   runtime?: string;
-  /** Workspace scope. If set, agent storage is under the workspace directory. */
-  workspace?: string;
+  /** Harness scope. If set, agent storage is under the harness directory. */
+  harness?: string;
 }
 
-// ── Managed workspace ─────────────────────────────────────────────────────
+// ── Managed harness ─────────────────────────────────────────────────────
 
-export type WorkspaceMode = "service" | "task";
-export type WorkspaceStatus = "running" | "completed" | "failed";
+export type HarnessMode = "service" | "task";
+export type HarnessStatus = "running" | "completed" | "failed";
 
-export interface ManagedWorkspaceInfo {
+export interface ManagedHarnessInfo {
   name: string;
   label?: string;
   tag?: string;
@@ -76,14 +76,14 @@ export interface ManagedWorkspaceInfo {
   channels: string[];
   default_channel: string;
   createdAt: number;
-  mode: WorkspaceMode;
-  status: WorkspaceStatus;
+  mode: HarnessMode;
+  status: HarnessStatus;
 }
 
-export interface CreateWorkspaceInput {
-  /** Workspace YAML source (path or raw content). */
+export interface CreateHarnessInput {
+  /** Harness YAML source (path or raw content). */
   source: string;
-  /** Fallback workspace name (used when YAML doesn't specify one). */
+  /** Fallback harness name (used when YAML doesn't specify one). */
   name?: string;
   /** Directory of the source config file (used to resolve relative data_dir). */
   configDir?: string;
@@ -95,8 +95,8 @@ export interface CreateWorkspaceInput {
   tag?: string;
   /** Extra variables for template interpolation. */
   vars?: Record<string, string>;
-  /** Workspace mode. "task" auto-removes on completion. Default: "service". */
-  mode?: WorkspaceMode;
+  /** Harness mode. "task" auto-removes on completion. Default: "service". */
+  mode?: HarnessMode;
 }
 
 // ── Runtime configuration (for HTTP-created agents) ──────────────────────
@@ -117,11 +117,11 @@ export interface RuntimeConfig {
   /** System instructions for the agent. */
   instructions?: string;
 
-  /** Working directory for CLI-based runtimes. Default: daemon cwd. */
+  /** Working directory for local runtimes. Default: daemon cwd. */
   cwd?: string;
 
   /** Additional directories the agent is allowed to access beyond cwd.
-   *  Used for shared workspace sandbox, mounted repos, etc.
+   *  Used for shared harness sandbox, mounted repos, etc.
    *  Currently advisory (passed to tool instructions); will be enforced in future. */
   allowedPaths?: string[];
 
@@ -148,7 +148,7 @@ export interface RuntimeConfig {
    * Per-agent persistent state directory. When set, runtimes that
    * support session continuity (currently codex) persist their
    * thread/session identifier here so the next run can resume.
-   * Workspace agents use the same directory as their `agentDir`;
+   * Harness agents use the same directory as their `agentDir`;
    * ephemeral / in-memory agents leave this undefined.
    */
   stateDir?: string;
@@ -161,7 +161,7 @@ export interface RuntimeConfig {
    */
   permissionMode?: "default" | "acceptEdits" | "bypassPermissions";
   fullAuto?: boolean;
-  sandbox?: "read-only" | "workspace-write" | "danger-full-access";
+  sandbox?: "read-only" | "harness-write" | "danger-full-access";
 }
 
 // ── Agent runner ──────────────────────────────────────────────────────────
@@ -179,21 +179,21 @@ export interface RunnerConfig {
 // ── Daemon events ─────────────────────────────────────────────────────────
 
 /**
- * Workspace-scoped events exposed on the daemon bus.
+ * Harness-scoped events exposed on the daemon bus.
  * This layer is intentionally limited to high-level operational overview.
- * Detailed runtime/tool traces belong in workspace timelines and per-run logs.
+ * Detailed runtime/tool traces belong in harness timelines and per-run logs.
  */
-export type WorkspaceOverviewEventType =
-  | "workspace.created"
-  | "workspace.kickoff"
-  | "workspace.kickoff_task_failed"
-  | "workspace.stopped"
-  | "workspace.completed"
-  | "workspace.failed"
-  | "workspace.agent_run_start"
-  | "workspace.agent_run_end"
-  | "workspace.agent_text"
-  | "workspace.agent_error";
+export type HarnessOverviewEventType =
+  | "harness.created"
+  | "harness.kickoff"
+  | "harness.kickoff_task_failed"
+  | "harness.stopped"
+  | "harness.completed"
+  | "harness.failed"
+  | "harness.agent_run_start"
+  | "harness.agent_run_end"
+  | "harness.agent_text"
+  | "harness.agent_error";
 
 export interface DaemonEvent {
   ts: number;

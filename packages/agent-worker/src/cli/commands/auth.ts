@@ -104,7 +104,7 @@ from environment variables (e.g. ANTHROPIC_API_KEY in .env or shell).
 
 async function authProvider(name: string): Promise<void> {
   const provider = PROVIDERS[name]!;
-  const { loadSecrets, setSecret } = await import("@agent-worker/workspace");
+  const { loadSecrets, setSecret } = await import("@agent-worker/harness");
   const secrets = await loadSecrets();
   const rl = createInterface({ input: process.stdin, output: process.stdout });
 
@@ -139,7 +139,7 @@ async function authProvider(name: string): Promise<void> {
 // ── Status ──────────────────────────────────────────────────────────────────
 
 async function authStatus(): Promise<void> {
-  const { loadSecrets } = await import("@agent-worker/workspace");
+  const { loadSecrets } = await import("@agent-worker/harness");
   const secrets = await loadSecrets();
   let hasAny = false;
 
@@ -175,7 +175,7 @@ async function authRm(name?: string): Promise<void> {
     fatal(`Unknown provider: ${name}. Available: ${Object.keys(PROVIDERS).join(", ")}`);
   }
 
-  const { deleteSecret } = await import("@agent-worker/workspace");
+  const { deleteSecret } = await import("@agent-worker/harness");
   const removed = await deleteSecret(provider.envVar);
 
   if (removed) {

@@ -9,4 +9,4 @@
 - If a task would change the system's shape (modules, connections, key mechanisms), write a proposal in `design/decisions/NNN-title.md` and wait for review before coding. Commit design changes separately from code changes.
 - For non-trivial tasks, write a blueprint in `blueprints/<task>.md` following Plan → Build → Verify. Strip the TODO scaffold when done, keep the blueprint.
 - Bug fixes and small config changes don't need a blueprint.
-- Full methodology: `.claude/skills/design-driven/`.
+- Full methodology: `skills/attention-driven/`.

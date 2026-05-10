@@ -1,0 +1,39 @@
+{
+  "name": "@semajsx/ssr",
+  "version": "0.1.2",
+  "private": true,
+  "description": "Server-side rendering and Island architecture for SemaJSX",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./client": "./src/client/index.ts",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "example:ssr-islands": "bun run examples/ssr-islands/server.tsx",
+    "example:bun-server": "bun run examples/bun-server/server.tsx"
+  },
+  "dependencies": {
+    "@semajsx/core": "workspace:*",
+    "@semajsx/dom": "workspace:*",
+    "@semajsx/logger": "workspace:*",
+    "@semajsx/signal": "workspace:*",
+    "@semajsx/style": "workspace:*",
+    "glob": "^13.0.6",
+    "lightningcss": "^1.32.0",
+    "minimatch": "^10.2.5"
+  },
+  "devDependencies": {
+    "@semajsx/configs": "workspace:*",
+    "typescript": "^5.9.3"
+  },
+  "peerDependencies": {
+    "vite": "^7.0.0"
+  },
+  "peerDependenciesMeta": {
+    "vite": {
+      "optional": true
+    }
+  }
+}

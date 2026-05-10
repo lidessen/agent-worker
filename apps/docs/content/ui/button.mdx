@@ -1,0 +1,56 @@
+---
+title: Button
+description: A versatile button component with multiple variants, sizes, and color schemes.
+order: 1
+category: Actions
+---
+
+## Preview
+
+<ComponentPreview label="Variants">
+  <Button>Solid</Button>
+  <Button variant="outline">Outline</Button>
+  <Button variant="ghost">Ghost</Button>
+</ComponentPreview>
+
+<ComponentPreview label="Sizes">
+  <Button size="sm">Small</Button>
+  <Button size="md">Medium</Button>
+  <Button size="lg">Large</Button>
+</ComponentPreview>
+
+<ComponentPreview label="Danger">
+  <Button color="danger">Delete</Button>
+  <Button color="danger" variant="outline">
+    Cancel
+  </Button>
+</ComponentPreview>
+
+<ComponentPreview label="Disabled">
+  <Button disabled>Disabled</Button>
+  <Button variant="outline" disabled>
+    Disabled
+  </Button>
+</ComponentPreview>
+
+## Usage
+
+```tsx
+import { Button } from "@semajsx/ui/components/button";
+
+<Button>Click me</Button>
+<Button variant="outline" size="lg">Large Outline</Button>
+<Button color="danger">Delete</Button>
+```
+
+## Props
+
+| Prop         | Type                              | Default     | Description      |
+| ------------ | --------------------------------- | ----------- | ---------------- |
+| `variant`    | `"solid" \| "outline" \| "ghost"` | `"solid"`   | Visual variant   |
+| `size`       | `"sm" \| "md" \| "lg"`            | `"md"`      | Size preset      |
+| `color`      | `"default" \| "danger"`           | `"default"` | Color scheme     |
+| `disabled`   | `boolean`                         | `false`     | Disabled state   |
+| `type`       | `"button" \| "submit" \| "reset"` | `"button"`  | HTML button type |
+| `onClick`    | `(e: Event) => void`              | —           | Click handler    |
+| `aria-label` | `string`                          | —           | Accessible label |

@@ -1,0 +1,9 @@
+{
+  "extends": "@semajsx/configs/tsconfig.test.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  }
+}

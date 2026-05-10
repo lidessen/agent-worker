@@ -1,0 +1,12 @@
+dist
+node_modules
+coverage
+*.lock
+*.log
+*.tsbuildinfo
+.git
+.vscode
+.cursor
+playwright-report
+test-results
+.content-temp

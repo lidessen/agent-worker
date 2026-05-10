@@ -15,17 +15,17 @@ export async function state(args: string[]): Promise<void> {
 
   const target = parseTarget(raw);
 
-  if (!target.agent && !target.workspace) {
-    console.error("state requires an agent or workspace+agent target");
+  if (!target.agent && !target.harness) {
+    console.error("state requires an agent or harness+agent target");
     process.exit(1);
   }
 
   try {
     const client = await AwClient.discover();
 
-    // Workspace inbox peek: aw state alice@review
-    if (target.agent && target.workspace) {
-      const wsKey = target.workspace;
+    // Harness inbox peek: aw state alice@review
+    if (target.agent && target.harness) {
+      const wsKey = target.harness;
       const entries = await client.peekInbox(wsKey, target.agent);
       console.log(`Inbox for ${target.agent} in @${wsKey} (${entries.length}):`);
       for (const e of entries) {

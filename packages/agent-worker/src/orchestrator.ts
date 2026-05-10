@@ -1,10 +1,10 @@
 /**
- * Orchestrator — polling loop that dequeues instructions from a workspace
+ * Orchestrator — polling loop that dequeues instructions from a harness
  * and dispatches them to an agent loop.
  *
- * This was previously WorkspaceAgentLoop inside @agent-worker/workspace.
- * Moved here because it's orchestration logic (connecting workspace + agent),
- * not workspace infrastructure.
+ * This was previously HarnessAgentLoop inside @agent-worker/harness.
+ * Moved here because it's orchestration logic (connecting harness + agent),
+ * not harness infrastructure.
  */
 import type {
   ContextProvider,
@@ -14,14 +14,14 @@ import type {
   EventLog,
   Priority,
   PromptSection,
-  WorkspaceStateStore,
+  HarnessStateStore,
   AgentRole,
-} from "@agent-worker/workspace";
-import { assemblePrompt, BASE_SECTIONS, nanoid } from "@agent-worker/workspace";
+} from "@agent-worker/harness";
+import { assemblePrompt, BASE_SECTIONS, nanoid } from "@agent-worker/harness";
 
 /**
  * Lightweight checkpoint hook shape used by the orchestrator. Intentionally
- * a subset of @agent-worker/agent's AgentLifecycleHooks so the workspace's
+ * a subset of @agent-worker/agent's AgentLifecycleHooks so the harness's
  * buildLeadHooks can plug in without a cross-package dependency.
  */
 export type OrchestratorCheckpointReason = "run_start" | "run_end";
@@ -45,16 +45,16 @@ export interface OrchestratorConfig {
   onInstruction: (prompt: string, instruction: Instruction) => Promise<void>;
   /** Agent's personal sandbox directory. */
   sandboxDir?: string;
-  /** Shared workspace sandbox directory (visible to all agents). */
-  workspaceSandboxDir?: string;
+  /** Shared harness sandbox directory (visible to all agents). */
+  harnessSandboxDir?: string;
   /** Whether this agent is on_demand (started only via @mention, not at startup). */
   onDemand?: boolean;
   /** Kernel state store — exposed to the lead prompt section. */
-  stateStore?: WorkspaceStateStore;
+  stateStore?: HarnessStateStore;
   /** Resolved role used by prompt sections (e.g. to show the task ledger to the lead). */
   role?: AgentRole;
-  /** Workspace name — passed into PromptContext as workspaceName. */
-  workspaceName?: string;
+  /** Harness name — passed into PromptContext as harnessName. */
+  harnessName?: string;
   /**
    * Optional onCheckpoint hook. Fires at the start and end of each
    * instruction dispatch. Returning `{kind:"inject", content}` at run_start
@@ -66,11 +66,11 @@ export interface OrchestratorConfig {
 }
 
 /**
- * Polling loop that reads from a workspace's instruction queue and
+ * Polling loop that reads from a harness's instruction queue and
  * dispatches to an agent handler.
  *
- * Equivalent to the former WorkspaceAgentLoop, but lives in the
- * orchestration layer (agent-worker) rather than workspace.
+ * Equivalent to the former HarnessAgentLoop, but lives in the
+ * orchestration layer (agent-worker) rather than harness.
  */
 /** Default backoff for quota/rate-limit auto-pause: 5 minutes. */
 const DEFAULT_QUOTA_BACKOFF_MS = 5 * 60_000;
@@ -83,7 +83,7 @@ const MAX_BACKOFF_MS = 60 * 60_000;
  */
 const STARTUP_GRACE_MS = 300;
 
-export class WorkspaceOrchestrator {
+export class HarnessOrchestrator {
   private running = false;
   private paused = false;
   private failed = false;
@@ -448,21 +448,20 @@ export class WorkspaceOrchestrator {
     inboxEntries: InboxEntry[],
     instruction?: Instruction,
   ): Promise<string> {
-    // Phase-1 v3: surface the agent's active attempt's worktrees
-    // (if any) so the prompt's "Worktrees" section can render
-    // them. The runner closure also reads this to pick the
-    // per-run cwd, but we re-query here so the prompt and the
-    // runner see exactly the same state.
-    let worktrees: import("@agent-worker/workspace").Worktree[] | undefined;
+    // Surface the agent's active Wake's worktrees (if any) so the
+    // prompt's "Worktrees" section can render them. The runner closure
+    // also reads this to pick the per-run cwd, but we re-query here so
+    // the prompt and the runner see exactly the same state.
+    let worktrees: import("@agent-worker/harness").Worktree[] | undefined;
     if (this.config.stateStore) {
       try {
-        const active = await this.config.stateStore.findActiveAttempt(this.config.name);
+        const active = await this.config.stateStore.findActiveWake(this.config.name);
         if (active?.worktrees && active.worktrees.length > 0) {
           worktrees = [...active.worktrees];
         }
       } catch {
-        // best-effort; missing worktrees just means the prompt
-        // has no Worktrees section this run.
+        // best-effort; missing worktrees just means the prompt has no
+        // Worktrees section this run.
       }
     }
     return assemblePrompt(this.sections, {
@@ -475,11 +474,11 @@ export class WorkspaceOrchestrator {
       currentMessageId: instruction?.messageId || undefined,
       currentChannel: instruction?.channel || undefined,
       sandboxDir: this.config.sandboxDir,
-      workspaceSandboxDir: this.config.workspaceSandboxDir,
+      harnessSandboxDir: this.config.harnessSandboxDir,
       worktrees,
       stateStore: this.config.stateStore,
       role: this.config.role,
-      workspaceName: this.config.workspaceName,
+      harnessName: this.config.harnessName,
     });
   }
 
@@ -500,7 +499,7 @@ export class WorkspaceOrchestrator {
 
 // ── Factory ─────────────────────────────────────────────────────────────────
 
-/** Create a WorkspaceOrchestrator (replaces createWiredLoop). */
-export function createOrchestrator(config: OrchestratorConfig): WorkspaceOrchestrator {
-  return new WorkspaceOrchestrator(config);
+/** Create a HarnessOrchestrator (replaces createWiredLoop). */
+export function createOrchestrator(config: OrchestratorConfig): HarnessOrchestrator {
+  return new HarnessOrchestrator(config);
 }

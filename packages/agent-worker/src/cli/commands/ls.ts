@@ -8,26 +8,26 @@ export async function ls(args: string[]): Promise<void> {
   }
   try {
     const client = await AwClient.discover();
-    const [agents, workspaces] = await Promise.all([client.listAgents(), client.listWorkspaces()]);
+    const [agents, harnesss] = await Promise.all([client.listAgents(), client.listHarnesss()]);
 
     if (agents.length > 0) {
       console.log("Agents:");
       console.log(
         table(
-          ["Name", "State", "Kind", "Workspace"],
-          agents.map((a) => [a.name, a.state, a.kind, a.workspace ?? "(global)"]),
+          ["Name", "State", "Kind", "Harness"],
+          agents.map((a) => [a.name, a.state, a.kind, a.harness ?? "(global)"]),
         ),
       );
     } else {
       console.log("No agents");
     }
 
-    if (workspaces.length > 0) {
-      console.log("\nWorkspaces:");
+    if (harnesss.length > 0) {
+      console.log("\nHarnesss:");
       console.log(
         table(
           ["Name", "Tag", "Agents", "Channels"],
-          workspaces.map((w) => [w.name, w.tag ?? "—", w.agents.join(", "), w.channels.join(", ")]),
+          harnesss.map((w) => [w.name, w.tag ?? "—", w.agents.join(", "), w.channels.join(", ")]),
         ),
       );
     }

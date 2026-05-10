@@ -1,0 +1,537 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>从上下文演化看 Agent Harness · Lidessen</title>
+<link rel="stylesheet" href="tokens.css" />
+<link rel="stylesheet" href="agent-evolution.css" />
+</head>
+<body>
+
+<div class="chapter-mark" id="chapter-mark">
+  <span class="brand">Lidessen</span>
+  <span class="sep">·</span>
+  <span>Chapter</span>
+  <span class="num" id="chapter-num">00</span>
+  <span class="of">/ 07</span>
+</div>
+
+<nav class="nav-dots" id="nav-dots" aria-label="Scenes">
+  <button class="nav-dot" data-idx="0"><span class="label">封面</span></button>
+  <button class="nav-dot" data-idx="1"><span class="label">01 · 简单对话</span></button>
+  <button class="nav-dot" data-idx="2"><span class="label">02 · 与数字世界交互</span></button>
+  <button class="nav-dot" data-idx="3"><span class="label">03 · 外围工程</span></button>
+  <button class="nav-dot" data-idx="4"><span class="label">04 · 上下文分层</span></button>
+  <button class="nav-dot" data-idx="5"><span class="label">05 · 落地做法</span></button>
+  <button class="nav-dot" data-idx="6"><span class="label">对比</span></button>
+  <button class="nav-dot" data-idx="7"><span class="label">结尾</span></button>
+</nav>
+
+<main class="deck" id="deck">
+
+  <!-- INTRO -->
+  <section id="intro" class="slide" data-screen-label="00 Cover" data-idx="0">
+    <div class="intro">
+      <div><div class="overline">An essay · 2026.04</div></div>
+      <div>
+        <h1 class="intro-title">
+          从上下文演化看<br/>
+          <span class="dim">Agent Harness</span>
+        </h1>
+        <p class="intro-lede" style="margin-top: 40px;">
+          这几年模型本身也在变:更长的窗口、跨轮的 thinking、更细的 tool use 协议。
+          但在这之外,还有一条常被忽略的主线:工具、记忆、多轮对话,最终都要被组织成模型能消费的上下文。
+          Agent 之间的体验差异,很大程度上来自 harness 怎么组织、裁剪和跨轮传递这些上下文。
+        </p>
+        <p class="intro-lede" style="margin-top: 18px; color: var(--fg-subtle);">
+          下面只聊这条线。例子还是那个:LoginForm 的 Submit 按钮偶尔点了没反应。看这段上下文在四个阶段分别长什么样。
+        </p>
+      </div>
+      <div class="intro-meta">
+        <div>Lidessen · essay</div>
+        <div class="scroll-hint">向下滚动 · Scroll</div>
+        <div>07 scenes</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ERA 1 -->
+  <section id="era-1" class="slide" data-screen-label="01 简单对话" data-idx="1" data-era="1" data-steps="3">
+    <div class="era">
+      <aside class="era__left">
+        <header class="era__header">
+          <span class="gen">01</span>
+          <span class="title">简单对话</span>
+          <span class="year">2022</span>
+        </header>
+        <div class="tx" id="tx-1">
+          <div class="tx__scroll"><div class="tx__scroll-inner" id="tx-1-body"></div></div>
+          <div class="tx__legend">
+            <span class="l-sys">system</span>
+            <span class="l-user">user</span>
+            <span class="l-asst">assistant</span>
+          </div>
+        </div>
+      </aside>
+      <div class="era__right">
+        <div class="step-host" data-host="1">
+          <article class="substep active" data-step="0">
+            <h2><span class="era-label">第一代 · 2022</span>简单对话</h2>
+            <p>ChatGPT 把 LLM 包装成聊天界面。上下文里只有两类消息:<code>user</code> 和 <code>assistant</code>,交替追加。</p>
+            <p>每一轮,模型看到全部历史,预测下一条。</p>
+          </article>
+          <article class="substep" data-step="1">
+            <h2>为什么是对话</h2>
+            <p>LLM 本身就是做续写:看一段文本,预测下一段。API 层面默认不跨请求保留状态,每一次调用要带的上下文都要自己拼好再喂进去。</p>
+            <p>实际任务通常要多轮来回。要让新信息下一次还被看到,最直接的办法就是接在已有文本后面,整段再喂回去。</p>
+            <p style="color: var(--fg-subtle);">对话形态是这种机制下自然的选择,不是单纯的交互设计偏好。</p>
+          </article>
+          <article class="substep" data-step="2">
+            <h2>模型读不了文件</h2>
+            <p>模型读不了文件,也执行不了命令。要它看的代码、日志,都得自己先复制,再粘贴进对话框。</p>
+            <div class="callout">
+              <span class="label">小结</span>
+              上下文里只有人的话和模型的话。事实要怎么进到模型那边,全靠人来中转。
+            </div>
+          </article>
+        </div>
+        <div class="step-rail" data-rail="1">
+          <button class="tick active" data-step="0"></button>
+          <button class="tick" data-step="1"></button>
+          <button class="tick" data-step="2"></button>
+          <span class="hint">click · ↓ · space</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ERA 2 -->
+  <section id="era-2" class="slide" data-screen-label="02 与数字世界交互" data-idx="2" data-era="2" data-steps="4">
+    <div class="era">
+      <aside class="era__left">
+        <header class="era__header">
+          <span class="gen">02</span>
+          <span class="title">与数字世界交互</span>
+          <span class="year">2023</span>
+        </header>
+        <div class="tx" id="tx-2">
+          <div class="tx__scroll"><div class="tx__scroll-inner" id="tx-2-body"></div></div>
+          <div class="tx__legend">
+            <span class="l-sys">system</span>
+            <span class="l-user">user</span>
+            <span class="l-asst">assistant</span>
+            <span class="l-tool">tool_use</span>
+            <span class="l-res">tool_result</span>
+          </div>
+        </div>
+      </aside>
+      <div class="era__right">
+        <div class="step-host" data-host="2">
+          <article class="substep active" data-step="0">
+            <h2><span class="era-label">第二代 · 2023</span>与数字世界交互</h2>
+            <p>Function calling 出现。上下文里多了一种消息:模型可以发起动作,动作的结果以消息的形式追加回来。</p>
+            <p>事实不用再靠人粘贴,模型自己用工具取。</p>
+          </article>
+          <article class="substep" data-step="1">
+            <h2>模型调用工具</h2>
+            <p>做法其实很直接:约定一种消息格式,比如 "调用工具 X,参数是 Y"。模型输出这样的文本时,harness 认出来,执行工具,把结果作为新消息追加回对话,再整段喂给模型。</p>
+            <p style="color: var(--fg-subtle);">工具调用就这样嵌进了对话流。对话里除了用户和模型的对话,还多了模型和工具之间的往返。</p>
+          </article>
+          <article class="substep" data-step="2">
+            <h2>Agent 的完整循环</h2>
+            <p><code>1</code> 用户发出请求 <br/>
+               <code>2</code> harness 把当前对话序列喂给模型 <br/>
+               <code>3</code> 模型输出文本,或者一个 tool call <br/>
+               <code>4</code> 如果是 tool call,执行工具,把结果追加回对话 <br/>
+               <code>5</code> 回到 2,直到模型不再调工具 <br/>
+               <code>6</code> 最终回复返回给用户</p>
+            <p style="color: var(--fg-subtle);">循环本身不复杂,几十行代码就能跑起来一个能用的版本。</p>
+          </article>
+          <article class="substep" data-step="3">
+            <h2>内外两条循环</h2>
+            <p>同一条时间线上现在有两条循环:</p>
+            <p><strong>外循环</strong>:<code>user ↔ assistant</code>,人和模型的对话。<br/>
+               <strong>内循环</strong>:<code>assistant ↔ tool</code>,模型自己产生、自己消费的动作和结果。</p>
+            <div class="callout">
+              <span class="label">小结</span>
+              两条循环都追加到同一个扁平序列里。这种"对话 + 工具循环"的结构,后来成了各家 agent harness 的默认形态。
+            </div>
+          </article>
+        </div>
+        <div class="step-rail" data-rail="2">
+          <button class="tick active" data-step="0"></button>
+          <button class="tick" data-step="1"></button>
+          <button class="tick" data-step="2"></button>
+          <button class="tick" data-step="3"></button>
+          <span class="hint">click · ↓ · space</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ERA 3 -->
+  <section id="era-3" class="slide" data-screen-label="03 外围工程" data-idx="3" data-era="3" data-steps="6">
+    <div class="era">
+      <aside class="era__left">
+        <header class="era__header">
+          <span class="gen">03</span>
+          <span class="title">外围工程</span>
+          <span class="year">2024 · 2025</span>
+        </header>
+        <div class="tx" id="tx-3">
+          <div class="tx__scroll"><div class="tx__scroll-inner" id="tx-3-body"></div></div>
+          <div class="tx__legend">
+            <span class="l-sys">system</span>
+            <span class="l-mem">memory</span>
+            <span class="l-compact">compacted</span>
+            <span class="l-user">user</span>
+            <span class="l-asst">assistant</span>
+            <span class="l-tool">tool</span>
+          </div>
+        </div>
+      </aside>
+      <div class="era__right">
+        <div class="step-host" data-host="3">
+          <article class="substep active" data-step="0">
+            <h2><span class="era-label">第三代 · 2024–25</span>外围工程</h2>
+            <p>Claude Code、Codex、Cursor Agent 把这套工具循环继续做深。模型本身没变,但外面多出了一整圈 runtime:记忆、技能、subagent、压缩、权限、缓存。</p>
+            <p style="color: var(--fg-subtle);">这一代的工程量,大部分都在对话流本身。</p>
+          </article>
+          <article class="substep" data-step="1">
+            <h2>几个常见组件</h2>
+            <p><strong>CLAUDE.md</strong> — 项目常驻指令。<br/>
+               <strong>Auto memory</strong> — 跨会话积累下来的偏好和事实。<br/>
+               <strong>Skill</strong> — 描述常驻,正文懒加载。<br/>
+               <strong>Subagent</strong> — 脏活交给独立上下文,回传结论。<br/>
+               <strong>Compaction</strong> — 接近窗口上限时自动压摘要。</p>
+          </article>
+          <article class="substep" data-step="2">
+            <h2>它们怎么分工</h2>
+            <p>这些组件并不是都往上下文里塞。<strong>常驻</strong>:像 CLAUDE.md,每次开场都带着。<strong>懒加载</strong>:像 skill,先只放目录,用到再展开正文。</p>
+            <p><strong>外包</strong>:像 subagent,把中间步骤多的活交给独立上下文去做。<strong>压缩</strong>:像 compaction,把旧对话折成摘要,给当前轮腾空间。</p>
+            <p style="color: var(--fg-subtle);">常驻、懒加载、外包、压缩,这是第三代比较主要的几种手法。</p>
+          </article>
+          <article class="substep" data-step="3">
+            <h2>两件事:裁剪和分离</h2>
+            <p>再往深看一层,这些组件其实在干两件事:裁剪上下文,以及把不同类型的信息分开。</p>
+            <p>Skill 把目录和正文分开,subagent 把过程和结论分开,compaction 把旧细节和当前任务分开。主会话里留下的,始终只是这一轮最需要看到的那部分。</p>
+            <div class="callout">
+              <span class="label">小结</span>
+              不是把所有信息都塞进来,而是不断决定什么留下、什么折走、什么移出去。
+            </div>
+          </article>
+          <article class="substep" data-step="4">
+            <h2>一条消息要承担多重职责</h2>
+            <p>给用户看的表达、下一轮预测的输入、工具调用的发起、任务状态的记录——同一条消息同时要满足这几种用途,对文本的要求不一样,挤在一起就会互相稀释。</p>
+            <p>在长周期、多轮、工具密集的 coding agent 场景里,这种挤压尤其明显。跑 30 轮下来,真正对后续推进有用的事实就那么几条,剩下的 token 大多花在读入的文件、tool 调用的结构化内容、解释性回复,以及"好的我来看看"这类客气话上。</p>
+            <p style="color: var(--fg-subtle);">短任务看不出来,长任务会越来越吃力。</p>
+          </article>
+          <article class="substep" data-step="5">
+            <h2>窗口本身也有上限</h2>
+            <p>问题不只是写法。窗口本身也有硬限制。规格这几年一直在涨:OpenAI 的 GPT-5.4 约 1.05M、mini/nano 为 400K;Anthropic 的 Claude Opus 4.7 / 4.6、Sonnet 4.6 是 1M,Sonnet 4.5 等仍是 200K;Gemini 也提供 1M+。</p>
+            <p>窗口在涨,但 "把所有历史都塞进去" 并没有因此成为通用答案——token 越多,相关性稀释和精度下降也越明显。任务一拉长,裁剪、压缩、分离、外包,这些事还是得做。</p>
+            <div class="callout">
+              <span class="label">业内现状</span>
+              Claude Code、Codex、Hermes、Agents SDK,围绕上下文做信息管理的 runtime,是这一代的共同工程主线。
+            </div>
+          </article>
+        </div>
+        <div class="step-rail" data-rail="3">
+          <button class="tick active" data-step="0"></button>
+          <button class="tick" data-step="1"></button>
+          <button class="tick" data-step="2"></button>
+          <button class="tick" data-step="3"></button>
+          <button class="tick" data-step="4"></button>
+          <button class="tick" data-step="5"></button>
+          <span class="hint">click · ↓ · space</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ERA 4 -->
+  <section id="era-4" class="slide" data-screen-label="04 上下文分层" data-idx="4" data-era="4" data-steps="6">
+    <div class="era">
+      <aside class="era__left">
+        <header class="era__header">
+          <span class="gen">04</span>
+          <span class="title">上下文分层</span>
+          <span class="year">个人探索</span>
+        </header>
+        <div class="tx" id="tx-4">
+          <div class="tx__scroll"><div class="tx__scroll-inner" id="tx-4-body"></div></div>
+          <div class="tx__legend">
+            <span class="l-sys">sys notify</span>
+            <span class="l-dispatch">dispatch</span>
+            <span class="l-worker">report</span>
+            <span class="l-event">status</span>
+            <span class="l-compact">compacted</span>
+          </div>
+        </div>
+      </aside>
+      <div class="era__right">
+        <div class="step-host" data-host="4">
+          <article class="substep active" data-step="0">
+            <h2><span class="era-label">第四种方向 · 个人探索</span>把上下文分层</h2>
+            <p>这里不用另造一套架构。Claude Code 用久了,自然就会想把项目里那几条一直在走的脉络先看清楚,再顺着它们把上下文拆开。</p>
+            <p style="color: var(--fg-subtle);">跟写代码抽函数差不多:先想清楚这一层管什么、不管什么,剩下的细节往下沉。</p>
+          </article>
+          <article class="substep" data-step="1">
+            <h2>识别项目脉络</h2>
+            <p>不用一上来就分 L0、L1。项目里反复出现的就那几条线:登录稳不稳、商品列表卡不卡、hooks 用得规不规范、上线有没有风险。层次不是提前画出来的,是顺着这些线长出来的。</p>
+            <p style="color: var(--fg-subtle);">其实平时用 Claude Code 已经在跟着这些线走,只是这些线还散在对话流里,没单独拎出来。</p>
+          </article>
+          <article class="substep" data-step="2">
+            <h2>确定分层</h2>
+            <p>脉络识别出来之后,再判断哪些信息留在这次 run 里,哪些该往上提一层。单次任务里能消化完的,就留在 L0;跨 run 还要反复看到的,才往上浮。</p>
+            <p style="color: var(--fg-subtle);">L1 不是把历史存档,而是给每条脉络留下能追回去的线索。L1 写一行,背后对应的是一个完整的 L0。</p>
+          </article>
+          <article class="substep" data-step="3">
+            <h2>L1 里只放结论</h2>
+            <p>跟代码抽象类似。关键不是多加一层叫法,而是把职责边界画清楚。L1 只留主题、结论、风险、下一步;客气话、tool 的原始输出、中间来回都不进。</p>
+            <p style="color: var(--fg); margin-bottom: 6px;">✓ "run_002 完成,新增 eslint 规则,顺手修掉另外 3 处空 deps"<br/>
+               ✓ "监控告警:/products 的 LCP 从 1.8s 退到 3.1s"</p>
+            <p style="color: var(--fg-subtle); margin-top: 14px;">✗ "让我先看一下代码"<br/>
+               ✗ "好的,我来处理"<br/>
+               ✗ "&lt;tool_use: read_file&gt;"</p>
+          </article>
+          <article class="substep" data-step="4">
+            <h2>按职责边界裁剪</h2>
+            <p>边界清楚之后,往下派任务和往上收结果其实都是在裁剪。查 <code>product-list</code> 性能回退,就只给相关结论、动过的文件、遗留的风险和当前信号。</p>
+            <p>收回来也是一样:不用整段对话倒回来,按固定 schema 回填就行——做了什么、改了哪些文件、还剩什么坑、哪些事没做完。</p>
+            <div class="callout">
+              <span class="label">前后各用一次</span>
+              往下派时裁背景,往上收时裁结果。只有结构化报告进 L1,原始对话不进;schema 里也强制带上风险和未完成项。
+            </div>
+          </article>
+          <article class="substep" data-step="5">
+            <h2>规模大了就再加一层</h2>
+            <p>项目再大一点,L1 也会不够用。这时候关心的已经不是某一次 run,而是某个模块、某条系统线、某一段版本怎么演进。到这一步,才需要在 L1 上再叠一层。</p>
+            <div class="callout">
+              <span class="label">小结</span>
+              跟代码组织没太大区别:函数上头是模块,模块上头是系统。规模上来了,抽象就得跟着长;每一层只拿自己需要看的。
+            </div>
+          </article>
+        </div>
+        <div class="step-rail" data-rail="4">
+          <button class="tick active" data-step="0"></button>
+          <button class="tick" data-step="1"></button>
+          <button class="tick" data-step="2"></button>
+          <button class="tick" data-step="3"></button>
+          <button class="tick" data-step="4"></button>
+          <button class="tick" data-step="5"></button>
+          <span class="hint">click · ↓ · space</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ERA 5 -->
+  <section id="era-5" class="slide" data-screen-label="05 落地做法" data-idx="5" data-era="5" data-steps="6">
+    <div class="era">
+      <aside class="era__left">
+        <header class="era__header">
+          <span class="gen">05</span>
+          <span class="title">落地做法</span>
+          <span class="year">怎么做</span>
+        </header>
+        <div class="tx" id="tx-5">
+          <div class="tx__scroll"><div class="tx__scroll-inner" id="tx-5-body"></div></div>
+          <div class="tx__legend">
+            <span class="l-sys">schema</span>
+            <span class="l-mem">fact</span>
+            <span class="l-worker">files</span>
+            <span class="l-event">signal</span>
+            <span class="l-compact">memory</span>
+          </div>
+        </div>
+      </aside>
+      <div class="era__right">
+        <div class="step-host" data-host="5">
+          <article class="substep active" data-step="0">
+            <h2><span class="era-label">第五章 · 从原则到做法</span>长期事实放在工作区</h2>
+            <p>需要长期保留的东西都放到独立的存储:任务表管任务,文档库管长文档,事件日志管事件,长期记忆库管跨会话事实。</p>
+            <p>会话本身会中断,会被压缩,也可能换一台机器或换一个模型来跑。每次开新一轮,就去工作区重新拼一份上下文,不去继承上一次的对话历史。</p>
+            <div class="callout">
+              <span class="label">要点</span>
+              会话承担的是一次任务的过程,工作区承担的是跨会话的长期事实。
+            </div>
+          </article>
+          <article class="substep" data-step="1">
+            <h2>输入按需组装,不继承会话</h2>
+            <p>工作区里放着两样东西:一份结构化的 prompt(<code>goal</code> · <code>constraints</code> · <code>latestSummary</code> · <code>facts</code> · <code>artifacts</code> · <code>openQuestions</code>),以及一份工作日志——冗长的过程和 tool 原始输出在落日志的时候就已经被剥掉了,留下来的基本都是可陈述的结论。</p>
+            <p>worker 每次拿到的,是这份 prompt 加上按需从日志里取出的片段:要参考之前某个任务的执行记录,才把那段日志拉进来,不相关的不带。</p>
+            <p>因为日志自己已经是去过噪的,新一轮不需要从完整会话恢复。worker 跑到步数上限就退出,把这次的结论写回日志;下一次再起一个新循环,再按需取相关段。</p>
+            <div class="callout">
+              <span class="label">注意</span>
+              这里说的"继续",不是把旧会话接回来,而是从工作区里按需取相关日志段,拼成新一轮上下文。
+            </div>
+          </article>
+          <article class="substep" data-step="2">
+            <h2>长内容只放指针</h2>
+            <p>事实里不直接塞长文本,统一写成 <code>{ url, summary }</code>:摘要直接给模型看,原文放在文档库里,要看细节再沿 url 展开。</p>
+            <p>设计决策文档、调研报告、长日志、监控快照都走这套。同一份原文可以被多条事实引用,不用重复占窗口。</p>
+            <p style="color: var(--fg); margin-bottom: 6px;">✓ <code>{ url: doc://adr-042, summary: "outbox 替直推" }</code></p>
+            <p style="color: var(--fg-subtle); margin-top: 4px;">✗ 4000 字原文直接塞进事件流</p>
+          </article>
+          <article class="substep" data-step="3">
+            <h2>总结换一个人写</h2>
+            <p>worker 自己写总结容易带主观色彩,容易漏风险,也容易把结果说得比实际漂亮。</p>
+            <p>所以换一个独立的模型按固定 schema 抽字段:<code>done</code> · <code>files</code> · <code>risks</code> · <code>open</code>。<code>risks</code> 和 <code>open</code> 不允许为空,没填就卡住,不进 L1。</p>
+            <div class="callout">
+              <span class="label">两道防线</span>
+              一方面,只有结构化报告进 L1,原始对话不进;另一方面,schema 强制带上风险和未完成项,避免被漏掉。
+            </div>
+          </article>
+          <article class="substep" data-step="4">
+            <h2>记忆按相关性衰减</h2>
+            <p>每条事实都带一个类型标签,按不同速率衰减:身份(<code>identity</code>)0.95/h,衰减最慢;决策(<code>decision</code>)0.90;状态(<code>state</code>)0.75;事件(<code>event</code>)0.60;随口提到(<code>casual</code>)0.40。</p>
+            <p>每被用到一次,就刷新一下上次活跃时间。频繁用到的一直活着,长期没人提起的自然就冷掉了。这样判断要不要留,看的是"最近还有没有被用到",而不是"存进来多久了"。</p>
+            <p style="color: var(--fg-subtle); margin-top: 14px;">身份、决策这类事实衰减得慢;临时状态和边角信息衰减快。</p>
+          </article>
+          <article class="substep" data-step="5">
+            <h2>按 token 预算分级退让</h2>
+            <p>每一轮都有固定的 token 预算。挤不下的时候不硬塞,也不一刀切裁,而是按级别降级:</p>
+            <p>轻度:只裁掉任务和子 agent 的明细 → 中度:再压缩近窗消息 → 重度:连整段近窗消息一起丢掉。</p>
+            <p>每一级放弃的东西不一样:先砍明细,再压近窗,最后才动到整段热窗口。</p>
+            <div class="callout">
+              <span class="label">小结</span>
+              就算窗口再大,也没必要全部塞进去。这一层该看什么就留什么,其它东西折到工作区或者下一层去。
+            </div>
+          </article>
+        </div>
+        <div class="step-rail" data-rail="5">
+          <button class="tick active" data-step="0"></button>
+          <button class="tick" data-step="1"></button>
+          <button class="tick" data-step="2"></button>
+          <button class="tick" data-step="3"></button>
+          <button class="tick" data-step="4"></button>
+          <button class="tick" data-step="5"></button>
+          <span class="hint">click · ↓ · space</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- COMPARE -->
+  <section id="compare" class="slide" data-screen-label="06 Compare" data-idx="6">
+    <div class="compare-wrap">
+      <h2>四种上下文</h2>
+      <p class="sub">模型本身也在变,这里只看一个维度:每次喂给模型的那段文本,每一代都是怎么拼出来的。</p>
+
+      <div class="compare-grid">
+        <div class="head">dimension</div>
+        <div class="head gen-head">纯对话<span class="year">2022</span></div>
+        <div class="head gen-head">对话 + 工具<span class="year">2023</span></div>
+        <div class="head gen-head">工程化分区<span class="year">2024–25</span></div>
+
+        <div class="label">上下文形态</div>
+        <div>两类消息交替</div>
+        <div>对话 + 工具循环</div>
+        <div>对话 + 常驻 / 懒加载 / 压缩 / 外包</div>
+
+        <div class="label">新增成分</div>
+        <div class="bullet">user<span class="dim"> · </span>assistant</div>
+        <div class="bullet">tool_use<span class="dim"> · </span>tool_result</div>
+        <div class="bullet">CLAUDE.md<span class="dim"> · </span>memory<span class="dim"> · </span>skill<span class="dim"> · </span>subagent<span class="dim"> · </span>compaction</div>
+
+        <div class="label">事实来源</div>
+        <div>人手动粘贴</div>
+        <div>模型自取</div>
+        <div>跨会话积累 + 项目常驻 + 自取</div>
+
+        <div class="label">核心做法</div>
+        <div>人粘事实给模型看</div>
+        <div>内循环进入时间线</div>
+        <div>围绕对话流做信息管理</div>
+      </div>
+
+      <div class="gen4-row">
+        <div class="g4-head">
+          <span class="tag">04</span>
+          <h3>上下文分层</h3>
+          <span class="sub">personal exploration</span>
+        </div>
+        <div class="gen4-cells">
+          <div>
+            <div class="c-label">形态</div>
+            <div class="c-body">分层:L0 对话 + L1 事件流</div>
+          </div>
+          <div>
+            <div class="c-label">新增</div>
+            <div class="c-body">事件流 schema · 层间投影 · 结构化抽取</div>
+          </div>
+          <div>
+            <div class="c-label">对话角色</div>
+            <div class="c-body">退到 L0,不再是主体</div>
+          </div>
+          <div>
+            <div class="c-label">核心做法</div>
+            <div class="c-body">不再把对话当成主体</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- OUTRO -->
+  <section id="outro" class="slide" data-screen-label="07 Outro" data-idx="7">
+    <div class="outro">
+      <div>
+        <div class="overline" style="margin-bottom: 40px;">结尾</div>
+        <h2 class="outro-title">
+          Agent 的体验差距,<br/>
+          <span class="fade">很多时候在上下文怎么组织。</span>
+        </h2>
+      </div>
+      <div class="outro-grid">
+        <p>模型能力一直在涨,这条线不影响它。但在长周期、多轮、跨 session 的 coding agent 场景里,大量工程其实是在做 context management 和 information routing。事件流不是什么新发明,只是把原本稀释在对话里的信息抽出来重新排一下。整套原型 200–500 行就能跑起来,真正花力气的是为具体业务设计合适的事件 schema。</p>
+        <p>机制是通用的,schema 要对着领域做。基础设施——模型、通用 harness、分层组件——大厂会继续投。小团队更合适的位置,是在某个具体行业里把工位怎么拆、事件怎么排、敏感度档位怎么定磨出来。通用聊天助手之外,真正和人一起长期跑在业务上的 agent,大概率会从这里长出来。</p>
+      </div>
+      <div class="outro-footer">
+        <div>Lidessen · 2026</div>
+        <div class="refs">Claude Code 2.1 · Codex Harness · Hermes Agent · Agents SDK</div>
+        <div>end</div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="tweaks" id="tweaks">
+  <h4>Tweaks <span class="close" id="tweaks-close">close</span></h4>
+  <div class="tweak-row">
+    <label>Transition</label>
+    <div class="seg" data-tweak="transition">
+      <button data-v="fade" class="active">fade</button>
+      <button data-v="slide">slide</button>
+      <button data-v="morph">morph</button>
+    </div>
+  </div>
+  <div class="tweak-row">
+    <label>Transcript style</label>
+    <div class="seg" data-tweak="tx-style">
+      <button data-v="terminal" class="active">terminal</button>
+      <button data-v="bubble">bubble</button>
+    </div>
+  </div>
+  <div class="tweak-row">
+    <label>Theme</label>
+    <div class="seg" data-tweak="theme">
+      <button data-v="dark" class="active">dark</button>
+      <button data-v="light">light</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  window.__AGENT_EVOLUTION_TWEAK_DEFAULTS__ = /*EDITMODE-BEGIN*/{
+    "transition": "morph",
+    "txStyle": "terminal",
+    "theme": "light"
+  }/*EDITMODE-END*/;
+</script>
+<script src="agent-evolution-data.js"></script>
+<script src="agent-evolution.js"></script>
+</body>
+</html>

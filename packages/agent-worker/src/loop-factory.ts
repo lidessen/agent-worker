@@ -6,7 +6,7 @@
  */
 import { writeFile, unlink } from "node:fs/promises";
 import { join } from "node:path";
-import type { AgentLoop } from "@agent-worker/agent";
+import type { AgentLoop, RuntimeBinding } from "@agent-worker/agent";
 import type { RuntimeConfig } from "./types.ts";
 import { extractProvider, getDefaultModel, resolveProvider } from "@agent-worker/loop";
 
@@ -36,13 +36,20 @@ export async function createLoopFromConfig(config: RuntimeConfig): Promise<Agent
       case "mock":
         return createMockLoop(config);
       default:
-        throw new Error(`Unknown runtime type: ${(config as any).type}`);
+        throw new Error(`Unknown runtime type: ${String((config as { type?: unknown }).type)}`);
     }
   })();
 
   if (config.mcpServers && Object.keys(config.mcpServers).length > 0) {
+    if (loop.setMcpServers) {
+      loop.setMcpServers(config.mcpServers);
+      return loop;
+    }
+
     if (!loop.setMcpConfig) {
-      throw new Error("External MCP servers are currently supported only for CLI runtimes");
+      throw new Error(
+        "External MCP servers are currently supported only for SDK-native or config-file runtimes",
+      );
     }
 
     const configPath = `/tmp/agent-runtime-mcp-${Date.now()}-${Math.random()
@@ -66,6 +73,28 @@ export async function createLoopFromConfig(config: RuntimeConfig): Promise<Agent
   }
 
   return loop;
+}
+
+export async function createRuntimeBindingFromConfig(
+  config: RuntimeConfig,
+): Promise<RuntimeBinding> {
+  const loop = await createLoopFromConfig(config);
+  return {
+    id: runtimeBindingId(config),
+    runtimeType: config.type,
+    model: config.model,
+    loop,
+    metadata: {
+      cwd: config.cwd,
+      allowedPaths: config.allowedPaths,
+    },
+  };
+}
+
+function runtimeBindingId(config: RuntimeConfig): string {
+  const model = config.model ? `:${config.model}` : "";
+  const cwd = config.cwd ? `@${config.cwd}` : "";
+  return `${config.type}${model}${cwd}`;
 }
 
 async function createAiSdkLoop(config: RuntimeConfig): Promise<AgentLoop> {
@@ -105,7 +134,7 @@ async function createClaudeCodeLoop(config: RuntimeConfig): Promise<AgentLoop> {
   // Phase-3 control boundary: `permissionMode` is now
   // configurable. The daemon-level default stays at
   // `bypassPermissions` until a follow-up commit flips it, so
-  // existing workspaces keep behaving the same way.
+  // existing harnesss keep behaving the same way.
   return new ClaudeCodeLoop({
     model: config.model ?? "sonnet",
     cwd: config.cwd,
@@ -123,8 +152,8 @@ async function createCodexLoop(config: RuntimeConfig): Promise<AgentLoop> {
   const threadIdFile = config.stateDir ? join(config.stateDir, "codex-thread.json") : undefined;
   // Phase-3 control boundary: `fullAuto` and `sandbox` are now
   // configurable. Default remains aggressive (full-auto
-  // workspace-write) — opt out by setting `policy.fullAuto:
-  // false` on the agent or workspace. Note: codex approval
+  // harness-write) — opt out by setting `policy.fullAuto:
+  // false` on the agent or harness. Note: codex approval
   // prompts are not yet intercepted by agent-worker, so
   // `fullAuto: false` will currently block mid-run. The knob
   // exists now so the plumbing is ready for the approval bridge.
@@ -141,15 +170,12 @@ async function createCodexLoop(config: RuntimeConfig): Promise<AgentLoop> {
 
 async function createCursorLoop(config: RuntimeConfig): Promise<AgentLoop> {
   const { CursorLoop } = await import("@agent-worker/loop");
-  // Cursor has no --add-dir; pass allowedPaths via env var
-  const env = { ...config.env };
-  if (config.allowedPaths?.length) {
-    env.AGENT_ALLOWED_PATHS = config.allowedPaths.join(":");
-  }
   return new CursorLoop({
     model: config.model,
     cwd: config.cwd,
-    env,
+    allowedPaths: config.allowedPaths,
+    env: config.env,
+    apiKey: config.env?.CURSOR_API_KEY,
   });
 }
 

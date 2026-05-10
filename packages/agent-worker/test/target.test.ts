@@ -5,63 +5,63 @@ describe("parseTarget", () => {
   test("agent only", () => {
     expect(parseTarget("alice")).toEqual({
       agent: "alice",
-      workspace: undefined,
+      harness: undefined,
       channel: undefined,
     });
   });
 
-  test("agent@workspace", () => {
+  test("agent@harness", () => {
     expect(parseTarget("alice@review")).toEqual({
       agent: "alice",
-      workspace: "review",
+      harness: "review",
       channel: undefined,
     });
   });
 
-  test("agent@workspace:tag", () => {
+  test("agent@harness:tag", () => {
     expect(parseTarget("alice@review:pr-42")).toEqual({
       agent: "alice",
-      workspace: "review:pr-42",
+      harness: "review:pr-42",
       channel: undefined,
     });
   });
 
-  test("@workspace", () => {
+  test("@harness", () => {
     expect(parseTarget("@review")).toEqual({
       agent: undefined,
-      workspace: "review",
+      harness: "review",
       channel: undefined,
     });
   });
 
-  test("@workspace:tag", () => {
+  test("@harness:tag", () => {
     expect(parseTarget("@review:pr-42")).toEqual({
       agent: undefined,
-      workspace: "review:pr-42",
+      harness: "review:pr-42",
       channel: undefined,
     });
   });
 
-  test("@workspace#channel", () => {
+  test("@harness#channel", () => {
     expect(parseTarget("@review#design")).toEqual({
       agent: undefined,
-      workspace: "review",
+      harness: "review",
       channel: "design",
     });
   });
 
-  test("@workspace:tag#channel", () => {
+  test("@harness:tag#channel", () => {
     expect(parseTarget("@review:pr-42#design")).toEqual({
       agent: undefined,
-      workspace: "review:pr-42",
+      harness: "review:pr-42",
       channel: "design",
     });
   });
 
-  test("agent@workspace#channel", () => {
+  test("agent@harness#channel", () => {
     expect(parseTarget("alice@review#design")).toEqual({
       agent: "alice",
-      workspace: "review",
+      harness: "review",
       channel: "design",
     });
   });
@@ -76,13 +76,13 @@ describe("formatTarget", () => {
     expect(formatTarget({ agent: "alice" })).toBe("alice");
   });
 
-  test("agent@workspace#channel", () => {
-    expect(formatTarget({ agent: "alice", workspace: "review", channel: "design" })).toBe(
+  test("agent@harness#channel", () => {
+    expect(formatTarget({ agent: "alice", harness: "review", channel: "design" })).toBe(
       "alice@review#design",
     );
   });
 
-  test("@workspace:tag", () => {
-    expect(formatTarget({ workspace: "review:pr-42" })).toBe("@review:pr-42");
+  test("@harness:tag", () => {
+    expect(formatTarget({ harness: "review:pr-42" })).toBe("@review:pr-42");
   });
 });
