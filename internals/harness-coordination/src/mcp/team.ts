@@ -1,4 +1,4 @@
-import type { ContextProvider, TimelineEvent } from "../../types.ts";
+import type { ContextProvider, TimelineEvent } from "@agent-worker/harness";
 
 export interface TeamTools {
   team_members: () => Promise<string>;

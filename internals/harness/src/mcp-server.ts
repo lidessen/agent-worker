@@ -17,13 +17,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { z } from "zod";
 import type { Harness } from "./harness.ts";
 import type { Instruction, TimelineEvent } from "./types.ts";
-import { createHarnessTools, HARNESS_TOOL_DEFS } from "./context/mcp/server.ts";
-
-type ToolDef = {
-  description: string;
-  parameters: Record<string, { type: string; description?: string }>;
-  required: readonly string[];
-};
+import { buildAgentToolSet } from "./factory.ts";
 
 interface McpSession {
   server: McpServer;
@@ -268,22 +262,7 @@ export class HarnessMcpHub {
       version: "0.0.1",
     });
 
-    const agentChannels = this.harness.getAgentChannels(agentName);
-    const tools = createHarnessTools(
-      agentName,
-      this.harness.contextProvider,
-      agentChannels,
-      (name) => (this.harness.hasAgent(name) ? this.harness.getAgentChannels(name) : undefined),
-      {
-        stateStore: this.harness.stateStore,
-        harnessName: this.harness.name,
-        instructionQueue: this.harness.instructionQueue,
-        harnessTypeRegistry: this.harness.harnessTypeRegistry,
-        harnessTypeId: this.harness.harnessTypeId,
-      },
-    );
-
-    const defs = HARNESS_TOOL_DEFS as Record<string, ToolDef>;
+    const { tools, defs } = buildAgentToolSet(agentName, this.harness);
     for (const [name, fn] of Object.entries(tools)) {
       const def = defs[name];
       if (!def) continue;

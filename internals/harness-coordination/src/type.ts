@@ -18,6 +18,12 @@
 //   - `onInit` registers configured agents and starts configured
 //     channel adapters (telegram et al.) on the substrate Harness.
 //     `factory.createHarness` no longer orchestrates these steps.
+//   - `contributeMcpTools` returns the coord-flavored per-agent tool
+//     set (channel_*, my_inbox*, no_action, my_status_set, team_*,
+//     wait_inbox); substrate's `createHarnessTools` provides the
+//     universal slice (resource_*, chronicle_*, task_*/wake_*/
+//     handoff_*, worktree_*) and `factory.createAgentTools` /
+//     per-agent MCP servers merge the two.
 //   - `snapshotExtension` returns the coord slice of
 //     `HarnessStateSnapshot.typeExtensions["multi-agent-coordination"]`,
 //     reading from the substrate `Harness` instance's still-attached
@@ -26,7 +32,6 @@
 // Future slices fill in:
 //   - Move coord state fields/methods out of substrate `Harness` into
 //     the coord runtime (the heavy ~290-caller ownership cut).
-//   - `contributeMcpTools` — channel/inbox/team/wait_inbox MCP tools.
 //   - `contributeContextSections` — `inboxSection` /
 //     `responseGuidelines` (today imported by orchestrator
 //     directly; future slice routes them through this hook).
@@ -37,15 +42,32 @@ import type {
   AgentStatus,
   ChannelAdapter,
   ChannelBridgeInterface,
+  ContributeMcpToolsInput,
   ContributeRuntimeInput,
   HarnessConfig,
+  HarnessToolHandler,
   HarnessType,
   InboxEntry,
   Instruction,
   OnInitInput,
   SnapshotExtensionInput,
   TimelineEvent,
+  ToolDef,
 } from "@agent-worker/harness";
+import { createCoordinationTools, COORDINATION_TOOL_DEFS } from "./mcp/server.ts";
+
+/**
+ * Shape of each item in `multiAgentCoordinationHarnessType.contributeMcpTools`'s
+ * return value. The substrate's tool-merging boundary
+ * (`factory.createAgentTools` / per-agent MCP servers) iterates this
+ * list and inserts each `{name, def, handler}` into the merged tool
+ * set + def map.
+ */
+export interface ContributedToolItem {
+  name: string;
+  def: ToolDef;
+  handler: HarnessToolHandler;
+}
 
 /** Stable id used in `Handoff.extensions` and the registry. */
 export const COORDINATION_HARNESS_TYPE_ID = "multi-agent-coordination" as const;
@@ -100,13 +122,9 @@ export interface CoordHarnessTypeRuntime {
 interface CoordHarnessLike {
   defaultChannel: string;
   instructionQueue: { listAll(): Instruction[] };
-  contextProvider: {
-    channels: { listChannels(): string[] };
-    inbox: { inspect(name: string): Promise<InboxEntry[]> };
-    status: { get(name: string): Promise<{ status: AgentStatus; currentTask?: string } | null> };
-    timeline: { read(name: string, opts?: { limit?: number }): Promise<TimelineEvent[]> };
-  };
+  contextProvider: import("@agent-worker/harness").ContextProvider;
   getAgentChannels(name: string): Set<string>;
+  hasAgent(name: string): boolean;
   registerAgent(name: string, channels?: string[]): Promise<void>;
   bridge: ChannelBridgeInterface;
   // Iterating this private-ish map is the cleanest way to enumerate
@@ -136,6 +154,26 @@ export const multiAgentCoordinationHarnessType: HarnessType<unknown, CoordHarnes
     for (const adapter of runtime.connections) {
       await h.bridge.addAdapter(adapter);
     }
+  },
+
+  contributeMcpTools({
+    harness,
+    agentName,
+  }: ContributeMcpToolsInput<CoordHarnessTypeRuntime>): ContributedToolItem[] {
+    const h = harness as CoordHarnessLike;
+    const tools = createCoordinationTools({
+      agentName,
+      provider: h.contextProvider,
+      agentChannels: h.getAgentChannels(agentName),
+      lookupAgentChannels: (name) => (h.hasAgent(name) ? h.getAgentChannels(name) : undefined),
+    });
+    return Object.entries(tools).map(([name, handler]) => {
+      const def = COORDINATION_TOOL_DEFS[name];
+      if (!def) {
+        throw new Error(`coord: missing COORDINATION_TOOL_DEFS entry for tool "${name}"`);
+      }
+      return { name, def, handler };
+    });
   },
 
   async snapshotExtension({ harness, opts }: SnapshotExtensionInput<CoordHarnessTypeRuntime>): Promise<CoordinationSnapshot> {

@@ -1,4 +1,4 @@
-import type { ContextProvider, AgentStatus } from "../../types.ts";
+import type { ContextProvider, AgentStatus } from "@agent-worker/harness";
 
 export interface InboxTools {
   my_inbox: () => Promise<string>;

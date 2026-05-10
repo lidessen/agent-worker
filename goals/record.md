@@ -1113,3 +1113,138 @@ check with concrete evidence, judgment naming the principal tension.
     + prompt-section move + snapshot reshape + coord onInit) as a
     single slice-2-so-far commit before starting MCP tool merging.
     Tree is clean enough for a coherent boundary now.
+
+## 2026-05-10 — Slice 2 coord contributeMcpTools + factory tool merging
+
+- What I did:
+  - Took the second of the two bounded sub-slices flagged before the
+    ownership-move slice: **coord MCP tool merging via
+    `contributeMcpTools`**. After this, substrate's
+    `createHarnessTools` returns only the universal slice
+    (`resource_*`, `chronicle_*`, `task_*` / `wake_*` / `handoff_*`,
+    `worktree_*`); coord's `multiAgentCoordinationHarnessType.contribute
+    McpTools` returns the coord-flavored slice (`channel_*`,
+    `my_inbox*`, `no_action`, `my_status_set`, `team_*`,
+    `wait_inbox`); a new substrate helper `buildAgentToolSet` does
+    the merge in one place.
+  - **Coord MCP tool builder + catalog (new files):**
+    - `internals/harness-coordination/src/mcp/server.ts` —
+      `createCoordinationTools(ctx)` returns the per-agent coord-
+      flavored handler set; `COORDINATION_TOOL_DEFS` is the static
+      def catalog.
+    - `internals/harness-coordination/src/mcp/{channel,inbox,team}.ts`
+      — moved from substrate (pure rename + import retarget to
+      `@agent-worker/harness`).
+    - Coord `index.ts` re-exports `createCoordinationTools`,
+      `COORDINATION_TOOL_DEFS`, `CoordinationToolsContext`,
+      `createChannelTools`/`createInboxTools`/`createTeamTools`,
+      and the new `ContributedToolItem` type that names the shape
+      `contributeMcpTools` returns.
+  - **Coord type fills in `contributeMcpTools`:**
+    - `multiAgentCoordinationHarnessType.contributeMcpTools({
+      harness, agentName })` builds the coord tool set via the
+      harness reference (provider, agentChannels, hasAgent lookup)
+      and returns `Array<{name, def, handler}>` — one entry per
+      coord tool, each pairing the handler with its
+      `COORDINATION_TOOL_DEFS` def. Throws if the def map is
+      out of sync with the handler set (catches drift loudly).
+    - `CoordHarnessLike` widened to include `hasAgent` (needed by
+      the lookup closure) and the existing fields used by
+      `snapshotExtension` / `onInit`.
+  - **Substrate `createHarnessTools` slimmed:**
+    - Signature now `(agentName, provider, options)` — dropped the
+      `agentChannels` and `lookupAgentChannels` params (those were
+      pure coord concerns and became dead after the move).
+    - Body keeps only `resourceTools`, `taskTools` (gated),
+      `wakeTools` (gated), and the inline `chronicle_*` handlers.
+      Channel / inbox / team / wait_inbox factories are gone from
+      this file.
+    - `HARNESS_TOOL_DEFS` shrinks to substrate-only entries
+      (`resource_create`, `resource_read`, `chronicle_append`,
+      `chronicle_read`, `...TASK_TOOL_DEFS`, `...WAKE_TOOL_DEFS`).
+    - New types `HarnessToolHandler` and `ToolDef` exported from
+      substrate's MCP server module so consumers (coord, factory,
+      harness-registry, stdio-entry) all share one shape definition.
+  - **`factory.buildAgentToolSet(agentName, harness, options)`:**
+    - New helper that merges substrate tools/defs with the
+      registered type's `contributeMcpTools` contribution. Single
+      cast point at the substrate↔type boundary
+      (`as { name; def; handler }`); substrate stays ignorant of
+      coord's specific shape beyond that line.
+    - Consumers funnel through this: `factory.createAgentTools`
+      now wraps it; `mcp-server.ts` `createAgentServer` calls it
+      directly; `daemon.ts /harnesses/:key/tool-call` calls it (and
+      now also auto-registers the agent if missing — out-of-band
+      callers get the same surface as orchestrator-driven runs);
+      `harness-registry.ts` per-run rebuild calls it and threads
+      the merged defs into AI-SDK tool wrapping so coord tools
+      get zod schemas alongside substrate ones.
+  - **`wrapHarnessToolsForAiSdk` takes defs explicitly:**
+    - Was reaching into the static `HARNESS_TOOL_DEFS`. Now accepts
+      a `Record<string, ToolDef>` argument, so coord tools wrap
+      correctly when the merged defs are passed (which the per-run
+      path now does). Fallback to substrate-only `HARNESS_TOOL_DEFS`
+      kept for the rare `buildAgentToolSet` failure path.
+  - **`stdio-entry.ts` merges static catalogs:**
+    - Imports both `HARNESS_TOOL_DEFS` and `COORDINATION_TOOL_DEFS`,
+      builds the union catalog at process start, and registers
+      every entry with the same generic `/tool-call` proxy. Stdio-
+      entry stays Harness-instance-free; future types contributing
+      static catalogs will need their imports added here too —
+      explicit and small.
+
+- Observations:
+  - Tests: 925 pass / 0 fail / 2013 expect() across 69 files in
+    internals/{harness, harness-coordination, agent, loop} +
+    packages/agent-worker. Repo-wide failures (281 in `@semajsx/*`
+    / `@internals/ui`) untouched and unrelated.
+  - Typechecks: clean across the same package set.
+  - Posture honored: every name in this slice
+    (`buildAgentToolSet`, `createCoordinationTools`,
+    `COORDINATION_TOOL_DEFS`, `ContributedToolItem`, `ToolDef`,
+    `HarnessToolHandler`) reads as terminal-shape. `createHarnessTools`'s
+    new signature is the shape it keeps; the merge boundary lives
+    in `buildAgentToolSet` and stays.
+
+- Criteria check:
+  - C1–C4 — `unclear` (12th consecutive entry).
+
+- Invariants check:
+  - Inv-1 (No agent holds cross-requirement state) — strengthened.
+    Every coord-flavored tool now reaches the agent through the
+    type's `contributeMcpTools`, not through the substrate's tool
+    builder. Substrate's per-agent surface is structurally
+    type-agnostic.
+  - Inv-2 / Inv-3 — not exercised.
+
+- Judgment: principal tension still the substrate-Harness ownership
+  cut. With both bounded sub-slices now landed (coord onInit; coord
+  contributeMcpTools), the only remaining slice is the heaviest:
+  ~290 caller refs to `harness.bridge` / `harness.contextProvider.
+  channels` / `harness.registerAgent` / `harness.agentChannels` /
+  `harness.instructionQueue` / `harness.defaultChannel` / etc.
+  swept across `internals/harness/`, `internals/web/`,
+  `packages/agent-worker/`, and tests. Now that lifecycle and tool
+  contribution own their slices, the field-ownership move can be
+  done as a single concept slice — the surface to migrate is fixed
+  and the protocol it migrates *into* is ready.
+  Goal-level: no change.
+
+- Next:
+  - **Final ownership-move slice.** Coord `contributeRuntime`
+    returns the actual coord runtime (channelStore, inboxStore,
+    statusStore, bridge, instructionQueue, agentChannels,
+    `_onDemandAgents`, `lead`, `defaultChannel`, route/enqueue
+    methods). Substrate `Harness` drops the corresponding fields
+    and methods. Callers either (a) reach into
+    `harness.typeRuntime` (cast to the coord runtime) for the
+    state, or (b) get refactored to go through provider /
+    `coordinationRuntime(harness)` accessors. The substrate's
+    init-time inbox-load loop and `agentChannels`-touching
+    snapshot helpers move with the fields. Bundle as one commit.
+    Likely needs a dedicated multi-session block or a codemod-
+    style sweep.
+  - **Commit boundary.** This slice is small enough to sit on
+    top of slice-2-so-far cleanly. Worth one focused commit
+    ("slice 2 of decision 006: coord contributeMcpTools + factory
+    tool merging") so the ownership cut starts from a clean base.

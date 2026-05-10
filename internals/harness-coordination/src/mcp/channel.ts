@@ -1,5 +1,5 @@
-import type { ContextProvider } from "../../types.ts";
-import { extractMentions } from "../../utils.ts";
+import type { ContextProvider } from "@agent-worker/harness";
+import { extractMentions } from "@agent-worker/harness";
 
 export interface ChannelTools {
   channel_send: (args: {
