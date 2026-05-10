@@ -1,7 +1,39 @@
 # Harness as Agent Environment
 
-**Status:** adopted
-**Date:** 2026-05-10 (proposed) — 2026-05-10 (adopted)
+**Status:** implemented
+**Date:** 2026-05-10 (proposed) — 2026-05-10 (adopted) — 2026-05-10 (implemented)
+
+## Implementation
+
+Landed across four commits on `codex/dev-runtime-workspace`:
+
+- `19a1930` slice 1 — `Workspace` → `Harness` rename + `HarnessType` registry.
+- `2597b6a` slice 2.1 — coordination peer package extracted
+  (`@agent-worker/harness-coordination`); `HarnessType` lifecycle protocol
+  (`contributeRuntime` / `onInit` / `onShutdown` + `harness.typeRuntime` slot)
+  wired; coord type's `onInit` takes over agent registration + adapter
+  starting from `factory.createHarness`.
+- `f1684bc` slice 2.2 — coord `contributeMcpTools` + factory tool merging.
+  Substrate's `createHarnessTools` returns the universal slice
+  (`resource_*`, `chronicle_*`, `task_*` / `wake_*` / `handoff_*`,
+  `worktree_*`); coord type contributes `channel_*`, `my_inbox*`,
+  `no_action`, `my_status_set`, `team_*`, `wait_inbox`;
+  `factory.buildAgentToolSet` is the single substrate↔type merge boundary.
+- `63a9317` slice 2.3 — ownership move. New `CoordinationRuntime` class in
+  coord package owns `channelStore` / `inboxStore` / `statusStore` /
+  `bridge` / `instructionQueue` / `agentChannels` / `onDemandAgents` /
+  `lead` / `defaultChannel` and the routing logic. Substrate `Harness` is
+  now type-agnostic in field and method ownership. Callers reach the
+  runtime via `coordinationRuntime(harness)`. `CompositeContextProvider`
+  stays composite as a deliberate scope decision: substrate sources its
+  `channels` / `inbox` / `status` slots from the runtime when present,
+  otherwise from `noopChannelStore` / `noopInboxStore` / `noopStatusStore`
+  whose mutating methods reject so non-coord harnesses can't silently
+  route.
+
+The blueprint `blueprints/coordination-substrate-cut.md` recorded the
+slice-2 plan and is removed with this closeout — the design docs below
+are the standing reference.
 
 ## Context
 
