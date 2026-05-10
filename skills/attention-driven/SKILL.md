@@ -1,6 +1,6 @@
 ---
 name: attention-driven
-description: Stable entrypoint for agent work based on the 30/70 attention rule and a localized steering posture. Use when starting or resuming work, setting up agent workflow in a project, deciding whether a task is goal/design/fact/reframe work, changing architecture, recording progress, or requiring falsifiable verification. Keeps one mainline: goal keeps direction; design keeps system shape; fact keeps observations; reframe changes the lens; setup wires the harness. Args: `go`, `setup`, `audit`, `goal`, `design`, `fact`, `reframe`, `close`.
+description: Stable entrypoint for agent work based on the 30/70 attention rule and a localized steering posture. Use when starting or resuming work, setting up agent workflow in a project, deciding whether a task is goal/design/fact/reframe work, changing system shape, recording progress, or requiring falsifiable verification. Keeps one mainline: goal keeps direction; design keeps system shape; fact keeps observations; reframe changes the lens; setup wires the harness. Args: `go`, `setup`, `audit`, `goal`, `design`, `fact`, `reframe`, `close`.
 argument-hint: "[go | setup | audit | goal | design | fact | reframe | close]"
 ---
 
@@ -35,10 +35,10 @@ Read the layer names as local steering responsibilities, not as phases:
 - `reframe` changes the lens when the old category cannot guide the work.
 - `harness` keeps project context wired so future agents can continue.
 
-This applies to the skill itself. Command names, artifact wording, and setup
-mechanics may improve, but those execution improvements must not disturb the
-core method: find the principal 30%, preserve it durably, and let the agent
-move freely inside it.
+The same rule applies when maintaining attention-driven instructions. Command
+names, artifact wording, and setup mechanics may improve, but those execution
+improvements must not disturb the core method: find the principal 30%, preserve
+it durably, and let the agent move freely inside it.
 
 When learning from an external theory or method, absorb its operating principle
 before borrowing its form. Localize it to the concrete problem, keep what
@@ -61,7 +61,7 @@ When invoked with an argument, dispatch to the corresponding command file:
 - `/attention-driven design ...` -> read `commands/design.md`.
   Work on system shape, decisions, design bootstrap, and blueprints.
 - `/attention-driven fact ...` -> read `commands/fact.md`.
-  Add falsifiable verification discipline to implementation work.
+  Add falsifiable verification discipline to execution work.
 - `/attention-driven reframe ...` -> read `commands/reframe.md`.
   Redraw shape when the paradigm is unsettled.
 - `/attention-driven close` -> read `commands/close.md`.
@@ -96,8 +96,8 @@ ambiguous.
 ## Artifact Rule
 
 Preserve only the load-bearing 30% as durable artifacts: current goal plus
-recorded output, design plus blueprint/code direction, fact evidence, reframe
-primitive, and setup wiring. Leave the 70% strategy flexible and mostly
+recorded output, design plus blueprint/execution direction, fact evidence,
+reframe primitive, and setup wiring. Leave the 70% strategy flexible and mostly
 fire-and-forget.
 
 If an older decision, blueprint, record entry, or concept note was wrong, do
@@ -120,7 +120,7 @@ files only when the command needs the detail:
 - `references/control-loop.md` for the localized engineering-control lens:
   target, shape, observation, gap, correction, disturbance, stability, and
   adaptation.
-- `references/control-review.md` for three-role review when importing external
-  theory or changing this skill's method.
+- `references/control-review.md` for three-role dialectical review in
+  research-like design/proposal work or method imports into a project.
 - `references/migration-audit.md` for temporary notes recovered from the old
   split skills that have not yet earned a permanent home.

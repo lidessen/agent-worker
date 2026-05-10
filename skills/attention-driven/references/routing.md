@@ -44,6 +44,8 @@ slow-changing question behind the current uncertainty.
 When the problem is not "which artifact?" but "why are we not converging?", use
 the localized steering frame:
 
+- unclear primary metric -> name whether this step optimizes correctness,
+  speed, maintainability, continuity, reversibility, or user understanding;
 - unclear target -> `goal`;
 - unclear system shape -> `design`;
 - unclear observation or disputed gap -> `fact`;
@@ -53,6 +55,22 @@ the localized steering frame:
   harder at the same layer.
 - no authority or permission to change the state -> `harness` to acquire
   context/authority, `goal` to narrow the target, or surface a blocker.
+- correction saturation: if the available action cannot move the gap, change
+  authority, scope, target, or system shape before acting again.
+
+## Steerability Gate
+
+Before execution on uncertain work, check whether the target can be observed and
+changed by available actions:
+
+- cannot observe the target or gap -> `fact` first;
+- cannot change the target state with current authority -> `harness`, `goal`,
+  or blocker;
+- cannot name the primary metric -> clarify the mainline before choosing a
+  correction.
+
+Do not start execution when the target is both unobservable and uncontrollable.
+That is not a hard problem; it is an unsteerable problem.
 
 Respect loop speed. Fast execution errors route first to `fact` or local
 implementation. Only repeated, evidenced fast-loop errors escalate to `design`.

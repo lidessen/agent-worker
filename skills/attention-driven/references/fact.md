@@ -14,13 +14,13 @@ Three questions catch weak evidence:
 
 - Could this evidence have shown the opposite?
 - What realistic input would make this test fail?
-- If the implementation were silently wrong tomorrow, would this check catch it?
+- If the work were silently wrong tomorrow, would this check catch it?
 
 Not facts:
 
 - "looks right";
 - "tested manually" without captured result;
-- tests that pass even if the implementation is removed;
+- tests that pass even if the claimed effect is removed;
 - mock assertions that only verify a mock was called.
 
 Facts:
@@ -83,10 +83,20 @@ add evidence or weaken the claim.
 
 Fact findings flow upward:
 
-- repeated implementation failure caused by shape -> design decision;
+- repeated execution failure caused by shape -> design decision;
 - criterion failure or misleading criterion -> goal STOP;
 - comprehension/stress-test result in unsettled territory -> reframe update.
 
 When observations are noisy or contradictory, do not average them into a vague
 claim. Improve the observation first: isolate the check, name the failure mode,
 and capture the output.
+
+## Observation Cadence
+
+If the work changes faster than observations arrive, confidence is stale. Before
+making a larger correction, tighten the loop:
+
+- observe closer to the claimed effect;
+- shorten the time between correction and check;
+- reduce the size of the correction until the response is visible;
+- refresh facts before changing slow artifacts such as goals or design.

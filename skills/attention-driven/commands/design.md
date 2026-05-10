@@ -29,14 +29,34 @@ For shape changes:
 1. Draft `design/decisions/NNN-title.md`.
 2. Include context, recommendation, alternatives, consequences, and verification
    expectations.
-3. Run a cold review using `references/cold-review-prompt.md` when the change is
+3. For research-like design or uncertain proposal work, run dialectical review before
+   settling the recommendation.
+4. Run a cold review using `references/cold-review-prompt.md` when the change is
    substantial.
-4. Wait for human adoption/rejection.
-5. If adopted, update `design/DESIGN.md` and relevant package docs before code.
+5. Wait for human adoption/rejection.
+6. If adopted, update `design/DESIGN.md` and relevant package docs before code.
 
 Do not rewrite the system shape because one local correction failed. Escalate
 to design only when observations show the boundary or mechanism assumption is
 wrong.
+
+## Dialectical Review
+
+Use dialectical review when the design is research-like, the solution space is
+wide, the main assumption is disputed, or a proposal could easily become local
+optimum. It is optional for ordinary design and should stay lightweight.
+
+Create productive opposition:
+
+- advocate: why this design works and which 30% it captures;
+- opposition: where it is most likely wrong or brittle;
+- operator: whether it can actually be implemented, used, and continued without
+  becoming burden;
+- synthesis: what to keep, what to reject, and the smallest validation.
+
+The discussion is scratch unless the synthesis becomes load-bearing. Preserve
+the final judgment, rejected alternatives, and next validation, not the whole
+debate.
 
 ## Blueprint
 

@@ -29,6 +29,12 @@ it has not been understood yet.
 Goal, design, fact, and reframe are layers, not mandatory sequential phases.
 Use the layer that owns the current question.
 
+## Debate Without Synthesis
+
+Do not create opposition just to produce more discussion. Dialectical review
+must end in a mainline judgment: keep, reject, defer, and the smallest
+validation. If no decision or sharper question emerges, it was ceremony.
+
 ## History Repair
 
 Do not rewrite old records, decisions, or blueprints to make the past look

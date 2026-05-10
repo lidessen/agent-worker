@@ -2,8 +2,8 @@
 
 This reference localizes the engineering-cybernetics lens into attention-driven
 work. It is not a sixth layer, command entrypoint, or required artifact. Use it
-when work is noisy, recurring, blocked, or when the method itself is being
-changed.
+when work is noisy, recurring, blocked, or when a working method is being
+imported or adjusted for a project.
 
 The point is not to make the skill mathematical or to carry control theory
 vocabulary into daily work. The point is to borrow the operating principle:
@@ -26,8 +26,8 @@ Use this reading of engineering cybernetics:
 - It values feedback because open-loop planning cannot keep a changing system
   on target by itself.
 
-For this skill, "engineering" means a repeatable way to move work toward a
-target under imperfect knowledge. The target may be code, design, writing,
+In attention-driven, "engineering" means a repeatable way to move work toward
+a target under imperfect knowledge. The target may be code, design, writing,
 research, or a project harness.
 
 Do not expose the source vocabulary unless it helps. In normal attention-driven
@@ -56,8 +56,8 @@ fit the local system is a disturbance, not a method. Understanding means the
 agent can explain the principle in local terms, modify it without losing its
 force, and use it without carrying the old vocabulary everywhere.
 
-For major method imports or changes to this skill, use
-`references/control-review.md` instead of relying on one perspective.
+For major method imports into a project, use `references/control-review.md`
+instead of relying on one perspective.
 
 ## Localized Stack
 
@@ -84,7 +84,8 @@ Before acting, define the local steering problem:
 - State variables: what must be true for the work to be healthy.
 - Target: what state the work is trying to approach.
 - Primary metric: what this correction optimizes now: correctness,
-  convergence speed, maintainability, continuity, or user understanding.
+  convergence speed, maintainability, continuity, reversibility, or user
+  understanding.
 - Observation: how the agent knows the current state.
 - Gap: which difference matters most now.
 - Control authority: what actions the agent/human can actually take.
@@ -93,6 +94,9 @@ Before acting, define the local steering problem:
 
 If any of these is missing, the work is not yet steerable. Do not compensate
 with more effort; define the missing part.
+
+If the target cannot be observed and current actions cannot change it, do not
+begin execution. Route to fact, goal, or harness until the work is steerable.
 
 `Current shape` is local:
 
@@ -120,6 +124,10 @@ Use this loop when work feels noisy, recurring, or hard to steer:
 Do not optimize the correction before you know the gap. Do not change the goal
 when one correction failed once. Do not keep applying the same correction when
 the gap is not shrinking.
+
+Smallest means smallest relative to the primary metric. It may be the fastest
+check, the least risky change, the most reversible probe, the clearest user
+signal, or the correction that best preserves continuity.
 
 ## Multi-Rate Control
 
@@ -239,6 +247,8 @@ Stable attention-driven work has these properties:
   before acting.
 - Observation noise: conflicting observations get averaged into vague
   confidence. Fix by isolating the check.
+- Observation too slow: the work changes faster than facts arrive. Fix by
+  shortening the loop or reducing correction size.
 - Correction saturation: the available action cannot move the gap. Fix by
   changing authority, scope, or target.
 - Integral windup: accumulated unresolved follow-ups make the next correction

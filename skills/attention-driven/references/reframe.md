@@ -43,6 +43,34 @@ For each candidate transfer, ask what abstract problem it solved and whether
 this domain faces the same abstract problem. Record deliberate non-transfers to
 prevent re-litigation.
 
+## Dialectical Exploration
+
+Reframe work benefits from opposition because the model is not stable yet. When
+the category is unsettled, deliberately test the skeleton from multiple sides:
+
+- thesis: the new skeleton and why it should replace the old one;
+- antithesis: the strongest old-paradigm objection or failure case;
+- operator reality: what would confuse, burden, or block actual use and
+  continuation;
+- synthesis: the primitive to keep, the flesh to reject, and the next
+  comprehension or stress test.
+
+Do not preserve every turn of the discussion. Keep the synthesis and the
+stress/comprehension observation that made it credible.
+
+## Probe Before Committing
+
+When the target shape is unclear, use small probes before committing to a
+skeleton. A probe is a bounded disturbance that reveals response:
+
+1. Change one assumption, primitive, or interaction surface.
+2. Predict what should improve or break.
+3. Run the lightest stress or comprehension check.
+4. Keep, bend, or discard the candidate based on the observation.
+
+Do not treat probes as miniature production plans. Their job is to reveal the
+shape of the problem, not to become the solution.
+
 ## Concept Artifacts
 
 Use `concepts/<target>.md` when exploration spans sessions. Keep the file as a

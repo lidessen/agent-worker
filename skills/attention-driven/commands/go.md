@@ -34,12 +34,16 @@ Route: <goal/design/fact/reframe/harness> (+ optional overlay)
 Next move: <smallest useful correction> -> <observable check>
 ```
 
-If the task crosses multiple layers, repeatedly failed, or asks to improve the
-method itself, first name one extra line:
+If the task crosses multiple layers, repeatedly failed, or asks to import or
+adjust a working method, first name one extra line:
 
 ```markdown
 Steering object: <what is being steered>; primary metric: <what this correction optimizes>
 ```
+
+Use the primary metric to choose the "smallest" correction. Smallest can mean
+least risky, fastest to observe, cheapest to reverse, best for continuity, or
+clearest to the user, depending on the work.
 
 Use `references/routing.md` when classification is ambiguous. Use
 `references/control-loop.md` when the next action is unclear because
@@ -79,7 +83,7 @@ boundary:
 
 - goal criteria/STOP -> goal record or GOAL edit protocol;
 - shape change -> design decision and DESIGN update;
-- non-trivial implementation -> blueprint;
+- non-trivial execution -> blueprint;
 - progress claim -> fact evidence;
 - context wiring -> managed setup block.
 

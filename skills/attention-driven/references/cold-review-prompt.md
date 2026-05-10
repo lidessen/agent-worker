@@ -10,9 +10,9 @@ A neutral "please check this" to a fresh agent still produces polite,
 ceremonial review. An explicit hostile frame produces the kind of
 findings that prevent skeleton rework.
 
-Think QA engineer testing a developer's feature: the feature probably
-works in the happy path — that's not where value lives. Value lives
-in finding the edge case the developer didn't think about.
+Think adversarial operator reviewing a proposal: the happy path probably works
+on paper — that's not where value lives. Value lives in finding the edge case
+the proposal author didn't think about.
 
 ---
 

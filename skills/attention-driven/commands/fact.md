@@ -4,9 +4,10 @@ Fact layer: falsifiable observations for progress claims.
 Fact owns observation: how the agent knows the current state, whether the gap
 shrank, and whether a check is too noisy to steer from.
 
-Read `references/fact.md` for the discipline. Use this command when code paths
-are production-facing, regression-prone, or when the user asks for rigorous
-verification, TDD, "no progress without evidence", or proof that work is done.
+Read `references/fact.md` for the discipline. Use this command when a progress
+claim is high-risk, production-facing, regression-prone, or when the user asks
+for rigorous verification, TDD, "no progress without evidence", or proof that
+work is done.
 
 ## Plan
 
@@ -14,7 +15,7 @@ Before claiming progress, name:
 
 1. Risks: concrete ways this could fail.
 2. Checks: tests, traces, manual captures, or comparisons that catch each risk.
-3. Sequence: what check comes before what implementation step.
+3. Sequence: what check comes before what work step.
 4. Done evidence: the observations required before the claim is accepted.
 5. Observation quality: what would make the observation stale, noisy, fake, or
    too indirect to steer from.

@@ -13,15 +13,16 @@ Capture the 30%:
 
 - Goal compass, success criteria, invariants, STOPs.
 - Current system shape, module boundaries, key mechanisms, non-goals.
-- Active implementation plan when a task is too large to finish safely from
+- Active execution plan when a task is too large to finish safely from
   chat alone.
 - Falsifiable observations that support or reject progress claims.
 - Project harness wiring that affects how future agents operate.
 
 Leave the 70% flexible:
 
-- Local implementation strategy.
-- Function names, helper layout, internal data structures.
+- Local execution strategy.
+- Function names, helper layout, internal data structures, or equivalent local
+  detail.
 - Test style details as long as the evidence is real.
 - Exact prose shape inside non-load-bearing historical records.
 
@@ -40,15 +41,16 @@ when the skeleton is sound.
 
 - `goal`: record the compass and the output that matters; leave path tactics
   flexible.
-- `design`: preserve shape through design and blueprint; leave code-level
+- `design`: preserve shape through design and blueprint; leave local execution
   details free inside the boundary.
 - `fact`: preserve the observation that proves or falsifies the claim; leave
   the proof form flexible.
 - `reframe`: preserve the primitive skeleton; let projected flesh change.
 - `harness`: preserve entry context and routing; let command mechanics evolve.
 
-This also applies to this skill. Improvements to commands, setup, or wording are
-execution-level changes. They must not disturb the core method.
+This also applies when maintaining attention-driven instructions. Improvements
+to commands, setup, or wording are execution-level changes. They must not
+disturb the core method.
 
 ## Steering Artifact Test
 
