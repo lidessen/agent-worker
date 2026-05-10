@@ -164,6 +164,56 @@ export function MonitorView() {
     );
   });
 
+  const c4Section = computed(monitorSnapshot, (snap) => {
+    const c4 = snap?.c4;
+    if (!c4) {
+      return (
+        <div class={s.cardBody}>
+          <div class={s.metricRow}>
+            <span class={s.metricLabel}>Loading…</span>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div class={s.cardBody}>
+        <div class={s.metricRow}>
+          <span class={s.metricLabel}>All-silent ratio</span>
+          <span class={s.metricValue}>{pct(c4.allSilentRatio)}</span>
+        </div>
+        <div class={thresholdMaxClass(c4.allSilentRatio, c4.thresholds.allSilentRatioMax)}>
+          GOAL.md threshold from month 4: ≤ {pct(c4.thresholds.allSilentRatioMax)} (primary)
+        </div>
+        <div class={s.metricRow}>
+          <span class={s.metricLabel}>Auth-wait non-blocking utilization</span>
+          <span class={s.metricValue}>{pct(c4.authWaitNonBlockingUtilization)}</span>
+        </div>
+        <div
+          class={thresholdClass(
+            c4.authWaitNonBlockingUtilization,
+            c4.thresholds.authWaitNonBlockingUtilizationMin,
+          )}
+        >
+          GOAL.md threshold from month 4: ≥ {pct(c4.thresholds.authWaitNonBlockingUtilizationMin)}{" "}
+          (secondary)
+        </div>
+        <div class={s.metricRow}>
+          <span class={s.metricLabel}>Phantom-block events (1h window)</span>
+          <span class={s.metricValue}>{c4.phantomBlockEvents}</span>
+        </div>
+        <div
+          class={thresholdMaxClass(
+            c4.phantomBlockEvents,
+            c4.thresholds.phantomBlockEventsMaxPerMonth,
+          )}
+        >
+          GOAL.md threshold: ≤ {c4.thresholds.phantomBlockEventsMaxPerMonth} per month
+        </div>
+        <div class={s.metricMeta}>computed over {c4.windowSamples} 1Hz samples</div>
+      </div>
+    );
+  });
+
   const summaryStrip = computed(monitorSnapshot, (snap) => {
     if (!snap) {
       return (
@@ -216,8 +266,14 @@ export function MonitorView() {
         </div>
         <div class={s.summaryItem}>
           <span class={s.summaryLabel}>C4 silence</span>
-          <span class={s.summaryValue}>—</span>
-          <span class={s.summaryStatus}>slice 3 will fill</span>
+          <span class={s.summaryValue}>
+            {snap.c4
+              ? `silent ${pct(snap.c4.allSilentRatio)} · phantom ${snap.c4.phantomBlockEvents}`
+              : "—"}
+          </span>
+          <span class={s.summaryStatus}>
+            {snap.c4 ? `${snap.c4.windowSamples}s window` : "not measured"}
+          </span>
         </div>
       </div>
     );
@@ -272,10 +328,7 @@ export function MonitorView() {
             <div class={s.cardTitle}>C4 — Async non-blocking</div>
             <div class={s.cardSubtitle}>All-silent ratio + auth-wait utilization</div>
           </div>
-          <div class={s.placeholder}>
-            <div class={s.placeholderTitle}>Slice 3</div>
-            <div class={s.placeholderBody}>silence + activity sparkline land here.</div>
-          </div>
+          {c4Section}
         </div>
       </div>
     </div>
