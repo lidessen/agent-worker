@@ -226,11 +226,8 @@ export interface HarnessStateSnapshot {
 export interface HarnessRuntime {
   readonly name: string;
   readonly tag: string | undefined;
-  readonly defaultChannel: string;
   readonly contextProvider: ContextProvider;
   readonly eventLog: EventLog;
-  readonly bridge: ChannelBridgeInterface;
-  readonly instructionQueue: InstructionQueueInterface;
   /** Root directory for this harness's file storage. Undefined for memory-only harnesses. */
   readonly storageDir: string | undefined;
   /** Shared harness sandbox directory (collaborative files visible to all agents). */
@@ -242,8 +239,6 @@ export interface HarnessRuntime {
   init(): Promise<void>;
   /** Shutdown harness: stop connections, flush stores. */
   shutdown(): Promise<void>;
-  /** Register an agent with the harness. */
-  registerAgent(name: string, channels?: string[]): Promise<void>;
   /** Get the agent's sandbox directory (working directory for bash/files). */
   agentSandboxDir(agentName: string): string | undefined;
   /** Return a unified snapshot of harness state for debug/tests. */

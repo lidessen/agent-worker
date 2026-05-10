@@ -7,6 +7,7 @@ import { Harness } from "../src/harness.ts";
 import { MemoryStorage } from "../src/context/storage.ts";
 import {
   COORDINATION_HARNESS_TYPE_ID,
+  coordinationRuntime,
   type CoordinationSnapshot,
 } from "@agent-worker/harness-coordination";
 
@@ -28,7 +29,7 @@ describe("Harness", () => {
   });
 
   test("has default channel", () => {
-    expect(harness.defaultChannel).toBe("general");
+    expect(coordinationRuntime(harness).defaultChannel).toBe("general");
   });
 
   test("registers agents with idle status", async () => {
@@ -38,7 +39,7 @@ describe("Harness", () => {
   });
 
   test("agents auto-join default channel", () => {
-    const aliceChannels = harness.getAgentChannels("alice");
+    const aliceChannels = coordinationRuntime(harness).getAgentChannels("alice");
     expect(aliceChannels.has("general")).toBe(true);
   });
 
@@ -479,7 +480,7 @@ describe("Harness", () => {
       category: "plan",
       content: "Collect current harness state",
     });
-    harness.instructionQueue.enqueue({
+    coordinationRuntime(harness).instructionQueue.enqueue({
       id: "instr-1",
       agentName: "alice",
       messageId: "msg-1",

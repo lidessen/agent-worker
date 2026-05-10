@@ -1248,3 +1248,181 @@ check with concrete evidence, judgment naming the principal tension.
     top of slice-2-so-far cleanly. Worth one focused commit
     ("slice 2 of decision 006: coord contributeMcpTools + factory
     tool merging") so the ownership cut starts from a clean base.
+
+## 2026-05-10 — Slice 2 ownership move (substrate Harness loses coord state)
+
+- What I did:
+  - Took on the heaviest remaining slice of decision 006: every
+    coord-flavored field and method that still lived on substrate
+    `Harness` is gone. Coord state (channel/inbox/status stores,
+    bridge, instruction queue, agent roster, on-demand set, lead,
+    defaultChannel, channel-to-inbox routing) is now owned by a new
+    `CoordinationRuntime` class that the type contributes via
+    `contributeRuntime`. ~70-call-site sweep across substrate, web,
+    agent-worker, and tests landed in this single slice. No
+    delegation shims; no transitional fields.
+  - **`CoordinationRuntime` class (new, in coord package):**
+    - `internals/harness-coordination/src/runtime.ts` — class with
+      readonly fields `defaultChannel`, `lead`, `channelStore`,
+      `inboxStore`, `statusStore`, `bridge`, `instructionQueue`,
+      cached config slices `agentsConfig` / `connectionsConfig`,
+      and a private `_agentChannels` / `onDemandAgents`. Exposes
+      `agentChannels` as a `ReadonlyMap` view, plus
+      `isLead`/`hasAgent`/`getAgentChannels`/`registerAgent`,
+      lifecycle helpers `load()` and `shutdown()`, and (private)
+      routing methods `routeMessageToInboxes`/`enqueueToAgent`.
+      Channel-store "message" events are wired in the constructor
+      so the runtime drives routing without substrate involvement.
+  - **Coord type rewritten around the runtime:**
+    - `multiAgentCoordinationHarnessType.contributeRuntime` now
+      constructs a `CoordinationRuntime` from `{ harness, config }`,
+      reading the substrate's `harness.storage` to seed the coord-
+      flavored stores.
+    - `onInit` calls `runtime.load()` (substrate's old init-time
+      `statusStore.load` / `channelStore.loadIndex` / per-agent
+      inbox loop moved here), then registers configured agents and
+      attaches configured channel adapters.
+    - `onShutdown` calls `runtime.shutdown()` (bridge teardown).
+    - `contributeMcpTools` reads `agentChannels`, `hasAgent`, and
+      the harness's `contextProvider` directly from the runtime; no
+      more `agentChannels` cast on the substrate.
+    - `snapshotExtension` reads from the runtime — `defaultChannel`,
+      `instructionQueue.listAll`, `agentChannels.keys`,
+      `getAgentChannels` — and uses the substrate's
+      `contextProvider` for `status` / `inbox.inspect` /
+      `timeline.read` (provider stays composite — see below).
+  - **Substrate `Harness` slimmed:**
+    - Constructor reordered: substrate identity → substrate storage
+      / stores (DocumentStore, ResourceStore, TimelineStore,
+      ChronicleStore) → resolve type and call `contributeRuntime`
+      → build `CompositeContextProvider` pulling channels / inbox /
+      status from the type's runtime when present (duck-typed via a
+      narrow `coordLike` shape, no coord import) → event log →
+      kernel state store. Provider stays composite so the ~170
+      `contextProvider.{channels,inbox,status}` callers across the
+      repo don't need migration.
+    - Dropped fields: `channelStore`, `inboxStore`, `statusStore`,
+      `bridgeImpl`, `bridge`, `instructionQueue`, `agentChannels`,
+      `_onDemandAgents`, `lead`, `defaultChannel`.
+    - Dropped methods: `registerAgent`, `hasAgent`,
+      `getAgentChannels`, `isLead`, `routeMessageToInboxes`,
+      `enqueueToAgent`. Init's coord-flavored steps (channel index
+      load + per-agent inbox loop) moved into `runtime.load()`.
+      Shutdown's bridge teardown moved into `runtime.shutdown()`
+      via the type's `onShutdown`.
+    - Added `readonly storage: StorageBackend` field — the type's
+      `contributeRuntime` reads it via `harness.storage` to seed
+      the coord stores.
+    - `HarnessRuntime` interface (in `types.ts`) likewise drops
+      `bridge`, `instructionQueue`, `defaultChannel`, and
+      `registerAgent`.
+  - **No-op store stubs (`internals/harness/src/context/stubs.ts`):**
+    - `noopChannelStore`, `noopInboxStore`, `noopStatusStore` —
+      satisfy the substrate provider's non-optional channel / inbox /
+      status slots when no coord runtime is present (i.e. the
+      harness uses a non-coord `HarnessType`). Most methods reject
+      with an explicit "requires coord HarnessType" error so a
+      non-coord harness can't silently route messages; read-style
+      methods (`peek` / `inspect` / `getCached` / `listChannels`)
+      return empty so harmless reads degrade gracefully.
+  - **Typed accessor `coordinationRuntime(harness)`:**
+    - Exported from `@agent-worker/harness-coordination`. Throws
+      when the harness is plugged into a different type or lacks
+      the runtime — coord-flavored callers depend on the runtime
+      unconditionally, so a wrong-type access is a programmer
+      error worth surfacing loudly. This is the canonical access
+      path replacing every former substrate field/method call.
+  - **Caller migration (single sweep):**
+    - `internals/harness/src/factory.ts` — `buildAgentToolSet`
+      pulls `instructionQueue` from `coordinationRuntime(harness)`
+      when coord-typed, undefined otherwise (task_dispatch is
+      gated on its presence already).
+    - `internals/harness/src/mcp-server.ts` — `createAgentServer` /
+      `createDebugServer` / `createLeadServer` use
+      `coordinationRuntime(this.harness)` for `isLead`,
+      `hasAgent`, `registerAgent`. Debug tools (`agents`, `queue`,
+      `harness_info`) read `getAgentChannels`, `instructionQueue`,
+      `lead`, and `defaultChannel` from the runtime.
+    - `packages/agent-worker/src/daemon.ts` — `/tool-call` handler
+      uses `coordinationRuntime` for the agent-auto-register path
+      and the HTTP-dispatch instruction enqueue.
+    - `packages/agent-worker/src/harness-registry.ts` —
+      orchestrator queue, lead-fallback announcement targets and
+      channel reads, and the per-run rebuild path all go through
+      `coordinationRuntime(harness)`.
+    - `packages/agent-worker/src/managed-harness.ts` — the
+      "anything queued?" check on `harnessStatus` reads the
+      runtime queue directly and types the predicate's parameter
+      via the now-imported `Instruction`.
+    - Tests updated: `internals/harness/test/{harness,
+      mcp-server,tools}.test.ts`,
+      `internals/harness/test/a2a/{coordination-harness,
+      deepseek-harness}.ts`, and
+      `packages/agent-worker/test/orchestrator.test.ts` —
+      every former `harness.bridge` / `harness.registerAgent` /
+      `harness.instructionQueue` / etc. became
+      `coordinationRuntime(harness).…`.
+    - `harness-type-lifecycle.test.ts` continues to use a
+      synthetic non-coord type and remains unchanged.
+
+- Observations:
+  - Tests: 925 pass / 0 fail / 2013 expect() across 69 files in
+    `internals/{harness, harness-coordination, agent, loop}` +
+    `packages/agent-worker`. Repo-wide: pre-existing
+    `@semajsx/*` / `@internals/ui` failures only (~282), unrelated
+    to this slice and unchanged from baseline.
+  - Typechecks: clean across the same package set.
+  - Posture honored: every name in this slice
+    (`CoordinationRuntime`, `coordinationRuntime`,
+    `noopChannelStore` / `noopInboxStore` / `noopStatusStore`,
+    `harness.storage`) reads as terminal-shape. No delegating
+    accessor stubs on substrate; no transitional fields.
+  - The ~170 `contextProvider.{channels,inbox,status}` callers
+    didn't need migration — the provider's composite shape is the
+    intended public surface, with per-store ownership pushed into
+    the runtime via duck-typed construction. This was a key
+    judgment call to keep the slice tractable without compromising
+    the cut: substrate stays type-agnostic in *ownership*; the
+    provider is just a routed view.
+
+- Criteria check:
+  - C1–C4 — `unclear` (13th consecutive entry). Monitor remains
+    queued behind decision 006 close.
+
+- Invariants check:
+  - Inv-1 (No agent holds cross-requirement state) — strongly
+    strengthened. The coord-flavored state has a single owner
+    (`CoordinationRuntime`); substrate holds none of it; the
+    typed accessor surfaces a wrong-type access as a thrown error
+    rather than silent fallback. This is exactly the structural
+    invariant decision 006 was after.
+  - Inv-2 / Inv-3 — not exercised.
+
+- Judgment: principal tension on decision 006 has been **resolved
+  in code**. Substrate `Harness` is type-agnostic in field /
+  method ownership; the coord type owns the state and exposes it
+  through `coordinationRuntime`. Next bookkeeping: close decision
+  006 in `design/decisions/`, update `design/packages/harness.md`
+  and `design/packages/harness-types/coordination.md` to match the
+  new shape, and remove `coordination-substrate-cut.md` from
+  `blueprints/` (it has fully landed). Goal-level: no change.
+
+- Next:
+  - **Close decision 006.** Update the decision file's status to
+    "implemented", and reconcile the per-package design docs
+    (`design/packages/harness.md`, `design/packages/harness-types/
+    coordination.md`) with the terminal shape: substrate owns
+    storage + state store + worktree + provider composition;
+    coord owns its runtime via the type protocol;
+    `coordinationRuntime(harness)` is the canonical access. Then
+    delete the now-completed blueprint.
+  - **C1–C4 monitor work.** With decision 006 finished, the
+    observability monitor (decision 004) is the obvious next
+    initiative — every criterion is `unclear` because no monitor
+    exists.
+  - **Optional cleanup down the road.** `provider.send` and the
+    coord-flavored slots on `ContextProvider` could move into the
+    coord runtime as a future tightening (truly type-agnostic
+    provider). Not in scope here — the current shape matches
+    decision 006's "substrate is type-agnostic in *ownership*"
+    intent without forcing a 170-call-site migration.

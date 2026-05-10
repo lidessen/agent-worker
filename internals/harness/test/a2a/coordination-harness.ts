@@ -22,6 +22,7 @@ import {
 import {
   COORDINATION_BASE_SECTIONS,
   InstructionQueue,
+  coordinationRuntime,
 } from "@agent-worker/harness-coordination";
 
 // Coord agents in this a2a smoke compose substrate `soulSection` +
@@ -111,8 +112,8 @@ test("T1", async () => {
   assert(channels.includes("design"), "missing design channel");
   assert(channels.includes("code-review"), "missing code-review channel");
 
-  const aliceChannels = ws.getAgentChannels("alice");
-  const bobChannels = ws.getAgentChannels("bob");
+  const aliceChannels = coordinationRuntime(ws).getAgentChannels("alice");
+  const bobChannels = coordinationRuntime(ws).getAgentChannels("bob");
   assert(aliceChannels.has("general"), "alice not in general");
   assert(bobChannels.has("general"), "bob not in general");
 
@@ -536,7 +537,7 @@ test("T14", async () => {
   const aliceLoop = createOrchestrator({
     name: "alice",
     provider: ws.contextProvider,
-    queue: ws.instructionQueue,
+    queue: coordinationRuntime(ws).instructionQueue,
     eventLog: ws.eventLog,
     pollInterval: 500,
     onInstruction: async (_prompt, instruction) => {
@@ -552,7 +553,7 @@ test("T14", async () => {
   const bobLoop = createOrchestrator({
     name: "bob",
     provider: ws.contextProvider,
-    queue: ws.instructionQueue,
+    queue: coordinationRuntime(ws).instructionQueue,
     eventLog: ws.eventLog,
     pollInterval: 500,
     onInstruction: async (_prompt, instruction) => {

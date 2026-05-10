@@ -4,9 +4,13 @@
 // channel/inbox/team MCP tools).
 //
 // Per design/decisions/006-harness-as-agent-environment.md, the
-// substrate `Harness` class is type-agnostic; coordination state lives
-// here and plugs into a Harness instance via the `HarnessType` protocol
-// from `@agent-worker/harness`.
+// substrate `Harness` class is type-agnostic; every coord-flavored
+// piece of state and behavior lives here. A coord-typed Harness reaches
+// its runtime via the typed accessor `coordinationRuntime(harness)`.
+
+import type { Harness } from "@agent-worker/harness";
+import { CoordinationRuntime } from "./runtime.ts";
+import { COORDINATION_HARNESS_TYPE_ID } from "./type.ts";
 
 // ── Stores ─────────────────────────────────────────────────────────────────
 export { ChannelStore } from "./stores/channel.ts";
@@ -41,6 +45,10 @@ export { createChannelTools } from "./mcp/channel.ts";
 export { createInboxTools } from "./mcp/inbox.ts";
 export { createTeamTools } from "./mcp/team.ts";
 
+// ── Per-Harness runtime (canonical owner of coord state) ─────────────────
+export { CoordinationRuntime } from "./runtime.ts";
+export type { CoordinationRuntimeInput } from "./runtime.ts";
+
 // ── HarnessType — coord ───────────────────────────────────────────────────
 export {
   COORDINATION_HARNESS_TYPE_ID,
@@ -48,7 +56,32 @@ export {
 } from "./type.ts";
 export type {
   ContributedToolItem,
-  CoordHarnessTypeRuntime,
   CoordinationSnapshot,
   HarnessAgentSnapshot,
 } from "./type.ts";
+
+// ── Typed accessor ─────────────────────────────────────────────────────────
+
+/**
+ * Narrow the substrate Harness's opaque `typeRuntime` slot to the
+ * concrete `CoordinationRuntime`. Throws when the harness is plugged
+ * into a different type — coord-flavored callers depend on this state
+ * unconditionally, so a wrong-type access is a programmer error worth
+ * surfacing loudly.
+ */
+export function coordinationRuntime(harness: Harness): CoordinationRuntime {
+  if (harness.harnessTypeId !== COORDINATION_HARNESS_TYPE_ID) {
+    throw new Error(
+      `coordinationRuntime: harness "${harness.name}" is plugged into type ` +
+        `"${harness.harnessTypeId}", not "${COORDINATION_HARNESS_TYPE_ID}".`,
+    );
+  }
+  const rt = harness.typeRuntime;
+  if (!(rt instanceof CoordinationRuntime)) {
+    throw new Error(
+      `coordinationRuntime: harness "${harness.name}" is missing its CoordinationRuntime — ` +
+        `was multiAgentCoordinationHarnessType registered before construction?`,
+    );
+  }
+  return rt;
+}

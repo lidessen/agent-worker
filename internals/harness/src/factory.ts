@@ -13,6 +13,7 @@ import type { PromptSection } from "./loop/prompt.tsx";
 import { createHarnessTypeRegistry, type HarnessTypeRegistry } from "./type/index.ts";
 import {
   COORDINATION_HARNESS_TYPE_ID,
+  coordinationRuntime,
   multiAgentCoordinationHarnessType,
 } from "@agent-worker/harness-coordination";
 
@@ -64,13 +65,19 @@ export function buildAgentToolSet(
   harness: Harness,
   options: Pick<HarnessToolsOptions, "activeWakeId" | "harnessKey" | "dataDir"> = {},
 ): { tools: HarnessToolSet; defs: Record<string, ToolDef> } {
+  // task_dispatch needs an InstructionQueue, which the coord type owns.
+  // Non-coord harnesses get task tools without the dispatch enabler.
+  const coordRt =
+    harness.harnessTypeId === COORDINATION_HARNESS_TYPE_ID
+      ? coordinationRuntime(harness)
+      : undefined;
   const tools: HarnessToolSet = {
     ...createHarnessTools(agentName, harness.contextProvider, {
       stateStore: harness.stateStore,
       harnessName: harness.name,
       harnessKey: options.harnessKey,
       dataDir: options.dataDir,
-      instructionQueue: harness.instructionQueue,
+      instructionQueue: coordRt?.instructionQueue,
       activeWakeId: options.activeWakeId,
       harnessTypeRegistry: harness.harnessTypeRegistry,
       harnessTypeId: harness.harnessTypeId,

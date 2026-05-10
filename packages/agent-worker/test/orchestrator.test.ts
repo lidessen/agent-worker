@@ -1,6 +1,7 @@
 import { test, expect, describe, beforeEach, afterEach } from "bun:test";
 import { createHarness, MemoryStorage, createTaskTools } from "@agent-worker/harness";
-import type { Harness } from "@agent-worker/harness";
+import type { Harness, Instruction } from "@agent-worker/harness";
+import { coordinationRuntime } from "@agent-worker/harness-coordination";
 import { createOrchestrator, HarnessOrchestrator } from "../src/orchestrator.ts";
 
 describe("HarnessOrchestrator pause/resume", () => {
@@ -20,7 +21,7 @@ describe("HarnessOrchestrator pause/resume", () => {
     orch = createOrchestrator({
       name: "alice",
       provider: harness.contextProvider,
-      queue: harness.instructionQueue,
+      queue: coordinationRuntime(harness).instructionQueue,
       eventLog: harness.eventLog,
       pollInterval: 50,
       onInstruction: async () => {
@@ -89,7 +90,7 @@ describe("HarnessOrchestrator pause/resume", () => {
     orch = createOrchestrator({
       name: "alice",
       provider: harness.contextProvider,
-      queue: harness.instructionQueue,
+      queue: coordinationRuntime(harness).instructionQueue,
       eventLog: harness.eventLog,
       pollInterval: 20,
       onInstruction: async () => {
@@ -118,7 +119,7 @@ describe("HarnessOrchestrator pause/resume", () => {
     orch = createOrchestrator({
       name: "alice",
       provider: harness.contextProvider,
-      queue: harness.instructionQueue,
+      queue: coordinationRuntime(harness).instructionQueue,
       eventLog: harness.eventLog,
       pollInterval: 20,
       onInstruction: async () => {
@@ -147,7 +148,7 @@ describe("HarnessOrchestrator pause/resume", () => {
     orch = createOrchestrator({
       name: "alice",
       provider: harness.contextProvider,
-      queue: harness.instructionQueue,
+      queue: coordinationRuntime(harness).instructionQueue,
       eventLog: harness.eventLog,
       pollInterval: 20,
       onInstruction: async (prompt) => {
@@ -181,7 +182,7 @@ describe("HarnessOrchestrator pause/resume", () => {
     orch = createOrchestrator({
       name: "alice",
       provider: harness.contextProvider,
-      queue: harness.instructionQueue,
+      queue: coordinationRuntime(harness).instructionQueue,
       eventLog: harness.eventLog,
       pollInterval: 20,
       onInstruction: async () => {
@@ -214,7 +215,7 @@ describe("HarnessOrchestrator pause/resume", () => {
     await Bun.sleep(50);
 
     // The follow-up should now sit on the queue.
-    const pending = harness.instructionQueue.listAll();
+    const pending = coordinationRuntime(harness).instructionQueue.listAll();
     const followUp = pending.find((inst) => inst.content === "follow-up task surfaced");
     expect(followUp).toBeDefined();
     expect(followUp?.agentName).toBe("alice");
@@ -226,7 +227,7 @@ describe("HarnessOrchestrator pause/resume", () => {
     await orch.stop();
 
     const leadTools = createTaskTools("lead", harness.name, harness.stateStore, {
-      instructionQueue: harness.instructionQueue,
+      instructionQueue: coordinationRuntime(harness).instructionQueue,
     });
     const workerTools = createTaskTools("alice", harness.name, harness.stateStore);
 
@@ -237,7 +238,7 @@ describe("HarnessOrchestrator pause/resume", () => {
     orch = createOrchestrator({
       name: "alice",
       provider: harness.contextProvider,
-      queue: harness.instructionQueue,
+      queue: coordinationRuntime(harness).instructionQueue,
       eventLog: harness.eventLog,
       pollInterval: 20,
       onInstruction: async (_prompt, instruction) => {
@@ -329,7 +330,7 @@ describe("HarnessOrchestrator pause/resume", () => {
     const recoveredOrch = createOrchestrator({
       name: "alice",
       provider: recoveredHarness.contextProvider,
-      queue: recoveredHarness.instructionQueue,
+      queue: coordinationRuntime(recoveredHarness).instructionQueue,
       eventLog: recoveredHarness.eventLog,
       pollInterval: 20,
       onInstruction: async () => {

@@ -10,7 +10,7 @@ import {
   HARNESS_TOOL_DEFS,
   removeWorktree,
 } from "@agent-worker/harness";
-import { buildLeadHooks } from "@agent-worker/harness-coordination";
+import { buildLeadHooks, coordinationRuntime } from "@agent-worker/harness-coordination";
 import type { Harness, ResolvedAgent, HarnessToolSet, ToolDef } from "@agent-worker/harness";
 import type { AgentLoop } from "@agent-worker/agent";
 import { HarnessOrchestrator, createOrchestrator } from "./orchestrator.ts";
@@ -259,7 +259,7 @@ export class HarnessRegistry {
         name: agent.name,
         instructions: agent.instructions,
         provider: harness.contextProvider,
-        queue: harness.instructionQueue,
+        queue: coordinationRuntime(harness).instructionQueue,
         eventLog: harness.eventLog,
         promptSections,
         pollInterval: 2000,
@@ -447,7 +447,7 @@ export class HarnessRegistry {
         name: agent.name,
         instructions: agent.instructions,
         provider: harness.contextProvider,
-        queue: harness.instructionQueue,
+        queue: coordinationRuntime(harness).instructionQueue,
         eventLog: harness.eventLog,
         promptSections,
         pollInterval: 2000,
@@ -597,13 +597,13 @@ export class HarnessRegistry {
         if (strategy?.fatal) {
           // Non-recoverable: stop the loop permanently and notify lead.
           await orch.fail(strategy.reason);
-          if (harness.lead && harness.lead !== agent.name) {
+          if (coordinationRuntime(harness).lead && coordinationRuntime(harness).lead !== agent.name) {
             try {
               await harness.contextProvider.send({
-                channel: harness.defaultChannel,
+                channel: coordinationRuntime(harness).defaultChannel,
                 from: "system",
                 content:
-                  `@${harness.lead} Agent @${agent.name} stopped (fatal: ${strategy.reason}). ` +
+                  `@${coordinationRuntime(harness).lead} Agent @${agent.name} stopped (fatal: ${strategy.reason}). ` +
                   `Fix the configuration and restart the harness.\n` +
                   `Error: ${errStr.slice(0, 200)}`,
               });
@@ -625,13 +625,13 @@ export class HarnessRegistry {
                 ? "Will auto-resume after cooldown."
                 : "Manual resume required."),
           );
-          if (harness.lead && harness.lead !== agent.name) {
+          if (coordinationRuntime(harness).lead && coordinationRuntime(harness).lead !== agent.name) {
             try {
               await harness.contextProvider.send({
-                channel: harness.defaultChannel,
+                channel: coordinationRuntime(harness).defaultChannel,
                 from: "system",
                 content:
-                  `@${harness.lead} Agent @${agent.name} paused (${strategy.reason}). ` +
+                  `@${coordinationRuntime(harness).lead} Agent @${agent.name} paused (${strategy.reason}). ` +
                   `Task: ${instruction.content.slice(0, 100)}` +
                   (strategy.autoResume ? "" : ". Needs manual resume or config fix."),
               });

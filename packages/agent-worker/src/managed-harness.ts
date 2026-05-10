@@ -2,7 +2,8 @@ import { writeFileSync } from "node:fs";
 import type { Harness } from "@agent-worker/harness";
 import type { ResolvedHarness } from "@agent-worker/harness";
 import { removeWorktree } from "@agent-worker/harness";
-import type { Wake } from "@agent-worker/harness";
+import type { Wake, Instruction } from "@agent-worker/harness";
+import { coordinationRuntime } from "@agent-worker/harness-coordination";
 import type { HarnessOrchestrator } from "./orchestrator.ts";
 import type { EventBus } from "@agent-worker/shared";
 import type {
@@ -239,9 +240,9 @@ export class ManagedHarness {
       .every((entry) => entry.status === "idle");
     if (!allIdle) return "running";
 
-    const queued = this.harness.instructionQueue
-      .listAll()
-      .some((instruction) => agentNames.has(instruction.agentName));
+    const queued = coordinationRuntime(this.harness)
+      .instructionQueue.listAll()
+      .some((instruction: Instruction) => agentNames.has(instruction.agentName));
     if (queued) return "running";
 
     for (const agentName of agentNames) {

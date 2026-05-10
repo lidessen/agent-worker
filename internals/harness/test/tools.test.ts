@@ -2,6 +2,7 @@ import { test, expect, describe, beforeEach } from "bun:test";
 import { createHarness, createAgentTools } from "../src/factory.ts";
 import { Harness } from "../src/harness.ts";
 import { MemoryStorage } from "../src/context/storage.ts";
+import { coordinationRuntime } from "@agent-worker/harness-coordination";
 
 describe("Harness Tools", () => {
   let harness: Harness;
@@ -135,7 +136,7 @@ describe("Harness Tools", () => {
 
     test("channel_send blocks send and warns when mentioned agent is not in the channel", async () => {
       // Register coder in #design only (not #general)
-      await harness.registerAgent("coder", ["design"]);
+      await coordinationRuntime(harness).registerAgent("coder", ["design"]);
 
       const aliceTools = createAgentTools("alice", harness).tools;
       // Alice mentions @coder in #general — should be blocked with a warning
@@ -159,7 +160,7 @@ describe("Harness Tools", () => {
     });
 
     test("channel_send with force=true bypasses mention guard and sends", async () => {
-      await harness.registerAgent("coder", ["design"]);
+      await coordinationRuntime(harness).registerAgent("coder", ["design"]);
 
       const aliceTools = createAgentTools("alice", harness).tools;
       const result = await aliceTools.channel_send!({

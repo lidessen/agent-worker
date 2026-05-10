@@ -6,10 +6,7 @@ import type {
   HarnessSubstrateSnapshot,
   ContextProvider,
   EventLog,
-  ChannelBridgeInterface,
-  InstructionQueueInterface,
-  Message,
-  Priority,
+  StorageBackend,
 } from "./types.ts";
 import { DocumentStore } from "./context/stores/document.ts";
 import { ResourceStore } from "./context/stores/resource.ts";
@@ -19,48 +16,54 @@ import { CompositeContextProvider } from "./context/provider.ts";
 import { HarnessEventLog } from "./context/event-log.ts";
 import { MemoryStorage } from "./context/storage.ts";
 import {
-  ChannelBridge,
-  ChannelStore,
-  InboxStore,
-  InstructionQueue,
-  StatusStore,
-} from "@agent-worker/harness-coordination";
+  noopChannelStore,
+  noopInboxStore,
+  noopStatusStore,
+} from "./context/stubs.ts";
 import {
   FileHarnessStateStore,
   InMemoryHarnessStateStore,
   type HarnessStateStore,
 } from "./state/index.ts";
-import { extractAddressedMentions } from "./utils.ts";
 import { pruneWorktrees } from "./worktree.ts";
 import {
   createHarnessTypeRegistry,
   DEFAULT_HARNESS_TYPE_ID,
-  runProduceExtension,
   type HarnessTypeRegistry,
   type HarnessTypeRuntime,
 } from "./type/index.ts";
 
+/**
+ * Substrate Harness — the type-agnostic environment that wires shared
+ * infrastructure (storage, document/resource/timeline/chronicle stores,
+ * Task/Wake/Handoff state, worktree provisioning, sandbox paths) and
+ * delegates every coord-flavored concern to the registered `HarnessType`.
+ *
+ * Coord-shaped state — channel/inbox/status data, the channel bridge,
+ * the priority instruction queue, the agent roster, lead designation,
+ * the default channel, and channel-to-inbox routing — lives in the
+ * coord type's `CoordinationRuntime`. Reach it via the typed accessor
+ * `coordinationRuntime(harness)` exported from
+ * `@agent-worker/harness-coordination`.
+ */
 export class Harness implements HarnessRuntime {
   readonly name: string;
   readonly tag: string | undefined;
-  readonly defaultChannel: string;
   readonly storageDir: string | undefined;
+  /** Shared `StorageBackend`; coord runtime constructs its stores from it. */
+  readonly storage: StorageBackend;
   private readonly _sandboxBaseDir: string | undefined;
   readonly contextProvider: ContextProvider;
   readonly eventLog: EventLog;
-  readonly bridge: ChannelBridgeInterface;
-  readonly instructionQueue: InstructionQueueInterface;
   /**
    * Kernel state store — Task / Wake / Handoff canonical records.
-   * Phase 1 wires this in as an in-memory store; a file-backed
-   * implementation will arrive with the persistence work.
+   * Substrate-owned: every HarnessType shares this surface.
    */
   readonly stateStore: HarnessStateStore;
 
   /**
    * The `HarnessType` id this Harness is plugged into. Fixed at
-   * construction. Defaults to `DEFAULT_HARNESS_TYPE_ID`. Slice 1 ships
-   * with only the default no-op registered.
+   * construction. Defaults to `DEFAULT_HARNESS_TYPE_ID`.
    */
   readonly harnessTypeId: string;
 
@@ -80,100 +83,73 @@ export class Harness implements HarnessRuntime {
    */
   readonly typeRuntime: HarnessTypeRuntime | undefined;
 
-  private readonly channelStore: ChannelStore;
-  private readonly inboxStore: InboxStore;
-  private readonly statusStore: StatusStore;
-  private readonly bridgeImpl: ChannelBridge;
   private initialized = false;
-
-  /** Agent name → set of joined channels. */
-  private agentChannels = new Map<string, Set<string>>();
-
-  /** Optional team lead agent name (gets debug tools + all-channel access). */
-  readonly lead: string | undefined;
-
-  /** Agents that only wake on @mention, not channel broadcasts. */
-  private readonly _onDemandAgents: Set<string>;
 
   constructor(config: HarnessConfig, harnessTypeRegistry?: HarnessTypeRegistry) {
     this.name = config.name;
     this.tag = config.tag;
-    this.lead = config.lead;
-    this.defaultChannel = config.defaultChannel ?? "general";
-    this._onDemandAgents = new Set(config.onDemandAgents ?? []);
     this.storageDir = config.storageDir;
     this._sandboxBaseDir = config.sandboxBaseDir;
     this.harnessTypeId = config.harnessTypeId ?? DEFAULT_HARNESS_TYPE_ID;
     this.harnessTypeRegistry = harnessTypeRegistry ?? createHarnessTypeRegistry();
 
-    // Build the type's per-Harness runtime slot. Sync only — async setup
-    // belongs in `onInit`. Substrate doesn't inspect the value; the
-    // type's accessor narrows for callers that need it.
+    // Substrate storage is built first because the type's
+    // `contributeRuntime` may reads it via `harness.storage` to seed
+    // its own stores (coord does this for channel/inbox/status).
+    this.storage = config.storage ?? new MemoryStorage();
+
+    // Substrate stores — universal across types.
+    const documentStore = new DocumentStore(this.storage);
+    const resourceStore = new ResourceStore(this.storage);
+    const timelineStore = new TimelineStore(this.storage);
+    const chronicleStore = new ChronicleStore(this.storage);
+
+    // Resolve the type and let it contribute its per-Harness runtime.
+    // For coord this constructs `CoordinationRuntime` (with its own
+    // channel/inbox/status stores, bridge, and instruction queue);
+    // for non-coord types `contributeRuntime` is absent and the slot
+    // stays undefined. The provider below pulls coord-flavored stores
+    // from the runtime when present, otherwise falls through to no-op
+    // stubs whose methods reject so non-coord harnesses can't silently
+    // route messages.
     const resolvedType = this.harnessTypeRegistry.resolve(this.harnessTypeId);
     this.typeRuntime = resolvedType.contributeRuntime
       ? resolvedType.contributeRuntime({ harness: this, config })
       : undefined;
 
-    const storage = config.storage ?? new MemoryStorage();
-    const channels = config.channels ?? [this.defaultChannel];
-
-    // Create stores
-    this.channelStore = new ChannelStore(storage, channels);
-    this.inboxStore = new InboxStore(storage);
-    const documentStore = new DocumentStore(storage);
-    const resourceStore = new ResourceStore(storage);
-    this.statusStore = new StatusStore(storage);
-    const timelineStore = new TimelineStore(storage);
-    const chronicleStore = new ChronicleStore(storage);
-
-    // Composite provider
+    // Surface coord-flavored stores via the substrate provider when
+    // the runtime exposes them. Duck-typed access keeps the substrate
+    // layering clean (no import of the coord runtime class).
+    const coordLike = this.typeRuntime as
+      | {
+          channelStore?: ContextProvider["channels"];
+          inboxStore?: ContextProvider["inbox"];
+          statusStore?: ContextProvider["status"];
+        }
+      | undefined;
     this.contextProvider = new CompositeContextProvider({
-      channels: this.channelStore,
-      inbox: this.inboxStore,
+      channels: coordLike?.channelStore ?? noopChannelStore,
+      inbox: coordLike?.inboxStore ?? noopInboxStore,
+      status: coordLike?.statusStore ?? noopStatusStore,
       documents: documentStore,
       resources: resourceStore,
-      status: this.statusStore,
       timeline: timelineStore,
       chronicle: chronicleStore,
       lead: config.lead,
       maxMessageLength: config.maxMessageLength,
     });
 
-    // Event log
     this.eventLog = new HarnessEventLog(timelineStore);
 
-    // Channel bridge
-    this.bridgeImpl = new ChannelBridge(this.channelStore);
-    this.bridge = this.bridgeImpl;
-
-    // Instruction queue
-    this.instructionQueue = new InstructionQueue(config.queueConfig);
-
-    // Kernel state store (Task / Wake / Handoff).
-    // File-backed when the harness has a storage dir; in-memory otherwise.
+    // Kernel state store (Task / Wake / Handoff). File-backed when the
+    // harness has a storage dir; in-memory otherwise.
     this.stateStore = this.storageDir
       ? new FileHarnessStateStore(join(this.storageDir, "state"))
       : new InMemoryHarnessStateStore();
-
-    // Wire channel messages to inbox routing
-    this.channelStore.on("message", (message) => {
-      this.routeMessageToInboxes(message);
-    });
   }
 
   async init(): Promise<void> {
     if (this.initialized) return;
-
-    // Load status store
-    await this.statusStore.load();
-
-    // Load channel index
-    await this.channelStore.loadIndex();
-
-    // Load agent inboxes
-    for (const agentName of this.agentChannels.keys()) {
-      await this.inboxStore.load(agentName);
-    }
 
     // Best-effort worktree prune across every distinct repo any Wake has
     // touched. Crash recovery: a worktree dir nuked out from under git
@@ -193,7 +169,9 @@ export class Harness implements HarnessRuntime {
     await this.recoverOrphanedWakes();
 
     // Run the type's `onInit` hook last so types can rely on substrate
-    // state (state store, channel index, status store) being live.
+    // state (state store, paths, kernel) being live. For coord this is
+    // where store loading, configured-agent registration, and
+    // adapter starting happen.
     const resolvedType = this.harnessTypeRegistry.resolve(this.harnessTypeId);
     if (resolvedType.onInit) {
       await resolvedType.onInit({ harness: this, runtime: this.typeRuntime });
@@ -310,11 +288,11 @@ export class Harness implements HarnessRuntime {
   }
 
   async shutdown(): Promise<void> {
-    // Run the type's `onShutdown` first so types can flush state through
-    // substrate stores (still alive) before substrate tears connections
-    // down. Errors are caught and logged but do not block shutdown of
-    // substrate work — leaving sockets / processes around is worse than
-    // a noisy log.
+    // The type's `onShutdown` runs first so types can flush state /
+    // close adapters (coord's runtime tears down its bridge here)
+    // before substrate work would be torn down. Errors are caught
+    // and logged but do not block — leaving sockets/processes around
+    // is worse than a noisy log.
     const resolvedType = this.harnessTypeRegistry.resolve(this.harnessTypeId);
     if (resolvedType.onShutdown) {
       try {
@@ -326,37 +304,6 @@ export class Harness implements HarnessRuntime {
         );
       }
     }
-    await this.bridgeImpl.shutdown();
-  }
-
-  /** Whether the given agent name is the team lead. */
-  isLead(name: string): boolean {
-    return this.lead !== undefined && this.lead === name;
-  }
-
-  async registerAgent(name: string, channels?: string[]): Promise<void> {
-    // Lead agents auto-join ALL channels (like external/debug users)
-    const chs = this.isLead(name)
-      ? this.contextProvider.channels.listChannels()
-      : (channels ?? [this.defaultChannel]);
-    const agentChs = new Set<string>(chs);
-    this.agentChannels.set(name, agentChs);
-
-    await this.inboxStore.load(name);
-
-    if (!this.statusStore.getCached(name)) {
-      await this.statusStore.set(name, "idle");
-    }
-  }
-
-  /** Whether an agent is registered in this harness. */
-  hasAgent(name: string): boolean {
-    return this.agentChannels.has(name);
-  }
-
-  /** Get the set of channels an agent has joined. */
-  getAgentChannels(name: string): Set<string> {
-    return this.agentChannels.get(name) ?? new Set();
   }
 
   /** Get the shared harness sandbox directory (collaborative files). */
@@ -373,7 +320,6 @@ export class Harness implements HarnessRuntime {
     return join(base, "agents", agentName, "sandbox");
   }
 
-
   async snapshotState(opts?: {
     inboxLimit?: number;
     timelineLimit?: number;
@@ -385,7 +331,6 @@ export class Harness implements HarnessRuntime {
     const documents = await this.contextProvider.documents.list();
     const chronicle = await this.contextProvider.chronicle.read({ limit: chronicleLimit });
 
-    // Substrate slice — universal across types.
     const substrate: HarnessSubstrateSnapshot = {
       name: this.name,
       tag: this.tag,
@@ -395,9 +340,8 @@ export class Harness implements HarnessRuntime {
     };
 
     // Per-type slice — populated by the registered type's
-    // `snapshotExtension` if defined. Default no-op type contributes
-    // nothing → empty map. Coord type emits channels / inbox / queue
-    // / agents under its id.
+    // `snapshotExtension` if defined. Coord type emits channels /
+    // inbox / queue / agents under its id.
     const typeExtensions: Record<string, unknown> = {};
     const resolvedType = this.harnessTypeRegistry.resolve(this.harnessTypeId);
     if (resolvedType.snapshotExtension) {
@@ -412,79 +356,5 @@ export class Harness implements HarnessRuntime {
     }
 
     return { substrate, typeExtensions };
-  }
-
-  // ── Internal routing ──────────────────────────────────────────────────
-
-  private async routeMessageToInboxes(message: Message): Promise<void> {
-    // Only route "message" kind to inboxes (Invariant #12)
-    if (message.kind && message.kind !== "message") return;
-
-    // DMs: only route to recipient
-    if (message.to) {
-      await this.enqueueToAgent(message, message.to);
-      return;
-    }
-
-    // Channel messages: route to agents who joined this channel.
-    // We distinguish *addressed* mentions from in-body references:
-    //   - "@maintainer Build X, then dispatch to @implementer" should
-    //     only wake @maintainer. @implementer is a data reference.
-    //   - "Hey @bob please review" still wakes @bob (no leading
-    //     mentions → fall back to all mentions).
-    // See extractAddressedMentions for the precise rule.
-    const addressedNames = extractAddressedMentions(message.content).filter((m) =>
-      this.agentChannels.has(m),
-    );
-    const hasAddressed = addressedNames.length > 0;
-    for (const [agentName, channels] of this.agentChannels) {
-      if (agentName === message.from) continue; // Don't self-deliver
-      if (!channels.has(message.channel)) continue;
-
-      const isAddressed = addressedNames.includes(agentName);
-      // on_demand agents only wake when addressed; broadcasts and
-      // body-only references never reach them.
-      if (this._onDemandAgents.has(agentName) && !isAddressed) continue;
-
-      // Addressed messages deliver only to their targets. Unaddressed
-      // messages are broadcasts — still visible via channel_read, but
-      // only the lead wakes (at normal priority, for user comms) and
-      // other agents get a background inbox entry they may ignore.
-      if (hasAddressed && !isAddressed) continue;
-
-      const isLeadFallback = !hasAddressed && agentName === this.lead;
-      await this.enqueueToAgent(
-        message,
-        agentName,
-        isAddressed || isLeadFallback ? "normal" : "background",
-      );
-    }
-  }
-
-  private async enqueueToAgent(
-    message: Message,
-    agentName: string,
-    priority?: Priority,
-  ): Promise<void> {
-    // Determine priority
-    let p: Priority = priority ?? "normal";
-    if (message.to === agentName) {
-      p = "immediate"; // DM = immediate
-    } else if (message.mentions.includes(agentName)) {
-      p = "normal"; // @mention = normal
-    }
-
-    const hasEntry = await this.inboxStore.hasEntry(agentName, message.id);
-    if (hasEntry) return; // Invariant #7: no duplicate delivery
-
-    await this.inboxStore.enqueue(agentName, {
-      messageId: message.id,
-      channel: message.channel,
-      from: message.from,
-      preview: message.content.replace(/\n/g, " ").slice(0, 100),
-      priority: p,
-      state: "pending",
-      enqueuedAt: new Date().toISOString(),
-    });
   }
 }

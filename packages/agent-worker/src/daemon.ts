@@ -1352,8 +1352,10 @@ export class Daemon {
     // module graph at the top of the file (keeps the cross-package
     // dependency shape consistent with the existing handlers).
     const { buildAgentToolSet } = await import("@agent-worker/harness");
-    if (!handle.harness.hasAgent(agent)) {
-      await handle.harness.registerAgent(agent);
+    const { coordinationRuntime: getCoord } = await import("@agent-worker/harness-coordination");
+    const coord = getCoord(handle.harness);
+    if (!coord.hasAgent(agent)) {
+      await coord.registerAgent(agent);
     }
     // Query the agent's active Wake so the Wake-scoped tools
     // (worktree_*) are present in the dispatched tool set. Out-of-band
@@ -1627,7 +1629,8 @@ export class Daemon {
     ]
       .filter((line): line is string => line !== null)
       .join("\n");
-    handle.harness.instructionQueue.enqueue({
+    const { coordinationRuntime } = await import("@agent-worker/harness-coordination");
+    coordinationRuntime(handle.harness).instructionQueue.enqueue({
       id: makeId(),
       agentName: worker,
       messageId: `http-dispatch:${wake.id}`,

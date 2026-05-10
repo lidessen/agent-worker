@@ -9,6 +9,7 @@
  */
 
 import { createHarness, createAgentTools, MemoryStorage } from "../../src/index.ts";
+import { coordinationRuntime } from "@agent-worker/harness-coordination";
 import { createOrchestrator } from "agent-worker";
 import type { Instruction } from "../../src/types.ts";
 
@@ -110,7 +111,7 @@ async function testSingleAgentHarness(): Promise<void> {
     instructions:
       "You are a helpful assistant. When you receive a message, respond concisely. Always include the word ACKNOWLEDGED in your response.",
     provider: ws.contextProvider,
-    queue: ws.instructionQueue,
+    queue: coordinationRuntime(ws).instructionQueue,
     eventLog: ws.eventLog,
     pollInterval: 1000,
     onInstruction: handler,
@@ -164,7 +165,7 @@ async function testTwoAgentCollaboration(): Promise<void> {
     instructions:
       "You are Planner. When asked to plan, create a brief 2-step plan and @mention executor to carry it out. Keep responses under 100 words. Always include PLAN_READY in your response.",
     provider: ws.contextProvider,
-    queue: ws.instructionQueue,
+    queue: coordinationRuntime(ws).instructionQueue,
     eventLog: ws.eventLog,
     pollInterval: 1000,
     onInstruction: async (prompt, instruction) => {
@@ -196,7 +197,7 @@ async function testTwoAgentCollaboration(): Promise<void> {
     instructions:
       "You are Executor. When you receive instructions from planner, acknowledge them briefly. Always include EXECUTING in your response. Keep responses under 50 words.",
     provider: ws.contextProvider,
-    queue: ws.instructionQueue,
+    queue: coordinationRuntime(ws).instructionQueue,
     eventLog: ws.eventLog,
     pollInterval: 1000,
     onInstruction: async (prompt, instruction) => {
@@ -334,7 +335,7 @@ async function testDeepSeekWithInboxCycle(): Promise<void> {
     instructions:
       "You are a responder. Reply briefly to each message. Include the word REPLY_N where N is the message number you are responding to.",
     provider: ws.contextProvider,
-    queue: ws.instructionQueue,
+    queue: coordinationRuntime(ws).instructionQueue,
     eventLog: ws.eventLog,
     pollInterval: 1000,
     onInstruction: async (prompt, instruction) => {
