@@ -1,6 +1,6 @@
 ---
 name: attention-driven
-description: Stable entrypoint for ordinary agent work using the 30/70 attention rule and localized steering. Use when starting or resuming work, running go/setup/audit, routing goal/design/fact/reframe tasks, changing system shape, recording progress, verifying claims, or closing work with a durable record.
+description: Use go/setup/audit/goal/design/fact/reframe/close as the stable entrypoint for ordinary agent work. Use when starting or resuming work, changing system shape, recording progress, verifying claims, or closing work with a durable record.
 argument-hint: "[go | setup | audit | goal | design | fact | reframe | close]"
 ---
 
