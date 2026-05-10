@@ -26,7 +26,7 @@
           },
           {
             "type": "command",
-            "command": "case \"$CLAUDE_FILE_PATH\" in */packages/*/src/*.ts|*/packages/*/src/*.tsx) case \"$CLAUDE_FILE_PATH\" in *.test.*|*.spec.*) ;; *) echo '[design-driven] verify change respects design/ boundaries — re-check design/DESIGN.md if scope shifts' ;; esac ;; esac"
+            "command": "case \"$CLAUDE_FILE_PATH\" in */packages/*/src/*.ts|*/packages/*/src/*.tsx) case \"$CLAUDE_FILE_PATH\" in *.test.*|*.spec.*) ;; *) echo '[attention-driven:design] verify change respects design/ boundaries — re-check design/DESIGN.md if scope shifts' ;; esac ;; esac"
           },
           {
             "type": "command",

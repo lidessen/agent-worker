@@ -17,7 +17,7 @@ If splitting work into multiple slices feels necessary, the seam goes between *c
 - If a task would change the system's shape (add/remove/merge modules, change how modules connect, introduce a new key mechanism), write a proposal in `design/decisions/NNN-title.md` and wait for review before coding. Commit design changes separately from code.
 - For non-trivial tasks, follow Plan → Build → Verify: write a blueprint in `blueprints/<task>.md`, track progress with a TODO scaffold, then strip the TODO and keep the blueprint when done.
 - Bug fixes, small config tweaks, or tasks shorter to do than to plan don't need a blueprint.
-- See `skills/design-driven/` for the full methodology.
+- See `skills/attention-driven/` for the full methodology.
 
 ## Bun runtime
 
@@ -97,18 +97,19 @@ blueprints/        # Task-level implementation records (plan/build/verify)
 
 - CN (中国) 版本的后缀放到最后，例如 `BIGMODEL_CN` 而非 `CN_BIGMODEL`。
 
-<!-- skill:goal-driven -->
-## Goal-driven planning
+<!-- skill:attention-driven -->
+## Attention-driven work
 
-When working on this initiative, follow the goal-driven protocol:
+Start ordinary work with `/attention-driven go`.
+It should name the mainline, route, and next observable move.
 
-- At session start, read `goals/GOAL.md` and surface any open STOPs (scan recent entries in `goals/record.md`; an `OPEN-STOPS.md` index will appear once more than one open STOP exists).
-- At session end, draft a record entry in chat (what done, observations, per-criterion check with concrete evidence, judgment naming the principal tension) and get confirmation before appending to `goals/record.md`.
-- If a criterion verdict is `✗`, or new evidence questions the General Line, surface a STOP in chat and wait for the human's decision. Never silently rewrite the path past a STOP.
-- Never edit `goals/GOAL.md` without an explicit, confirmed change request from the human, echoed back line by line.
-- Every `✓` and `✗` in a criterion check MUST cite an observation from this session. Bare verdicts are forbidden — default to `unclear` when nothing was measured.
+- goal keeps direction, criteria, records, and STOPs.
+- design keeps system shape, boundaries, decisions, and blueprints.
+- fact keeps falsifiable observations for progress claims.
+- reframe changes the lens before design stabilizes.
+- setup/audit keep project context wired for future agents.
 
-### Interactions
-
-- **with design-driven** (detected: `design/DESIGN.md` present) — goal-driven owns *why* and *how-far*; design-driven owns *what-shape*. A goal pivot crossing module boundaries also triggers a `design/decisions/NNN-*.md` proposal. A design proposal that would violate a GOAL invariant triggers a Type A STOP first. Cross-reference by ID, not content.
-<!-- /skill:goal-driven -->
+Preserve only the load-bearing 30% in durable artifacts. If history was wrong,
+correct the current artifact or create the next one; do not repair old records
+for their own sake.
+<!-- /skill:attention-driven -->

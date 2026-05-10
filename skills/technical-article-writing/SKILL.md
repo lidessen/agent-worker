@@ -413,7 +413,7 @@ Don't ask "what do you want?" when you can ask "which of these directions fits b
 
 This is operational hygiene, not writing craft — skip it on standalone short pieces. For multi-chapter or multi-session work, maintain a project brief that another writer (or another AI agent) could read to get up to speed in 5 minutes. This document is for **continuity**, not for the reader.
 
-The brief plays the same role for a writing project that architectural design docs play for a code project — an artifact that survives beyond any single session so successive agents stay aligned. (Setting up this kind of succession artifact for a codebase is what the `harness` and `design-driven` skills are for.)
+The brief plays the same role for a writing project that architectural design docs play for a code project — an artifact that survives beyond any single session so successive agents stay aligned. (Setting up this kind of succession artifact for a codebase is what the `attention-driven` skill is for.)
 
 ### Creating the brief
 
