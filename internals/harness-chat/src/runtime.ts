@@ -24,6 +24,8 @@ export class ChatRuntime {
   readonly model: ChatHarnessAgentConfig["model"];
   /** Optional system prompt. */
   readonly instructions: string | undefined;
+  /** Optional working directory passed to the agent loop. */
+  readonly cwd: string | undefined;
 
   /** Idle = nothing in flight; Thinking = a turn is dispatching. */
   state: "idle" | "thinking" = "idle";
@@ -38,6 +40,7 @@ export class ChatRuntime {
     this.runtimeId = agent.runtime ?? "mock";
     this.model = agent.model;
     this.instructions = agent.instructions;
+    this.cwd = agent.cwd;
     this.storage = storage;
   }
 

@@ -199,6 +199,8 @@ export interface HarnessDef {
     runtime?: string;
     model?: { id: string; provider?: string; full: string } | string;
     instructions?: string;
+    /** Working directory for the agent (bash cwd, file-tool root). */
+    cwd?: string;
   };
   /** Channel names to create. Default: ["general"]. */
   channels?: string[];
