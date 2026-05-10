@@ -19,6 +19,8 @@ import type {
   HarnessInboxEntry,
   TaskSummary,
   TaskDetail,
+  MonitorSnapshot,
+  MonitorEvent,
 } from "./types.ts";
 
 export class WebClient {
@@ -282,6 +284,16 @@ export class WebClient {
     if (opts?.cursor !== undefined) params.set("cursor", String(opts.cursor));
     const q = params.toString() ? `?${params}` : "";
     yield* this.sseStream<DaemonEvent>(`/events/stream${q}`, opts?.signal);
+  }
+
+  // ── Monitor (decision 004) ──────────────────────────────────────────
+
+  async monitorSnapshot(): Promise<MonitorSnapshot> {
+    return this.request("/monitor/snapshot");
+  }
+
+  async *streamMonitor(opts?: { signal?: AbortSignal }): AsyncGenerator<MonitorEvent> {
+    yield* this.sseStream<MonitorEvent>("/monitor/stream", opts?.signal);
   }
 
   // ── HTTP helpers ────────────────────────────────────────────────────

@@ -5,6 +5,7 @@ export type Route =
   | { page: "agent-chat"; params: { name: string } }
   | { page: "harness"; params: { key: string } }
   | { page: "channel"; params: { key: string; ch: string } }
+  | { page: "monitor" }
   | { page: "settings" };
 
 export const route = signal<Route>({ page: "dashboard" });
@@ -35,6 +36,10 @@ function parseHash(hash: string): Route {
   const wsMatch = path.match(/^\/harnesses\/([^/]+)$/);
   if (wsMatch) {
     return { page: "harness", params: { key: decodeURIComponent(wsMatch[1]) } };
+  }
+
+  if (path === "/monitor") {
+    return { page: "monitor" };
   }
 
   if (path === "/settings") {

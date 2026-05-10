@@ -45,6 +45,7 @@ import { HarnessSettingsView } from "./views/harness-settings-view.tsx";
 import { GlobalSettingsView } from "./views/global-settings-view.tsx";
 import { GlobalEventsView } from "./views/global-events-view.tsx";
 import { DashboardView } from "./views/dashboard-view.tsx";
+import { MonitorView } from "./views/monitor-view.tsx";
 import { CreateAgentDialog } from "./components/create-agent-dialog.tsx";
 import { CreateDocDialog } from "./components/create-doc-dialog.tsx";
 import { CreateHarnessDialog } from "./components/create-harness-dialog.tsx";
@@ -94,6 +95,8 @@ function createView(item: SelectedItem) {
       return <GlobalSettingsView />;
     case "global-events":
       return <GlobalEventsView />;
+    case "monitor":
+      return <MonitorView />;
   }
 }
 
@@ -290,6 +293,8 @@ function itemKey(item: SelectedItem | null): string {
       return "global-settings";
     case "global-events":
       return "global-events";
+    case "monitor":
+      return "monitor";
   }
 }
 
@@ -361,6 +366,8 @@ function selectedLabel(item: SelectedItem | null): string {
       return "Settings";
     case "global-events":
       return "Event Log";
+    case "monitor":
+      return "Monitor";
   }
 }
 

@@ -178,3 +178,37 @@ export interface RuntimeConfig {
   mockDelay?: number;
   mockResponse?: string;
 }
+
+// ── Monitor (decision 004) ─────────────────────────────────────────────────
+
+export interface ConcurrencySample {
+  ts: number;
+  activeAgents: number;
+  activeRequirements: number;
+  pendingOnAuth: number;
+  structuralCap: number;
+}
+
+export interface C1Metrics {
+  current: ConcurrencySample;
+  peak30d: number;
+  timeShare24h: { ge3: number; eq2: number; eq1: number; eq0: number };
+  thresholds: {
+    structuralCapMin: number;
+    peak30dMin: number;
+    timeShareGe2Min: number;
+  };
+}
+
+export interface MonitorSnapshot {
+  ts: number;
+  uptimeSec: number;
+  c1: C1Metrics;
+  c2?: unknown;
+  c3?: unknown;
+  c4?: unknown;
+}
+
+export type MonitorEvent =
+  | { kind: "sample"; sample: ConcurrencySample }
+  | { kind: "snapshot"; snapshot: MonitorSnapshot };

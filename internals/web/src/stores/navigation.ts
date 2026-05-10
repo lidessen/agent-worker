@@ -7,7 +7,8 @@ export type SelectedItem =
   | { kind: "doc"; wsKey: string; docName: string }
   | { kind: "harness-settings"; wsKey: string }
   | { kind: "global-settings" }
-  | { kind: "global-events" };
+  | { kind: "global-events" }
+  | { kind: "monitor" };
 
 export type SidebarTab = "channels" | "agents" | "docs";
 
@@ -41,4 +42,8 @@ export function selectGlobalSettings() {
 
 export function selectGlobalEvents() {
   selectedItem.value = { kind: "global-events" };
+}
+
+export function selectMonitor() {
+  selectedItem.value = { kind: "monitor" };
 }

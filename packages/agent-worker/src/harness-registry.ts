@@ -507,6 +507,17 @@ export class HarnessRegistry {
     return result;
   }
 
+  /**
+   * Iterate every `ManagedHarness` instance (including the default
+   * global harness). The Monitor uses this to poll live state on
+   * each tick. Returned objects expose the underlying `Harness` via
+   * the `harness` accessor.
+   */
+  *iterManaged(): Iterable<ManagedHarness> {
+    if (this._defaultHarness) yield this._defaultHarness;
+    for (const h of this.harnesses.values()) yield h;
+  }
+
   /** Stop and remove a harness. Also removes from manifest. */
   async remove(key: string): Promise<void> {
     const handle = this.harnesses.get(key);
