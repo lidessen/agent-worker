@@ -296,6 +296,14 @@ export interface ChatTurn {
   error?: string;
 }
 
+export interface ChatInfo {
+  agentName: string;
+  runtime: string;
+  model?: { id: string; provider?: string; full: string };
+  cwd?: string;
+  instructions?: string;
+}
+
 export type ChatStreamEvent =
   | { kind: "user_turn"; userTurn: ChatTurn }
   | { kind: "chunk"; text: string; accumulated: string }
