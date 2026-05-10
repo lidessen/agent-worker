@@ -2,7 +2,17 @@
 
 import type { JSXNode } from "semajsx";
 import { computed } from "semajsx/signal";
-import { Icon, Search, Plus, ChevronRight, Zap, Settings, Bot, Folder } from "semajsx/icons";
+import {
+  Icon,
+  Search,
+  Plus,
+  ChevronRight,
+  Zap,
+  Settings,
+  Bot,
+  Folder,
+  Activity,
+} from "semajsx/icons";
 import { agents } from "../../stores/agents.ts";
 import { harnesses } from "../../stores/harnesses.ts";
 import { wsChannels } from "../../stores/harness-data.ts";
@@ -14,6 +24,7 @@ import {
   selectHarnessSettings,
   selectGlobalSettings,
   selectGlobalEvents,
+  selectMonitor,
 } from "../../stores/navigation.ts";
 import { parsePlatformName } from "../brand-icons.tsx";
 import { showCreateAgent } from "../create-agent-dialog.tsx";
@@ -129,12 +140,18 @@ function HarnessesSection() {
 }
 
 function SystemSection() {
+  const monitorActive = computed(selectedItem, (sel) => sel?.kind === "monitor");
   const eventsActive = computed(selectedItem, (sel) => sel?.kind === "global-events");
   const settingsActive = computed(selectedItem, (sel) => sel?.kind === "global-settings");
+  const monitorCls = computed(monitorActive, (a) => (a ? [s.item, s.itemActive] : s.item));
   const eventsCls = computed(eventsActive, (a) => (a ? [s.item, s.itemActive] : s.item));
   const settingsCls = computed(settingsActive, (a) => (a ? [s.item, s.itemActive] : s.item));
   const hideLabel = computed(sidebarCollapsed, (c) => (c ? s.hiddenCollapsed : s.itemLabel));
   return [
+    <button class={monitorCls} onclick={() => selectMonitor()}>
+      <Icon icon={Activity} size={13} />
+      <span class={hideLabel}>Monitor</span>
+    </button>,
     <button class={eventsCls} onclick={() => selectGlobalEvents()}>
       <Icon icon={Zap} size={13} />
       <span class={hideLabel}>Events</span>

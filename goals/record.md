@@ -1426,3 +1426,127 @@ check with concrete evidence, judgment naming the principal tension.
     provider). Not in scope here — the current shape matches
     decision 006's "substrate is type-agnostic in *ownership*"
     intent without forcing a 170-call-site migration.
+
+## 2026-05-10 — Decision 004 slice 1: monitor backend + C1 + page shell
+
+- What I did:
+  - With decision 006 closed, started decision 004 (observability
+    monitor) from a concrete shape proposed in `8007c3f` and
+    chosen by the user via AskUserQuestion: monitor only renders
+    readings (no automated verdict), start with slice 1
+    (skeleton + C1 + page shell), push as far as multiple slices
+    today. Slice 1 lands an end-to-end vertical: backend +
+    HTTP/SSE + web UI page + sidebar entry.
+  - **Backend (`packages/agent-worker/src/monitor/`):**
+    - `types.ts` — `ConcurrencySample`, `C1Metrics`,
+      `MonitorSnapshot`, `MonitorEvent`. C1 metrics carry GOAL.md
+      thresholds verbatim so the UI labels each value with the
+      threshold the human reads against.
+    - `samples.ts` — `RollingSampleStore` with three resolutions
+      (1s for last hour, 1m for last 24h, 1h for last 30 days);
+      eager bucket aging keeps memory under ~2MB. Pure module —
+      no IO, no events.
+    - `metrics.ts` — pure `computeC1` function plus
+      `C1_THRESHOLDS` constant.
+    - `monitor.ts` — `Monitor` class. Subscribes to the process
+      `EventBus` (no-op for slice 1; intervention payload arrives
+      slice 2) and polls registry state on a 1Hz tick.
+      `tick()` walks every `ManagedHarness`, sums `activeAgents`
+      from per-agent status, sums `activeRequirements` as
+      `instructionQueue.size + agents-with-pending-inbox`.
+      Snapshot is computed on demand (cheap relative to window
+      size). Subscribers are an in-process callback set wired to
+      the SSE route.
+    - `index.ts` — barrel.
+  - **Registry surface:** added `HarnessRegistry.iterManaged()`,
+    a generator yielding every `ManagedHarness` (default global
+    + named). Monitor uses it to walk live state without leaking
+    private map iteration.
+  - **Daemon wiring:**
+    - Daemon constructs `Monitor` after registries; `start()`
+      calls `monitor.start()` (also fires the first tick
+      immediately so a fresh /monitor/snapshot doesn't return
+      zeros for the first second of life). `stop()` calls
+      `monitor.stop()`.
+    - New routes: `GET /monitor/snapshot` returns the snapshot;
+      `GET /monitor/stream` is an SSE stream that pushes a
+      `{kind:"snapshot"}` event up front then `{kind:"sample"}`
+      every tick. Auth gate updated to include `/monitor`.
+  - **Web UI:**
+    - `internals/web/src/api/types.ts` — added `ConcurrencySample`,
+      `C1Metrics`, `MonitorSnapshot`, `MonitorEvent`.
+    - `internals/web/src/api/client.ts` — `monitorSnapshot()` +
+      `streamMonitor({ signal })` mirroring the existing SSE
+      pattern (`sseStream<T>` reused).
+    - `internals/web/src/stores/monitor.ts` — `monitorSnapshot`,
+      `monitorRecentSamples` (capped at 60), `isMonitorStreaming`
+      signals. `startMonitorStream()` consumes the SSE; on
+      non-AbortError failure falls back to 5s polling. Each
+      sample also patches `c1.current` on the cached snapshot so
+      the UI's metric values stay live without an extra GET.
+    - `internals/web/src/views/monitor-view.tsx` +
+      `monitor-view.style.ts` — `MonitorView` lays out a four-card
+      criterion grid. C1 card is fully wired: live counters
+      (active agents / requirements / pending-on-auth /
+      structural cap / 30-day peak) + the GOAL.md threshold
+      printed beside each value (color-tinted by whether the
+      value meets the threshold) + a stacked time-share bar
+      (≥3 / =2 / =1 / =0) over 24h + a 60-second activity
+      sparkline showing `activeAgents`. C2/C3/C4 cards are
+      placeholders pointing at the slice that fills them.
+      A summary strip above the grid shows compact one-line
+      values for all four criteria.
+    - `internals/web/src/pages/monitor.tsx` — thin wrapper page.
+    - `router.ts` — `/monitor` hash route.
+    - `stores/navigation.ts` — `selectMonitor()` helper +
+      `{kind:"monitor"}` SelectedItem variant.
+    - `app.tsx` — `MonitorView` registered in `createView` /
+      `itemKey` / `selectedLabel`.
+    - `components/layout/sidebar.tsx` — System section gets a
+      Monitor entry (Activity icon) above Events/Settings.
+
+- Observations:
+  - Backend tests: 925 pass / 0 fail across internals/{harness,
+    harness-coordination, agent, loop} + packages/agent-worker.
+    Backend typecheck clean.
+  - Web build: `bun run build` produces 215KB (entry) cleanly.
+    The pre-existing `topbar.tsx` typecheck error
+    (introduced in slice 1 of decision 006, last touched
+    `19a1930`) is unrelated and unchanged by this slice.
+  - Posture honored: every name in the slice
+    (`Monitor`, `RollingSampleStore`, `C1_THRESHOLDS`,
+    `ConcurrencySample`, `monitorSnapshot`, `selectMonitor`)
+    reads as terminal-shape. Slices 2–4 will *fill* the placeholder
+    cards but won't re-shape the page.
+
+- Criteria check:
+  - C1 — first time it has *any* numeric backing on disk. The
+    rendered values are GOAL.md-defined; the verdict is still
+    `unclear` because the human review hasn't run against the
+    new readings yet. This is exactly the policy the decision
+    proposes.
+  - C2–C4 — `unclear` (slices 2–4 still pending).
+
+- Invariants check: not exercised by this slice.
+
+- Judgment: the goal-driven protocol's "monitor is the load-
+  bearing piece for C1–C4" is now partially true in code: C1
+  reads, no longer estimates. Continuing through slices 2–4
+  removes the remaining `unclear`s.
+
+- Next:
+  - **Slice 2: C3 intervention tracking.** Define a small
+    intervention event family (`agent.intervention.*`) and emit
+    it from the auth-pause path, the orchestrator's run
+    success/failure boundaries, and the rescue triggers. Wire
+    `Monitor.onBusEvent` to log into the intervention table.
+    Compute rescue ratio + per-requirement counts +
+    response-latency distribution. Web UI fills the C3 card.
+  - **Slice 3: C4 silence.** Compute the all-silent ratio and
+    auth-wait non-blocking utilization from the existing sample
+    stream + the new pending-on-auth signal that slice 2
+    introduces. Web UI fills the C4 card.
+  - **Slice 4: C2 binding inventory.** Walk each Harness's
+    resolved agent config at create/reload, classify bindings,
+    surface uncovered/failed counts and the (static-config +
+    observed-success) reachability metric. Web UI fills C2.

@@ -34,6 +34,9 @@
  *
  *   GET    /events                              — daemon event log (cursor-based)
  *   GET    /events/stream                       — SSE: all daemon events
+ *
+ *   GET    /monitor/snapshot                    — observability metric snapshot (decision 004)
+ *   GET    /monitor/stream                      — SSE: monitor events (1Hz samples + snapshot pushes)
  */
 import { stat, readFile } from "node:fs/promises";
 import { join, resolve, normalize, sep } from "node:path";
@@ -45,6 +48,8 @@ import { AgentRegistry } from "./agent-registry.ts";
 import { ManagedAgent } from "./managed-agent.ts";
 import { GlobalAgentStub } from "./global-agent-stub.ts";
 import { HarnessRegistry } from "./harness-registry.ts";
+import { Monitor } from "./monitor/index.ts";
+import type { MonitorEvent } from "./monitor/index.ts";
 import { ManagedHarness } from "./managed-harness.ts";
 import { DaemonEventLog } from "./event-log.ts";
 import { createLoopFromConfig } from "./loop-factory.ts";
@@ -102,6 +107,7 @@ export class Daemon {
   private readonly harnesses: HarnessRegistry;
   private readonly eventLog: DaemonEventLog;
   private readonly _bus: EventBus;
+  private readonly monitor: Monitor;
   private readonly config: Required<DaemonConfig>;
   private startedAt = 0;
 
@@ -132,6 +138,7 @@ export class Daemon {
     this.agents = new AgentRegistry();
     this.harnesses = new HarnessRegistry(dataDir);
     this.eventLog = new DaemonEventLog(dataDir);
+    this.monitor = new Monitor(this.harnesses, this._bus);
 
     // Wire registries
     this.agents.setBus(this._bus);
@@ -172,6 +179,10 @@ export class Daemon {
     this._port = actualPort;
     this.startedAt = Date.now();
     const publicHost = advertisedHost(this.config.host);
+
+    // Start observability monitor (decision 004) — polls registry on
+    // a 1Hz tick and feeds /monitor/snapshot + /monitor/stream.
+    this.monitor.start();
 
     // Create global harness (but don't start agent loops yet — MCP hub URL needed first)
     const globalWs = await this.harnesses.ensureDefault();
@@ -255,6 +266,8 @@ export class Daemon {
       this.server = null;
     }
 
+    this.monitor.stop();
+
     await removeDaemonInfo(this.config.dataDir);
   }
 
@@ -320,6 +333,7 @@ export class Daemon {
       path.startsWith("/agents") ||
       path.startsWith("/harnesses") ||
       path.startsWith("/events") ||
+      path.startsWith("/monitor") ||
       path === "/health" ||
       path === "/shutdown";
     if (isApiPath && path !== "/health") {
@@ -488,6 +502,15 @@ export class Daemon {
       if (path === "/events/stream" && method === "GET") {
         return this.handleEventsStream(url);
       }
+
+      // Monitor (decision 004)
+      if (path === "/monitor/snapshot" && method === "GET") {
+        return Response.json(this.monitor.snapshot());
+      }
+      if (path === "/monitor/stream" && method === "GET") {
+        return this.handleMonitorStream();
+      }
+
       // No API route matched — serve static files (SPA)
       return await this.serveStaticOrFallback(path);
     } catch (err) {
@@ -1893,6 +1916,26 @@ export class Daemon {
     const cursor = parseInt(url.searchParams.get("cursor") ?? "0", 10);
     const result = await this.eventLog.read(cursor);
     return Response.json(result);
+  }
+
+  /**
+   * SSE stream of monitor events: 1Hz `sample` ticks plus future
+   * `snapshot` pushes when slices 2–4 land. The web UI subscribes to
+   * this and updates the Monitor page live.
+   */
+  private handleMonitorStream(): Response {
+    return this.createSSEStream((push) => {
+      const unsub = this.monitor.subscribe((evt: MonitorEvent) => {
+        push(evt as unknown as Record<string, unknown>);
+      });
+      // Push the current snapshot up front so a fresh subscriber doesn't
+      // wait up to 1s for the first sample tick.
+      push({
+        kind: "snapshot",
+        snapshot: this.monitor.snapshot(),
+      } as unknown as Record<string, unknown>);
+      return unsub;
+    });
   }
 
   private handleEventsStream(url: URL): Response {
