@@ -152,7 +152,7 @@ async function createCodexLoop(config: RuntimeConfig): Promise<AgentLoop> {
   const threadIdFile = config.stateDir ? join(config.stateDir, "codex-thread.json") : undefined;
   // Phase-3 control boundary: `fullAuto` and `sandbox` are now
   // configurable. Default remains aggressive (full-auto
-  // harness-write) — opt out by setting `policy.fullAuto:
+  // workspace-write) — opt out by setting `policy.fullAuto:
   // false` on the agent or harness. Note: codex approval
   // prompts are not yet intercepted by agent-worker, so
   // `fullAuto: false` will currently block mid-run. The knob

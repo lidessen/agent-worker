@@ -87,11 +87,11 @@ export interface PolicyDef {
    */
   fullAuto?: boolean;
   /**
-   * Codex shell sandbox mode. Default: "harness-write" when
+   * Codex shell sandbox mode. Default: "workspace-write" when
    * `fullAuto` is true. Useful to drop a codex reviewer into
-   * "read-only" while leaving the coder in "harness-write".
+   * "read-only" while leaving the coder in "workspace-write".
    */
-  sandbox?: "read-only" | "harness-write" | "danger-full-access";
+  sandbox?: "read-only" | "workspace-write" | "danger-full-access";
 }
 
 /**

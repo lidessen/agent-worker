@@ -84,7 +84,7 @@ const POLICY_PERMISSION_MODES: ReadonlySet<string> = new Set([
 ]);
 const POLICY_SANDBOX_MODES: ReadonlySet<string> = new Set([
   "read-only",
-  "harness-write",
+  "workspace-write",
   "danger-full-access",
 ]);
 

@@ -1,0 +1,7 @@
+name: codex-chat
+harnessTypeId: single-agent-chat
+agent:
+  name: codex
+  runtime: codex
+  instructions: |
+    You are a coding assistant. Use bash and other tools when useful. Reply concisely.
