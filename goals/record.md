@@ -1550,3 +1550,131 @@ check with concrete evidence, judgment naming the principal tension.
     resolved agent config at create/reload, classify bindings,
     surface uncovered/failed counts and the (static-config +
     observed-success) reachability metric. Web UI fills C2.
+
+## 2026-05-10 — Decision 004 slices 2–4: C3 + C4 + C2 land
+
+- What I did:
+  - Pushed three end-to-end vertical slices in one session.
+    Each slice = backend metric + HTTP/SSE pass-through + web UI
+    panel. Monitor `snapshot()` now returns all four criteria.
+  - **Slice 2 — C3 intervention tracking** (commit `1dbfc2e`):
+    - `monitor/types.ts`: `Intervention`, `InterventionType`,
+      `C3Metrics` with thresholds.
+    - `monitor/interventions.ts`: capped append-only
+      `InterventionLog` (10K-entry cap, `recent(N)`,
+      `totalsSince(cutoff)`).
+    - `monitor/metrics.ts`: `computeC3` returns totals +
+      rescue-ratio + per-requirement (auth+accept) count + recent
+      list, with C3 thresholds verbatim.
+    - `monitor.ts onBusEvent`: maps existing bus events to
+      interventions — `harness.agent_error{strategy.fatal}` →
+      rescue, `harness.kickoff_task_failed` → rescue,
+      `harness.completed` → acceptance. `recordIntervention()`
+      helper for paths outside the bus.
+    - SSE union now includes `{kind:"intervention"}`. Web store
+      patches the cached snapshot in place when an intervention
+      arrives (cheap; only c3 changes).
+    - Web UI: C3 card live counters + rescue ratio with
+      threshold tinting + per-requirement metric +
+      `RecentInterventions` feed (color-tinted by type).
+  - **Slice 3 — C4 silence + activity** (commit `571b82c`):
+    - `monitor/samples.ts allSeconds()` exposes the full 1-second
+      buffer for metric computation.
+    - `monitor/metrics.ts computeC4` walks the buffer in one pass,
+      computing all-silent (unfinished AND 0 active),
+      auth-wait non-blocking (auth pending AND other requirement
+      AND ≥1 active), and phantom-block (auth pending AND other
+      requirement AND 0 active, counted by transition into the
+      state). `C4_THRESHOLDS` exported.
+    - Web UI: C4 card values with threshold-tinted labels +
+      window-sample count for context.
+    - Note: auth-wait + phantom-block remain 0 until the
+      authorization-pause source is wired (today
+      `pendingOnAuth = 0`).
+  - **Slice 4 — C2 binding inventory** (commit `ed37a3e`):
+    - `monitor/bindings.ts`: `classifyRuntime(runtime, provider)`
+      with closed (claude-code, codex, ai-sdk + anthropic /
+      openai / google), open (deepseek, kimi, moonshot, qwen,
+      ollama, …), unknown (cursor, mock).
+      `buildInventory(registry)` walks `iterManaged()` and reads
+      `managed.resolved.agents` to produce one `BindingEntry` per
+      agent. Pragmatic: a binding is "covered" iff it is itself
+      open-source — closed-source bindings are uncovered until
+      the config schema gains a fallback slot (a future
+      enhancement).
+    - `monitor/metrics.ts computeC2` returns total + uncovered +
+      `reachability = covered/total` + bySource breakdown +
+      full inventory. C2 thresholds verbatim.
+    - Web UI: C2 panel headline metrics + `BindingTable` listing
+      every (harness, agent) row with runtime/model, source
+      badge (closed=red, open=green, unknown=muted), and
+      fallback yes/missing.
+    - Summary strip cells C2/C3/C4 now show one-line live values
+      (slice 1 placeholders removed).
+
+- Observations:
+  - Backend tests: 925/0 (slice 1) → 925/0 (slices 2–4
+    spot-checked at 436/0 across packages/agent-worker +
+    internals/harness; full suite re-verified at 925/0 after
+    slice 4). Backend typecheck clean.
+  - Web build: clean (215KB → 225KB cumulative).
+  - Posture honored: every name added across the three slices
+    (`InterventionLog`, `recordIntervention`, `computeC3`,
+    `computeC4`, `computeC2`, `BindingEntry`,
+    `classifyRuntime`, `buildInventory`) reads as terminal-shape.
+    No transitional placeholders left in the UI; every C1–C4
+    card is now backed by real numbers.
+
+- Criteria check (first run with monitor backing):
+  - C1 — read live: peak/structural cap/time-share now have
+    numeric values that update in real time. Verdict still
+    `unclear` because the monitor is too young to have produced
+    a 30-day window worth observing against.
+  - C2 — read live: depending on registered harnesses,
+    `uncoveredCount` and `reachability` are now visible. The
+    user's `agent-worker-dev` harness has multiple closed
+    bindings and currently shows uncovered > 0; verdict
+    `unclear` because GOAL.md's hard threshold "uncovered = 0"
+    requires either a fallback config schema or different
+    harness wiring.
+  - C3 — read live: rescue/acceptance/auth/other counts. Verdict
+    `unclear` until enough interventions accumulate for the
+    rescue-ratio to be meaningful (today total may be very low
+    on a fresh daemon).
+  - C4 — read live: all-silent ratio over the 1-hour rolling
+    window. Auth-wait + phantom-block depend on the future
+    pendingOnAuth signal source; both currently 0.
+
+- Invariants check:
+  - Inv-2 — the monitor surfaces violations for the first time.
+    The web UI's binding table rows with "missing" fallback are
+    Inv-2 violations made visible. Enforcement (refusing harness
+    creates that fail the check) is a follow-up; surfacing alone
+    is the slice-4 deliverable per the proposal.
+  - Inv-1 / Inv-3 — not exercised.
+
+- Judgment: the load-bearing block of decision 004 is now in
+  place. Every C1–C4 reading is computable on demand from the
+  daemon's live state; the UI subscribes to a 1Hz SSE stream and
+  re-renders without polling. Verdicts remain human-authored in
+  this record file. Goal-level: no change, but `unclear` for
+  C1–C4 has shifted from "no data, can't tell" to "data exists,
+  thresholds named beside it; needs a 30-day window before a
+  read counts".
+
+- Next:
+  - **Wire the authorization-pause signal source.** When a tool
+    call or auth-required action surfaces, emit a structured
+    intervention event with type `authorization` and tag
+    `pendingOnAuth` on the next sample. This makes the C4
+    auth-wait + phantom-block metrics non-zero in real use and
+    closes the gap to a complete C3 picture.
+  - **Add a fallback slot to harness config.** A small schema
+    field (`fallback: <runtime+model>` per agent or per
+    harness) lets `buildInventory` mark closed bindings as
+    covered when the user has explicitly named an OSS fallback.
+    With this, C2 reachability becomes the honest measure
+    GOAL.md asked for.
+  - **Use it.** The monitor exists; the next 30 days of real
+    usage will produce the first non-`unclear` C1–C4 verdicts in
+    `goals/record.md`. That is the structural goal close-out.
