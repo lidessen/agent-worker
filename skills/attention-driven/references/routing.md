@@ -22,9 +22,19 @@ slow-changing question behind the current uncertainty.
 2. Read the latest goal record entries and `OPEN-STOPS.md` if present.
 3. Name the current principal 30% / principal tension, or say `none visible`.
 4. Classify the user's task into one layer, with secondary overlays if needed.
-5. Load only the command/reference files needed for that layer.
-6. At close, draft a record entry if goal artifacts exist and this was a work
+5. Apply the decision ownership gate when ownership is unclear.
+6. Load only the command/reference files needed for that layer.
+7. At close, draft a record entry if goal artifacts exist and this was a work
    session.
+
+## Decision Ownership Gate
+
+Decision ownership is a cross-cutting gate, not a layer. Use
+`references/decision.md` when the blocker is "who decides?" The compressed rule:
+agent owns reversible, observable, authorized local choices; reviewer checks
+uncertain but recoverable choices; human owns goal, STOP, durable shape,
+authority, values, external exposure, irreversible cost, or unobservable harm.
+Escalation needs a named gate.
 
 ## Escalation Signals
 
@@ -38,6 +48,8 @@ slow-changing question behind the current uncertainty.
   setup/audit candidate.
 - The design question itself sounds like old vocabulary forced onto a new
   category -> reframe candidate.
+- A local choice keeps getting escalated without a gate -> decision autonomy
+  candidate; decide or route to reviewer instead of blocking.
 
 ## Steering-Loop Routing
 
@@ -57,6 +69,8 @@ the localized steering frame:
   context/authority, `goal` to narrow the target, or surface a blocker.
 - correction saturation: if the available action cannot move the gap, change
   authority, scope, target, or system shape before acting again.
+- approval saturation: if progress waits on human input for reversible choices,
+  shrink the decision and move it to agent or reviewer ownership.
 
 ## Steerability Gate
 

@@ -6,8 +6,9 @@ matter, which mechanisms are available, and which changes would alter the shape
 itself.
 
 Read `references/design.md`, `references/artifact-policy.md`, and
-`references/templates.md` before writing design artifacts. Use
-`references/writing-guide.md` when drafting or reviewing design prose.
+`references/decision.md`, and `references/templates.md` before writing design
+artifacts. Use `references/writing-guide.md` when drafting or reviewing design
+prose.
 
 ## Normal Entry
 
@@ -18,6 +19,10 @@ Read `references/design.md`, `references/artifact-policy.md`, and
 
 If it stays inside shape, proceed with implementation planning. If it changes
 shape, write a decision before source edits.
+
+Inside an accepted design, local implementation choices are agent-owned. Do not
+ask the human to choose helper structure, proof shape, or equivalent local
+approaches when the choice is reversible and verifiable.
 
 ## Shape Change
 
@@ -33,8 +38,15 @@ For shape changes:
    settling the recommendation.
 4. Run a cold review using `references/cold-review-prompt.md` when the change is
    substantial.
-5. Wait for human adoption/rejection.
-6. If adopted, update `design/DESIGN.md` and relevant package docs before code.
+5. Classify the remaining decision owner:
+   - reviewer-owned only for proposal narrowing, alternative selection, or
+     validation design before adoption;
+   - human-owned when the proposal changes durable system shape, authority,
+     values, external exposure, or irreversible cost.
+6. Present human-owned shape changes as a narrowed recommendation and wait for
+   adoption/rejection. Do not expose every local branch. Do not self-adopt a
+   new durable shape.
+7. If adopted, update `design/DESIGN.md` and relevant package docs before code.
 
 Do not rewrite the system shape because one local correction failed. Escalate
 to design only when observations show the boundary or mechanism assumption is
@@ -57,6 +69,10 @@ Create productive opposition:
 The discussion is scratch unless the synthesis becomes load-bearing. Preserve
 the final judgment, rejected alternatives, and next validation, not the whole
 debate.
+
+Reviewer output should reduce human burden. If the review leaves ten open
+questions instead of one recommendation and one validation, synthesize again
+before escalation.
 
 ## Blueprint
 
@@ -86,5 +102,6 @@ Use audit when design and implementation may have drifted. Classify findings:
 - doc-only drift: update design docs to match current implementation;
 - implementation drift: code violates design;
 - unresolved design question: write a decision or ask the human;
+- over-escalation: a local, reversible choice was treated like architecture;
 - historical artifact issue: leave history alone unless it misleads current
   state, then add a current correction.

@@ -34,18 +34,23 @@ a compass; it has a notebook.
 
 - `GOAL.md`: agent writes only at set time or explicit goal change; human
   approves each section or changed line.
-- record: agent drafts at session end; human confirms before append.
-- `OPEN-STOPS.md`: agent updates when STOPs open/resolve; human confirms the
-  line.
+- record: agent may append routine factual session records when observations
+  and judgment are explicit. Ask first when the entry changes goal meaning,
+  resolves a STOP, or asserts a controversial criterion verdict.
+- `OPEN-STOPS.md`: agent may open/update the index when a STOP candidate is
+  explicit. Human decides resolution.
 - STOPs: agent surfaces; human decides whether to change path, change goal, or
   reject the agent's diagnosis.
 
-The agent drafts, proposes, and surfaces. The human approves, redirects, and
-decides. This prevents both "I'll write the goal later" and silent agent drift.
+The agent owns path movement and factual continuity. The human owns compass
+changes. This prevents both "I'll write the goal later" and silent agent drift
+without turning every record entry into an approval queue.
 
 ## Record Discipline
 
-At session close, draft in chat before writing:
+At session close, preserve the record when project convention or the user's
+request expects durable continuity. If the session is interactive and ownership
+is unclear, draft in chat before writing. A record entry should include:
 
 - What I did.
 - Observations.
@@ -61,9 +66,9 @@ trajectory claims toward a future date. Mark a trajectory `✓` only when eviden
 shows it is on pace, and `✗` when evidence projects a miss. Optimism is not
 evidence.
 
-If a session is interrupted before the human confirms the record entry, append
-the draft with `[unconfirmed draft]` in the title. The next session ratifies or
-revises it before continuing.
+If a session is interrupted before a controversial record entry is confirmed,
+append the draft with `[unconfirmed draft]` in the title. The next session
+ratifies or revises it before continuing.
 
 ## STOPs
 

@@ -24,6 +24,8 @@ State briefly:
 - the current principal tension, or `none visible`;
 - which layer owns today's uncertainty: `goal`, `design`, `fact`, `reframe`,
   or `harness`;
+- who owns the next decision if it is not obvious: `agent`, `reviewer`, or
+  `human`;
 - any secondary overlay, such as `fact` verification on a `design` blueprint.
 
 Default output shape for ordinary work:
@@ -32,6 +34,12 @@ Default output shape for ordinary work:
 Mainline: <the load-bearing 30% right now>
 Route: <goal/design/fact/reframe/harness> (+ optional overlay)
 Next move: <smallest useful correction> -> <observable check>
+```
+
+If decision ownership is the uncertain part, add:
+
+```markdown
+Decision owner: <agent/reviewer/human>; reason: <reversibility / review risk / escalation gate>
 ```
 
 If the task crosses multiple layers, repeatedly failed, or asks to import or
@@ -48,7 +56,7 @@ clearest to the user, depending on the work.
 Use `references/routing.md` when classification is ambiguous. Use
 `references/control-loop.md` when the next action is unclear because
 observations are noisy, the same gap recurs, or the current understanding may
-be wrong.
+be wrong. Use `references/decision.md` when decision ownership is the blocker.
 
 Only use the full stuck frame when work is noisy, recurring, blocked, or not
 converging:
@@ -87,6 +95,11 @@ boundary:
 - progress claim -> fact evidence;
 - context wiring -> managed setup block.
 
+For ordinary choices inside the current goal/design, decide and act. Use a
+reviewer role when the choice is uncertain but recoverable. Ask the human only
+when an escalation gate is hit: goal/STOP change, authority gap, value judgment,
+irreversible cost, external exposure, or system-shape risk.
+
 ## 5. Close
 
 Do not stop in a half-applied state. Before ending a work session, close the
@@ -101,6 +114,10 @@ smallest active loop:
 Do not claim done without evidence. Do not commit, publish, or hand off work
 whose verification story is still implied. For long tasks, shrink the slice
 until one of the three close states is true.
+
+When autonomous decisions matter to future work, summarize the choice and
+evidence. Do not ask the human to ratify reversible choices after the fact; ask
+only for unresolved human-owned decisions.
 
 If goal artifacts exist and this was a work session, draft a record entry in
 chat before writing:

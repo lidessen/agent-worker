@@ -48,28 +48,27 @@ System-owned decisions:
 - helper names, internal structure, proof shape, and routine implementation
   choices;
 - choosing among equivalent ways to satisfy an already accepted goal or design;
-- first-pass correction after a failed observation.
+- first-pass correction after a failed observation;
+- deciding which check to run before claiming done.
 
 Review-owned decisions:
 
-- research-like proposals, uncertain designs, or high-blast-radius choices that
-  still fit within the current goal;
-- claims where an advocate/opponent/reviewer split can find mistakes before the
-  human sees the artifact;
-- 70% decisions whose cost of being wrong is local, but whose error is likely.
+Use `references/decision.md` as the detailed source of truth. In short:
+research-like proposals, uncertain but recoverable designs, and likely local
+errors can go to reviewer before execution or before human escalation.
 
 Human-owned decisions:
 
-- goal changes, STOP resolution, or success criteria changes;
-- irreversible or expensive tradeoffs;
-- authority, permission, budget, legal, security, or external relationship
-  choices;
-- value judgments and product direction;
-- system-shape decisions whose failure invalidates downstream work.
+Use `references/decision.md` as the detailed source of truth. In short: goal,
+STOP, criteria, authority, values, external exposure, irreversible cost, and
+durable system-shape changes belong to the human.
 
 Do not confuse "human should know" with "human must decide." Summarize ordinary
 decisions in records or PR notes, but only block on the human when the decision
 is load-bearing or outside agent authority.
+
+If a decision was escalated and the human's answer could not change the next
+action, the escalation was noise. Convert it into a notification next time.
 
 ## Same Pattern Across Layers
 

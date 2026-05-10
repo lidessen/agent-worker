@@ -45,6 +45,19 @@ tidy. Add a current correction or superseding artifact.
 Passing tests are not evidence unless they catch a named failure. Manual checks
 are not evidence unless they capture what was observed.
 
+## Approval Reflex
+
+Do not ask the human to choose every time the agent feels uncertainty. If the
+choice is reversible, observable, within authority, and inside the current goal
+or design, decide and verify. Human attention is for escalation gates, not
+routine confidence repair.
+
+## Autonomy Theater
+
+Do not hide a human-owned decision inside "I proceeded autonomously." If the
+choice changes goal, authority, values, irreversible cost, external exposure, or
+durable system shape, surface it explicitly and recommend a default.
+
 ## Premature Design
 
 If the shape is volatile because the paradigm is not settled, do not write a

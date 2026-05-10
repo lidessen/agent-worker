@@ -40,6 +40,8 @@ The managed block should:
 - include the decision policy: agents decide/review ordinary 70% choices, and
   humans decide only the load-bearing 30% that changes goal, authority, values,
   irreversible cost, or system shape.
+- make autonomous action the default inside accepted boundaries; escalation
+  should name the gate it hit.
 
 ## Presets
 

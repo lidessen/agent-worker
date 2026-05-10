@@ -53,6 +53,10 @@ for their own sake.
 Do not route every decision to the human. Let agents decide and review ordinary
 70% choices; escalate only goal, authority, value, irreversible, or
 system-shape decisions.
+
+Default to action inside accepted boundaries: decide reversible local choices,
+use reviewer roles for uncertain recoverable choices, and ask the human only
+when an escalation gate is named.
 <!-- /skill:attention-driven -->
 ```
 

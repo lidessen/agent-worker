@@ -89,6 +89,8 @@ Before acting, define the local steering problem:
 - Observation: how the agent knows the current state.
 - Gap: which difference matters most now.
 - Control authority: what actions the agent/human can actually take.
+- Decision owner: whether the next choice belongs to the agent, a reviewer
+  role, or the human.
 - Disturbances: what can move the system without being chosen.
 - Settling condition: what observation means the loop can stop.
 
@@ -109,6 +111,10 @@ The 30/70 rule is the bandwidth rule for this steering posture. Put high
 attention on the slow variables that dominate future behavior: target, system
 shape, observation quality, and authority. Use lower attention for local
 corrections that can be retried cheaply.
+
+Decision ownership is also a control variable. A loop becomes sluggish when
+reversible local choices wait for human input; it becomes unsafe when
+irreversible or value-laden choices are hidden inside autonomous execution.
 
 ## Loop
 
@@ -256,6 +262,9 @@ Stable attention-driven work has these properties:
   shortening the loop or reducing correction size.
 - Correction saturation: the available action cannot move the gap. Fix by
   changing authority, scope, or target.
+- Approval saturation: progress depends on human approval for choices the
+  system can verify and reverse. Fix by moving the choice to agent or reviewer
+  ownership.
 - Integral windup: accumulated unresolved follow-ups make the next correction
   too large. Fix by pruning or re-slicing pending claims.
 - Over-control: too much artifact ceremony for a small gap. Fix by shrinking
@@ -271,6 +280,8 @@ do not just push harder:
 - if the system shape is wrong, open a decision (`design`);
 - if the category model is wrong, reframe (`reframe`);
 - if the agent lacks context, fix setup (`harness`).
+- if the only blocker is approval for a reversible local choice, decide
+  autonomously or route to reviewer instead of escalating.
 
 ## Robustness
 

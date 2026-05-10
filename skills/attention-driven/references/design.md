@@ -87,8 +87,10 @@ promoted into design. Skipping close-out rots the skeleton.
 - Doc-only drift: code is accepted reality and design fell behind.
 - Shape-level drift: code changed system shape without a decision; write a
   retroactive decision rather than laundering it silently.
-- Code-should-change: code violates design and the design still seems right;
-  ask the human before "fixing" it.
+- Code-should-change: code violates design and the design still seems right.
+  If the fix is local, reversible, and verifiable, the agent owns it. If the
+  fix changes behavior, ownership, or public shape, route through reviewer or
+  human decision.
 
 ## Cold Review
 
