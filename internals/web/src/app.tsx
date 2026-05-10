@@ -4,17 +4,17 @@ import { render } from "semajsx/dom";
 import { computed, signal } from "semajsx/signal";
 import { AppShell } from "./components/layout/app-shell.tsx";
 import {
-  currentWorkspace,
+  currentHarness,
   selectedItem,
   selectChannel,
   selectAgent,
-  selectWorkspaceSettings,
+  selectHarnessSettings,
   selectGlobalEvents,
   type SelectedItem,
 } from "./stores/navigation.ts";
-import { wsInfo } from "./stores/workspace-data.ts";
+import { wsInfo } from "./stores/harness-data.ts";
 import { agents } from "./stores/agents.ts";
-import { workspaces } from "./stores/workspaces.ts";
+import { harnesss } from "./stores/harnesss.ts";
 import {
   ClaudeIcon,
   CursorIcon,
@@ -41,13 +41,13 @@ import { ChannelView } from "./views/channel-view.tsx";
 import { AgentConversationView } from "./views/agent-conversation-view.tsx";
 import { AgentInfoView } from "./views/agent-info-view.tsx";
 import { DocViewerPanel } from "./views/doc-viewer-panel.tsx";
-import { WorkspaceSettingsView } from "./views/workspace-settings-view.tsx";
+import { HarnessSettingsView } from "./views/harness-settings-view.tsx";
 import { GlobalSettingsView } from "./views/global-settings-view.tsx";
 import { GlobalEventsView } from "./views/global-events-view.tsx";
 import { DashboardView } from "./views/dashboard-view.tsx";
 import { CreateAgentDialog } from "./components/create-agent-dialog.tsx";
 import { CreateDocDialog } from "./components/create-doc-dialog.tsx";
-import { CreateWorkspaceDialog } from "./components/create-workspace-dialog.tsx";
+import { CreateHarnessDialog } from "./components/create-harness-dialog.tsx";
 
 const mobileQuery = typeof window !== "undefined" ? window.matchMedia("(max-width: 900px)") : null;
 const isMobileViewport = signal(mobileQuery?.matches ?? false);
@@ -58,7 +58,7 @@ if (mobileQuery) {
   });
 }
 
-type MobileResource = "agents" | "workspaces" | "events";
+type MobileResource = "agents" | "harnesss" | "events";
 const mobileResource = signal<MobileResource>("agents");
 
 function runtimeIcon(runtime: string) {
@@ -88,8 +88,8 @@ function createView(item: SelectedItem) {
       return <AgentInfoView name={item.name} />;
     case "doc":
       return <DocViewerPanel wsKey={item.wsKey} docName={item.docName} />;
-    case "workspace-settings":
-      return <WorkspaceSettingsView wsKey={item.wsKey} />;
+    case "harness-settings":
+      return <HarnessSettingsView wsKey={item.wsKey} />;
     case "global-settings":
       return <GlobalSettingsView />;
     case "global-events":
@@ -110,9 +110,9 @@ function wsDotClass(status: string) {
 }
 
 function MobileHome() {
-  const workspaceName = computed([wsInfo, currentWorkspace], (info, key) => info?.name ?? key);
+  const harnessName = computed([wsInfo, currentHarness], (info, key) => info?.name ?? key);
 
-  const resourceBody = computed([mobileResource, agents, workspaces], (res, agentList, wsList) => {
+  const resourceBody = computed([mobileResource, agents, harnesss], (res, agentList, wsList) => {
     if (res === "agents") {
       if (agentList.length === 0) {
         return <div style="padding:16px;color:var(--colors-textDim);font-size:13px">No agents</div>;
@@ -126,7 +126,7 @@ function MobileHome() {
                 <span class={styles.mRowT}>{a.name}</span>
                 <span class={styles.mRowS}>
                   {a.runtime}
-                  {a.workspace ? ` · ws/${a.workspace}` : ""}
+                  {a.harness ? ` · ws/${a.harness}` : ""}
                 </span>
               </div>
               <span class={styles.mRowR}>{a.state}</span>
@@ -135,10 +135,10 @@ function MobileHome() {
         </div>
       );
     }
-    if (res === "workspaces") {
+    if (res === "harnesss") {
       if (wsList.length === 0) {
         return (
-          <div style="padding:16px;color:var(--colors-textDim);font-size:13px">No workspaces</div>
+          <div style="padding:16px;color:var(--colors-textDim);font-size:13px">No harnesss</div>
         );
       }
       return (
@@ -147,8 +147,8 @@ function MobileHome() {
             <button
               class={styles.mRow}
               onclick={() => {
-                currentWorkspace.value = w.name;
-                selectWorkspaceSettings(w.name);
+                currentHarness.value = w.name;
+                selectHarnessSettings(w.name);
               }}
             >
               <span class={wsDotClass(w.status)} />
@@ -177,7 +177,7 @@ function MobileHome() {
   });
 
   const agentCount = computed(agents, (list) => list.length);
-  const wsCount = computed(workspaces, (list) => list.length);
+  const wsCount = computed(harnesss, (list) => list.length);
 
   function tabCls(k: MobileResource) {
     return computed(mobileResource, (r) =>
@@ -194,7 +194,7 @@ function MobileHome() {
       <div class={styles.mobileHead}>
         <div class={styles.mobileBrand}>
           <div class={styles.mobileLogo}>L</div>
-          <span class={styles.mobileTitle}>{workspaceName}</span>
+          <span class={styles.mobileTitle}>{harnessName}</span>
           <span class={styles.mobileDaemon}>
             <span class={styles.mobileDaemonDot} />
             daemon
@@ -214,8 +214,8 @@ function MobileHome() {
         <button class={tabCls("agents")} onclick={() => (mobileResource.value = "agents")}>
           Agents <span class={styles.mobileResTabCount}>{agentCount}</span>
         </button>
-        <button class={tabCls("workspaces")} onclick={() => (mobileResource.value = "workspaces")}>
-          Workspaces <span class={styles.mobileResTabCount}>{wsCount}</span>
+        <button class={tabCls("harnesss")} onclick={() => (mobileResource.value = "harnesss")}>
+          Harnesss <span class={styles.mobileResTabCount}>{wsCount}</span>
         </button>
         <button class={tabCls("events")} onclick={() => (mobileResource.value = "events")}>
           Events
@@ -241,7 +241,7 @@ function MobileHome() {
         <button
           class={styles.mTabbarBtn}
           onclick={() => {
-            mobileResource.value = "workspaces";
+            mobileResource.value = "harnesss";
           }}
         >
           <Icon icon={Folder} size={18} />
@@ -284,7 +284,7 @@ function itemKey(item: SelectedItem | null): string {
       return `agent-info:${item.name}`;
     case "doc":
       return `doc:${item.wsKey}:${item.docName}`;
-    case "workspace-settings":
+    case "harness-settings":
       return `ws-settings:${item.wsKey}`;
     case "global-settings":
       return "global-settings";
@@ -355,8 +355,8 @@ function selectedLabel(item: SelectedItem | null): string {
       return `${item.name} info`;
     case "doc":
       return item.docName;
-    case "workspace-settings":
-      return "Workspace";
+    case "harness-settings":
+      return "Harness";
     case "global-settings":
       return "Settings";
     case "global-events":
@@ -395,7 +395,7 @@ export function App() {
       />
       <CreateAgentDialog />
       <CreateDocDialog />
-      <CreateWorkspaceDialog />
+      <CreateHarnessDialog />
     </AppShell>
   );
 }

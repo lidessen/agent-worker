@@ -134,7 +134,7 @@ async function createClaudeCodeLoop(config: RuntimeConfig): Promise<AgentLoop> {
   // Phase-3 control boundary: `permissionMode` is now
   // configurable. The daemon-level default stays at
   // `bypassPermissions` until a follow-up commit flips it, so
-  // existing workspaces keep behaving the same way.
+  // existing harnesss keep behaving the same way.
   return new ClaudeCodeLoop({
     model: config.model ?? "sonnet",
     cwd: config.cwd,
@@ -152,8 +152,8 @@ async function createCodexLoop(config: RuntimeConfig): Promise<AgentLoop> {
   const threadIdFile = config.stateDir ? join(config.stateDir, "codex-thread.json") : undefined;
   // Phase-3 control boundary: `fullAuto` and `sandbox` are now
   // configurable. Default remains aggressive (full-auto
-  // workspace-write) — opt out by setting `policy.fullAuto:
-  // false` on the agent or workspace. Note: codex approval
+  // harness-write) — opt out by setting `policy.fullAuto:
+  // false` on the agent or harness. Note: codex approval
   // prompts are not yet intercepted by agent-worker, so
   // `fullAuto: false` will currently block mid-run. The knob
   // exists now so the plumbing is ready for the approval bridge.

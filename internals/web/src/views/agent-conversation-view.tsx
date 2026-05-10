@@ -74,7 +74,7 @@ export const AgentConversationView: RuntimeComponent<{ name: string }> = (props,
           ? styles.badgeDotCompleted
           : styles.badgeDotIdle,
   ]);
-  const wsLabel = computed(agentState, (s) => s?.workspace ?? "");
+  const wsLabel = computed(agentState, (s) => s?.harness ?? "");
 
   let generation = 0;
 

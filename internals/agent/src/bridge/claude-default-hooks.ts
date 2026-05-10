@@ -15,7 +15,7 @@ export function createDefaultClaudeHooks(args: {
           async () => ({
             hookSpecificOutput: {
               hookEventName: "Notification",
-              additionalContext: formatWorkspaceAttention(args),
+              additionalContext: formatHarnessAttention(args),
             },
           }),
         ],
@@ -26,8 +26,8 @@ export function createDefaultClaudeHooks(args: {
         hooks: [
           async () => ({
             systemMessage:
-              "Preserve the current workspace state during compaction.\n" +
-              formatWorkspaceAttention(args),
+              "Preserve the current harness state during compaction.\n" +
+              formatHarnessAttention(args),
           }),
         ],
       },
@@ -49,8 +49,8 @@ export function createDefaultClaudeHooks(args: {
             hookSpecificOutput: {
               hookEventName: "PreToolUse",
               additionalContext:
-                "Before sending, re-check whether the workspace has newer notifications to read first.\n" +
-                formatWorkspaceAttention(args),
+                "Before sending, re-check whether the harness has newer notifications to read first.\n" +
+                formatHarnessAttention(args),
             },
           }),
         ],
@@ -59,13 +59,13 @@ export function createDefaultClaudeHooks(args: {
   };
 }
 
-function formatWorkspaceAttention(args: {
+function formatHarnessAttention(args: {
   inbox: Inbox;
   todos: TodoManager;
   reminders: ReminderManager;
 }): string {
   const lines = [
-    "Workspace attention summary:",
+    "Harness attention summary:",
     `- unread channel messages: ${args.inbox.unreadCount}`,
     `- pending todos: ${args.todos.pending.length}`,
     `- pending reminders: ${args.reminders.pending.length}`,
@@ -98,8 +98,8 @@ function formatStopReminder(args: {
   }
 
   return (
-    "Before stopping, check whether the workspace still has pending attention items.\n" +
-    formatWorkspaceAttention(args)
+    "Before stopping, check whether the harness still has pending attention items.\n" +
+    formatHarnessAttention(args)
   );
 }
 

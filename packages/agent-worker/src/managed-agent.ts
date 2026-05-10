@@ -18,7 +18,7 @@ export class ManagedAgent {
   readonly createdAt: number;
   readonly agent: Agent;
 
-  private _workspace?: string;
+  private _harness?: string;
   private _responsesPath?: string;
   private _eventsPath?: string;
   private _inboxPath?: string;
@@ -39,12 +39,12 @@ export class ManagedAgent {
     kind: AgentKind;
     runtime?: string;
     config: AgentConfig;
-    workspace?: string;
+    harness?: string;
     bus?: EventBus;
     /**
      * Explicit directory for this agent's JSONL storage.
      * - Global agents: `<dataDir>/agents/<name>`
-     * - Workspace agents: `<dataDir>/workspaces/<key>/agents/<name>`
+     * - Harness agents: `<dataDir>/harnesss/<key>/agents/<name>`
      */
     agentDir?: string;
   }) {
@@ -52,7 +52,7 @@ export class ManagedAgent {
     this.kind = opts.kind;
     this.runtime = opts.runtime;
     this.createdAt = Date.now();
-    this._workspace = opts.workspace;
+    this._harness = opts.harness;
 
     // Set up per-agent storage (preserve existing files across restarts)
     if (opts.agentDir) {
@@ -301,7 +301,7 @@ export class ManagedAgent {
       state: this.state,
       runtime: this.runtime,
       createdAt: this.createdAt,
-      workspace: this._workspace,
+      harness: this._harness,
     };
   }
 

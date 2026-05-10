@@ -1,16 +1,16 @@
 import { test, expect, describe, beforeEach, afterEach } from "bun:test";
-import { createWorkspace, MemoryStorage, createTaskTools } from "@agent-worker/workspace";
-import type { Workspace } from "@agent-worker/workspace";
-import { createOrchestrator, WorkspaceOrchestrator } from "../src/orchestrator.ts";
+import { createHarness, MemoryStorage, createTaskTools } from "@agent-worker/harness";
+import type { Harness } from "@agent-worker/harness";
+import { createOrchestrator, HarnessOrchestrator } from "../src/orchestrator.ts";
 
-describe("WorkspaceOrchestrator pause/resume", () => {
-  let workspace: Workspace;
-  let orch: WorkspaceOrchestrator;
+describe("HarnessOrchestrator pause/resume", () => {
+  let harness: Harness;
+  let orch: HarnessOrchestrator;
   let instructionCount: number;
 
   beforeEach(async () => {
     instructionCount = 0;
-    workspace = await createWorkspace({
+    harness = await createHarness({
       name: "pause-test",
       channels: ["general"],
       agents: ["alice"],
@@ -19,9 +19,9 @@ describe("WorkspaceOrchestrator pause/resume", () => {
 
     orch = createOrchestrator({
       name: "alice",
-      provider: workspace.contextProvider,
-      queue: workspace.instructionQueue,
-      eventLog: workspace.eventLog,
+      provider: harness.contextProvider,
+      queue: harness.instructionQueue,
+      eventLog: harness.eventLog,
       pollInterval: 50,
       onInstruction: async () => {
         instructionCount++;
@@ -31,7 +31,7 @@ describe("WorkspaceOrchestrator pause/resume", () => {
 
   afterEach(async () => {
     if (orch.isRunning) await orch.stop();
-    await workspace.shutdown();
+    await harness.shutdown();
   });
 
   test("isPaused defaults to false", () => {
@@ -69,7 +69,7 @@ describe("WorkspaceOrchestrator pause/resume", () => {
   test("pause logs system event", async () => {
     await orch.pause();
 
-    const events = await workspace.contextProvider.timeline.read("alice");
+    const events = await harness.contextProvider.timeline.read("alice");
     const pauseEvent = events.find((e) => e.kind === "system" && e.content.includes("paused"));
     expect(pauseEvent).toBeDefined();
   });
@@ -78,7 +78,7 @@ describe("WorkspaceOrchestrator pause/resume", () => {
     await orch.pause();
     await orch.resume();
 
-    const events = await workspace.contextProvider.timeline.read("alice");
+    const events = await harness.contextProvider.timeline.read("alice");
     const resumeEvent = events.find((e) => e.kind === "system" && e.content.includes("resumed"));
     expect(resumeEvent).toBeDefined();
   });
@@ -88,9 +88,9 @@ describe("WorkspaceOrchestrator pause/resume", () => {
     await orch.stop();
     orch = createOrchestrator({
       name: "alice",
-      provider: workspace.contextProvider,
-      queue: workspace.instructionQueue,
-      eventLog: workspace.eventLog,
+      provider: harness.contextProvider,
+      queue: harness.instructionQueue,
+      eventLog: harness.eventLog,
       pollInterval: 20,
       onInstruction: async () => {
         attempts++;
@@ -100,7 +100,7 @@ describe("WorkspaceOrchestrator pause/resume", () => {
       },
     });
 
-    await workspace.contextProvider.send({
+    await harness.contextProvider.send({
       channel: "general",
       from: "user",
       content: "@alice please retry this",
@@ -110,16 +110,16 @@ describe("WorkspaceOrchestrator pause/resume", () => {
     await Bun.sleep(200);
 
     expect(attempts).toBe(2);
-    expect(await workspace.contextProvider.inbox.peek("alice")).toHaveLength(0);
+    expect(await harness.contextProvider.inbox.peek("alice")).toHaveLength(0);
   });
 
   test("pause during instruction is not overwritten back to idle", async () => {
     await orch.stop();
     orch = createOrchestrator({
       name: "alice",
-      provider: workspace.contextProvider,
-      queue: workspace.instructionQueue,
-      eventLog: workspace.eventLog,
+      provider: harness.contextProvider,
+      queue: harness.instructionQueue,
+      eventLog: harness.eventLog,
       pollInterval: 20,
       onInstruction: async () => {
         await orch.pause();
@@ -127,7 +127,7 @@ describe("WorkspaceOrchestrator pause/resume", () => {
       },
     });
 
-    await workspace.contextProvider.send({
+    await harness.contextProvider.send({
       channel: "general",
       from: "user",
       content: "@alice wait here",
@@ -137,8 +137,8 @@ describe("WorkspaceOrchestrator pause/resume", () => {
     await Bun.sleep(120);
 
     expect(orch.isPaused).toBe(true);
-    expect((await workspace.contextProvider.status.get("alice"))?.status).toBe("paused");
-    expect(await workspace.contextProvider.inbox.peek("alice")).toHaveLength(1);
+    expect((await harness.contextProvider.status.get("alice"))?.status).toBe("paused");
+    expect(await harness.contextProvider.inbox.peek("alice")).toHaveLength(1);
   });
 
   test("onCheckpoint run_start content is prepended to the dispatched prompt", async () => {
@@ -146,9 +146,9 @@ describe("WorkspaceOrchestrator pause/resume", () => {
     const prompts: string[] = [];
     orch = createOrchestrator({
       name: "alice",
-      provider: workspace.contextProvider,
-      queue: workspace.instructionQueue,
-      eventLog: workspace.eventLog,
+      provider: harness.contextProvider,
+      queue: harness.instructionQueue,
+      eventLog: harness.eventLog,
       pollInterval: 20,
       onInstruction: async (prompt) => {
         prompts.push(prompt);
@@ -161,7 +161,7 @@ describe("WorkspaceOrchestrator pause/resume", () => {
       },
     });
 
-    await workspace.contextProvider.send({
+    await harness.contextProvider.send({
       channel: "general",
       from: "user",
       content: "@alice handle this",
@@ -180,9 +180,9 @@ describe("WorkspaceOrchestrator pause/resume", () => {
     let injected = false;
     orch = createOrchestrator({
       name: "alice",
-      provider: workspace.contextProvider,
-      queue: workspace.instructionQueue,
-      eventLog: workspace.eventLog,
+      provider: harness.contextProvider,
+      queue: harness.instructionQueue,
+      eventLog: harness.eventLog,
       pollInterval: 20,
       onInstruction: async () => {
         dispatches++;
@@ -199,7 +199,7 @@ describe("WorkspaceOrchestrator pause/resume", () => {
       },
     });
 
-    await workspace.contextProvider.send({
+    await harness.contextProvider.send({
       channel: "general",
       from: "user",
       content: "@alice start here",
@@ -214,7 +214,7 @@ describe("WorkspaceOrchestrator pause/resume", () => {
     await Bun.sleep(50);
 
     // The follow-up should now sit on the queue.
-    const pending = workspace.instructionQueue.listAll();
+    const pending = harness.instructionQueue.listAll();
     const followUp = pending.find((inst) => inst.content === "follow-up task surfaced");
     expect(followUp).toBeDefined();
     expect(followUp?.agentName).toBe("alice");
@@ -225,10 +225,10 @@ describe("WorkspaceOrchestrator pause/resume", () => {
   test("end-to-end: lead dispatches → orchestrator delivers → worker closes", async () => {
     await orch.stop();
 
-    const leadTools = createTaskTools("lead", workspace.name, workspace.stateStore, {
-      instructionQueue: workspace.instructionQueue,
+    const leadTools = createTaskTools("lead", harness.name, harness.stateStore, {
+      instructionQueue: harness.instructionQueue,
     });
-    const workerTools = createTaskTools("alice", workspace.name, workspace.stateStore);
+    const workerTools = createTaskTools("alice", harness.name, harness.stateStore);
 
     // Start a worker orchestrator whose onInstruction simulates a worker
     // that reads the dispatched instruction, parses out the attempt id,
@@ -236,9 +236,9 @@ describe("WorkspaceOrchestrator pause/resume", () => {
     // runtime — just deterministic tool calls driven by the test harness.
     orch = createOrchestrator({
       name: "alice",
-      provider: workspace.contextProvider,
-      queue: workspace.instructionQueue,
-      eventLog: workspace.eventLog,
+      provider: harness.contextProvider,
+      queue: harness.instructionQueue,
+      eventLog: harness.eventLog,
       pollInterval: 20,
       onInstruction: async (_prompt, instruction) => {
         // Dispatched instructions arrive on the synthetic "dispatch" channel
@@ -277,19 +277,19 @@ describe("WorkspaceOrchestrator pause/resume", () => {
     await orch.start();
 
     for (let i = 0; i < 40; i++) {
-      const task = await workspace.stateStore.getTask(taskId);
+      const task = await harness.stateStore.getTask(taskId);
       if (!task?.activeWakeId) break;
       await Bun.sleep(25);
     }
 
-    const finalTask = await workspace.stateStore.getTask(taskId);
+    const finalTask = await harness.stateStore.getTask(taskId);
     expect(finalTask?.activeWakeId).toBeUndefined();
 
-    const wakes = await workspace.stateStore.listWakes(taskId);
+    const wakes = await harness.stateStore.listWakes(taskId);
     expect(wakes).toHaveLength(1);
     expect(wakes[0]?.status).toBe("completed");
 
-    const handoffs = await workspace.stateStore.listHandoffs(taskId);
+    const handoffs = await harness.stateStore.listHandoffs(taskId);
     expect(handoffs).toHaveLength(1);
     expect(handoffs[0]?.kind).toBe("completed");
     expect(handoffs[0]?.summary).toContain("e2e test");
@@ -297,29 +297,29 @@ describe("WorkspaceOrchestrator pause/resume", () => {
     // Lead manually marks the task completed — normally this would happen
     // automatically or via the lead's own tool call in a follow-up run.
     await leadTools.task_update({ id: taskId, status: "completed" });
-    const closedTask = await workspace.stateStore.getTask(taskId);
+    const closedTask = await harness.stateStore.getTask(taskId);
     expect(closedTask?.status).toBe("completed");
   });
 
   test("start requeues seen inbox entries from a previous run", async () => {
     const storage = new MemoryStorage();
-    const previousWorkspace = await createWorkspace({
+    const previousHarness = await createHarness({
       name: "recover-start",
       channels: ["general"],
       agents: ["alice"],
       storage,
     });
 
-    await previousWorkspace.contextProvider.send({
+    await previousHarness.contextProvider.send({
       channel: "general",
       from: "user",
       content: "@alice resume unfinished work",
     });
-    const pending = await previousWorkspace.contextProvider.inbox.peek("alice");
-    await previousWorkspace.contextProvider.inbox.markSeen("alice", pending[0]!.messageId);
-    await previousWorkspace.shutdown();
+    const pending = await previousHarness.contextProvider.inbox.peek("alice");
+    await previousHarness.contextProvider.inbox.markSeen("alice", pending[0]!.messageId);
+    await previousHarness.shutdown();
 
-    const recoveredWorkspace = await createWorkspace({
+    const recoveredHarness = await createHarness({
       name: "recover-start",
       channels: ["general"],
       agents: ["alice"],
@@ -328,9 +328,9 @@ describe("WorkspaceOrchestrator pause/resume", () => {
     let processed = 0;
     const recoveredOrch = createOrchestrator({
       name: "alice",
-      provider: recoveredWorkspace.contextProvider,
-      queue: recoveredWorkspace.instructionQueue,
-      eventLog: recoveredWorkspace.eventLog,
+      provider: recoveredHarness.contextProvider,
+      queue: recoveredHarness.instructionQueue,
+      eventLog: recoveredHarness.eventLog,
       pollInterval: 20,
       onInstruction: async () => {
         processed++;
@@ -342,10 +342,10 @@ describe("WorkspaceOrchestrator pause/resume", () => {
       await Bun.sleep(120);
 
       expect(processed).toBe(1);
-      expect(await recoveredWorkspace.contextProvider.inbox.peek("alice")).toHaveLength(0);
+      expect(await recoveredHarness.contextProvider.inbox.peek("alice")).toHaveLength(0);
     } finally {
       if (recoveredOrch.isRunning) await recoveredOrch.stop();
-      await recoveredWorkspace.shutdown();
+      await recoveredHarness.shutdown();
     }
   });
 });

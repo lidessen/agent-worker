@@ -15,7 +15,7 @@ function formatDuration(ms: number): string {
 
 export function RunBlock(props: { event: DaemonEvent }) {
   const { event } = props;
-  const isStart = event.type === "workspace.agent_run_start" || event.type === "run_start";
+  const isStart = event.type === "harness.agent_run_start" || event.type === "run_start";
 
   const durationMs = (event.durationMs as number) ?? (event.duration as number | undefined);
   const tokenCount = event.tokens as number | undefined;

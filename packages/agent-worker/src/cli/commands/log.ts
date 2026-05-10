@@ -20,8 +20,8 @@ export async function log(args: string[]): Promise<void> {
       let stream: AsyncIterable<any>;
       if (targetRaw) {
         const target = parseTarget(targetRaw);
-        if (target.workspace) {
-          stream = await client.streamWorkspaceEvents(target.workspace);
+        if (target.harness) {
+          stream = await client.streamHarnessEvents(target.harness);
         } else if (target.agent) {
           stream = await client.streamAgentEvents(target.agent);
         } else {
@@ -39,8 +39,8 @@ export async function log(args: string[]): Promise<void> {
       let result;
       if (targetRaw) {
         const target = parseTarget(targetRaw);
-        if (target.workspace) {
-          result = await client.readWorkspaceEvents(target.workspace, 0);
+        if (target.harness) {
+          result = await client.readHarnessEvents(target.harness, 0);
         } else if (target.agent) {
           result = await client.readAgentEvents(target.agent, 0);
         } else {

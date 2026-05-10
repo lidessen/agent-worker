@@ -3,8 +3,8 @@
 import { signal, computed } from "semajsx/signal";
 import { when } from "semajsx";
 import { client } from "../stores/connection.ts";
-import { currentWorkspace } from "../stores/navigation.ts";
-import { loadWorkspaceData } from "../stores/workspace-data.ts";
+import { currentHarness } from "../stores/navigation.ts";
+import { loadHarnessData } from "../stores/harness-data.ts";
 import * as styles from "./create-agent-dialog.style.ts";
 
 export const showCreateDoc = signal(false);
@@ -44,10 +44,10 @@ export function CreateDocDialog() {
     error.value = "";
 
     try {
-      const wsKey = currentWorkspace.value;
+      const wsKey = currentHarness.value;
       await c.writeDoc(wsKey, n, content.value);
       close();
-      await loadWorkspaceData(wsKey);
+      await loadHarnessData(wsKey);
     } catch (err) {
       error.value = err instanceof Error ? err.message : "Failed to create document";
       loading.value = false;

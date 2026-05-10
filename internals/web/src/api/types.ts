@@ -1,7 +1,7 @@
 export interface HealthInfo {
   status: string;
   agents: number;
-  workspaces: number;
+  harnesss: number;
   uptime: number;
   runtimes?: RuntimeHealth[];
 }
@@ -19,10 +19,10 @@ export interface AgentInfo {
   runtime: string;
   model?: string;
   createdAt: number;
-  workspace?: string;
+  harness?: string;
 }
 
-export interface WorkspaceInfo {
+export interface HarnessInfo {
   name: string;
   label?: string;
   mode?: string;
@@ -52,7 +52,7 @@ export interface AgentState {
   inbox: InboxItem[];
   todos?: TodoItem[];
   currentTask?: string;
-  workspace?: string;
+  harness?: string;
   history?: number;
 }
 
@@ -81,7 +81,7 @@ export interface DocInfo {
   name: string;
 }
 
-export interface WorkspaceStatus {
+export interface HarnessStatus {
   name: string;
   label?: string;
   tag?: string;
@@ -94,7 +94,7 @@ export interface WorkspaceStatus {
   loops: Array<{ name: string; running: boolean }>;
 }
 
-export interface WorkspaceInboxEntry {
+export interface HarnessInboxEntry {
   messageId: string;
   channel: string;
   priority: string;
@@ -102,7 +102,7 @@ export interface WorkspaceInboxEntry {
   enqueuedAt: number;
 }
 
-// ── Task ledger (workspace-led hierarchical state) ────────────────────────
+// ── Task ledger (harness-led hierarchical state) ────────────────────────
 
 export type TaskStatus =
   | "draft"
@@ -115,7 +115,7 @@ export type TaskStatus =
 
 export interface TaskSummary {
   id: string;
-  workspaceId: string;
+  harnessId: string;
   title: string;
   goal: string;
   status: TaskStatus;

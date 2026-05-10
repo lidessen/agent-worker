@@ -4,7 +4,7 @@ import { computed } from "semajsx/signal";
 import { Icon, Settings } from "semajsx/icons";
 import type { ChannelMessage } from "../api/types.ts";
 import type { VNode } from "semajsx";
-import { wsAgents } from "../stores/workspace-data.ts";
+import { wsAgents } from "../stores/harness-data.ts";
 import { formatDateTime } from "../utils/time.ts";
 import {
   ClaudeIcon,

@@ -3,11 +3,11 @@
 import { computed } from "semajsx/signal";
 import { Icon, Plus, ArrowRight, MoreHorizontal } from "semajsx/icons";
 import { agents, fetchAgents } from "../stores/agents.ts";
-import { workspaces, fetchWorkspaces } from "../stores/workspaces.ts";
+import { harnesss, fetchHarnesss } from "../stores/harnesss.ts";
 import { daemonEvents, loadDaemonEvents } from "../stores/daemon-events.ts";
-import { selectAgent, selectWorkspaceSettings, selectGlobalEvents } from "../stores/navigation.ts";
+import { selectAgent, selectHarnessSettings, selectGlobalEvents } from "../stores/navigation.ts";
 import { showCreateAgent } from "../components/create-agent-dialog.tsx";
-import { showCreateWorkspace } from "../components/create-workspace-dialog.tsx";
+import { showCreateHarness } from "../components/create-harness-dialog.tsx";
 import * as s from "./dashboard-view.style.ts";
 
 function fmtTs(ts: number | string | Date): string {
@@ -23,7 +23,7 @@ function fmtTs(ts: number | string | Date): string {
     return String(ts);
   }
 }
-import type { AgentInfo, WorkspaceInfo, DaemonEvent } from "../api/types.ts";
+import type { AgentInfo, HarnessInfo, DaemonEvent } from "../api/types.ts";
 
 function agentDot(state: string) {
   if (state === "running" || state === "processing") return [s.resDot, s.dotRunning];
@@ -95,7 +95,7 @@ function AgentRow(props: { agent: AgentInfo }) {
         <span class={[s.resNameT, "mono"]}>{a.name}</span>
         <span class={s.resNameS}>
           {a.runtime}
-          {a.workspace ? ` · ws/${a.workspace}` : ""}
+          {a.harness ? ` · ws/${a.harness}` : ""}
         </span>
       </div>
       <div class={s.chans}>
@@ -112,15 +112,15 @@ function AgentRow(props: { agent: AgentInfo }) {
   );
 }
 
-function WorkspaceRow(props: { ws: WorkspaceInfo }) {
+function HarnessRow(props: { ws: HarnessInfo }) {
   const w = props.ws;
   return (
-    <button class={s.resRow} onclick={() => selectWorkspaceSettings(w.name)}>
+    <button class={s.resRow} onclick={() => selectHarnessSettings(w.name)}>
       <span class={wsDot(w.status)} />
       <div class={s.resName}>
         <span class={s.resNameT}>{w.label || w.name}</span>
         <span class={s.resNameS}>
-          {w.mode ?? "workspace"} · {w.agents.join(", ") || "no agents"}
+          {w.mode ?? "harness"} · {w.agents.join(", ") || "no agents"}
         </span>
       </div>
       <div class={s.chans}>
@@ -154,7 +154,7 @@ function EventRow(props: { event: DaemonEvent }) {
 export function DashboardView() {
   // Load data on mount
   fetchAgents();
-  fetchWorkspaces();
+  fetchHarnesss();
   loadDaemonEvents();
 
   const runningCount = computed(agents, (list) =>
@@ -166,13 +166,13 @@ export function DashboardView() {
     (list) => list.filter((a) => a.state === "error" || a.state === "failed").length,
   );
   const totalAgents = computed(agents, (list) => list.length);
-  const wsRunning = computed(workspaces, (list) => list.filter((w) => w.status === "running").length);
-  const wsTotal = computed(workspaces, (list) => list.length);
+  const wsRunning = computed(harnesss, (list) => list.filter((w) => w.status === "running").length);
+  const wsTotal = computed(harnesss, (list) => list.length);
 
   const dateLine = computed([totalAgents, wsTotal], (a, w) => {
     const d = new Date();
     const weekday = d.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
-    return `${weekday} · ${a} agent${a === 1 ? "" : "s"} · ${w} workspace${w === 1 ? "" : "s"}`;
+    return `${weekday} · ${a} agent${a === 1 ? "" : "s"} · ${w} harness${w === 1 ? "" : "s"}`;
   });
 
   const agentRows = computed(agents, (list) =>
@@ -191,19 +191,19 @@ export function DashboardView() {
     ),
   );
 
-  const wsRows = computed(workspaces, (list) =>
+  const wsRows = computed(harnesss, (list) =>
     list.length === 0 ? (
       <div class={s.resRow}>
         <span />
         <div class={s.resName}>
           <span class={s.resNameT} style="color:var(--colors-textDim)">
-            No workspaces
+            No harnesss
           </span>
           <span class={s.resNameS}>Click “+ New” to create one.</span>
         </div>
       </div>
     ) : (
-      list.map((w) => <WorkspaceRow ws={w} />)
+      list.map((w) => <HarnessRow ws={w} />)
     ),
   );
 
@@ -233,7 +233,7 @@ export function DashboardView() {
             </div>
           </div>
           <div class={s.stat}>
-            <div class={s.statLabel}>Workspaces active</div>
+            <div class={s.statLabel}>Harnesss active</div>
             <div class={s.statValue}>{wsRunning}</div>
             <div class={s.statMeta}>
               <span>of {wsTotal} total</span>
@@ -260,10 +260,10 @@ export function DashboardView() {
         <div class={s.resList}>{agentRows}</div>
 
         <div class={s.section}>
-          <span class={s.sectionLabel}>Workspaces</span>
+          <span class={s.sectionLabel}>Harnesss</span>
           <span class={s.sectionCount}>{wsTotal}</span>
           <span class={s.sectionRight}>
-            <button class={s.btnSmGhost} onclick={() => (showCreateWorkspace.value = true)}>
+            <button class={s.btnSmGhost} onclick={() => (showCreateHarness.value = true)}>
               <Icon icon={Plus} size={12} /> New
             </button>
           </span>

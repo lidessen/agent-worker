@@ -1,36 +1,36 @@
 #!/usr/bin/env bun
 /**
  * watch-validation.ts — companion observability script for the
- * workspace-led hierarchical validation checklist.
+ * harness-led hierarchical validation checklist.
  *
- * Polls the validation workspace's task ledger once per second and
+ * Polls the validation harness's task ledger once per second and
  * prints every state transition + every new handoff (with the
  * resources it referenced). Run in a second terminal while the real
- * claude-code / codex agents drive the workspace.
+ * claude-code / codex agents drive the harness.
  *
  * Usage:
  *   bun run scripts/watch-validation.ts
- *   bun run scripts/watch-validation.ts --workspace hierarchical-validation
+ *   bun run scripts/watch-validation.ts --harness hierarchical-validation
  *
- * Checklist: docs/design/workspace-led-hierarchical-agent-system/validation-checklist.md
+ * Checklist: docs/design/harness-led-hierarchical-agent-system/validation-checklist.md
  */
 
 import { ensureDaemon } from "../packages/agent-worker/src/client.ts";
 
-function parseArgs(): { workspace: string; pollMs: number } {
+function parseArgs(): { harness: string; pollMs: number } {
   const args = process.argv.slice(2);
-  let workspace = "hierarchical-validation";
+  let harness = "hierarchical-validation";
   let pollMs = 1000;
   for (let i = 0; i < args.length; i++) {
-    if (args[i] === "--workspace" && args[i + 1]) {
-      workspace = args[i + 1]!;
+    if (args[i] === "--harness" && args[i + 1]) {
+      harness = args[i + 1]!;
       i++;
     } else if (args[i] === "--poll-ms" && args[i + 1]) {
       pollMs = parseInt(args[i + 1]!, 10);
       i++;
     }
   }
-  return { workspace, pollMs };
+  return { harness, pollMs };
 }
 
 function fmtTime(d = new Date()): string {
@@ -56,12 +56,12 @@ interface TaskSummary {
 }
 
 async function main() {
-  const { workspace, pollMs } = parseArgs();
+  const { harness, pollMs } = parseArgs();
   console.log(dim(`[${fmtTime()}] connecting to daemon…`));
 
   const client = await ensureDaemon();
   console.log(
-    dim(`[${fmtTime()}] watching @${workspace} (poll every ${pollMs}ms — ctrl-c to stop)`),
+    dim(`[${fmtTime()}] watching @${harness} (poll every ${pollMs}ms — ctrl-c to stop)`),
   );
 
   const taskState = new Map<string, TaskSummary>();
@@ -70,7 +70,7 @@ async function main() {
 
   async function tick() {
     try {
-      const result = await client.listWorkspaceTasks(workspace);
+      const result = await client.listHarnessTasks(harness);
 
       for (const raw of result.tasks) {
         const t = raw as TaskSummary;
@@ -89,7 +89,7 @@ async function main() {
         }
         taskState.set(t.id, t);
 
-        const detail = await client.getWorkspaceTask(workspace, t.id);
+        const detail = await client.getHarnessTask(harness, t.id);
         for (const raw of detail.handoffs) {
           const h = raw as {
             id: string;
@@ -110,7 +110,7 @@ async function main() {
       }
 
       // Chronicle — print new entries since last tick.
-      const chronicle = await client.readWorkspaceChronicle(workspace, {
+      const chronicle = await client.readHarnessChronicle(harness, {
         category: "task",
         limit: 200,
       });

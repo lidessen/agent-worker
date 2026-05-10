@@ -220,7 +220,7 @@ export class CodexLoop {
         model: this.options.model ?? undefined,
         threadId: this.threadId ?? undefined,
         approvalPolicy: this.options.fullAuto ? "never" : "on-request",
-        sandbox: this.options.sandbox ?? (this.options.fullAuto ? "workspace-write" : undefined),
+        sandbox: this.options.sandbox ?? (this.options.fullAuto ? "harness-write" : undefined),
         approvalsReviewer: this.options.approvalsReviewer ?? undefined,
         developerInstructions: this.pendingDeveloperInstructions ?? undefined,
         baseInstructions: this.options.instructions ?? undefined,
@@ -445,7 +445,7 @@ function normalizeInstructions(value: string | null | undefined): string | null 
 //
 // The Codex app-server assigns a thread id on `thread/start` and
 // lets us reattach later with `thread/resume`. Persisting that id
-// across daemon restarts is what gives workspace-managed codex
+// across daemon restarts is what gives harness-managed codex
 // agents session continuity. The file format is intentionally
 // trivial (`{"threadId":"thr_..."}`) so it's easy to inspect or
 // hand-edit from a shell.

@@ -18,9 +18,9 @@ export async function rm(args: string[]): Promise<void> {
   try {
     const client = await ensureDaemon();
 
-    if (target.workspace) {
-      await client.stopWorkspace(target.workspace);
-      console.log(`Removed workspace @${target.workspace}`);
+    if (target.harness) {
+      await client.stopHarness(target.harness);
+      console.log(`Removed harness @${target.harness}`);
     } else if (target.agent) {
       await client.removeAgent(target.agent);
       console.log(`Removed agent ${target.agent}`);

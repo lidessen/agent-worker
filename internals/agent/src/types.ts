@@ -240,7 +240,7 @@ export type CheckpointAction = { kind: "noop" } | { kind: "inject"; content: str
 
 /**
  * Agent-level lifecycle hooks. Implementations typically close over task /
- * workspace state at assignment time. Fires are routed through the Agent,
+ * harness state at assignment time. Fires are routed through the Agent,
  * not the loop — they are orthogonal to `runtimeHooks` (which are Claude
  * Code SDK hooks passed into the CLI runtime).
  */

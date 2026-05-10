@@ -29,9 +29,9 @@ export type {
 export { AgentMcpServer, LoopWiring } from "./bridge/index.ts";
 export type { LoopWiringDeps } from "./bridge/index.ts";
 
-// ── Workspace MCP client ────────────────────────────────────────────────────
-export { WorkspaceClient } from "./workspace-client.ts";
-export type { WorkspaceClientOptions } from "./workspace-client.ts";
+// ── Harness MCP client ────────────────────────────────────────────────────
+export { HarnessClient } from "./harness-client.ts";
+export type { HarnessClientOptions } from "./harness-client.ts";
 
 // ── Storage implementations ─────────────────────────────────────────────────
 export { FileNotesStorage } from "./storage/file-notes.ts";

@@ -8,15 +8,15 @@
 import type {
   HealthInfo,
   AgentInfo,
-  WorkspaceInfo,
+  HarnessInfo,
   AgentState,
   CursorResult,
   DaemonEvent,
   ChannelMessage,
   DocInfo,
   RuntimeConfig,
-  WorkspaceStatus,
-  WorkspaceInboxEntry,
+  HarnessStatus,
+  HarnessInboxEntry,
   TaskSummary,
   TaskDetail,
 } from "./types.ts";
@@ -41,9 +41,9 @@ export class WebClient {
     return res.agents;
   }
 
-  async listWorkspaces(): Promise<WorkspaceInfo[]> {
-    const res = await this.request<{ workspaces: WorkspaceInfo[] }>("/workspaces");
-    return res.workspaces;
+  async listHarnesss(): Promise<HarnessInfo[]> {
+    const res = await this.request<{ harnesss: HarnessInfo[] }>("/harnesss");
+    return res.harnesss;
   }
 
   async getAgentState(name: string): Promise<AgentState> {
@@ -101,28 +101,28 @@ export class WebClient {
     });
   }
 
-  async deleteWorkspace(key: string): Promise<void> {
-    await this.request(`/workspaces/${encodeURIComponent(key)}`, {
+  async deleteHarness(key: string): Promise<void> {
+    await this.request(`/harnesss/${encodeURIComponent(key)}`, {
       method: "DELETE",
     });
   }
 
   async clearChannel(key: string, ch: string): Promise<void> {
     await this.request(
-      `/workspaces/${encodeURIComponent(key)}/channels/${encodeURIComponent(ch)}`,
+      `/harnesss/${encodeURIComponent(key)}/channels/${encodeURIComponent(ch)}`,
       { method: "DELETE" },
     );
   }
 
   // ── Create API ────────────────────────────────────────────────────
 
-  async createWorkspace(opts: {
+  async createHarness(opts: {
     source: string;
     name?: string;
     tag?: string;
     mode?: string;
-  }): Promise<WorkspaceInfo> {
-    return this.request("/workspaces", {
+  }): Promise<HarnessInfo> {
+    return this.request("/harnesss", {
       method: "POST",
       body: JSON.stringify(opts),
     });
@@ -135,15 +135,15 @@ export class WebClient {
     });
   }
 
-  // ── Workspace API ──────────────────────────────────────────────────
+  // ── Harness API ──────────────────────────────────────────────────
 
-  async getWorkspace(key: string): Promise<WorkspaceInfo> {
-    return this.request(`/workspaces/${encodeURIComponent(key)}`);
+  async getHarness(key: string): Promise<HarnessInfo> {
+    return this.request(`/harnesss/${encodeURIComponent(key)}`);
   }
 
   async listChannels(key: string): Promise<string[]> {
     const res = await this.request<{ channels: string[] }>(
-      `/workspaces/${encodeURIComponent(key)}/channels`,
+      `/harnesss/${encodeURIComponent(key)}/channels`,
     );
     return res.channels;
   }
@@ -158,7 +158,7 @@ export class WebClient {
     if (opts?.since !== undefined) params.set("since", opts.since);
     const q = params.toString() ? `?${params}` : "";
     const res = await this.request<{ messages: ChannelMessage[] }>(
-      `/workspaces/${encodeURIComponent(key)}/channels/${encodeURIComponent(ch)}${q}`,
+      `/harnesss/${encodeURIComponent(key)}/channels/${encodeURIComponent(ch)}${q}`,
     );
     return res.messages;
   }
@@ -172,17 +172,17 @@ export class WebClient {
     if (opts?.cursor !== undefined) params.set("cursor", String(opts.cursor));
     const q = params.toString() ? `?${params}` : "";
     yield* this.sseStream<ChannelMessage>(
-      `/workspaces/${encodeURIComponent(key)}/channels/${encodeURIComponent(ch)}/stream${q}`,
+      `/harnesss/${encodeURIComponent(key)}/channels/${encodeURIComponent(ch)}/stream${q}`,
       opts?.signal,
     );
   }
 
-  async sendToWorkspace(
+  async sendToHarness(
     key: string,
     content: string,
     opts?: { channel?: string; agent?: string },
   ): Promise<void> {
-    await this.request(`/workspaces/${encodeURIComponent(key)}/send`, {
+    await this.request(`/harnesss/${encodeURIComponent(key)}/send`, {
       method: "POST",
       body: JSON.stringify({ content, channel: opts?.channel, agent: opts?.agent }),
     });
@@ -190,12 +190,12 @@ export class WebClient {
 
   async listDocs(key: string): Promise<DocInfo[]> {
     const res = await this.request<{ docs: DocInfo[] }>(
-      `/workspaces/${encodeURIComponent(key)}/docs`,
+      `/harnesss/${encodeURIComponent(key)}/docs`,
     );
     return res.docs;
   }
 
-  async listWorkspaceTasks(
+  async listHarnessTasks(
     key: string,
     opts?: { status?: string; ownerLeadId?: string },
   ): Promise<TaskSummary[]> {
@@ -204,57 +204,57 @@ export class WebClient {
     if (opts?.ownerLeadId) params.set("ownerLeadId", opts.ownerLeadId);
     const qs = params.toString();
     const res = await this.request<{ tasks: TaskSummary[] }>(
-      `/workspaces/${encodeURIComponent(key)}/tasks${qs ? `?${qs}` : ""}`,
+      `/harnesss/${encodeURIComponent(key)}/tasks${qs ? `?${qs}` : ""}`,
     );
     return res.tasks;
   }
 
-  async getWorkspaceTask(key: string, taskId: string): Promise<TaskDetail> {
+  async getHarnessTask(key: string, taskId: string): Promise<TaskDetail> {
     return this.request<TaskDetail>(
-      `/workspaces/${encodeURIComponent(key)}/tasks/${encodeURIComponent(taskId)}`,
+      `/harnesss/${encodeURIComponent(key)}/tasks/${encodeURIComponent(taskId)}`,
     );
   }
 
   async readDoc(key: string, name: string): Promise<string> {
     const res = await this.request<{ content: string }>(
-      `/workspaces/${encodeURIComponent(key)}/docs/${encodeURIComponent(name)}`,
+      `/harnesss/${encodeURIComponent(key)}/docs/${encodeURIComponent(name)}`,
     );
     return res.content;
   }
 
   async writeDoc(key: string, name: string, content: string): Promise<void> {
-    await this.request(`/workspaces/${encodeURIComponent(key)}/docs/${encodeURIComponent(name)}`, {
+    await this.request(`/harnesss/${encodeURIComponent(key)}/docs/${encodeURIComponent(name)}`, {
       method: "PUT",
       body: JSON.stringify({ content }),
     });
   }
 
   async appendDoc(key: string, name: string, content: string): Promise<void> {
-    await this.request(`/workspaces/${encodeURIComponent(key)}/docs/${encodeURIComponent(name)}`, {
+    await this.request(`/harnesss/${encodeURIComponent(key)}/docs/${encodeURIComponent(name)}`, {
       method: "PATCH",
       body: JSON.stringify({ content }),
     });
   }
 
-  // ── Workspace Status & Events ──────────────────────────────────────
+  // ── Harness Status & Events ──────────────────────────────────────
 
-  async getWorkspaceStatus(key: string): Promise<WorkspaceStatus> {
-    return this.request(`/workspaces/${encodeURIComponent(key)}/status`);
+  async getHarnessStatus(key: string): Promise<HarnessStatus> {
+    return this.request(`/harnesss/${encodeURIComponent(key)}/status`);
   }
 
-  async peekInbox(key: string, agent: string): Promise<WorkspaceInboxEntry[]> {
-    const res = await this.request<{ entries: WorkspaceInboxEntry[] }>(
-      `/workspaces/${encodeURIComponent(key)}/inbox/${encodeURIComponent(agent)}`,
+  async peekInbox(key: string, agent: string): Promise<HarnessInboxEntry[]> {
+    const res = await this.request<{ entries: HarnessInboxEntry[] }>(
+      `/harnesss/${encodeURIComponent(key)}/inbox/${encodeURIComponent(agent)}`,
     );
     return res.entries ?? [];
   }
 
-  async readWorkspaceEvents(key: string, cursor?: number): Promise<CursorResult<DaemonEvent>> {
+  async readHarnessEvents(key: string, cursor?: number): Promise<CursorResult<DaemonEvent>> {
     const q = cursor !== undefined ? `?cursor=${cursor}` : "";
-    return this.request(`/workspaces/${encodeURIComponent(key)}/events${q}`);
+    return this.request(`/harnesss/${encodeURIComponent(key)}/events${q}`);
   }
 
-  async *streamWorkspaceEvents(
+  async *streamHarnessEvents(
     key: string,
     opts?: { cursor?: number; signal?: AbortSignal },
   ): AsyncGenerator<DaemonEvent> {
@@ -262,7 +262,7 @@ export class WebClient {
     if (opts?.cursor !== undefined) params.set("cursor", String(opts.cursor));
     const q = params.toString() ? `?${params}` : "";
     yield* this.sseStream<DaemonEvent>(
-      `/workspaces/${encodeURIComponent(key)}/events/stream${q}`,
+      `/harnesss/${encodeURIComponent(key)}/events/stream${q}`,
       opts?.signal,
     );
   }

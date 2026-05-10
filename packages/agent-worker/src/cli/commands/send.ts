@@ -42,18 +42,18 @@ export async function send(args: string[]): Promise<void> {
   try {
     const client = await ensureDaemon();
 
-    if (target.workspace) {
-      // Workspace send
+    if (target.harness) {
+      // Harness send
       for (const msg of messages) {
         if (msg.delayMs) await new Promise((r) => setTimeout(r, msg.delayMs));
-        await client.sendToWorkspace(target.workspace!, {
+        await client.sendToHarness(target.harness!, {
           content: msg.content,
           from,
           agent: target.agent,
           channel: target.channel,
         });
       }
-      console.log(`Sent ${messages.length} message(s) to @${target.workspace}`);
+      console.log(`Sent ${messages.length} message(s) to @${target.harness}`);
     } else if (target.agent) {
       // Agent send
       const result = await client.sendToAgent(

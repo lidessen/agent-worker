@@ -12,9 +12,9 @@ export type AgentHandle = ManagedAgent | GlobalAgentStub;
  * AgentRegistry manages agent lifecycle within the daemon.
  * Agents can be config-loaded or ephemeral (created via API).
  *
- * Storage is scoped by workspace:
+ * Storage is scoped by harness:
  * - Global agents  → `<dataDir>/agents/<name>/`
- * - Workspace agents → `<dataDir>/workspaces/<wsKey>/agents/<name>/`
+ * - Harness agents → `<dataDir>/harnesss/<wsKey>/agents/<name>/`
  *
  * Agents emit structured events to the shared EventBus.
  */
@@ -40,15 +40,15 @@ export class AgentRegistry {
     }
   }
 
-  /** Compute the storage directory for an agent based on its workspace scope. */
-  private agentDir(name: string, workspace?: string): string | undefined {
+  /** Compute the storage directory for an agent based on its harness scope. */
+  private agentDir(name: string, harness?: string): string | undefined {
     if (!this._dataDir) return undefined;
     AgentRegistry.validateSegment(name, "agent name");
-    if (workspace) {
-      // Workspace-scoped: workspace-data/<key>/agents/<name>
-      const wsDir = workspace.replace(/:/g, "--");
-      AgentRegistry.validateSegment(wsDir, "workspace key");
-      return join(this._dataDir, "workspace-data", wsDir, "agents", name);
+    if (harness) {
+      // Harness-scoped: harness-data/<key>/agents/<name>
+      const wsDir = harness.replace(/:/g, "--");
+      AgentRegistry.validateSegment(wsDir, "harness key");
+      return join(this._dataDir, "harness-data", wsDir, "agents", name);
     }
     // Global: agents/<name>
     return join(this._dataDir, "agents", name);
@@ -75,9 +75,9 @@ export class AgentRegistry {
       kind: input.kind ?? "ephemeral",
       runtime: input.runtime,
       config,
-      workspace: input.workspace,
+      harness: input.harness,
       bus: this._bus,
-      agentDir: this.agentDir(input.name, input.workspace),
+      agentDir: this.agentDir(input.name, input.harness),
     });
 
     await handle.init();
@@ -94,8 +94,8 @@ export class AgentRegistry {
   }
 
   /**
-   * Register a lightweight stub for a global workspace agent.
-   * No Agent/Loop is created — the workspace handles execution.
+   * Register a lightweight stub for a global harness agent.
+   * No Agent/Loop is created — the harness handles execution.
    */
   registerGlobal(
     name: string,

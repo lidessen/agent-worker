@@ -99,7 +99,7 @@ export async function sendChannelMessage(wsKey: string, ch: string, text: string
     return;
   }
   try {
-    await c.sendToWorkspace(wsKey, text, { channel: ch });
+    await c.sendToHarness(wsKey, text, { channel: ch });
   } catch (err) {
     console.error(`Failed to send to ${wsKey}/${ch}:`, err);
   } finally {

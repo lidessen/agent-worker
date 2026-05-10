@@ -1,7 +1,7 @@
 /**
  * Process-level event bus.
  *
- * All layers (loop, agent, workspace, daemon) emit structured events
+ * All layers (loop, agent, harness, daemon) emit structured events
  * to a shared bus. Consumers (JSONL writer, console printer, SSE streamer)
  * subscribe independently — emitters never know who's listening.
  *
@@ -21,15 +21,15 @@ export interface BaseBusEvent {
   /** Dot-namespaced type: "agent.run_start", "daemon.started", etc. */
   type: string;
   /** Originating layer */
-  source: "loop" | "agent" | "workspace" | "daemon";
+  source: "loop" | "agent" | "harness" | "daemon";
   /** Log severity. Default: "info" */
   level?: EventLevel;
   /** Correlation ID for tracing a single run end-to-end */
   runId?: string;
   /** Agent name, when applicable */
   agent?: string;
-  /** Workspace name, when applicable */
-  workspace?: string;
+  /** Harness name, when applicable */
+  harness?: string;
 }
 
 export interface AgentRuntimeEvent extends BaseBusEvent {
@@ -59,11 +59,11 @@ export interface BusEvent {
   /** Common event envelope */
   ts: number;
   type: string;
-  source: "loop" | "agent" | "workspace" | "daemon";
+  source: "loop" | "agent" | "harness" | "daemon";
   level?: EventLevel;
   runId?: string;
   agent?: string;
-  workspace?: string;
+  harness?: string;
   /** Arbitrary payload */
   [key: string]: unknown;
 }

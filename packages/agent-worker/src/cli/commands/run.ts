@@ -28,12 +28,12 @@ export async function run(args: string[]): Promise<void> {
     const configDir = resolve(dirname(source));
     const client = await ensureDaemon();
 
-    const info = await client.createWorkspace(yaml, { name, configDir, tag, vars, mode: "task" });
+    const info = await client.createHarness(yaml, { name, configDir, tag, vars, mode: "task" });
     const key = info.tag ? `${info.name}:${info.tag}` : info.name;
-    console.log(`Running workspace @${key}...`);
+    console.log(`Running harness @${key}...`);
 
-    const result = await client.waitWorkspace(key, wait);
-    console.log(`Workspace @${key}: ${result.status}`);
+    const result = await client.waitHarness(key, wait);
+    console.log(`Harness @${key}: ${result.status}`);
 
     if (result.status === "timeout") {
       process.exit(2);

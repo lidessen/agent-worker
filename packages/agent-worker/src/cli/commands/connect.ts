@@ -7,7 +7,7 @@
  *   rm <platform> [<name>]     — Remove a saved connection.
  *
  * Named connections are stored under ~/.agent-worker/connections/{platform}/{name}.json
- * and referenced in workspace YAML via the `name` field on ConnectionDef.
+ * and referenced in harness YAML via the `name` field on ConnectionDef.
  */
 
 import { readFile, readdir, unlink } from "node:fs/promises";
@@ -143,7 +143,7 @@ Commands:
   rm <platform> [<name>]     Remove a saved connection
 
 Connections are saved to ~/.agent-worker/connections/{platform}/{name}.json
-and automatically used by workspace connections when config is not specified.
+and automatically used by harness connections when config is not specified.
 
 Examples:
   aw connect telegram                    # Save as "default"
@@ -200,7 +200,7 @@ async function connectTelegram(args: string[]): Promise<void> {
     rl.close();
   }
 
-  const { runTelegramAuth, saveConnection, setSecret } = await import("@agent-worker/workspace");
+  const { runTelegramAuth, saveConnection, setSecret } = await import("@agent-worker/harness");
 
   try {
     const result = await runTelegramAuth(botToken!);
@@ -227,7 +227,7 @@ async function connectTelegram(args: string[]): Promise<void> {
     if (result.username) console.log(`  Username:   @${result.username}`);
     console.log(`  Name:       ${result.firstName}`);
     console.log(`\n  Saved to ${savedPath}`);
-    console.log(`\n  Workspace YAML:\n`);
+    console.log(`\n  Harness YAML:\n`);
     if (name === "default") {
       console.log(`    connections:`);
       console.log(`      - platform: telegram`);
@@ -276,7 +276,7 @@ async function connectRm(platform?: string, name?: string): Promise<void> {
   if (removed) {
     // Clean up associated secrets (only for primary connection)
     if (connName === platform) {
-      const { deleteSecret } = await import("@agent-worker/workspace");
+      const { deleteSecret } = await import("@agent-worker/harness");
       if (platform === "telegram") {
         await deleteSecret("TELEGRAM_BOT_TOKEN");
         await deleteSecret("TELEGRAM_CHAT_ID");

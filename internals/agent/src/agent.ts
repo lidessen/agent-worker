@@ -89,15 +89,15 @@ export class Agent {
     this.inbox.setOnMessage((msg) => {
       this.emit("messageReceived", msg);
       if (this._state === "processing") {
-        this.scheduleWorkspaceInterrupt(
+        this.scheduleHarnessInterrupt(
           classifyInboxNotification(msg),
-          `New workspace notification: ${msg.id}`,
+          `New harness notification: ${msg.id}`,
         );
       }
     });
     this.todoManager.setOnChange(() => {
       if (this._state === "processing" && this.todoManager.pending.length > 0) {
-        this.scheduleWorkspaceInterrupt("todo", "Todo state changed while processing");
+        this.scheduleHarnessInterrupt("todo", "Todo state changed while processing");
       }
     });
 
@@ -613,7 +613,7 @@ export class Agent {
       });
   }
 
-  private scheduleWorkspaceInterrupt(
+  private scheduleHarnessInterrupt(
     source: "channel" | "reminder" | "todo",
     reason: string,
   ): void {
@@ -630,12 +630,12 @@ export class Agent {
       this.pendingInterruptSource = null;
       this.pendingInterruptReason = null;
       void this.config.loop.interrupt!(
-        this.buildWorkspaceInterruptMessage(pendingSource, pendingReason),
+        this.buildHarnessInterruptMessage(pendingSource, pendingReason),
       ).catch(() => {});
     }, 150);
   }
 
-  private buildWorkspaceInterruptMessage(
+  private buildHarnessInterruptMessage(
     source: "channel" | "reminder" | "todo",
     reason: string,
   ): string {
@@ -643,7 +643,7 @@ export class Agent {
       "[notification]",
       `source: ${source}`,
       `reason: ${reason}`,
-      "workspace_attention:",
+      "harness_attention:",
       `  unread_channel_messages: ${this.inbox.unreadCount}`,
       `  pending_todos: ${this.todoManager.pending.length}`,
       `  pending_reminders: ${this.reminders.pending.length}`,

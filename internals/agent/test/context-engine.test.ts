@@ -164,13 +164,13 @@ describe("ContextEngine", () => {
       async snapshot() {
         return {
           roleName: "Planner",
-          roleInstructions: "Use workspace state first.",
+          roleInstructions: "Use harness state first.",
           awareness: "- Prefer explicit state slices",
           inboxSnapshot: "Inbox replaced",
           todoSnapshot: "Todo replaced",
           reminderSnapshot: "Reminder replaced",
           noteKeys: ["design.md"],
-          memoryQuery: "workspace state",
+          memoryQuery: "harness state",
         };
       },
     };

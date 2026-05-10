@@ -1,5 +1,5 @@
 /**
- * agent-worker daemon — persistent HTTP server that manages agents and workspaces.
+ * agent-worker daemon — persistent HTTP server that manages agents and harnesss.
  *
  * Routes:
  *   GET  /health                                — daemon status
@@ -16,21 +16,21 @@
  *   GET    /agents/:name/events/stream          — SSE: real-time agent events
  *   GET    /agents/:name/state                  — agent state, inbox, todos
  *
- *   GET    /workspaces                          — list workspaces
- *   POST   /workspaces                          — create workspace from YAML
- *   GET    /workspaces/:key                     — get workspace info
- *   GET    /workspaces/:key/wait                — block until task workspace completes
- *   DELETE /workspaces/:key                     — stop workspace
- *   POST   /workspaces/:key/send               — send to workspace (channel/agent/both)
- *   GET    /workspaces/:key/channels/:ch        — read channel messages (cursor-based)
- *   GET    /workspaces/:key/channels/:ch/stream — SSE: real-time channel messages
- *   GET    /workspaces/:key/events              — workspace events (cursor-based)
- *   GET    /workspaces/:key/events/stream       — SSE: workspace events
+ *   GET    /harnesss                          — list harnesss
+ *   POST   /harnesss                          — create harness from YAML
+ *   GET    /harnesss/:key                     — get harness info
+ *   GET    /harnesss/:key/wait                — block until task harness completes
+ *   DELETE /harnesss/:key                     — stop harness
+ *   POST   /harnesss/:key/send               — send to harness (channel/agent/both)
+ *   GET    /harnesss/:key/channels/:ch        — read channel messages (cursor-based)
+ *   GET    /harnesss/:key/channels/:ch/stream — SSE: real-time channel messages
+ *   GET    /harnesss/:key/events              — harness events (cursor-based)
+ *   GET    /harnesss/:key/events/stream       — SSE: harness events
  *
- *   GET    /workspaces/:key/docs                — list documents
- *   GET    /workspaces/:key/docs/:name          — read document
- *   PUT    /workspaces/:key/docs/:name          — write document
- *   PATCH  /workspaces/:key/docs/:name          — append to document
+ *   GET    /harnesss/:key/docs                — list documents
+ *   GET    /harnesss/:key/docs/:name          — read document
+ *   PUT    /harnesss/:key/docs/:name          — write document
+ *   PATCH  /harnesss/:key/docs/:name          — append to document
  *
  *   GET    /events                              — daemon event log (cursor-based)
  *   GET    /events/stream                       — SSE: all daemon events
@@ -44,13 +44,13 @@ import type { BusEvent } from "@agent-worker/shared";
 import { AgentRegistry } from "./agent-registry.ts";
 import { ManagedAgent } from "./managed-agent.ts";
 import { GlobalAgentStub } from "./global-agent-stub.ts";
-import { WorkspaceRegistry } from "./workspace-registry.ts";
-import { ManagedWorkspace } from "./managed-workspace.ts";
+import { HarnessRegistry } from "./harness-registry.ts";
+import { ManagedHarness } from "./managed-harness.ts";
 import { DaemonEventLog } from "./event-log.ts";
 import { createLoopFromConfig } from "./loop-factory.ts";
 import { writeDaemonInfo, removeDaemonInfo, generateToken, defaultDataDir } from "./discovery.ts";
-import { WorkspaceMcpHub } from "@agent-worker/workspace";
-import type { TaskStatus, Workspace } from "@agent-worker/workspace";
+import { HarnessMcpHub, runProduceExtension } from "@agent-worker/harness";
+import type { TaskStatus, Harness } from "@agent-worker/harness";
 
 const TASK_STATUS_VALUES = new Set<TaskStatus>([
   "draft",
@@ -97,9 +97,9 @@ function isTailscaleAddress(remoteAddress?: string): boolean {
 export class Daemon {
   private server: ServerType | null = null;
   private _port = 0;
-  private mcpHub: WorkspaceMcpHub | null = null;
+  private mcpHub: HarnessMcpHub | null = null;
   private readonly agents: AgentRegistry;
-  private readonly workspaces: WorkspaceRegistry;
+  private readonly harnesss: HarnessRegistry;
   private readonly eventLog: DaemonEventLog;
   private readonly _bus: EventBus;
   private readonly config: Required<DaemonConfig>;
@@ -130,13 +130,13 @@ export class Daemon {
 
     this._bus = new EventBus();
     this.agents = new AgentRegistry();
-    this.workspaces = new WorkspaceRegistry(dataDir);
+    this.harnesss = new HarnessRegistry(dataDir);
     this.eventLog = new DaemonEventLog(dataDir);
 
     // Wire registries
     this.agents.setBus(this._bus);
     this.agents.setDataDir(dataDir);
-    this.workspaces.setBus(this._bus);
+    this.harnesss.setBus(this._bus);
 
     // Wire event bus → JSONL event log (single consumer persists all events)
     this._bus.on((event: BusEvent) => {
@@ -173,14 +173,14 @@ export class Daemon {
     this.startedAt = Date.now();
     const publicHost = advertisedHost(this.config.host);
 
-    // Create global workspace (but don't start agent loops yet — MCP hub URL needed first)
-    const globalWs = await this.workspaces.ensureDefault();
+    // Create global harness (but don't start agent loops yet — MCP hub URL needed first)
+    const globalWs = await this.harnesss.ensureDefault();
 
-    // Start workspace MCP hub so CLI agents get a valid URL
-    this.mcpHub = new WorkspaceMcpHub(globalWs.workspace);
+    // Start harness MCP hub so CLI agents get a valid URL
+    this.mcpHub = new HarnessMcpHub(globalWs.harness);
     await this.mcpHub.start({
       port: this.config.mcpPort,
-      storageDir: join(this.config.dataDir, "workspace-data", "global"),
+      storageDir: join(this.config.dataDir, "harness-data", "global"),
       pauseAgent: async (name) => {
         const loop = globalWs.loops.find((l) => l.name === name);
         if (!loop) throw new Error(`Agent "${name}" not found`);
@@ -204,7 +204,7 @@ export class Daemon {
     });
 
     // Now set daemon info WITH the MCP hub URL, then start agent loops
-    this.workspaces.setDaemonInfo(
+    this.harnesss.setDaemonInfo(
       `http://${publicHost}:${actualPort}`,
       this.config.token,
       this.mcpHub.url ?? undefined,
@@ -212,8 +212,8 @@ export class Daemon {
     await globalWs.startLoops();
     this.registerGlobalAgents(globalWs);
 
-    // Restore registered workspaces from manifest (created via `aw create`)
-    await this.workspaces.restoreFromManifest();
+    // Restore registered harnesss from manifest (created via `aw create`)
+    await this.harnesss.restoreFromManifest();
 
     const info: DaemonInfo = {
       pid: process.pid,
@@ -243,7 +243,7 @@ export class Daemon {
     this._bus.emit({ type: "daemon.stopped", source: "daemon" });
 
     await this.agents.stopAll();
-    await this.workspaces.stopAll();
+    await this.harnesss.stopAll();
 
     if (this.mcpHub) {
       await this.mcpHub.stop();
@@ -259,14 +259,14 @@ export class Daemon {
   }
 
   /**
-   * Register global workspace agents into AgentRegistry so they appear
+   * Register global harness agents into AgentRegistry so they appear
    * in GET /agents and health.agents count.
    *
-   * These agents are backed by WorkspaceAgentLoop — only lightweight stubs
+   * These agents are backed by HarnessAgentLoop — only lightweight stubs
    * are needed in the registry for route detection and API visibility.
    */
-  private registerGlobalAgents(globalWs: ManagedWorkspace): void {
-    const statusStore = globalWs.workspace.contextProvider.status;
+  private registerGlobalAgents(globalWs: ManagedHarness): void {
+    const statusStore = globalWs.harness.contextProvider.status;
     for (const agent of globalWs.resolved.agents) {
       if (!agent.runtime) continue;
       const agentName = agent.name;
@@ -291,8 +291,8 @@ export class Daemon {
     return this.agents;
   }
 
-  get workspaceRegistry(): WorkspaceRegistry {
-    return this.workspaces;
+  get harnessRegistry(): HarnessRegistry {
+    return this.harnesss;
   }
 
   get events(): DaemonEventLog {
@@ -318,7 +318,7 @@ export class Daemon {
     // Auth check — skip for local connections (127.0.0.1 / localhost)
     const isApiPath =
       path.startsWith("/agents") ||
-      path.startsWith("/workspaces") ||
+      path.startsWith("/harnesss") ||
       path.startsWith("/events") ||
       path === "/health" ||
       path === "/shutdown";
@@ -374,53 +374,53 @@ export class Daemon {
         if (sub === "/state" && method === "GET") return this.handleAgentState(name);
       }
 
-      // Workspaces
-      if (path === "/workspaces" && method === "GET") {
-        return this.handleListWorkspaces();
+      // Harnesss
+      if (path === "/harnesss" && method === "GET") {
+        return this.handleListHarnesss();
       }
-      if (path === "/workspaces" && method === "POST") {
-        return await this.handleCreateWorkspace(req);
+      if (path === "/harnesss" && method === "POST") {
+        return await this.handleCreateHarness(req);
       }
 
-      // Workspace sub-routes: /workspaces/:key/...
-      const wsSubMatch = path.match(/^\/workspaces\/([^/]+)(\/.+)?$/);
+      // Harness sub-routes: /harnesss/:key/...
+      const wsSubMatch = path.match(/^\/harnesss\/([^/]+)(\/.+)?$/);
       if (wsSubMatch) {
         const key = decodeURIComponent(wsSubMatch[1]!);
         const sub = wsSubMatch[2] ?? "";
 
         if (!sub) {
-          if (method === "GET") return this.handleGetWorkspace(key);
-          if (method === "DELETE") return await this.handleRemoveWorkspace(key);
+          if (method === "GET") return this.handleGetHarness(key);
+          if (method === "DELETE") return await this.handleRemoveHarness(key);
         }
         if (sub === "/send" && method === "POST") {
-          return await this.handleWorkspaceSend(key, req);
+          return await this.handleHarnessSend(key, req);
         }
         if (sub === "/wait" && method === "GET") {
-          return await this.handleWorkspaceWait(key, url);
+          return await this.handleHarnessWait(key, url);
         }
         if (sub === "/status" && method === "GET") {
-          return this.handleWorkspaceStatus(key);
+          return this.handleHarnessStatus(key);
         }
         if (sub === "/channels" && method === "GET") {
           return this.handleListChannels(key);
         }
         if (sub === "/events" && method === "GET") {
-          return await this.handleWorkspaceEvents(key, url);
+          return await this.handleHarnessEvents(key, url);
         }
         if (sub === "/events/stream" && method === "GET") {
-          return this.handleWorkspaceEventsStream(key, url);
+          return this.handleHarnessEventsStream(key, url);
         }
         if (sub === "/chronicle" && method === "GET") {
-          return await this.handleWorkspaceChronicle(key, url);
+          return await this.handleHarnessChronicle(key, url);
         }
         if (sub === "/tool-call" && method === "POST") {
-          return await this.handleWorkspaceToolCall(key, req);
+          return await this.handleHarnessToolCall(key, req);
         }
         if (sub === "/agent-scopes" && method === "GET") {
-          return this.handleGetWorkspaceAgentScopes(key);
+          return this.handleGetHarnessAgentScopes(key);
         }
         if (sub === "/tasks" && method === "GET") {
-          return await this.handleWorkspaceTasks(key, url);
+          return await this.handleHarnessTasks(key, url);
         }
         if (sub === "/tasks" && method === "POST") {
           return await this.handleCreateTask(key, req);
@@ -428,7 +428,7 @@ export class Daemon {
         const taskMatch = sub.match(/^\/tasks\/([^/]+)$/);
         if (taskMatch) {
           const taskId = decodeURIComponent(taskMatch[1]!);
-          if (method === "GET") return await this.handleWorkspaceTask(key, taskId);
+          if (method === "GET") return await this.handleHarnessTask(key, taskId);
           if (method === "POST") return await this.handleUpdateTask(key, taskId, req);
         }
         const dispatchMatch = sub.match(/^\/tasks\/([^/]+)\/dispatch$/);
@@ -447,28 +447,28 @@ export class Daemon {
           return await this.handleCloseTask(key, taskId, req, "aborted");
         }
 
-        // Inbox route: /workspaces/:key/inbox/:agent
+        // Inbox route: /harnesss/:key/inbox/:agent
         const inboxMatch = sub.match(/^\/inbox\/([^/]+)$/);
         if (inboxMatch && method === "GET") {
-          return await this.handleWorkspaceInbox(key, decodeURIComponent(inboxMatch[1]!));
+          return await this.handleHarnessInbox(key, decodeURIComponent(inboxMatch[1]!));
         }
 
-        // Channel routes: /workspaces/:key/channels/:ch[/stream]
+        // Channel routes: /harnesss/:key/channels/:ch[/stream]
         const chMatch = sub.match(/^\/channels\/([^/]+)(\/stream)?$/);
         if (chMatch) {
           const ch = decodeURIComponent(chMatch[1]!);
           if (chMatch[2] === "/stream" && method === "GET") {
-            return this.handleWorkspaceChannelStream(key, ch, url);
+            return this.handleHarnessChannelStream(key, ch, url);
           }
           if (method === "GET") {
-            return await this.handleWorkspaceChannel(key, ch, url);
+            return await this.handleHarnessChannel(key, ch, url);
           }
           if (method === "DELETE") {
             return await this.handleClearChannel(key, ch);
           }
         }
 
-        // Doc routes: /workspaces/:key/docs[/:name]
+        // Doc routes: /harnesss/:key/docs[/:name]
         if (sub === "/docs" && method === "GET") {
           return await this.handleListDocs(key);
         }
@@ -513,7 +513,7 @@ export class Daemon {
       pid: process.pid,
       uptime: Date.now() - this.startedAt,
       agents: this.agents.size,
-      workspaces: this.workspaces.size,
+      harnesss: this.harnesss.size,
       runtimes: [
         {
           name: "ai-sdk",
@@ -639,10 +639,10 @@ export class Daemon {
       return Response.json({ error: "messages array is required" }, { status: 400 });
     }
 
-    // Global agents are backed by workspace loops — route messages through
-    // the global workspace channel so the WorkspaceAgentLoop processes them.
+    // Global agents are backed by harness loops — route messages through
+    // the global harness channel so the HarnessAgentLoop processes them.
     if (handle instanceof GlobalAgentStub) {
-      const globalWs = this.workspaces.get("global");
+      const globalWs = this.harnesss.get("global");
       if (globalWs) {
         let sent = 0;
         for (const msg of body.messages) {
@@ -650,7 +650,7 @@ export class Daemon {
             await new Promise((r) => setTimeout(r, msg.delayMs));
           }
           const from = msg.from ?? "user";
-          await globalWs.workspace.contextProvider.send({
+          await globalWs.harness.contextProvider.send({
             channel: globalWs.defaultChannel,
             from,
             content: msg.content,
@@ -658,7 +658,7 @@ export class Daemon {
           });
           sent++;
         }
-        return Response.json({ sent, routed_to: `workspace:global` });
+        return Response.json({ sent, routed_to: `harness:global` });
       }
     }
 
@@ -682,14 +682,14 @@ export class Daemon {
       return Response.json({ error: `Agent "${name}" not found` }, { status: 404 });
     }
 
-    // Global agents: read responses from all workspace channels.
+    // Global agents: read responses from all harness channels.
     if (handle instanceof GlobalAgentStub) {
-      const globalWs = this.workspaces.get("global");
+      const globalWs = this.harnesss.get("global");
       if (globalWs) {
-        const channels = globalWs.workspace.contextProvider.channels.listChannels();
+        const channels = globalWs.harness.contextProvider.channels.listChannels();
         const allMessages = [];
         for (const ch of channels) {
-          const msgs = await globalWs.workspace.contextProvider.channels.read(ch);
+          const msgs = await globalWs.harness.contextProvider.channels.read(ch);
           allMessages.push(...msgs.filter((m) => m.from === name));
         }
         allMessages.sort(
@@ -719,10 +719,10 @@ export class Daemon {
       return Response.json({ error: `Agent "${name}" not found` }, { status: 404 });
     }
 
-    // Global agents: stream responses from the workspace channel instead
+    // Global agents: stream responses from the harness channel instead
     // of the standalone agent's responses.jsonl (which won't receive data).
     if (handle instanceof GlobalAgentStub) {
-      const globalWs = this.workspaces.get("global");
+      const globalWs = this.harnesss.get("global");
       if (globalWs) {
         const initialCursor = parseInt(url.searchParams.get("cursor") ?? "0", 10);
         return this.createSSEStream(async (push) => {
@@ -750,13 +750,13 @@ export class Daemon {
               buffer.push({ entry, msg });
             }
           };
-          globalWs.workspace.contextProvider.channels.on("message", listener);
+          globalWs.harness.contextProvider.channels.on("message", listener);
 
-          // 2. Read backlog from workspace channels (same as REST handler)
-          const channels = globalWs.workspace.contextProvider.channels.listChannels();
+          // 2. Read backlog from harness channels (same as REST handler)
+          const channels = globalWs.harness.contextProvider.channels.listChannels();
           const allMessages: any[] = [];
           for (const ch of channels) {
-            const msgs = await globalWs.workspace.contextProvider.channels.read(ch);
+            const msgs = await globalWs.harness.contextProvider.channels.read(ch);
             allMessages.push(...msgs.filter((m: any) => m.from === name));
           }
           allMessages.sort(
@@ -788,7 +788,7 @@ export class Daemon {
           buffer.length = 0;
 
           return () => {
-            globalWs.workspace.contextProvider.channels.off("message", listener);
+            globalWs.harness.contextProvider.channels.off("message", listener);
           };
         });
       }
@@ -884,11 +884,11 @@ export class Daemon {
       return Response.json({ error: `Agent "${name}" not found` }, { status: 404 });
     }
 
-    // Global agents: read state from the workspace.
+    // Global agents: read state from the harness.
     if (handle instanceof GlobalAgentStub) {
-      const globalWs = this.workspaces.get("global");
+      const globalWs = this.harnesss.get("global");
       if (globalWs) {
-        const provider = globalWs.workspace.contextProvider;
+        const provider = globalWs.harness.contextProvider;
         const statusEntry = (await provider.status.getAll()).find((s) => s.name === name);
         const inboxEntries = await provider.inbox.inspect(name);
         const inbox = [];
@@ -909,7 +909,7 @@ export class Daemon {
           state: statusEntry?.status ?? "idle",
           currentTask: statusEntry?.currentTask,
           inbox,
-          workspace: "global",
+          harness: "global",
         });
       }
     }
@@ -933,18 +933,18 @@ export class Daemon {
     });
   }
 
-  // ── Workspaces ──────────────────────────────────────────────────────────
+  // ── Harnesss ──────────────────────────────────────────────────────────
 
   /**
-   * Resolve a workspace key to a handle. If the bare name matches multiple
+   * Resolve a harness key to a handle. If the bare name matches multiple
    * tagged instances, returns a 409 Conflict response. If not found, 404.
    */
-  private resolveWorkspace(key: string): ManagedWorkspace | Response {
-    const handle = this.workspaces.get(key);
+  private resolveHarness(key: string): ManagedHarness | Response {
+    const handle = this.harnesss.get(key);
     if (handle) return handle;
 
     // Check if there are tagged variants
-    const matches = this.workspaces.list().filter((ws) => ws.name === key && ws.tag);
+    const matches = this.harnesss.list().filter((ws) => ws.name === key && ws.tag);
     if (matches.length > 0) {
       return Response.json(
         {
@@ -954,14 +954,14 @@ export class Daemon {
         { status: 409 },
       );
     }
-    return Response.json({ error: `Workspace "${key}" not found` }, { status: 404 });
+    return Response.json({ error: `Harness "${key}" not found` }, { status: 404 });
   }
 
-  private handleListWorkspaces(): Response {
-    return Response.json({ workspaces: this.workspaces.list() });
+  private handleListHarnesss(): Response {
+    return Response.json({ harnesss: this.harnesss.list() });
   }
 
-  private async handleCreateWorkspace(req: Request): Promise<Response> {
+  private async handleCreateHarness(req: Request): Promise<Response> {
     const body = (await req.json()) as {
       source: string;
       name?: string;
@@ -977,7 +977,7 @@ export class Daemon {
     }
 
     try {
-      const handle = await this.workspaces.create(body);
+      const handle = await this.harnesss.create(body);
       await handle.startLoops();
       await handle.kickoff();
       return Response.json(handle.info);
@@ -986,20 +986,20 @@ export class Daemon {
     }
   }
 
-  private handleGetWorkspace(key: string): Response {
-    const resolved = this.resolveWorkspace(key);
+  private handleGetHarness(key: string): Response {
+    const resolved = this.resolveHarness(key);
     if (resolved instanceof Response) return resolved;
     return Response.json(resolved.info);
   }
 
   /**
    * Return the runner scope (cwd, allowedPaths, worktreePath)
-   * captured for every agent at workspace-create time. Used by
+   * captured for every agent at harness-create time. Used by
    * debug tooling and integration tests that need to assert the
    * actual filesystem boundary each agent runs under.
    */
-  private handleGetWorkspaceAgentScopes(key: string): Response {
-    const resolved = this.resolveWorkspace(key);
+  private handleGetHarnessAgentScopes(key: string): Response {
+    const resolved = this.resolveHarness(key);
     if (resolved instanceof Response) return resolved;
     const agents: Record<
       string,
@@ -1012,8 +1012,8 @@ export class Daemon {
     return Response.json({ agents });
   }
 
-  private async handleWorkspaceWait(key: string, url: URL): Promise<Response> {
-    const resolved = this.resolveWorkspace(key);
+  private async handleHarnessWait(key: string, url: URL): Promise<Response> {
+    const resolved = this.resolveHarness(key);
     if (resolved instanceof Response) return resolved;
     const handle = resolved;
 
@@ -1027,16 +1027,16 @@ export class Daemon {
       if (status !== "running") {
         handle.complete(status);
         const result = {
-          workspace: handle.key,
+          harness: handle.key,
           agents: handle.resolved.agents.map((a) => a.name),
           mode: handle.mode,
         };
-        // Auto-remove task workspaces on completion
+        // Auto-remove task harnesss on completion
         if (handle.mode === "task") {
           try {
-            await this.workspaces.remove(key);
+            await this.harnesss.remove(key);
           } catch (err) {
-            console.warn(`[daemon] failed to auto-remove task workspace "${key}":`, err);
+            console.warn(`[daemon] failed to auto-remove task harness "${key}":`, err);
           }
         }
         return Response.json({ status, result });
@@ -1047,19 +1047,19 @@ export class Daemon {
     return Response.json({ status: "timeout" });
   }
 
-  private async handleRemoveWorkspace(key: string): Promise<Response> {
-    const resolved = this.resolveWorkspace(key);
+  private async handleRemoveHarness(key: string): Promise<Response> {
+    const resolved = this.resolveHarness(key);
     if (resolved instanceof Response) return resolved;
     try {
-      await this.workspaces.remove(key);
+      await this.harnesss.remove(key);
       return Response.json({ removed: true });
     } catch (err) {
       return Response.json({ error: String(err) }, { status: 400 });
     }
   }
 
-  private async handleWorkspaceSend(key: string, req: Request): Promise<Response> {
-    const resolved = this.resolveWorkspace(key);
+  private async handleHarnessSend(key: string, req: Request): Promise<Response> {
+    const resolved = this.resolveHarness(key);
     if (resolved instanceof Response) return resolved;
     const handle = resolved;
 
@@ -1076,7 +1076,7 @@ export class Daemon {
 
     const from = body.from ?? "user";
 
-    // Workspace send semantics:
+    // Harness send semantics:
     // - Only channel → broadcast to channel
     // - Only agent → direct message via send with `to` field
     // - Both → post to channel with `to` targeting agent
@@ -1084,7 +1084,7 @@ export class Daemon {
     if (body.agent && !body.channel) {
       // Direct message to agent via default channel with `to` field
       const channel = handle.resolved.def.default_channel ?? "general";
-      await handle.workspace.contextProvider.send({
+      await handle.harness.contextProvider.send({
         channel,
         from,
         content: body.content,
@@ -1097,7 +1097,7 @@ export class Daemon {
 
     if (body.agent) {
       // Post to channel AND target agent
-      await handle.workspace.contextProvider.send({
+      await handle.harness.contextProvider.send({
         channel,
         from,
         content: body.content,
@@ -1110,14 +1110,14 @@ export class Daemon {
     return Response.json({ sent: true, routed_to: `channel:${channel}` });
   }
 
-  // ── Workspace status & inbox ─────────────────────────────────────────
+  // ── Harness status & inbox ─────────────────────────────────────────
 
-  private handleWorkspaceStatus(key: string): Response {
-    const resolved = this.resolveWorkspace(key);
+  private handleHarnessStatus(key: string): Response {
+    const resolved = this.resolveHarness(key);
     if (resolved instanceof Response) return resolved;
     const handle = resolved;
 
-    const channels = handle.workspace.contextProvider.channels.listChannels();
+    const channels = handle.harness.contextProvider.channels.listChannels();
     return Response.json({
       name: handle.name,
       label: handle.resolved.def.label,
@@ -1139,19 +1139,19 @@ export class Daemon {
   }
 
   private handleListChannels(key: string): Response {
-    const resolved = this.resolveWorkspace(key);
+    const resolved = this.resolveHarness(key);
     if (resolved instanceof Response) return resolved;
     const handle = resolved;
-    const channels = handle.workspace.contextProvider.channels.listChannels();
+    const channels = handle.harness.contextProvider.channels.listChannels();
     return Response.json({ channels });
   }
 
-  private async handleWorkspaceInbox(key: string, agentName: string): Promise<Response> {
-    const resolved = this.resolveWorkspace(key);
+  private async handleHarnessInbox(key: string, agentName: string): Promise<Response> {
+    const resolved = this.resolveHarness(key);
     if (resolved instanceof Response) return resolved;
     const handle = resolved;
 
-    const inbox = handle.workspace.contextProvider.inbox;
+    const inbox = handle.harness.contextProvider.inbox;
     const entries = await inbox.inspect(agentName);
     return Response.json({
       agent: agentName,
@@ -1165,10 +1165,10 @@ export class Daemon {
     });
   }
 
-  // ── Workspace channels ─────────────────────────────────────────────────
+  // ── Harness channels ─────────────────────────────────────────────────
 
-  private async handleWorkspaceChannel(key: string, ch: string, url: URL): Promise<Response> {
-    const resolved = this.resolveWorkspace(key);
+  private async handleHarnessChannel(key: string, ch: string, url: URL): Promise<Response> {
+    const resolved = this.resolveHarness(key);
     if (resolved instanceof Response) return resolved;
     const handle = resolved;
 
@@ -1176,7 +1176,7 @@ export class Daemon {
     const since = url.searchParams.get("since") ?? undefined;
     const agent = url.searchParams.get("agent") ?? undefined;
 
-    let messages = await handle.workspace.contextProvider.channels.read(ch, { limit, since });
+    let messages = await handle.harness.contextProvider.channels.read(ch, { limit, since });
 
     // Optional agent filter
     if (agent) {
@@ -1197,22 +1197,22 @@ export class Daemon {
   }
 
   private async handleClearChannel(key: string, ch: string): Promise<Response> {
-    const resolved = this.resolveWorkspace(key);
+    const resolved = this.resolveHarness(key);
     if (resolved instanceof Response) return resolved;
 
-    await resolved.workspace.contextProvider.channels.clear(ch);
+    await resolved.harness.contextProvider.channels.clear(ch);
     return Response.json({ cleared: ch });
   }
 
-  private handleWorkspaceChannelStream(key: string, ch: string, url: URL): Response {
-    const resolved = this.resolveWorkspace(key);
+  private handleHarnessChannelStream(key: string, ch: string, url: URL): Response {
+    const resolved = this.resolveHarness(key);
     if (resolved instanceof Response) return resolved;
     const handle = resolved;
 
     const cursor = parseInt(url.searchParams.get("cursor") ?? "0", 10);
     const agent = url.searchParams.get("agent") ?? undefined;
 
-    const channels = handle.workspace.contextProvider.channels;
+    const channels = handle.harness.contextProvider.channels;
 
     const formatMsg = (msg: {
       id: string;
@@ -1276,27 +1276,27 @@ export class Daemon {
     });
   }
 
-  // ── Workspace events ───────────────────────────────────────────────────
+  // ── Harness events ───────────────────────────────────────────────────
 
-  private async handleWorkspaceEvents(key: string, url: URL): Promise<Response> {
-    const resolved = this.resolveWorkspace(key);
+  private async handleHarnessEvents(key: string, url: URL): Promise<Response> {
+    const resolved = this.resolveHarness(key);
     if (resolved instanceof Response) return resolved;
     const handle = resolved;
 
     const cursor = parseInt(url.searchParams.get("cursor") ?? "0", 10);
-    // Filter daemon events to those related to this workspace
+    // Filter daemon events to those related to this harness
     const result = await this.eventLog.read(cursor);
     const wsKey = handle.key;
-    const filtered = result.entries.filter((e: any) => e.workspace === wsKey);
+    const filtered = result.entries.filter((e: any) => e.harness === wsKey);
     return Response.json({ entries: filtered, cursor: result.cursor });
   }
 
-  private async handleWorkspaceTasks(key: string, url: URL): Promise<Response> {
-    const resolved = this.resolveWorkspace(key);
+  private async handleHarnessTasks(key: string, url: URL): Promise<Response> {
+    const resolved = this.resolveHarness(key);
     if (resolved instanceof Response) return resolved;
     const handle = resolved;
 
-    const store = handle.workspace.stateStore;
+    const store = handle.harness.stateStore;
     // `status` accepts a comma-separated filter: ?status=draft,open,in_progress
     const statusParam = url.searchParams.get("status");
     let statusFilter: TaskStatus[] | undefined;
@@ -1323,14 +1323,14 @@ export class Daemon {
   }
 
   /**
-   * Generic workspace tool dispatcher. Takes `{ agent, name, args }` and
-   * invokes the named workspace tool through createWorkspaceTools so the
+   * Generic harness tool dispatcher. Takes `{ agent, name, args }` and
+   * invokes the named harness tool through createHarnessTools so the
    * stdio MCP subprocess doesn't have to hand-wire every tool endpoint.
    *
    * Returns the tool's text output wrapped in `{ content }`.
    */
-  private async handleWorkspaceToolCall(key: string, req: Request): Promise<Response> {
-    const resolved = this.resolveWorkspace(key);
+  private async handleHarnessToolCall(key: string, req: Request): Promise<Response> {
+    const resolved = this.resolveHarness(key);
     if (resolved instanceof Response) return resolved;
     const handle = resolved;
 
@@ -1348,41 +1348,43 @@ export class Daemon {
       return Response.json({ error: "'agent' and 'name' are required" }, { status: 400 });
     }
 
-    // Lazy-load to avoid pulling workspace package into the daemon's
+    // Lazy-load to avoid pulling harness package into the daemon's
     // module graph at the top of the file (keeps the cross-package
     // dependency shape consistent with the existing handlers).
-    const { createWorkspaceTools } = await import("@agent-worker/workspace");
-    const channels = handle.workspace.getAgentChannels(agent);
+    const { createHarnessTools } = await import("@agent-worker/harness");
+    const channels = handle.harness.getAgentChannels(agent);
     // Query the agent's active Wake so the Wake-scoped tools
     // (worktree_*) are present in the dispatched tool set. Out-of-band
     // callers (debug, tests, the stdio MCP proxy) get the same surface
     // as the orchestrator's per-run injection.
     let activeWakeId: string | undefined;
     try {
-      const active = await handle.workspace.stateStore.findActiveWake(agent);
+      const active = await handle.harness.stateStore.findActiveWake(agent);
       activeWakeId = active?.id;
     } catch {
       // No active Wake → no worktree tools, that's fine.
     }
-    const tools = createWorkspaceTools(
+    const tools = createHarnessTools(
       agent,
-      handle.workspace.contextProvider,
+      handle.harness.contextProvider,
       channels,
       (other) =>
-        handle.workspace.hasAgent(other) ? handle.workspace.getAgentChannels(other) : undefined,
+        handle.harness.hasAgent(other) ? handle.harness.getAgentChannels(other) : undefined,
       {
-        stateStore: handle.workspace.stateStore,
-        workspaceName: handle.workspace.name,
-        workspaceKey: key,
+        stateStore: handle.harness.stateStore,
+        harnessName: handle.harness.name,
+        harnessKey: key,
         dataDir: this.config.dataDir,
-        instructionQueue: handle.workspace.instructionQueue,
+        instructionQueue: handle.harness.instructionQueue,
         activeWakeId,
+        harnessTypeRegistry: handle.harness.harnessTypeRegistry,
+        harnessTypeId: handle.harness.harnessTypeId,
       },
     );
 
     const fn = tools[name];
     if (!fn) {
-      return Response.json({ error: `Unknown workspace tool: ${name}` }, { status: 404 });
+      return Response.json({ error: `Unknown harness tool: ${name}` }, { status: 404 });
     }
 
     try {
@@ -1396,27 +1398,27 @@ export class Daemon {
     }
   }
 
-  private async handleWorkspaceChronicle(key: string, url: URL): Promise<Response> {
-    const resolved = this.resolveWorkspace(key);
+  private async handleHarnessChronicle(key: string, url: URL): Promise<Response> {
+    const resolved = this.resolveHarness(key);
     if (resolved instanceof Response) return resolved;
     const handle = resolved;
 
     const limitParam = url.searchParams.get("limit");
     const limit = limitParam ? Math.max(1, Math.min(parseInt(limitParam, 10) || 50, 500)) : 50;
     const category = url.searchParams.get("category") ?? undefined;
-    const entries = await handle.workspace.contextProvider.chronicle.read({
+    const entries = await handle.harness.contextProvider.chronicle.read({
       limit,
       category,
     });
     return Response.json({ entries });
   }
 
-  private async handleWorkspaceTask(key: string, taskId: string): Promise<Response> {
-    const resolved = this.resolveWorkspace(key);
+  private async handleHarnessTask(key: string, taskId: string): Promise<Response> {
+    const resolved = this.resolveHarness(key);
     if (resolved instanceof Response) return resolved;
     const handle = resolved;
 
-    const store = handle.workspace.stateStore;
+    const store = handle.harness.stateStore;
     const task = await store.getTask(taskId);
     if (!task) {
       return Response.json({ error: `Task ${taskId} not found` }, { status: 404 });
@@ -1430,27 +1432,27 @@ export class Daemon {
 
   /** Emit a live update notification for observers (web UI, CLI polling, etc). */
   private emitTaskChanged(
-    workspaceKey: string,
+    harnessKey: string,
     action: "created" | "updated" | "dispatched" | "completed" | "aborted",
     taskId: string,
   ): void {
     this._bus.emit({
-      type: "workspace.task_changed",
-      source: "workspace",
-      workspace: workspaceKey,
+      type: "harness.task_changed",
+      source: "harness",
+      harness: harnessKey,
       action,
       taskId,
     });
   }
 
   /**
-   * Append a human-readable chronicle entry so the workspace timeline
+   * Append a human-readable chronicle entry so the harness timeline
    * shows the operator-driven task mutation. Best-effort — chronicle
    * failures never block the mutation itself.
    */
-  private async writeTaskChronicle(workspace: Workspace, content: string): Promise<void> {
+  private async writeTaskChronicle(harness: Harness, content: string): Promise<void> {
     try {
-      await workspace.contextProvider.chronicle.append({
+      await harness.contextProvider.chronicle.append({
         author: "user",
         category: "task",
         content,
@@ -1461,10 +1463,10 @@ export class Daemon {
   }
 
   private async handleCreateTask(key: string, req: Request): Promise<Response> {
-    const resolved = this.resolveWorkspace(key);
+    const resolved = this.resolveHarness(key);
     if (resolved instanceof Response) return resolved;
     const handle = resolved;
-    const store = handle.workspace.stateStore;
+    const store = handle.harness.stateStore;
 
     type CreateBody = {
       title?: string;
@@ -1493,7 +1495,7 @@ export class Daemon {
     }
 
     const task = await store.createTask({
-      workspaceId: handle.workspace.name,
+      harnessId: handle.harness.name,
       title,
       goal,
       status: body.status,
@@ -1510,17 +1512,17 @@ export class Daemon {
     });
     this.emitTaskChanged(handle.key, "created", task.id);
     await this.writeTaskChronicle(
-      handle.workspace,
+      handle.harness,
       `task_create [${task.id}] [${task.status}]: ${task.title}`,
     );
     return Response.json({ task });
   }
 
   private async handleUpdateTask(key: string, taskId: string, req: Request): Promise<Response> {
-    const resolved = this.resolveWorkspace(key);
+    const resolved = this.resolveHarness(key);
     if (resolved instanceof Response) return resolved;
     const handle = resolved;
-    const store = handle.workspace.stateStore;
+    const store = handle.harness.stateStore;
 
     const existing = await store.getTask(taskId);
     if (!existing) {
@@ -1559,7 +1561,7 @@ export class Daemon {
     // Log status transitions specifically — pure field tweaks are noise.
     if (patch.status !== undefined && patch.status !== existing.status) {
       await this.writeTaskChronicle(
-        handle.workspace,
+        handle.harness,
         `task_update [${task.id}] ${existing.status} → ${task.status}: ${task.title}`,
       );
     }
@@ -1567,10 +1569,10 @@ export class Daemon {
   }
 
   private async handleDispatchTask(key: string, taskId: string, req: Request): Promise<Response> {
-    const resolved = this.resolveWorkspace(key);
+    const resolved = this.resolveHarness(key);
     if (resolved instanceof Response) return resolved;
     const handle = resolved;
-    const store = handle.workspace.stateStore;
+    const store = handle.harness.stateStore;
 
     type DispatchBody = { worker?: string; priority?: "immediate" | "normal" | "background" };
     let body: DispatchBody;
@@ -1620,7 +1622,7 @@ export class Daemon {
       status: task.status === "draft" || task.status === "open" ? "in_progress" : task.status,
     });
 
-    const { nanoid: makeId } = await import("@agent-worker/workspace");
+    const { nanoid: makeId } = await import("@agent-worker/harness");
     const priority = body.priority ?? "normal";
     const content = [
       `You have been assigned task [${task.id}] by the user via HTTP dispatch.`,
@@ -1635,7 +1637,7 @@ export class Daemon {
     ]
       .filter((line): line is string => line !== null)
       .join("\n");
-    handle.workspace.instructionQueue.enqueue({
+    handle.harness.instructionQueue.enqueue({
       id: makeId(),
       agentName: worker,
       messageId: `http-dispatch:${wake.id}`,
@@ -1647,7 +1649,7 @@ export class Daemon {
 
     this.emitTaskChanged(handle.key, "dispatched", task.id);
     await this.writeTaskChronicle(
-      handle.workspace,
+      handle.harness,
       `task_dispatch [${task.id}] → @${worker} as ${wake.id}: ${task.title}`,
     );
     return Response.json({ task: await store.getTask(task.id), wake });
@@ -1672,10 +1674,10 @@ export class Daemon {
     req: Request,
     kind: "completed" | "aborted",
   ): Promise<Response> {
-    const resolved = this.resolveWorkspace(key);
+    const resolved = this.resolveHarness(key);
     if (resolved instanceof Response) return resolved;
     const handle = resolved;
-    const store = handle.workspace.stateStore;
+    const store = handle.harness.stateStore;
 
     const task = await store.getTask(taskId);
     if (!task) {
@@ -1730,17 +1732,40 @@ export class Daemon {
 
     if (closingWakeId) {
       try {
+        // Run the registered HarnessType's `produceExtension` hook before
+        // persisting (decision 005 + 006). User-initiated close has no
+        // running Wake transcript handy, so the input carries an empty
+        // events array; concrete types tolerate that.
+        const closingWake = await store.getWake(closingWakeId);
+        const extensionEntry = closingWake
+          ? await runProduceExtension(
+              handle.harness.harnessTypeRegistry,
+              handle.harness.harnessTypeId,
+              {
+                wake: closingWake,
+                events: [],
+                workLog: undefined,
+                draft: { summary, kind },
+              },
+            )
+          : undefined;
+        const extensions = extensionEntry
+          ? { [extensionEntry.id]: extensionEntry.payload }
+          : undefined;
+
         await store.createHandoff({
           taskId: task.id,
           closingWakeId,
           createdBy: "user",
           kind,
           summary,
+          extensions,
+          harnessTypeId: handle.harness.harnessTypeId,
         });
       } catch (err) {
         // Handoff persistence failing shouldn't block the status change;
         // log and continue.
-        await handle.workspace.eventLog.log(
+        await handle.harness.eventLog.log(
           "user",
           "system",
           `close handoff failed: ${err instanceof Error ? err.message : String(err)}`,
@@ -1751,7 +1776,7 @@ export class Daemon {
     await store.updateTask(task.id, { status: kind });
     this.emitTaskChanged(handle.key, kind, task.id);
     await this.writeTaskChronicle(
-      handle.workspace,
+      handle.harness,
       `task_${kind} [${task.id}]: ${task.title}${summary ? ` — ${summary.slice(0, 160)}` : ""}`,
     );
 
@@ -1763,8 +1788,8 @@ export class Daemon {
     return Response.json({ task: refreshedTask, wakes, handoffs });
   }
 
-  private handleWorkspaceEventsStream(key: string, url: URL): Response {
-    const resolved = this.resolveWorkspace(key);
+  private handleHarnessEventsStream(key: string, url: URL): Response {
+    const resolved = this.resolveHarness(key);
     if (resolved instanceof Response) return resolved;
     const handle = resolved;
 
@@ -1777,7 +1802,7 @@ export class Daemon {
       const buffer: BusEvent[] = [];
       let flushing = false;
       const unsub = this._bus.on((event: BusEvent) => {
-        if (event.workspace !== wsKey) return;
+        if (event.harness !== wsKey) return;
         if (flushing) {
           push({ ...event, ts: Date.now() });
         } else {
@@ -1790,7 +1815,7 @@ export class Daemon {
         const { entries } = await this.eventLog.read(cursor);
         const pushedSet = new Set<string>();
         for (const entry of entries) {
-          if (entry.workspace === wsKey) {
+          if (entry.harness === wsKey) {
             push(entry);
             pushedSet.add(JSON.stringify(entry));
           }
@@ -1814,24 +1839,24 @@ export class Daemon {
     });
   }
 
-  // ── Workspace documents ────────────────────────────────────────────────
+  // ── Harness documents ────────────────────────────────────────────────
 
   private async handleListDocs(key: string): Promise<Response> {
-    const resolved = this.resolveWorkspace(key);
+    const resolved = this.resolveHarness(key);
     if (resolved instanceof Response) return resolved;
     const handle = resolved;
 
-    const docs = handle.workspace.contextProvider.documents;
+    const docs = handle.harness.contextProvider.documents;
     const names = await docs.list();
     return Response.json({ docs: names.map((name: string) => ({ name })) });
   }
 
   private async handleReadDoc(key: string, docName: string): Promise<Response> {
-    const resolved = this.resolveWorkspace(key);
+    const resolved = this.resolveHarness(key);
     if (resolved instanceof Response) return resolved;
     const handle = resolved;
 
-    const docs = handle.workspace.contextProvider.documents;
+    const docs = handle.harness.contextProvider.documents;
     const content = await docs.read(docName);
     if (content === null || content === undefined) {
       return Response.json({ error: `Document "${docName}" not found` }, { status: 404 });
@@ -1840,7 +1865,7 @@ export class Daemon {
   }
 
   private async handleWriteDoc(key: string, docName: string, req: Request): Promise<Response> {
-    const resolved = this.resolveWorkspace(key);
+    const resolved = this.resolveHarness(key);
     if (resolved instanceof Response) return resolved;
     const handle = resolved;
 
@@ -1849,13 +1874,13 @@ export class Daemon {
       return Response.json({ error: "content is required" }, { status: 400 });
     }
 
-    const docs = handle.workspace.contextProvider.documents;
+    const docs = handle.harness.contextProvider.documents;
     await docs.write(docName, body.content, "api");
     return Response.json({ name: docName, written: true });
   }
 
   private async handleAppendDoc(key: string, docName: string, req: Request): Promise<Response> {
-    const resolved = this.resolveWorkspace(key);
+    const resolved = this.resolveHarness(key);
     if (resolved instanceof Response) return resolved;
     const handle = resolved;
 
@@ -1864,7 +1889,7 @@ export class Daemon {
       return Response.json({ error: "content is required" }, { status: 400 });
     }
 
-    const docs = handle.workspace.contextProvider.documents;
+    const docs = handle.harness.contextProvider.documents;
     await docs.append(docName, body.content, "api");
     return Response.json({ name: docName, appended: true });
   }

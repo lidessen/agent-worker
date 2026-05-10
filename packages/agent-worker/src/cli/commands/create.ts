@@ -26,9 +26,9 @@ export async function create(args: string[]): Promise<void> {
     const configDir = resolve(dirname(source));
     const sourcePath = resolve(source);
     const client = await ensureDaemon();
-    const info = await client.createWorkspace(yaml, { name, configDir, sourcePath, tag, vars });
+    const info = await client.createHarness(yaml, { name, configDir, sourcePath, tag, vars });
     const key = info.tag ? `${info.name}:${info.tag}` : info.name;
-    console.log(`Created workspace @${key}`);
+    console.log(`Created harness @${key}`);
     console.log(`  Agents:   ${info.agents.join(", ")}`);
     console.log(`  Channels: ${info.channels.join(", ")}`);
   } catch (err) {

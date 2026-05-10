@@ -10,7 +10,7 @@ describe("loop-factory allowedPaths plumbing", () => {
       type: "claude-code",
       model: "sonnet",
       cwd: "/home/agent",
-      allowedPaths: ["/shared/workspace"],
+      allowedPaths: ["/shared/harness"],
     };
 
     const loop = await createLoopFromConfig(config);
@@ -24,7 +24,7 @@ describe("loop-factory allowedPaths plumbing", () => {
     const config: RuntimeConfig = {
       type: "codex",
       cwd: "/home/agent",
-      allowedPaths: ["/shared/workspace"],
+      allowedPaths: ["/shared/harness"],
     };
 
     const loop = await createLoopFromConfig(config);
@@ -37,13 +37,13 @@ describe("loop-factory allowedPaths plumbing", () => {
     const config: RuntimeConfig = {
       type: "cursor",
       cwd: "/home/agent",
-      allowedPaths: ["/shared/workspace", "/extra/path"],
+      allowedPaths: ["/shared/harness", "/extra/path"],
     };
 
     const loop = await createLoopFromConfig(config);
     expect(loop).toBeDefined();
     const internal = loop as unknown as { options: { allowedPaths?: string[] } };
-    expect(internal.options.allowedPaths).toEqual(["/shared/workspace", "/extra/path"]);
+    expect(internal.options.allowedPaths).toEqual(["/shared/harness", "/extra/path"]);
   });
 
   test("createLoopFromConfig works without allowedPaths", async () => {
@@ -66,7 +66,7 @@ describe("loop-factory allowedPaths plumbing", () => {
       type: "mock",
       model: "mock-model",
       cwd: "/home/agent",
-      allowedPaths: ["/shared/workspace"],
+      allowedPaths: ["/shared/harness"],
       mockResponse: "ok",
     });
 
@@ -76,7 +76,7 @@ describe("loop-factory allowedPaths plumbing", () => {
     expect(binding.loop).toBeDefined();
     expect(binding.metadata).toEqual({
       cwd: "/home/agent",
-      allowedPaths: ["/shared/workspace"],
+      allowedPaths: ["/shared/harness"],
     });
   });
 

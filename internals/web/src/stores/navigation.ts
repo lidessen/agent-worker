@@ -5,13 +5,13 @@ export type SelectedItem =
   | { kind: "agent"; name: string }
   | { kind: "agent-info"; name: string }
   | { kind: "doc"; wsKey: string; docName: string }
-  | { kind: "workspace-settings"; wsKey: string }
+  | { kind: "harness-settings"; wsKey: string }
   | { kind: "global-settings" }
   | { kind: "global-events" };
 
 export type SidebarTab = "channels" | "agents" | "docs";
 
-export const currentWorkspace = signal<string>("global");
+export const currentHarness = signal<string>("global");
 export const sidebarTab = signal<SidebarTab>("channels");
 export const selectedItem = signal<SelectedItem | null>(null);
 
@@ -31,8 +31,8 @@ export function selectDoc(wsKey: string, docName: string) {
   selectedItem.value = { kind: "doc", wsKey, docName };
 }
 
-export function selectWorkspaceSettings(wsKey: string) {
-  selectedItem.value = { kind: "workspace-settings", wsKey };
+export function selectHarnessSettings(wsKey: string) {
+  selectedItem.value = { kind: "harness-settings", wsKey };
 }
 
 export function selectGlobalSettings() {

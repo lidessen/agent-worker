@@ -19,7 +19,7 @@ function isTextEvent(event: DaemonEvent): boolean {
   return (
     t === "text" ||
     t === "response" ||
-    t === "workspace.agent_text" ||
+    t === "harness.agent_text" ||
     (t.includes("text") && !t.includes("tool"))
   );
 }
@@ -31,7 +31,7 @@ function isToolCallEvent(event: DaemonEvent): boolean {
     t === "tool_call_start" ||
     t === "tool_call_end" ||
     t === "tool_use" ||
-    t === "workspace.agent_tool_call" ||
+    t === "harness.agent_tool_call" ||
     t.includes("tool_call") ||
     t.includes("tool_use")
   );
@@ -42,14 +42,14 @@ function isRunEvent(event: DaemonEvent): boolean {
   return (
     t === "run_start" ||
     t === "run_end" ||
-    t === "workspace.agent_run_start" ||
-    t === "workspace.agent_run_end"
+    t === "harness.agent_run_start" ||
+    t === "harness.agent_run_end"
   );
 }
 
 function isErrorEvent(event: DaemonEvent): boolean {
   const t = event.type;
-  return t === "error" || t === "workspace.agent_error" || t.includes("error");
+  return t === "error" || t === "harness.agent_error" || t.includes("error");
 }
 
 function isUserMessage(event: DaemonEvent): boolean {

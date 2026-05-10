@@ -63,7 +63,7 @@ export class DefaultContextSourceProvider implements ContextSourceProvider {
           "- If the inbox preview already shows the full message, respond directly without extra tool calls",
         );
         rules.push(
-          "- Do not inspect the repository or workspace just to verify inbox/workspace mechanics",
+          "- Do not inspect the repository or harness just to verify inbox/harness mechanics",
         );
         break;
       case "next_todo":

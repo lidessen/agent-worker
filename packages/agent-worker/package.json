@@ -17,7 +17,7 @@
     "@agent-worker/agent": "workspace:*",
     "@agent-worker/loop": "workspace:*",
     "@agent-worker/shared": "workspace:*",
-    "@agent-worker/workspace": "workspace:*",
+    "@agent-worker/harness": "workspace:*",
     "@ai-sdk/anthropic": "^3.0.74",
     "@ai-sdk/deepseek": "^2.0.32",
     "@ai-sdk/google": "^3.0.67",

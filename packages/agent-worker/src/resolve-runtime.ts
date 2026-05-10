@@ -1,10 +1,10 @@
 /**
  * Runtime + model resolution logic.
  *
- * Moved from @agent-worker/workspace to agent-worker because it depends
+ * Moved from @agent-worker/harness to agent-worker because it depends
  * on @agent-worker/loop (CLI availability checks, provider key detection).
  * This is orchestration logic — "which runtime should this agent use" —
- * not workspace infrastructure.
+ * not harness infrastructure.
  *
  * Rules:
  * 1. model specified, runtime omitted   → runtime = "ai-sdk"

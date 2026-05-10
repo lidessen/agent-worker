@@ -4,8 +4,8 @@ import type { JSXNode } from "semajsx";
 import { computed } from "semajsx/signal";
 import { Icon, Bell, Sun, Moon, PanelLeft } from "semajsx/icons";
 import { connectionState } from "../../stores/connection.ts";
-import { selectedItem, currentWorkspace } from "../../stores/navigation.ts";
-import { wsInfo } from "../../stores/workspace-data.ts";
+import { selectedItem, currentHarness } from "../../stores/navigation.ts";
+import { wsInfo } from "../../stores/harness-data.ts";
 import { agents } from "../../stores/agents.ts";
 import { parsePlatformName } from "../brand-icons.tsx";
 import { resolvedTheme, toggleTheme } from "../../theme/tokens.ts";
@@ -37,7 +37,7 @@ const daemonLabel = computed(connectionState, (state) => {
 });
 
 const crumbs = computed(
-  [selectedItem, currentWorkspace, wsInfo, agents],
+  [selectedItem, currentHarness, wsInfo, agents],
   (item, wsKey, info, agentList): Crumb[] => {
     const wsLabel = info?.name ?? wsKey;
     if (!item) {
@@ -72,7 +72,7 @@ const crumbs = computed(
       }
       case "doc":
         return [{ label: wsLabel }, { label: "docs" }, { label: item.docName, current: true }];
-      case "workspace-settings":
+      case "harness-settings":
         return [{ label: wsLabel, current: true }];
       case "global-events":
         return [{ label: "Events", current: true }];

@@ -252,7 +252,7 @@ describe("Agent", () => {
     expect(loop.interrupts).toHaveLength(1);
     expect(loop.interrupts[0]).toContain("[notification]");
     expect(loop.interrupts[0]).toContain("source: channel");
-    expect(loop.interrupts[0]).toContain("workspace_attention:");
+    expect(loop.interrupts[0]).toContain("harness_attention:");
   });
 
   test("todo changes during processing interrupt with todo source", async () => {
@@ -304,7 +304,7 @@ describe("Agent", () => {
           {
             type: "hook",
             phase: "response",
-            name: "workspace-notify",
+            name: "harness-notify",
             hookEvent: "Notification",
             outcome: "success",
           },
@@ -360,7 +360,7 @@ describe("Agent", () => {
       source: "agent",
       eventKind: "hook",
       phase: "response",
-      name: "workspace-notify",
+      name: "harness-notify",
       hookEvent: "Notification",
       outcome: "success",
     });

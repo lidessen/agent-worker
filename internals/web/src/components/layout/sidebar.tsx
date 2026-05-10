@@ -4,23 +4,23 @@ import type { JSXNode } from "semajsx";
 import { computed } from "semajsx/signal";
 import { Icon, Search, Plus, ChevronRight, Zap, Settings, Bot, Folder } from "semajsx/icons";
 import { agents } from "../../stores/agents.ts";
-import { workspaces } from "../../stores/workspaces.ts";
-import { wsChannels } from "../../stores/workspace-data.ts";
+import { harnesss } from "../../stores/harnesss.ts";
+import { wsChannels } from "../../stores/harness-data.ts";
 import {
-  currentWorkspace,
+  currentHarness,
   selectedItem,
   selectChannel,
   selectAgent,
-  selectWorkspaceSettings,
+  selectHarnessSettings,
   selectGlobalSettings,
   selectGlobalEvents,
 } from "../../stores/navigation.ts";
 import { parsePlatformName } from "../brand-icons.tsx";
 import { showCreateAgent } from "../create-agent-dialog.tsx";
-import { showCreateWorkspace } from "../create-workspace-dialog.tsx";
+import { showCreateHarness } from "../create-harness-dialog.tsx";
 import { sidebarCollapsed } from "./app-shell.tsx";
 import * as s from "./sidebar.style.ts";
-import type { AgentInfo, WorkspaceInfo } from "../../api/types.ts";
+import type { AgentInfo, HarnessInfo } from "../../api/types.ts";
 
 function agentDotClass(state: string) {
   if (state === "running") return [s.dot, s.dotRunning];
@@ -28,7 +28,7 @@ function agentDotClass(state: string) {
   return [s.dot, s.dotIdle];
 }
 
-function workspaceDotClass(status: string) {
+function harnessDotClass(status: string) {
   if (status === "running") return [s.dot, s.dotRunning];
   if (status === "error") return [s.dot, s.dotError];
   return [s.dot, s.dotIdle];
@@ -56,24 +56,24 @@ function AgentItem(props: { agent: AgentInfo }) {
   );
 }
 
-function WorkspaceItem(props: { ws: WorkspaceInfo }) {
+function HarnessItem(props: { ws: HarnessInfo }) {
   const { ws } = props;
-  const isCurrent = computed(currentWorkspace, (key) => key === ws.name);
+  const isCurrent = computed(currentHarness, (key) => key === ws.name);
   const active = computed(
     [selectedItem, isCurrent],
-    (sel, cur) => cur && sel?.kind === "workspace-settings" && sel.wsKey === ws.name,
+    (sel, cur) => cur && sel?.kind === "harness-settings" && sel.wsKey === ws.name,
   );
   const cls = computed(active, (a) => (a ? [s.item, s.itemActive] : s.item));
-  const agentCount = computed(agents, (list) => list.filter((a) => a.workspace === ws.name).length);
+  const agentCount = computed(agents, (list) => list.filter((a) => a.harness === ws.name).length);
   return (
     <button
       class={cls}
       onclick={() => {
-        currentWorkspace.value = ws.name;
-        selectWorkspaceSettings(ws.name);
+        currentHarness.value = ws.name;
+        selectHarnessSettings(ws.name);
       }}
     >
-      <span class={workspaceDotClass(ws.status)} />
+      <span class={harnessDotClass(ws.status)} />
       <span class={s.collapsedGlyph}>
         <Icon icon={Folder} size={12} />
       </span>
@@ -103,7 +103,7 @@ function ChannelSub(props: { wsKey: string; channel: string }) {
     <button
       class={cls}
       onclick={() => {
-        currentWorkspace.value = props.wsKey;
+        currentHarness.value = props.wsKey;
         selectChannel(props.wsKey, props.channel);
       }}
     >
@@ -113,11 +113,11 @@ function ChannelSub(props: { wsKey: string; channel: string }) {
   );
 }
 
-function WorkspacesSection() {
-  return computed([workspaces, currentWorkspace, wsChannels], (list, curKey, channels) => {
+function HarnesssSection() {
+  return computed([harnesss, currentHarness, wsChannels], (list, curKey, channels) => {
     const items: JSXNode[] = [];
     list.forEach((ws) => {
-      items.push(<WorkspaceItem ws={ws} />);
+      items.push(<HarnessItem ws={ws} />);
       if (ws.name === curKey) {
         channels.forEach((ch) => {
           items.push(<ChannelSub wsKey={ws.name} channel={ch} />);
@@ -183,16 +183,16 @@ export function Sidebar() {
       {agentsList}
 
       <div class={s.section} style="margin-top:8px">
-        <span class={sectionLabelClass}>Workspaces</span>
+        <span class={sectionLabelClass}>Harnesss</span>
         <button
           class={sectionActionClass}
-          title="New workspace"
-          onclick={() => (showCreateWorkspace.value = true)}
+          title="New harness"
+          onclick={() => (showCreateHarness.value = true)}
         >
           <Icon icon={Plus} size={11} />
         </button>
       </div>
-      {WorkspacesSection()}
+      {HarnesssSection()}
 
       <div class={s.section} style="margin-top:8px">
         <span class={hideWhenCollapsed}>System</span>

@@ -194,8 +194,8 @@ export interface ClaudeCodeLoopOptions extends CliLoopOptions {
 
 export interface CodexLoopOptions extends CliLoopOptions {
   /** Sandbox mode for shell commands */
-  sandbox?: "read-only" | "workspace-write" | "danger-full-access";
-  /** Run in full-auto mode (no confirmations, workspace-write sandbox) */
+  sandbox?: "read-only" | "harness-write" | "danger-full-access";
+  /** Run in full-auto mode (no confirmations, harness-write sandbox) */
   fullAuto?: boolean;
   /** Route app-server approval requests. Defaults to Codex app-server behavior. */
   approvalsReviewer?: "user" | "auto_review" | "guardian_subagent";

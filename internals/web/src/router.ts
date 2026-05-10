@@ -3,7 +3,7 @@ import { signal } from "semajsx/signal";
 export type Route =
   | { page: "dashboard" }
   | { page: "agent-chat"; params: { name: string } }
-  | { page: "workspace"; params: { key: string } }
+  | { page: "harness"; params: { key: string } }
   | { page: "channel"; params: { key: string; ch: string } }
   | { page: "settings" };
 
@@ -21,7 +21,7 @@ function parseHash(hash: string): Route {
     return { page: "agent-chat", params: { name: decodeURIComponent(agentMatch[1]) } };
   }
 
-  const channelMatch = path.match(/^\/workspaces\/([^/]+)\/channels\/([^/]+)$/);
+  const channelMatch = path.match(/^\/harnesss\/([^/]+)\/channels\/([^/]+)$/);
   if (channelMatch) {
     return {
       page: "channel",
@@ -32,9 +32,9 @@ function parseHash(hash: string): Route {
     };
   }
 
-  const wsMatch = path.match(/^\/workspaces\/([^/]+)$/);
+  const wsMatch = path.match(/^\/harnesss\/([^/]+)$/);
   if (wsMatch) {
-    return { page: "workspace", params: { key: decodeURIComponent(wsMatch[1]) } };
+    return { page: "harness", params: { key: decodeURIComponent(wsMatch[1]) } };
   }
 
   if (path === "/settings") {

@@ -20,16 +20,16 @@ export async function peek(args: string[]): Promise<void> {
 
     // Target routing per DESIGN.md:
     //   alice              → GET /agents/alice/responses?cursor=0
-    //   alice@review       → GET /agents/alice/responses?cursor=0&workspace=review
-    //   @review            → GET /workspaces/review/channels/<default>?cursor=0
-    //   @review#design     → GET /workspaces/review/channels/design?cursor=0
-    //   alice@review#design → GET /workspaces/review/channels/design?cursor=0&agent=alice
+    //   alice@review       → GET /agents/alice/responses?cursor=0&harness=review
+    //   @review            → GET /harnesss/review/channels/<default>?cursor=0
+    //   @review#design     → GET /harnesss/review/channels/design?cursor=0
+    //   alice@review#design → GET /harnesss/review/channels/design?cursor=0&agent=alice
 
     if (target.agent && !target.channel) {
-      // Agent responses (optionally scoped to workspace)
+      // Agent responses (optionally scoped to harness)
       const result = await client.readResponses(target.agent, {
         cursor: 0,
-        workspace: target.workspace,
+        harness: target.harness,
       });
       for (const entry of result.entries) {
         if ("text" in entry && typeof entry.text === "string") {
@@ -38,19 +38,19 @@ export async function peek(args: string[]): Promise<void> {
           console.log(`[${entry.type}] ${entry.content}`);
         }
       }
-    } else if (target.workspace && target.channel) {
+    } else if (target.harness && target.channel) {
       // Named channel (optionally filtered by agent)
-      const result = await client.readChannel(target.workspace, target.channel, {
+      const result = await client.readChannel(target.harness, target.channel, {
         agent: target.agent,
       });
       for (const msg of result.messages) {
         console.log(`[${msg.from}] ${msg.content}`);
       }
-    } else if (target.workspace) {
-      // Default channel — resolve default_channel from workspace info
-      const wsInfo = await client.getWorkspace(target.workspace);
+    } else if (target.harness) {
+      // Default channel — resolve default_channel from harness info
+      const wsInfo = await client.getHarness(target.harness);
       const ch = wsInfo.default_channel ?? "general";
-      const result = await client.readChannel(target.workspace, ch);
+      const result = await client.readChannel(target.harness, ch);
       for (const msg of result.messages) {
         console.log(`[${msg.from}] ${msg.content}`);
       }

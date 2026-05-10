@@ -46,14 +46,14 @@ export const AgentInfoView: RuntimeComponent<{ name: string }> = (props, ctx) =>
           : styles.statusDotIdle,
   ]);
 
-  const workspace = computed(agentState, (s) => s?.workspace ?? null);
+  const harness = computed(agentState, (s) => s?.harness ?? null);
   const currentTask = computed(agentState, (s) => s?.currentTask ?? null);
 
-  const workspaceRow = computed(workspace, (ws) => {
+  const harnessRow = computed(harness, (ws) => {
     if (!ws) return null;
     return (
       <div>
-        <span class={styles.infoLabel}>Workspace</span>
+        <span class={styles.infoLabel}>Harness</span>
         <span class={styles.infoValue}>{ws}</span>
       </div>
     );
@@ -92,7 +92,7 @@ export const AgentInfoView: RuntimeComponent<{ name: string }> = (props, ctx) =>
         <div class={styles.section}>
           <span class={styles.sectionTitle}>Details</span>
           <div class={styles.infoGrid}>
-            {workspaceRow}
+            {harnessRow}
             {taskRow}
           </div>
         </div>
