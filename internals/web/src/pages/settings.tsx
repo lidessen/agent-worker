@@ -92,8 +92,8 @@ const healthRows = computed(healthInfo, (info) => {
       <span class={styles.infoValue}>{String(info.agents)}</span>
     </div>,
     <div class={styles.infoRow}>
-      <span class={styles.infoLabel}>Harnesss</span>
-      <span class={styles.infoValue}>{String(info.harnesss)}</span>
+      <span class={styles.infoLabel}>Harnesses</span>
+      <span class={styles.infoValue}>{String(info.harnesses)}</span>
     </div>,
   ];
 });
@@ -132,7 +132,7 @@ export const SettingsPage: RuntimeComponent<Record<string, never>> = (_props, ct
       healthInfo.value = info;
       testResult.value = {
         ok: true,
-        message: `Connected — ${info.agents} agents, ${info.harnesss} harnesss`,
+        message: `Connected — ${info.agents} agents, ${info.harnesses} harnesses`,
       };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);

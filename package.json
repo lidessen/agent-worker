@@ -10,8 +10,8 @@
   "scripts": {
     "aw": "sh -c 'if command -v bun >/dev/null 2>&1; then exec bun packages/agent-worker/src/cli/index.ts \"$@\"; else exec node --import tsx packages/agent-worker/src/cli/index.ts \"$@\"; fi' --",
     "aw:node": "node --import tsx packages/agent-worker/src/cli/index.ts",
-    "typecheck": "tsgo --build --pretty tsconfig.build.json && tsgo -p internals/shared/tsconfig.json && tsgo -p internals/loop/tsconfig.json && tsgo -p internals/agent/tsconfig.json && tsgo -p internals/workspace/tsconfig.json && tsgo -p packages/agent-worker/tsconfig.json && tsgo -p internals/web/tsconfig.json",
-    "test": "bun test internals/shared/src/event-bus.test.ts internals/loop/test internals/agent/test internals/workspace/test packages/agent-worker/test",
+    "typecheck": "tsgo --build --pretty tsconfig.build.json && tsgo -p internals/shared/tsconfig.json && tsgo -p internals/loop/tsconfig.json && tsgo -p internals/agent/tsconfig.json && tsgo -p internals/harness/tsconfig.json && tsgo -p packages/agent-worker/tsconfig.json && tsgo -p internals/web/tsconfig.json",
+    "test": "bun test internals/shared/src/event-bus.test.ts internals/loop/test internals/agent/test internals/harness/test packages/agent-worker/test",
     "test:vitest": "vitest",
     "test:vitest:run": "vitest run",
     "test:vitest:unit": "vitest --config vitest.unit.config.ts",

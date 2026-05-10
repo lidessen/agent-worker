@@ -4,14 +4,9 @@
  * Uses the Telegram Bot API directly (no external dependencies).
  * Supports long-polling for receiving messages and sends channel
  * messages back to the configured Telegram chat.
- *
- * Auth flow inspired by github.com/lidessen/ccrc:
- * - Chat-ID-based authorization (single chat allowed)
- * - `runAuth()` helper generates a token, waits for user to send it,
- *   then captures and returns the chat ID.
  */
 
-import type { ChannelAdapter, ChannelBridgeInterface, Message } from "../types.ts";
+import type { ChannelAdapter, ChannelBridgeInterface, Message } from "@agent-worker/harness";
 
 // ── Telegram Bot API types (minimal subset) ────────────────────────────────
 
@@ -121,14 +116,10 @@ export class TelegramAdapter implements ChannelAdapter {
       `[telegram] adapter started (channel: ${this.channel}, chatId: ${this.chatId ?? "any"})`,
     );
 
-    // Register/update bot commands on every start (ensures new commands are available)
     this.api("setMyCommands", { commands: BOT_COMMANDS }).catch(() => {});
 
-    // Subscribe to outbound channel messages → send to Telegram
     this.bridgeSubscriber = (msg: Message) => {
-      // Anti-loop: don't echo messages that came from Telegram
       if (msg.from.startsWith("telegram:")) return;
-      // Only forward messages from the configured channel
       if (msg.channel !== this.channel) return;
       this.sendToTelegram(msg.content, msg.from).catch((err) => {
         console.error("[telegram] failed to send:", err);
@@ -136,7 +127,6 @@ export class TelegramAdapter implements ChannelAdapter {
     };
     bridge.subscribe(this.bridgeSubscriber);
 
-    // Start long-polling loop
     this.poll();
   }
 
@@ -204,10 +194,8 @@ export class TelegramAdapter implements ChannelAdapter {
     });
   }
 
-  /** Start sending typing indicator every 4s. Stops automatically when all agents idle. */
   private startTyping(): void {
     if (this.typingInterval || !this.chatId) return;
-    // Send immediately, then repeat
     this.api("sendChatAction", { chat_id: this.chatId, action: "typing" }).catch(() => {});
     this.typingInterval = setInterval(() => {
       this.tickTyping().catch(() => {});
@@ -221,7 +209,6 @@ export class TelegramAdapter implements ChannelAdapter {
     }
   }
 
-  /** Check if any agent is still active; if not, stop the typing loop. */
   private async tickTyping(): Promise<void> {
     if (!this.chatId) return;
     if (!this.getAgents) {
@@ -250,12 +237,10 @@ export class TelegramAdapter implements ChannelAdapter {
             this.handleMessage(update.message);
           }
         }
-        // Small delay between polls to avoid tight loops when server responds instantly
         if (this.running) await sleep(100);
       } catch (err: unknown) {
         if (err instanceof Error && err.name === "AbortError") break;
         console.error("[telegram] poll error:", err);
-        // Back off on error
         await sleep(5000);
       }
     }
@@ -264,10 +249,8 @@ export class TelegramAdapter implements ChannelAdapter {
   private handleMessage(msg: TelegramMessage): void {
     if (!msg.text) return;
 
-    // Authorization check
     if (this.chatId && msg.chat.id !== this.chatId) return;
 
-    // Handle bot commands
     if (msg.text.startsWith("/")) {
       this.handleCommand(msg);
       return;
@@ -281,11 +264,9 @@ export class TelegramAdapter implements ChannelAdapter {
       return;
     }
 
-    // Parse #channel prefix: "#design hello" → channel="design", content="hello"
     const { channel, content } = parseChannelPrefix(msg.text, this.channel);
 
     const from = telegramUserLabel(msg.from);
-    // Agent will start working on this message — show typing
     this.startTyping();
     this.bridge.send(channel, `telegram:${from}`, content).catch((err) => {
       console.error("[telegram] failed to inject message:", err);
@@ -323,7 +304,6 @@ export class TelegramAdapter implements ChannelAdapter {
           }).catch(() => {});
           return;
         }
-        // Unknown command — forward to harness as regular message
         const from = telegramUserLabel(msg.from);
         const { channel, content } = parseChannelPrefix(msg.text!, this.channel);
         this.startTyping();
@@ -407,10 +387,6 @@ export interface AuthResult {
 
 /**
  * Run an interactive auth flow to capture a Telegram chat ID.
- *
- * Inspired by ccrc: generates a random token, starts polling,
- * and waits for a user to send the token to the bot.
- * Returns the chat ID of the user who sent the correct token.
  */
 export async function runTelegramAuth(
   botToken: string,
@@ -427,7 +403,6 @@ export async function runTelegramAuth(
   const deadline = Date.now() + timeoutMs;
   let offset = 0;
 
-  // Flush pending updates first
   try {
     const flush = await telegramApi<TelegramUpdate[]>(baseUrl, "getUpdates", {
       offset: -1,
@@ -454,12 +429,10 @@ export async function runTelegramAuth(
           const chat = update.message.chat;
           const user = update.message.from;
 
-          // Register bot commands
           await telegramApi(baseUrl, "setMyCommands", {
             commands: BOT_COMMANDS,
-          }).catch(() => {}); // non-fatal
+          }).catch(() => {});
 
-          // Confirm to user
           await telegramApi(baseUrl, "sendMessage", {
             chat_id: chat.id,
             text: "Authorized. This chat is now linked.",
@@ -483,11 +456,6 @@ export async function runTelegramAuth(
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-/**
- * Parse "#channel message" prefix from text.
- * Returns the target channel and remaining content.
- * If no prefix, returns the default channel with full text.
- */
 function parseChannelPrefix(
   text: string,
   defaultChannel: string,

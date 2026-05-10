@@ -1,5 +1,5 @@
 import { test, expect, describe, beforeEach } from "bun:test";
-import { InstructionQueue } from "../src/loop/priority-queue.ts";
+import { InstructionQueue } from "@agent-worker/harness-coordination";
 import type { Instruction } from "../src/types.ts";
 
 describe("InstructionQueue", () => {

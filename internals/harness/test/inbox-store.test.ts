@@ -1,5 +1,5 @@
 import { test, expect, describe, beforeEach } from "bun:test";
-import { InboxStore } from "../src/context/stores/inbox.ts";
+import { InboxStore } from "@agent-worker/harness-coordination";
 import { MemoryStorage } from "../src/context/storage.ts";
 import type { InboxEntry } from "../src/types.ts";
 

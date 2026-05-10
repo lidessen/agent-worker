@@ -4,7 +4,7 @@ import type { JSXNode } from "semajsx";
 import { computed } from "semajsx/signal";
 import { Icon, Search, Plus, ChevronRight, Zap, Settings, Bot, Folder } from "semajsx/icons";
 import { agents } from "../../stores/agents.ts";
-import { harnesss } from "../../stores/harnesss.ts";
+import { harnesses } from "../../stores/harnesses.ts";
 import { wsChannels } from "../../stores/harness-data.ts";
 import {
   currentHarness,
@@ -113,8 +113,8 @@ function ChannelSub(props: { wsKey: string; channel: string }) {
   );
 }
 
-function HarnesssSection() {
-  return computed([harnesss, currentHarness, wsChannels], (list, curKey, channels) => {
+function HarnessesSection() {
+  return computed([harnesses, currentHarness, wsChannels], (list, curKey, channels) => {
     const items: JSXNode[] = [];
     list.forEach((ws) => {
       items.push(<HarnessItem ws={ws} />);
@@ -183,7 +183,7 @@ export function Sidebar() {
       {agentsList}
 
       <div class={s.section} style="margin-top:8px">
-        <span class={sectionLabelClass}>Harnesss</span>
+        <span class={sectionLabelClass}>Harnesses</span>
         <button
           class={sectionActionClass}
           title="New harness"
@@ -192,7 +192,7 @@ export function Sidebar() {
           <Icon icon={Plus} size={11} />
         </button>
       </div>
-      {HarnesssSection()}
+      {HarnessesSection()}
 
       <div class={s.section} style="margin-top:8px">
         <span class={hideWhenCollapsed}>System</span>

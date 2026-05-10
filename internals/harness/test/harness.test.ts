@@ -5,6 +5,10 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { createHarness } from "../src/factory.ts";
 import { Harness } from "../src/harness.ts";
 import { MemoryStorage } from "../src/context/storage.ts";
+import {
+  COORDINATION_HARNESS_TYPE_ID,
+  type CoordinationSnapshot,
+} from "@agent-worker/harness-coordination";
 
 describe("Harness", () => {
   let harness: Harness;
@@ -15,6 +19,7 @@ describe("Harness", () => {
       channels: ["general", "design"],
       agents: ["alice", "bob"],
       storage: new MemoryStorage(),
+      harnessTypeId: COORDINATION_HARNESS_TYPE_ID,
     });
   });
 
@@ -486,12 +491,15 @@ describe("Harness", () => {
 
     const snapshot = await harness.snapshotState();
 
-    expect(snapshot.name).toBe("test-harness");
-    expect(snapshot.channels).toContain("general");
-    expect(snapshot.queuedInstructions).toHaveLength(1);
-    expect(snapshot.chronicle).toHaveLength(1);
-    expect(snapshot.agents).toHaveLength(2);
-    const alice = snapshot.agents.find((agent) => agent.name === "alice");
+    expect(snapshot.substrate.name).toBe("test-harness");
+    expect(snapshot.substrate.chronicle).toHaveLength(1);
+
+    const coord = snapshot.typeExtensions[COORDINATION_HARNESS_TYPE_ID] as CoordinationSnapshot;
+    expect(coord).toBeDefined();
+    expect(coord.channels).toContain("general");
+    expect(coord.queuedInstructions).toHaveLength(1);
+    expect(coord.agents).toHaveLength(2);
+    const alice = coord.agents.find((agent) => agent.name === "alice");
     expect(alice?.status).toBe("running");
     expect(alice?.currentTask).toBe("Inspecting state");
     expect(alice?.inbox).toHaveLength(1);
@@ -519,7 +527,8 @@ describe("Harness", () => {
     );
 
     const snapshot = await harness.snapshotState();
-    const alice = snapshot.agents.find((agent) => agent.name === "alice");
+    const coord = snapshot.typeExtensions[COORDINATION_HARNESS_TYPE_ID] as CoordinationSnapshot;
+    const alice = coord.agents.find((agent) => agent.name === "alice");
 
     expect(alice?.inbox.map((entry) => entry.state)).toEqual(["seen", "deferred"]);
     expect(await harness.contextProvider.inbox.peek("alice")).toHaveLength(0);

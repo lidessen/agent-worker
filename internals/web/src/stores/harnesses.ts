@@ -2,19 +2,19 @@ import { signal } from "semajsx/signal";
 import { client } from "./connection.ts";
 import type { HarnessInfo } from "../api/types.ts";
 
-export const harnesss = signal<HarnessInfo[]>([]);
-export const harnesssLoading = signal(false);
+export const harnesses = signal<HarnessInfo[]>([]);
+export const harnessesLoading = signal(false);
 
-export async function fetchHarnesss() {
+export async function fetchHarnesses() {
   const c = client.value;
   if (!c) return;
-  harnesssLoading.value = true;
+  harnessesLoading.value = true;
   try {
-    harnesss.value = await c.listHarnesss();
+    harnesses.value = await c.listHarnesses();
   } catch (err) {
-    console.error("Failed to fetch harnesss:", err);
+    console.error("Failed to fetch harnesses:", err);
   } finally {
-    harnesssLoading.value = false;
+    harnessesLoading.value = false;
   }
 }
 
@@ -22,13 +22,13 @@ export async function deleteHarness(key: string) {
   const c = client.value;
   if (!c) throw new Error("Not connected");
   await c.deleteHarness(key);
-  await fetchHarnesss();
+  await fetchHarnesses();
 }
 
 // Auto-fetch when client connects
 client.subscribe((c) => {
-  if (c) fetchHarnesss();
+  if (c) fetchHarnesses();
 });
 
 // Handle case where client is already connected when this module loads.
-if (client.value) fetchHarnesss();
+if (client.value) fetchHarnesses();

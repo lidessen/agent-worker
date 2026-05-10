@@ -1,5 +1,6 @@
 import { test, expect, describe } from "bun:test";
-import { assemblePrompt, soulSection, inboxSection } from "../src/loop/prompt.tsx";
+import { assemblePrompt, soulSection } from "../src/loop/prompt.tsx";
+import { inboxSection } from "@agent-worker/harness-coordination";
 import { MemoryStorage } from "../src/context/storage.ts";
 import { createHarness } from "../src/factory.ts";
 import type { InboxEntry } from "../src/types.ts";

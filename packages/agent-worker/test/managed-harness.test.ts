@@ -5,7 +5,7 @@ import { ManagedHarness } from "../src/managed-harness.ts";
 import type { HarnessOrchestrator } from "../src/orchestrator.ts";
 
 describe("ManagedHarness", () => {
-  test("deferred inbox entries keep task harnesss running", async () => {
+  test("deferred inbox entries keep task harnesses running", async () => {
     const harness = await createHarness({
       name: "task-deferred",
       agents: ["alice"],

@@ -52,7 +52,7 @@ describe("CodexLoop", () => {
     const loop = new CodexLoop({
       model: "o3",
       fullAuto: true,
-      sandbox: "workspace-write",
+      sandbox: "harness-write",
       extraArgs: ["--test"],
     });
     expect(loop.status).toBe("idle");

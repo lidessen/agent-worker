@@ -1,5 +1,5 @@
 import { test, expect, describe, beforeEach } from "bun:test";
-import { ChannelStore } from "../src/context/stores/channel.ts";
+import { ChannelStore } from "@agent-worker/harness-coordination";
 import { MemoryStorage } from "../src/context/storage.ts";
 
 describe("ChannelStore", () => {

@@ -21,9 +21,9 @@ export async function peek(args: string[]): Promise<void> {
     // Target routing per DESIGN.md:
     //   alice              → GET /agents/alice/responses?cursor=0
     //   alice@review       → GET /agents/alice/responses?cursor=0&harness=review
-    //   @review            → GET /harnesss/review/channels/<default>?cursor=0
-    //   @review#design     → GET /harnesss/review/channels/design?cursor=0
-    //   alice@review#design → GET /harnesss/review/channels/design?cursor=0&agent=alice
+    //   @review            → GET /harnesses/review/channels/<default>?cursor=0
+    //   @review#design     → GET /harnesses/review/channels/design?cursor=0
+    //   alice@review#design → GET /harnesses/review/channels/design?cursor=0&agent=alice
 
     if (target.agent && !target.channel) {
       // Agent responses (optionally scoped to harness)

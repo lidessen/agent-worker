@@ -220,3 +220,21 @@ export interface CreateHandoffInput {
   extensions?: Record<string, HandoffExtensionPayload>;
   harnessTypeId?: string;
 }
+
+/**
+ * Pre-extension Handoff core, as visible to a HarnessType's
+ * `produceExtension` hook. Carries the runtime-emitted core fields the
+ * hook may want to summarize / cross-reference; everything but `summary`
+ * is optional because the hook is invoked from sites that vary in how
+ * much core they have populated (user-initiated close knows only summary
+ * + kind; runtime-emitted close knows the full set).
+ */
+export interface HandoffDraft {
+  summary: string;
+  kind?: HandoffKind;
+  completed?: string[];
+  pending?: string[];
+  blockers?: string[];
+  decisions?: string[];
+  resources?: string[];
+}

@@ -14,7 +14,7 @@ import {
 } from "./stores/navigation.ts";
 import { wsInfo } from "./stores/harness-data.ts";
 import { agents } from "./stores/agents.ts";
-import { harnesss } from "./stores/harnesss.ts";
+import { harnesses } from "./stores/harnesses.ts";
 import {
   ClaudeIcon,
   CursorIcon,
@@ -58,7 +58,7 @@ if (mobileQuery) {
   });
 }
 
-type MobileResource = "agents" | "harnesss" | "events";
+type MobileResource = "agents" | "harnesses" | "events";
 const mobileResource = signal<MobileResource>("agents");
 
 function runtimeIcon(runtime: string) {
@@ -112,7 +112,7 @@ function wsDotClass(status: string) {
 function MobileHome() {
   const harnessName = computed([wsInfo, currentHarness], (info, key) => info?.name ?? key);
 
-  const resourceBody = computed([mobileResource, agents, harnesss], (res, agentList, wsList) => {
+  const resourceBody = computed([mobileResource, agents, harnesses], (res, agentList, wsList) => {
     if (res === "agents") {
       if (agentList.length === 0) {
         return <div style="padding:16px;color:var(--colors-textDim);font-size:13px">No agents</div>;
@@ -135,10 +135,10 @@ function MobileHome() {
         </div>
       );
     }
-    if (res === "harnesss") {
+    if (res === "harnesses") {
       if (wsList.length === 0) {
         return (
-          <div style="padding:16px;color:var(--colors-textDim);font-size:13px">No harnesss</div>
+          <div style="padding:16px;color:var(--colors-textDim);font-size:13px">No harnesses</div>
         );
       }
       return (
@@ -177,7 +177,7 @@ function MobileHome() {
   });
 
   const agentCount = computed(agents, (list) => list.length);
-  const wsCount = computed(harnesss, (list) => list.length);
+  const wsCount = computed(harnesses, (list) => list.length);
 
   function tabCls(k: MobileResource) {
     return computed(mobileResource, (r) =>
@@ -214,8 +214,8 @@ function MobileHome() {
         <button class={tabCls("agents")} onclick={() => (mobileResource.value = "agents")}>
           Agents <span class={styles.mobileResTabCount}>{agentCount}</span>
         </button>
-        <button class={tabCls("harnesss")} onclick={() => (mobileResource.value = "harnesss")}>
-          Harnesss <span class={styles.mobileResTabCount}>{wsCount}</span>
+        <button class={tabCls("harnesses")} onclick={() => (mobileResource.value = "harnesses")}>
+          Harnesses <span class={styles.mobileResTabCount}>{wsCount}</span>
         </button>
         <button class={tabCls("events")} onclick={() => (mobileResource.value = "events")}>
           Events
@@ -241,7 +241,7 @@ function MobileHome() {
         <button
           class={styles.mTabbarBtn}
           onclick={() => {
-            mobileResource.value = "harnesss";
+            mobileResource.value = "harnesses";
           }}
         >
           <Icon icon={Folder} size={18} />

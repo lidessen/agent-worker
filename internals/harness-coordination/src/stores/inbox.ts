@@ -1,4 +1,4 @@
-import type { InboxEntry, StorageBackend, InboxStoreInterface } from "../../types.ts";
+import type { InboxEntry, StorageBackend, InboxStoreInterface } from "@agent-worker/harness";
 
 export class InboxStore implements InboxStoreInterface {
   /** In-memory inbox per agent: messageId → InboxEntry */
@@ -25,13 +25,11 @@ export class InboxStore implements InboxStoreInterface {
 
   async enqueue(agentName: string, entry: InboxEntry): Promise<void> {
     const inbox = this.getAgentInbox(agentName);
-    // Invariant #7: one entry per (agent, messageId)
     if (inbox.has(entry.messageId)) return;
 
     inbox.set(entry.messageId, entry);
     await this.storage.appendLine(this.inboxPath(agentName), JSON.stringify(entry));
 
-    // Notify any waiting listeners
     const cbs = this.listeners.get(agentName);
     if (cbs && cbs.length > 0) {
       const batch = cbs.splice(0);
@@ -48,7 +46,6 @@ export class InboxStore implements InboxStoreInterface {
       if (entry.state === "pending") {
         result.push(entry);
       } else if (entry.state === "deferred") {
-        // Check if defer has expired
         if (entry.deferredUntil) {
           const until = new Date(entry.deferredUntil).getTime();
           if (now >= until) {
@@ -56,7 +53,6 @@ export class InboxStore implements InboxStoreInterface {
             result.push(entry);
           }
         } else {
-          // No expiry → return to pending on next poll
           entry.state = "pending";
           result.push(entry);
         }
@@ -127,7 +123,6 @@ export class InboxStore implements InboxStoreInterface {
     for (const line of lines) {
       try {
         const entry = JSON.parse(line) as InboxEntry;
-        // Last entry wins (replay semantics)
         inbox.set(entry.messageId, entry);
       } catch {
         // Skip malformed lines

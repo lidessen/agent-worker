@@ -44,7 +44,7 @@ export class ManagedAgent {
     /**
      * Explicit directory for this agent's JSONL storage.
      * - Global agents: `<dataDir>/agents/<name>`
-     * - Harness agents: `<dataDir>/harnesss/<key>/agents/<name>`
+     * - Harness agents: `<dataDir>/harnesses/<key>/agents/<name>`
      */
     agentDir?: string;
   }) {

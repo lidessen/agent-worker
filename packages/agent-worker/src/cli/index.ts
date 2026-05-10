@@ -18,13 +18,13 @@ Daemon:
   daemon start [-p PORT]    Start daemon (foreground)
   daemon start -d           Start daemon (background)
   daemon stop               Stop daemon
-  status                    Daemon, agents, and harnesss overview
+  status                    Daemon, agents, and harnesses overview
 
 Resources:
   add <name> [options]        Add standalone agent
   create <config.yaml>        Create harness (service mode)
   run <config.yaml>           Run harness as task (exits when done)
-  ls                          List all agents + harnesss
+  ls                          List all agents + harnesses
   info <target>               Details about agent/harness
   rm <target>                 Remove agent or stop harness
 

@@ -76,7 +76,7 @@ describe("Daemon", () => {
     expect(body.status).toBe("ok");
     // Global agents may be auto-registered from harness discovery
     expect(typeof body.agents).toBe("number");
-    expect(body.harnesss).toBe(1); // global harness always exists
+    expect(body.harnesses).toBe(1); // global harness always exists
   });
 
   test("writes daemon.json for discovery", async () => {

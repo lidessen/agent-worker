@@ -3,6 +3,7 @@ import type {
   HarnessConfig,
   HarnessRuntime,
   HarnessStateSnapshot,
+  HarnessSubstrateSnapshot,
   ContextProvider,
   EventLog,
   ChannelBridgeInterface,
@@ -10,18 +11,20 @@ import type {
   Message,
   Priority,
 } from "./types.ts";
-import { ChannelStore } from "./context/stores/channel.ts";
-import { InboxStore } from "./context/stores/inbox.ts";
 import { DocumentStore } from "./context/stores/document.ts";
 import { ResourceStore } from "./context/stores/resource.ts";
-import { StatusStore } from "./context/stores/status.ts";
 import { TimelineStore } from "./context/stores/timeline.ts";
 import { ChronicleStore } from "./context/stores/chronicle.ts";
 import { CompositeContextProvider } from "./context/provider.ts";
 import { HarnessEventLog } from "./context/event-log.ts";
-import { ChannelBridge } from "./context/bridge.ts";
-import { InstructionQueue } from "./loop/priority-queue.ts";
 import { MemoryStorage } from "./context/storage.ts";
+import {
+  ChannelBridge,
+  ChannelStore,
+  InboxStore,
+  InstructionQueue,
+  StatusStore,
+} from "@agent-worker/harness-coordination";
 import {
   FileHarnessStateStore,
   InMemoryHarnessStateStore,
@@ -34,6 +37,7 @@ import {
   DEFAULT_HARNESS_TYPE_ID,
   runProduceExtension,
   type HarnessTypeRegistry,
+  type HarnessTypeRuntime,
 } from "./type/index.ts";
 
 export class Harness implements HarnessRuntime {
@@ -67,6 +71,15 @@ export class Harness implements HarnessRuntime {
    */
   readonly harnessTypeRegistry: HarnessTypeRegistry;
 
+  /**
+   * Per-Harness runtime slot owned by the registered `HarnessType`. Whatever
+   * the type's `contributeRuntime` returns at construction is stashed here
+   * verbatim; the substrate never inspects it. Types expose typed accessors
+   * (e.g. `coordinationRuntime(harness)`) for callers that need narrowed
+   * access. `undefined` when the type contributes no per-Harness state.
+   */
+  readonly typeRuntime: HarnessTypeRuntime | undefined;
+
   private readonly channelStore: ChannelStore;
   private readonly inboxStore: InboxStore;
   private readonly statusStore: StatusStore;
@@ -92,6 +105,14 @@ export class Harness implements HarnessRuntime {
     this._sandboxBaseDir = config.sandboxBaseDir;
     this.harnessTypeId = config.harnessTypeId ?? DEFAULT_HARNESS_TYPE_ID;
     this.harnessTypeRegistry = harnessTypeRegistry ?? createHarnessTypeRegistry();
+
+    // Build the type's per-Harness runtime slot. Sync only — async setup
+    // belongs in `onInit`. Substrate doesn't inspect the value; the
+    // type's accessor narrows for callers that need it.
+    const resolvedType = this.harnessTypeRegistry.resolve(this.harnessTypeId);
+    this.typeRuntime = resolvedType.contributeRuntime
+      ? resolvedType.contributeRuntime({ harness: this, config })
+      : undefined;
 
     const storage = config.storage ?? new MemoryStorage();
     const channels = config.channels ?? [this.defaultChannel];
@@ -170,6 +191,13 @@ export class Harness implements HarnessRuntime {
     // transition fires `wake.terminal` which the harness registry has
     // already subscribed to for worktree cleanup.
     await this.recoverOrphanedWakes();
+
+    // Run the type's `onInit` hook last so types can rely on substrate
+    // state (state store, channel index, status store) being live.
+    const resolvedType = this.harnessTypeRegistry.resolve(this.harnessTypeId);
+    if (resolvedType.onInit) {
+      await resolvedType.onInit({ harness: this, runtime: this.typeRuntime });
+    }
 
     this.initialized = true;
   }
@@ -282,6 +310,22 @@ export class Harness implements HarnessRuntime {
   }
 
   async shutdown(): Promise<void> {
+    // Run the type's `onShutdown` first so types can flush state through
+    // substrate stores (still alive) before substrate tears connections
+    // down. Errors are caught and logged but do not block shutdown of
+    // substrate work — leaving sockets / processes around is worse than
+    // a noisy log.
+    const resolvedType = this.harnessTypeRegistry.resolve(this.harnessTypeId);
+    if (resolvedType.onShutdown) {
+      try {
+        await resolvedType.onShutdown({ harness: this, runtime: this.typeRuntime });
+      } catch (err) {
+        console.error(
+          `[harness ${this.name}] onShutdown failed for type "${resolvedType.id}":`,
+          err instanceof Error ? err.message : err,
+        );
+      }
+    }
     await this.bridgeImpl.shutdown();
   }
 
@@ -298,9 +342,7 @@ export class Harness implements HarnessRuntime {
     const agentChs = new Set<string>(chs);
     this.agentChannels.set(name, agentChs);
 
-    if (this.initialized) {
-      await this.inboxStore.load(name);
-    }
+    await this.inboxStore.load(name);
 
     if (!this.statusStore.getCached(name)) {
       await this.statusStore.set(name, "idle");
@@ -338,43 +380,38 @@ export class Harness implements HarnessRuntime {
     chronicleLimit?: number;
     queuedLimit?: number;
   }): Promise<HarnessStateSnapshot> {
-    const inboxLimit = opts?.inboxLimit ?? 10;
-    const timelineLimit = opts?.timelineLimit ?? 5;
     const chronicleLimit = opts?.chronicleLimit ?? 10;
-    const queuedLimit = opts?.queuedLimit ?? 20;
 
     const documents = await this.contextProvider.documents.list();
     const chronicle = await this.contextProvider.chronicle.read({ limit: chronicleLimit });
-    const queuedInstructions = this.instructionQueue.listAll().slice(-queuedLimit);
 
-    const agents = await Promise.all(
-      [...this.agentChannels.keys()].map(async (name) => {
-        const status = await this.contextProvider.status.get(name);
-        const inbox = (await this.contextProvider.inbox.inspect(name)).slice(0, inboxLimit);
-        const recentActivity = await this.contextProvider.timeline.read(name, {
-          limit: timelineLimit,
-        });
-        return {
-          name,
-          status: status?.status ?? "idle",
-          currentTask: status?.currentTask,
-          channels: [...this.getAgentChannels(name)],
-          inbox,
-          recentActivity,
-        };
-      }),
-    );
-
-    return {
+    // Substrate slice — universal across types.
+    const substrate: HarnessSubstrateSnapshot = {
       name: this.name,
       tag: this.tag,
-      defaultChannel: this.defaultChannel,
-      channels: this.contextProvider.channels.listChannels(),
+      harnessTypeId: this.harnessTypeId,
       documents,
       chronicle,
-      queuedInstructions,
-      agents,
     };
+
+    // Per-type slice — populated by the registered type's
+    // `snapshotExtension` if defined. Default no-op type contributes
+    // nothing → empty map. Coord type emits channels / inbox / queue
+    // / agents under its id.
+    const typeExtensions: Record<string, unknown> = {};
+    const resolvedType = this.harnessTypeRegistry.resolve(this.harnessTypeId);
+    if (resolvedType.snapshotExtension) {
+      const extension = await resolvedType.snapshotExtension({
+        harness: this,
+        runtime: this.typeRuntime,
+        opts,
+      });
+      if (extension !== undefined) {
+        typeExtensions[resolvedType.id] = extension;
+      }
+    }
+
+    return { substrate, typeExtensions };
   }
 
   // ── Internal routing ──────────────────────────────────────────────────

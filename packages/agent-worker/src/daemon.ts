@@ -1,5 +1,5 @@
 /**
- * agent-worker daemon — persistent HTTP server that manages agents and harnesss.
+ * agent-worker daemon — persistent HTTP server that manages agents and harnesses.
  *
  * Routes:
  *   GET  /health                                — daemon status
@@ -16,21 +16,21 @@
  *   GET    /agents/:name/events/stream          — SSE: real-time agent events
  *   GET    /agents/:name/state                  — agent state, inbox, todos
  *
- *   GET    /harnesss                          — list harnesss
- *   POST   /harnesss                          — create harness from YAML
- *   GET    /harnesss/:key                     — get harness info
- *   GET    /harnesss/:key/wait                — block until task harness completes
- *   DELETE /harnesss/:key                     — stop harness
- *   POST   /harnesss/:key/send               — send to harness (channel/agent/both)
- *   GET    /harnesss/:key/channels/:ch        — read channel messages (cursor-based)
- *   GET    /harnesss/:key/channels/:ch/stream — SSE: real-time channel messages
- *   GET    /harnesss/:key/events              — harness events (cursor-based)
- *   GET    /harnesss/:key/events/stream       — SSE: harness events
+ *   GET    /harnesses                          — list harnesses
+ *   POST   /harnesses                          — create harness from YAML
+ *   GET    /harnesses/:key                     — get harness info
+ *   GET    /harnesses/:key/wait                — block until task harness completes
+ *   DELETE /harnesses/:key                     — stop harness
+ *   POST   /harnesses/:key/send               — send to harness (channel/agent/both)
+ *   GET    /harnesses/:key/channels/:ch        — read channel messages (cursor-based)
+ *   GET    /harnesses/:key/channels/:ch/stream — SSE: real-time channel messages
+ *   GET    /harnesses/:key/events              — harness events (cursor-based)
+ *   GET    /harnesses/:key/events/stream       — SSE: harness events
  *
- *   GET    /harnesss/:key/docs                — list documents
- *   GET    /harnesss/:key/docs/:name          — read document
- *   PUT    /harnesss/:key/docs/:name          — write document
- *   PATCH  /harnesss/:key/docs/:name          — append to document
+ *   GET    /harnesses/:key/docs                — list documents
+ *   GET    /harnesses/:key/docs/:name          — read document
+ *   PUT    /harnesses/:key/docs/:name          — write document
+ *   PATCH  /harnesses/:key/docs/:name          — append to document
  *
  *   GET    /events                              — daemon event log (cursor-based)
  *   GET    /events/stream                       — SSE: all daemon events
@@ -99,7 +99,7 @@ export class Daemon {
   private _port = 0;
   private mcpHub: HarnessMcpHub | null = null;
   private readonly agents: AgentRegistry;
-  private readonly harnesss: HarnessRegistry;
+  private readonly harnesses: HarnessRegistry;
   private readonly eventLog: DaemonEventLog;
   private readonly _bus: EventBus;
   private readonly config: Required<DaemonConfig>;
@@ -130,13 +130,13 @@ export class Daemon {
 
     this._bus = new EventBus();
     this.agents = new AgentRegistry();
-    this.harnesss = new HarnessRegistry(dataDir);
+    this.harnesses = new HarnessRegistry(dataDir);
     this.eventLog = new DaemonEventLog(dataDir);
 
     // Wire registries
     this.agents.setBus(this._bus);
     this.agents.setDataDir(dataDir);
-    this.harnesss.setBus(this._bus);
+    this.harnesses.setBus(this._bus);
 
     // Wire event bus → JSONL event log (single consumer persists all events)
     this._bus.on((event: BusEvent) => {
@@ -174,7 +174,7 @@ export class Daemon {
     const publicHost = advertisedHost(this.config.host);
 
     // Create global harness (but don't start agent loops yet — MCP hub URL needed first)
-    const globalWs = await this.harnesss.ensureDefault();
+    const globalWs = await this.harnesses.ensureDefault();
 
     // Start harness MCP hub so CLI agents get a valid URL
     this.mcpHub = new HarnessMcpHub(globalWs.harness);
@@ -204,7 +204,7 @@ export class Daemon {
     });
 
     // Now set daemon info WITH the MCP hub URL, then start agent loops
-    this.harnesss.setDaemonInfo(
+    this.harnesses.setDaemonInfo(
       `http://${publicHost}:${actualPort}`,
       this.config.token,
       this.mcpHub.url ?? undefined,
@@ -212,8 +212,8 @@ export class Daemon {
     await globalWs.startLoops();
     this.registerGlobalAgents(globalWs);
 
-    // Restore registered harnesss from manifest (created via `aw create`)
-    await this.harnesss.restoreFromManifest();
+    // Restore registered harnesses from manifest (created via `aw create`)
+    await this.harnesses.restoreFromManifest();
 
     const info: DaemonInfo = {
       pid: process.pid,
@@ -243,7 +243,7 @@ export class Daemon {
     this._bus.emit({ type: "daemon.stopped", source: "daemon" });
 
     await this.agents.stopAll();
-    await this.harnesss.stopAll();
+    await this.harnesses.stopAll();
 
     if (this.mcpHub) {
       await this.mcpHub.stop();
@@ -292,7 +292,7 @@ export class Daemon {
   }
 
   get harnessRegistry(): HarnessRegistry {
-    return this.harnesss;
+    return this.harnesses;
   }
 
   get events(): DaemonEventLog {
@@ -318,7 +318,7 @@ export class Daemon {
     // Auth check — skip for local connections (127.0.0.1 / localhost)
     const isApiPath =
       path.startsWith("/agents") ||
-      path.startsWith("/harnesss") ||
+      path.startsWith("/harnesses") ||
       path.startsWith("/events") ||
       path === "/health" ||
       path === "/shutdown";
@@ -374,16 +374,16 @@ export class Daemon {
         if (sub === "/state" && method === "GET") return this.handleAgentState(name);
       }
 
-      // Harnesss
-      if (path === "/harnesss" && method === "GET") {
-        return this.handleListHarnesss();
+      // Harnesses
+      if (path === "/harnesses" && method === "GET") {
+        return this.handleListHarnesses();
       }
-      if (path === "/harnesss" && method === "POST") {
+      if (path === "/harnesses" && method === "POST") {
         return await this.handleCreateHarness(req);
       }
 
-      // Harness sub-routes: /harnesss/:key/...
-      const wsSubMatch = path.match(/^\/harnesss\/([^/]+)(\/.+)?$/);
+      // Harness sub-routes: /harnesses/:key/...
+      const wsSubMatch = path.match(/^\/harnesses\/([^/]+)(\/.+)?$/);
       if (wsSubMatch) {
         const key = decodeURIComponent(wsSubMatch[1]!);
         const sub = wsSubMatch[2] ?? "";
@@ -447,13 +447,13 @@ export class Daemon {
           return await this.handleCloseTask(key, taskId, req, "aborted");
         }
 
-        // Inbox route: /harnesss/:key/inbox/:agent
+        // Inbox route: /harnesses/:key/inbox/:agent
         const inboxMatch = sub.match(/^\/inbox\/([^/]+)$/);
         if (inboxMatch && method === "GET") {
           return await this.handleHarnessInbox(key, decodeURIComponent(inboxMatch[1]!));
         }
 
-        // Channel routes: /harnesss/:key/channels/:ch[/stream]
+        // Channel routes: /harnesses/:key/channels/:ch[/stream]
         const chMatch = sub.match(/^\/channels\/([^/]+)(\/stream)?$/);
         if (chMatch) {
           const ch = decodeURIComponent(chMatch[1]!);
@@ -468,7 +468,7 @@ export class Daemon {
           }
         }
 
-        // Doc routes: /harnesss/:key/docs[/:name]
+        // Doc routes: /harnesses/:key/docs[/:name]
         if (sub === "/docs" && method === "GET") {
           return await this.handleListDocs(key);
         }
@@ -513,7 +513,7 @@ export class Daemon {
       pid: process.pid,
       uptime: Date.now() - this.startedAt,
       agents: this.agents.size,
-      harnesss: this.harnesss.size,
+      harnesses: this.harnesses.size,
       runtimes: [
         {
           name: "ai-sdk",
@@ -642,7 +642,7 @@ export class Daemon {
     // Global agents are backed by harness loops — route messages through
     // the global harness channel so the HarnessAgentLoop processes them.
     if (handle instanceof GlobalAgentStub) {
-      const globalWs = this.harnesss.get("global");
+      const globalWs = this.harnesses.get("global");
       if (globalWs) {
         let sent = 0;
         for (const msg of body.messages) {
@@ -684,7 +684,7 @@ export class Daemon {
 
     // Global agents: read responses from all harness channels.
     if (handle instanceof GlobalAgentStub) {
-      const globalWs = this.harnesss.get("global");
+      const globalWs = this.harnesses.get("global");
       if (globalWs) {
         const channels = globalWs.harness.contextProvider.channels.listChannels();
         const allMessages = [];
@@ -722,7 +722,7 @@ export class Daemon {
     // Global agents: stream responses from the harness channel instead
     // of the standalone agent's responses.jsonl (which won't receive data).
     if (handle instanceof GlobalAgentStub) {
-      const globalWs = this.harnesss.get("global");
+      const globalWs = this.harnesses.get("global");
       if (globalWs) {
         const initialCursor = parseInt(url.searchParams.get("cursor") ?? "0", 10);
         return this.createSSEStream(async (push) => {
@@ -886,7 +886,7 @@ export class Daemon {
 
     // Global agents: read state from the harness.
     if (handle instanceof GlobalAgentStub) {
-      const globalWs = this.harnesss.get("global");
+      const globalWs = this.harnesses.get("global");
       if (globalWs) {
         const provider = globalWs.harness.contextProvider;
         const statusEntry = (await provider.status.getAll()).find((s) => s.name === name);
@@ -933,18 +933,18 @@ export class Daemon {
     });
   }
 
-  // ── Harnesss ──────────────────────────────────────────────────────────
+  // ── Harnesses ──────────────────────────────────────────────────────────
 
   /**
    * Resolve a harness key to a handle. If the bare name matches multiple
    * tagged instances, returns a 409 Conflict response. If not found, 404.
    */
   private resolveHarness(key: string): ManagedHarness | Response {
-    const handle = this.harnesss.get(key);
+    const handle = this.harnesses.get(key);
     if (handle) return handle;
 
     // Check if there are tagged variants
-    const matches = this.harnesss.list().filter((ws) => ws.name === key && ws.tag);
+    const matches = this.harnesses.list().filter((ws) => ws.name === key && ws.tag);
     if (matches.length > 0) {
       return Response.json(
         {
@@ -957,8 +957,8 @@ export class Daemon {
     return Response.json({ error: `Harness "${key}" not found` }, { status: 404 });
   }
 
-  private handleListHarnesss(): Response {
-    return Response.json({ harnesss: this.harnesss.list() });
+  private handleListHarnesses(): Response {
+    return Response.json({ harnesses: this.harnesses.list() });
   }
 
   private async handleCreateHarness(req: Request): Promise<Response> {
@@ -977,7 +977,7 @@ export class Daemon {
     }
 
     try {
-      const handle = await this.harnesss.create(body);
+      const handle = await this.harnesses.create(body);
       await handle.startLoops();
       await handle.kickoff();
       return Response.json(handle.info);
@@ -1031,10 +1031,10 @@ export class Daemon {
           agents: handle.resolved.agents.map((a) => a.name),
           mode: handle.mode,
         };
-        // Auto-remove task harnesss on completion
+        // Auto-remove task harnesses on completion
         if (handle.mode === "task") {
           try {
-            await this.harnesss.remove(key);
+            await this.harnesses.remove(key);
           } catch (err) {
             console.warn(`[daemon] failed to auto-remove task harness "${key}":`, err);
           }
@@ -1051,7 +1051,7 @@ export class Daemon {
     const resolved = this.resolveHarness(key);
     if (resolved instanceof Response) return resolved;
     try {
-      await this.harnesss.remove(key);
+      await this.harnesses.remove(key);
       return Response.json({ removed: true });
     } catch (err) {
       return Response.json({ error: String(err) }, { status: 400 });

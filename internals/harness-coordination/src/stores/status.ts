@@ -3,7 +3,7 @@ import type {
   AgentStatusEntry,
   StorageBackend,
   StatusStoreInterface,
-} from "../../types.ts";
+} from "@agent-worker/harness";
 
 const STATUS_FILE = "status.json";
 

@@ -1,7 +1,7 @@
 export interface HealthInfo {
   status: string;
   agents: number;
-  harnesss: number;
+  harnesses: number;
   uptime: number;
   runtimes?: RuntimeHealth[];
 }

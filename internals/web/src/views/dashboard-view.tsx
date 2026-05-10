@@ -3,7 +3,7 @@
 import { computed } from "semajsx/signal";
 import { Icon, Plus, ArrowRight, MoreHorizontal } from "semajsx/icons";
 import { agents, fetchAgents } from "../stores/agents.ts";
-import { harnesss, fetchHarnesss } from "../stores/harnesss.ts";
+import { harnesses, fetchHarnesses } from "../stores/harnesses.ts";
 import { daemonEvents, loadDaemonEvents } from "../stores/daemon-events.ts";
 import { selectAgent, selectHarnessSettings, selectGlobalEvents } from "../stores/navigation.ts";
 import { showCreateAgent } from "../components/create-agent-dialog.tsx";
@@ -154,7 +154,7 @@ function EventRow(props: { event: DaemonEvent }) {
 export function DashboardView() {
   // Load data on mount
   fetchAgents();
-  fetchHarnesss();
+  fetchHarnesses();
   loadDaemonEvents();
 
   const runningCount = computed(agents, (list) =>
@@ -166,8 +166,8 @@ export function DashboardView() {
     (list) => list.filter((a) => a.state === "error" || a.state === "failed").length,
   );
   const totalAgents = computed(agents, (list) => list.length);
-  const wsRunning = computed(harnesss, (list) => list.filter((w) => w.status === "running").length);
-  const wsTotal = computed(harnesss, (list) => list.length);
+  const wsRunning = computed(harnesses, (list) => list.filter((w) => w.status === "running").length);
+  const wsTotal = computed(harnesses, (list) => list.length);
 
   const dateLine = computed([totalAgents, wsTotal], (a, w) => {
     const d = new Date();
@@ -191,13 +191,13 @@ export function DashboardView() {
     ),
   );
 
-  const wsRows = computed(harnesss, (list) =>
+  const wsRows = computed(harnesses, (list) =>
     list.length === 0 ? (
       <div class={s.resRow}>
         <span />
         <div class={s.resName}>
           <span class={s.resNameT} style="color:var(--colors-textDim)">
-            No harnesss
+            No harnesses
           </span>
           <span class={s.resNameS}>Click “+ New” to create one.</span>
         </div>
@@ -233,7 +233,7 @@ export function DashboardView() {
             </div>
           </div>
           <div class={s.stat}>
-            <div class={s.statLabel}>Harnesss active</div>
+            <div class={s.statLabel}>Harnesses active</div>
             <div class={s.statValue}>{wsRunning}</div>
             <div class={s.statMeta}>
               <span>of {wsTotal} total</span>
@@ -260,7 +260,7 @@ export function DashboardView() {
         <div class={s.resList}>{agentRows}</div>
 
         <div class={s.section}>
-          <span class={s.sectionLabel}>Harnesss</span>
+          <span class={s.sectionLabel}>Harnesses</span>
           <span class={s.sectionCount}>{wsTotal}</span>
           <span class={s.sectionRight}>
             <button class={s.btnSmGhost} onclick={() => (showCreateHarness.value = true)}>

@@ -489,8 +489,8 @@ describe("Unified daemon (harness routes)", () => {
     await client.stopHarness("test-ws");
 
     // Harness should be removed
-    const harnesss = await client.listHarnesss();
-    expect(harnesss.find((w) => w.name === "test-ws")).toBeUndefined();
+    const harnesses = await client.listHarnesses();
+    expect(harnesses.find((w) => w.name === "test-ws")).toBeUndefined();
   });
 
   test("stopHarness also wipes the harness-data directory on disk", async () => {
@@ -602,7 +602,7 @@ lead: lead
 
       // Helper: POST /tool-call as a given agent.
       const callTool = async (agent: string, name: string, args: Record<string, unknown>) => {
-        const url = `http://${daemonInfo.host}:${daemonInfo.port}/harnesss/phase1v3/tool-call`;
+        const url = `http://${daemonInfo.host}:${daemonInfo.port}/harnesses/phase1v3/tool-call`;
         const res = await fetch(url, {
           method: "POST",
           headers: {
@@ -634,7 +634,7 @@ lead: lead
 
       // The attempt is now active — verify before we touch worktrees.
       const tasksRes = await fetch(
-        `http://${daemonInfo.host}:${daemonInfo.port}/harnesss/phase1v3/tasks/${taskId}`,
+        `http://${daemonInfo.host}:${daemonInfo.port}/harnesses/phase1v3/tasks/${taskId}`,
         { headers: { Authorization: `Bearer ${daemonInfo.token}` } },
       );
       const taskBody = (await tasksRes.json()) as { task: { activeWakeId?: string } };
@@ -740,7 +740,7 @@ lead: lead
 `);
 
       const callTool = async (agent: string, name: string, args: Record<string, unknown>) => {
-        const url = `http://${daemonInfo.host}:${daemonInfo.port}/harnesss/multi-wt/tool-call`;
+        const url = `http://${daemonInfo.host}:${daemonInfo.port}/harnesses/multi-wt/tool-call`;
         const res = await fetch(url, {
           method: "POST",
           headers: {
@@ -762,7 +762,7 @@ lead: lead
       await callTool("lead", "task_dispatch", { taskId, worker: "coder" });
 
       const taskRes = await fetch(
-        `http://${daemonInfo.host}:${daemonInfo.port}/harnesss/multi-wt/tasks/${taskId}`,
+        `http://${daemonInfo.host}:${daemonInfo.port}/harnesses/multi-wt/tasks/${taskId}`,
         { headers: { Authorization: `Bearer ${daemonInfo.token}` } },
       );
       const taskBody = (await taskRes.json()) as { task: { activeWakeId?: string } };

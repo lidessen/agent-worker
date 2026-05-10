@@ -5,36 +5,24 @@ export type { AgentDirs } from "./factory.ts";
 
 // ── Context ────────────────────────────────────────────────────────────────
 export { CompositeContextProvider } from "./context/provider.ts";
-export { ChannelBridge } from "./context/bridge.ts";
 export { HarnessEventLog } from "./context/event-log.ts";
 
-// ── Stores ─────────────────────────────────────────────────────────────────
-export { ChannelStore } from "./context/stores/channel.ts";
-export { InboxStore } from "./context/stores/inbox.ts";
+// ── Stores (substrate-only — coord stores live in @agent-worker/harness-coordination) ─
 export { DocumentStore } from "./context/stores/document.ts";
 export { ResourceStore } from "./context/stores/resource.ts";
-export { StatusStore } from "./context/stores/status.ts";
 export { TimelineStore } from "./context/stores/timeline.ts";
 
 // ── Storage backends ───────────────────────────────────────────────────────
 export { MemoryStorage, FileStorage } from "./context/storage.ts";
 
-// ── Instruction Queue ─────────────────────────────────────────────────────
-export { InstructionQueue } from "./loop/priority-queue.ts";
-
 // ── Prompt ─────────────────────────────────────────────────────────────────
-export { assemblePrompt, BASE_SECTIONS, soulSection, inboxSection } from "./loop/prompt.tsx";
+export { assemblePrompt, SUBSTRATE_BASE_SECTIONS, soulSection } from "./loop/prompt.tsx";
 export {
   harnessPromptSection,
   conversationSection,
   docsPromptSection,
   HARNESS_PROMPT_SECTIONS,
 } from "./context/mcp/prompts.tsx";
-
-// Re-export DEFAULT_SECTIONS as the full set (base + harness) for external callers.
-import { BASE_SECTIONS } from "./loop/prompt.tsx";
-import { HARNESS_PROMPT_SECTIONS } from "./context/mcp/prompts.tsx";
-export const DEFAULT_SECTIONS = [...BASE_SECTIONS, ...HARNESS_PROMPT_SECTIONS];
 export type { PromptSection, PromptContext } from "./loop/prompt.tsx";
 
 // ── MCP tools ──────────────────────────────────────────────────────────────
@@ -64,8 +52,18 @@ export {
 export type {
   HarnessType,
   HarnessTypeRegistry,
+  HarnessTypeRuntime,
+  ContributeRuntimeInput,
+  OnInitInput,
+  OnShutdownInput,
   ProduceExtensionInput,
   ConsumeExtensionInput,
+  ContributedMcpTool,
+  ContributedPromptSection,
+  ContributeMcpToolsInput,
+  ContributeContextSectionsInput,
+  SnapshotExtensionInput,
+  ParseConfigInput,
   ProduceLogger,
 } from "./type/index.ts";
 
@@ -118,8 +116,6 @@ export type {
 
 // ── Kernel state (Task / Wake / Handoff) ──────────────────────────────────
 export { InMemoryHarnessStateStore, FileHarnessStateStore } from "./state/index.ts";
-export { buildLeadHooks } from "./loop/lead-hooks.ts";
-export type { BuildLeadHooksOptions } from "./loop/lead-hooks.ts";
 export type {
   SourceRef,
   TaskStatus,
@@ -139,13 +135,6 @@ export type {
   WakeTerminalListener,
   TaskFilter,
 } from "./state/index.ts";
-
-// ── Adapters ──────────────────────────────────────────────────────────────
-export { TelegramAdapter, runTelegramAuth } from "./adapters/telegram.ts";
-export type {
-  TelegramAdapterConfig,
-  AuthResult as TelegramAuthResult,
-} from "./adapters/telegram.ts";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 export type {
@@ -176,7 +165,7 @@ export type {
   ChannelAdapter,
   ChannelBridgeInterface,
   BridgeSubscriber,
-  HarnessAgentSnapshot,
+  HarnessSubstrateSnapshot,
   HarnessStateSnapshot,
   // Runtime
   HarnessRuntime,

@@ -134,7 +134,7 @@ async function createClaudeCodeLoop(config: RuntimeConfig): Promise<AgentLoop> {
   // Phase-3 control boundary: `permissionMode` is now
   // configurable. The daemon-level default stays at
   // `bypassPermissions` until a follow-up commit flips it, so
-  // existing harnesss keep behaving the same way.
+  // existing harnesses keep behaving the same way.
   return new ClaudeCodeLoop({
     model: config.model ?? "sonnet",
     cwd: config.cwd,

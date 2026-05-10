@@ -4,16 +4,8 @@
 // onCheckpoint to inject task-ledger deltas between runs. The lead sees
 // a fresh "what changed" view each time it wakes without having to call
 // task_list manually.
-//
-// Shape: close over the state store + harness id; snapshot the active
-// task list at each run_start; at the next run_start, diff against the
-// previous snapshot and inject the changes as a structured system note.
-//
-// Keeping this a pure function (buildLeadHooks) means it can be wired in
-// from the orchestration layer at registerAgent time without the harness
-// package pulling in the agent package.
 
-import type { Handoff, Task, TaskStatus, HarnessStateStore } from "../state/index.ts";
+import type { Handoff, Task, TaskStatus, HarnessStateStore } from "@agent-worker/harness";
 
 /** Subset of the Agent type we need — keep this file decoupled from @agent-worker/agent. */
 interface MinimalAgentHooks {
@@ -25,7 +17,6 @@ interface MinimalAgentHooks {
 
 type LeadCheckpointAction = { kind: "noop" } | { kind: "inject"; content: string };
 
-/** The subset of Task fields we track for delta detection. */
 interface TaskSnapshot {
   id: string;
   title: string;
@@ -142,9 +133,6 @@ export interface BuildLeadHooksOptions {
  * onCheckpoint captures an active-task snapshot at each run_start and,
  * on the following run_start, injects a structured delta describing
  * new / changed / removed tasks since the last one.
- *
- * The first run of a lead emits no delta (there is nothing to compare
- * against). Subsequent runs emit "noop" when nothing changed.
  */
 export function buildLeadHooks(
   store: HarnessStateStore,
@@ -153,10 +141,6 @@ export function buildLeadHooks(
   const trackStatuses = options.trackStatuses ?? ACTIVE_STATUSES;
 
   let previous: Map<string, TaskSnapshot> | null = null;
-  // Track handoffs already surfaced so we only report brand-new ones.
-  // Using a Set of ids (not a createdAt cursor) is robust against the
-  // InMemory store's millisecond-resolution clock where baseline and new
-  // handoffs can share a timestamp.
   const reportedHandoffIds = new Set<string>();
 
   async function captureCurrent(): Promise<Map<string, TaskSnapshot>> {
@@ -179,8 +163,6 @@ export function buildLeadHooks(
         }
       }
     }
-    // Stable order: oldest first so the lead reads them in the order the
-    // workers emitted them.
     return out.sort((a, b) => a.createdAt - b.createdAt);
   }
 
@@ -193,24 +175,15 @@ export function buildLeadHooks(
 
   return {
     async onCheckpoint(ctx): Promise<LeadCheckpointAction | void> {
-      // Only act at run_start — a fresh run is the moment where injecting
-      // context has the most value. run_end would only affect the next run
-      // anyway, and injecting via the inbox there races with the next
-      // run_start's own capture.
       if (ctx.reason !== "run_start") return { kind: "noop" };
 
       const current = await captureCurrent();
 
-      // Union the tracked task ids from both snapshots so we catch
-      // handoffs on tasks that just disappeared from the active set (e.g.
-      // a worker reported `completed` and the task transitioned out).
       const relevantTaskIds = new Set<string>();
       for (const id of current.keys()) relevantTaskIds.add(id);
       if (previous) for (const id of previous.keys()) relevantTaskIds.add(id);
 
       if (previous === null) {
-        // First run of this lead in this process. Seed the reported-set
-        // so we don't dump the entire handoff backlog on the next run.
         previous = current;
         await seedReportedHandoffs(relevantTaskIds);
         return { kind: "noop" };
