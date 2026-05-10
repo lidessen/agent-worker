@@ -19,6 +19,15 @@ If splitting work into multiple slices feels necessary, the seam goes between *c
 - Bug fixes, small config tweaks, or tasks shorter to do than to plan don't need a blueprint.
 - See `skills/attention-driven/` for the full methodology.
 
+## Skill Authoring
+
+`skills/` is the source of truth for agent skills; `.claude/skills` and `.agents/skills` are projections. Follow the Agent Skills format when editing a skill.
+
+- `SKILL.md` frontmatter is YAML with `name`, `description`, and optional `argument-hint` or metadata.
+- Prefer a compact single-line `description`; front-load concrete trigger phrases and keep it roughly under 800 characters. Quote only when YAML needs it, such as when the text contains `: `, `#`, brackets, or other syntax-sensitive characters.
+- Do not put long prose, argument details, or methodology background in `description`; put them in the body or `commands/` and `references/`.
+- The body of `SKILL.md` is an agent prompt, not human documentation. Keep it under 500 lines when practical and dispatch details to sibling files.
+
 ## Bun runtime
 
 Bun is the runtime, package manager, and test runner for `packages/agent-worker` and friends. Use Node.js APIs for library code that needs broad compatibility.
