@@ -3,6 +3,8 @@
 **Status:** adopted
 **Date:** 2026-05-09 (proposed) — 2026-05-09 (adopted)
 
+> **Terminology note (2026-05-10):** This proposal predates [decision 006](006-harness-as-agent-environment.md), which renames the `Workspace` kernel to `Harness` and recasts the privileged `WorkspaceHarness` as one peer `HarnessType` (`MultiAgentCoordinationHarnessType`) plugged into a universal substrate. References below to `Workspace` / `WorkspaceEvent` / `WorkspaceHarness` should be read as `Harness` / `HarnessEvent` / `Harness with type=coordination` — the substantive claims of this proposal (Task as projection, Wake/Handoff core+extension, work log, hook protocol, session orchestrator) are unchanged. The original wording is preserved as historical record.
+
 ## Context
 
 `goals/GOAL.md` defines the project's General Line: a continuously-running,

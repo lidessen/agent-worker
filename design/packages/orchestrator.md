@@ -3,10 +3,10 @@
 > The unified entry surface — CLI plus web UI — that sits above the
 > harness layer and replaces the current "open one app per runtime"
 > daily flow. It owns Wake lifecycle (start, observe, resume, switch
-> binding), surfaces task projections from task-tracking harnesses,
+> binding), surfaces task projections from task-tracking Harness typees,
 > and routes user intent into the appropriate `RuntimeBinding`.
 
-The orchestrator is not its own workspace package — its code lives in
+The orchestrator is not its own package — its code lives in
 `packages/agent-worker/src/orchestrator/` (CLI + daemon side) and
 `internals/web/src/` (UI side). This doc defines the architectural
 surface; the package designs ([agent-worker.md](agent-worker.md),
@@ -30,7 +30,7 @@ sees in-flight tasks across all runtimes in one place; resumes a task
 when its previous Wake hit context limit, possibly under a different
 binding. The orchestrator does **not** implement runtime semantics —
 that stays in `internals/loop/` — and it does **not** own task state
-— that stays in the task-tracking harness's projection. It coordinates.
+— that stays in the task-tracking Harness type's projection. It coordinates.
 
 ## Surface
 
@@ -44,7 +44,7 @@ that stays in `internals/loop/` — and it does **not** own task state
                  ┌──────────────────────┐
                  │  Session Orchestrator │
                  │                      │
-                 │  ├─ task projection   │  ← from task-tracking harness
+                 │  ├─ task projection   │  ← from task-tracking Harness type
                  │  │     overview      │
                  │  ├─ Wake lifecycle    │  ← spawn / observe / end
                  │  ├─ binding picker    │  ← OSS-fallback aware
@@ -69,19 +69,19 @@ that stays in `internals/loop/` — and it does **not** own task state
 
 **Submit intent.** A user submits a requirement at the top — a task
 description, optionally a runtime preference, optionally a target
-harness type. The orchestrator routes it: typically into a
-task-tracking harness, which projects it as an open task on the event
-stream. The harness (or the orchestrator on its behalf) opens the
-first Wake under a chosen `RuntimeBinding`.
+`HarnessType`. The orchestrator routes it: typically into a Harness
+with the task-tracking type, which projects it as an open task on the
+event stream. The Harness (or the orchestrator on its behalf) opens
+the first Wake under a chosen `RuntimeBinding`.
 
 **Show in-flight tasks across runtimes.** The orchestrator reads task
-projections from harnesses and presents a unified list — independent
+projections from Harnesses and presents a unified list — independent
 of which runtime each task's most recent Wake used. This is the daily
 "what am I working on" surface, replacing per-app project lists.
 
 **Spawn, observe, end Wakes.** Wake lifecycle is the orchestrator's
 operational surface: dispatching the next Wake (delegated to the
-harness), streaming its `LoopEvent`s and `RuntimeTrace` to the UI,
+Harness), streaming its `LoopEvent`s and `RuntimeTrace` to the UI,
 catching the runtime's context-budget signal (see
 [agent.md](agent.md)) and triggering checkpoint flow before forced
 termination.
@@ -90,9 +90,10 @@ termination.
 (not terminal completion), the orchestrator surfaces the resume option:
 either auto (default to be defined in a downstream blueprint) or
 user-confirmed. Resume reads the work log + the closing Handoff (core
-+ extension), runs the harness's `consumeExtension` hook to build the
-next `ContextPacket`, and dispatches the next Wake — possibly under a
-different `RuntimeBinding` selected by the user or the harness.
++ extension), runs the registered `HarnessType`'s `consumeExtension`
+hook to build the next `ContextPacket`, and dispatches the next Wake
+— possibly under a different `RuntimeBinding` selected by the user or
+the Harness.
 
 **Switch `RuntimeBinding` mid-task.** A user may explicitly change the
 binding for an in-progress task ("this is taking too long, try a
@@ -118,11 +119,11 @@ under the C2 monitor) sees coverage in real time.
   — not a free-flowing dialogue.
 - **Not a runtime implementation.** Backend semantics (model selection,
   prompt rendering, tool invocation) stay in `internals/loop/`.
-- **Not a task store.** Task state lives as a projection in the
-  task-tracking harness over the WorkspaceEvent stream, not in the
-  orchestrator.
+- **Not a task store.** Task state lives as a projection contributed
+  by the task-tracking Harness type over the HarnessEvent stream, not
+  in the orchestrator.
 - **Not a long-term memory model.** Cross-Wake state lives in the
-  work log (harness-owned) plus Handoffs; the orchestrator reads but
+  work log (Harness-owned) plus Handoffs; the orchestrator reads but
   does not own.
 - **Not a runtime adapter.** Per-binding context-budget normalization,
   session continuity, and tool transport are runtime concerns
@@ -154,7 +155,7 @@ as a sequence of Wake rows linked by Handoffs.
 
 **Binding choice is a first-class action.** The orchestrator's binding
 picker is exposed every time a Wake starts (or restarts after a
-Handoff). Default suggestion comes from harness recommendation; user
+Handoff). Default suggestion comes from the Harness's recommendation; user
 can override. The picker visibly distinguishes OSS-anchored from
 closed-source-only configurations, making coverage and dependence
 patterns obvious in normal use, not just in the C2 monitor's report.
@@ -175,7 +176,8 @@ Each is a downstream blueprint candidate.
 - [agent-worker.md](agent-worker.md) — daemon package where the
   orchestrator's server-side code lives
 - [agent.md](agent.md) — runtime contract incl. context-budget signaling
-- [workspace.md](workspace.md) — Wake / Handoff records the orchestrator
-  reads
+- [harness.md](harness.md) — substrate where Wake / Handoff records live
+- [harness-types/coordination.md](harness-types/coordination.md) —
+  the first mature `HarnessType`'s contributions
 - [web.md](web.md) — UI package for the orchestrator's web surface
 - [../../goals/GOAL.md](../../goals/GOAL.md) — General Line, C1, C4, NG-2

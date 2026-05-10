@@ -3,6 +3,8 @@
 **Status:** adopted
 **Date:** 2026-05-05
 
+> **Terminology note (2026-05-10):** [Decision 006](006-harness-as-agent-environment.md) renames the `Workspace` kernel to `Harness` and recasts the privileged `WorkspaceHarness` as one peer `HarnessType`. Read references below to `Workspace` / `WorkspaceHarness` / `packages/workspace/` as `Harness` / `Harness with type=coordination` / `packages/harness/`. The runtime/harness boundary claim of this proposal is unchanged.
+
 ## Context
 
 The current design grew from a standalone `/agents` product path. A standalone

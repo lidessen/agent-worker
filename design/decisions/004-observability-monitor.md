@@ -3,6 +3,8 @@
 **Status:** placeholder (proposal pending)
 **Date:** 2026-05-09
 
+> **Terminology note (2026-05-10):** [Decision 006](006-harness-as-agent-environment.md) renames the `Workspace` kernel to `Harness`. The reference to `WorkspaceHarness` below should be read as the universal `Harness` substrate plus its registered `HarnessType`. The monitor's instrumentation surfaces remain the same; only the names change.
+
 ## Context
 
 `goals/GOAL.md` defines four success criteria (C1–C4) — multi-requirement
