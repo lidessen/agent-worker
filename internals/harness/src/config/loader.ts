@@ -196,7 +196,14 @@ export function parseHarnessDef(content: string): HarnessDef {
     throw new Error("Invalid harness definition: 'name' must be a string");
   }
 
-  if (!raw.agents || typeof raw.agents !== "object") {
+  // The `agents` map is coord-shaped; types that don't model a roster
+  // (e.g. single-agent-chat) declare their agent block under a
+  // type-specific key (`agent:` for chat). Skip the coord validation
+  // for non-coord types — each type validates its own config slice
+  // via `parseConfig` (or, today, at `contributeRuntime` time).
+  const isCoord =
+    raw.harnessTypeId === undefined || raw.harnessTypeId === "multi-agent-coordination";
+  if (isCoord && (!raw.agents || typeof raw.agents !== "object")) {
     throw new Error("Invalid harness definition: 'agents' map is required");
   }
 
@@ -298,9 +305,13 @@ export async function loadHarnessDef(
     );
   }
 
-  // Resolve agents (runtime + model)
+  // Resolve agents (runtime + model). Non-coord HarnessTypes
+  // (e.g. single-agent-chat) may not declare an `agents` map; treat
+  // it as empty so the loader doesn't crash and the type's own
+  // config slice (e.g. chat's `agent:` block) is read by
+  // `contributeRuntime` later.
   const agents: ResolvedAgent[] = [];
-  for (const [name, agentDef] of Object.entries(def.agents)) {
+  for (const [name, agentDef] of Object.entries(def.agents ?? {})) {
     const modelSpec = agentDef.model ? resolveModel(agentDef.model) : undefined;
 
     // Resolve runtime with defaults/discovery
@@ -385,10 +396,10 @@ export async function loadHarnessDef(
   }
 
   // Validate lead references an existing agent
-  if (def.lead && !def.agents[def.lead]) {
+  if (def.lead && !def.agents?.[def.lead]) {
     throw new Error(
       `Invalid harness definition: 'lead' references unknown agent "${def.lead}". ` +
-        `Available agents: ${Object.keys(def.agents).join(", ")}`,
+        `Available agents: ${Object.keys(def.agents ?? {}).join(", ")}`,
     );
   }
 
@@ -615,6 +626,7 @@ export function toHarnessConfig(
   return {
     name: def.name,
     tag: opts.tag,
+    harnessTypeId: def.harnessTypeId,
     channels: def.channels,
     defaultChannel: def.default_channel,
     agents: resolved.agents.map((a) => a.name),
@@ -624,5 +636,9 @@ export function toHarnessConfig(
     storage,
     sandboxBaseDir: opts.sandboxBaseDir,
     storageDir: storageType === "file" ? storageDir : undefined,
-  };
+    // Type-specific config slices pass through verbatim so the
+    // registered HarnessType's `contributeRuntime` can read them.
+    // chat reads `agent`; future types can add their own slots.
+    ...(def.agent ? { agent: def.agent } : {}),
+  } as HarnessConfig;
 }
