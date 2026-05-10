@@ -229,13 +229,25 @@ export interface C3Metrics {
   };
 }
 
+export interface C4Metrics {
+  allSilentRatio: number;
+  authWaitNonBlockingUtilization: number;
+  phantomBlockEvents: number;
+  windowSamples: number;
+  thresholds: {
+    allSilentRatioMax: number;
+    authWaitNonBlockingUtilizationMin: number;
+    phantomBlockEventsMaxPerMonth: number;
+  };
+}
+
 export interface MonitorSnapshot {
   ts: number;
   uptimeSec: number;
   c1: C1Metrics;
   c2?: unknown;
   c3?: C3Metrics;
-  c4?: unknown;
+  c4?: C4Metrics;
 }
 
 export type MonitorEvent =

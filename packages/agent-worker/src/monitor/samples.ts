@@ -95,6 +95,11 @@ export class RollingSampleStore {
     return this.seconds.slice(this.seconds.length - n);
   }
 
+  /** Full seconds-resolution buffer (last hour). */
+  allSeconds(): ConcurrencySample[] {
+    return this.seconds.slice();
+  }
+
   // ── internal ──────────────────────────────────────────────────────────
 
   private foldInto(buckets: AggBucket[], sample: ConcurrencySample, bucketMs: number): void {

@@ -58,8 +58,7 @@ export interface MonitorSnapshot {
   /** Slice 4 will fill this. */
   c2?: unknown;
   c3?: C3Metrics;
-  /** Slice 3 will fill this. */
-  c4?: unknown;
+  c4?: C4Metrics;
 }
 
 // ── Interventions (slice 2 / C3) ──────────────────────────────────────────
@@ -94,6 +93,39 @@ export interface Intervention {
    * filled by future slices when the close path lands.
    */
   responseLatencyMs?: number;
+}
+
+// ── C4 (silence + non-blocking) ──────────────────────────────────────────
+
+export interface C4Metrics {
+  /**
+   * Primary: time when ≥1 unfinished requirement exists AND 0 agents
+   * are active / total time when ≥1 unfinished requirement exists.
+   * Computed over the last hour of 1-second samples.
+   */
+  allSilentRatio: number;
+  /**
+   * Secondary: within windows where authorization is pending AND ≥1
+   * other non-blocked requirement exists, share of time with active
+   * agents ≥ 1. NaN-safe: 0 when no auth-wait windows observed.
+   */
+  authWaitNonBlockingUtilization: number;
+  /**
+   * Discrete count of intervals where authorization is pending AND
+   * ≥1 other requirement exists AND active agents = 0 — counts each
+   * continuous span as one event.
+   */
+  phantomBlockEvents: number;
+  /** Number of seconds-resolution samples folded into the metrics. */
+  windowSamples: number;
+  thresholds: {
+    /** From month 4: all-silent ratio ≤ this. */
+    allSilentRatioMax: number;
+    /** From month 4: auth-wait non-blocking utilization ≥ this. */
+    authWaitNonBlockingUtilizationMin: number;
+    /** Phantom-block events ≤ this per month. */
+    phantomBlockEventsMaxPerMonth: number;
+  };
 }
 
 export interface C3Metrics {

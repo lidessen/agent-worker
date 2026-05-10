@@ -17,7 +17,7 @@ import type { Harness } from "@agent-worker/harness";
 import { coordinationRuntime, COORDINATION_HARNESS_TYPE_ID } from "@agent-worker/harness-coordination";
 import { RollingSampleStore } from "./samples.ts";
 import { InterventionLog } from "./interventions.ts";
-import { computeC1, computeC3 } from "./metrics.ts";
+import { computeC1, computeC3, computeC4 } from "./metrics.ts";
 import type {
   ConcurrencySample,
   Intervention,
@@ -94,6 +94,7 @@ export class Monitor {
       uptimeSec: Math.floor((Date.now() - this.startedAt) / 1000),
       c1,
       c3: computeC3(this.interventions, c1.peak30d),
+      c4: computeC4(this.samples),
     };
   }
 

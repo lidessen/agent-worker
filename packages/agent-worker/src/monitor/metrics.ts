@@ -1,7 +1,7 @@
 // Pure metric computation from the rolling sample store.
-// Slice 1 covers C1; slice 2 adds C3; slices 3–4 add c4/c2.
+// Slice 1 covers C1; slice 2 adds C3; slice 3 adds C4; slice 4 adds C2.
 
-import type { C1Metrics, C3Metrics, ConcurrencySample } from "./types.ts";
+import type { C1Metrics, C3Metrics, C4Metrics, ConcurrencySample } from "./types.ts";
 import type { RollingSampleStore } from "./samples.ts";
 import type { InterventionLog } from "./interventions.ts";
 
@@ -32,6 +32,63 @@ export const C3_THRESHOLDS: C3Metrics["thresholds"] = {
   rescueRatioMax: 0.05,
   perRequirementAuthAcceptanceMax: 3,
 };
+
+/** GOAL.md C4 thresholds, surfaced verbatim. */
+export const C4_THRESHOLDS: C4Metrics["thresholds"] = {
+  allSilentRatioMax: 0.2,
+  authWaitNonBlockingUtilizationMin: 0.8,
+  phantomBlockEventsMaxPerMonth: 5,
+};
+
+export function computeC4(store: RollingSampleStore): C4Metrics {
+  const samples = store.allSeconds();
+
+  let unfinishedSamples = 0;
+  let allSilentSamples = 0;
+  let authWaitWindowSamples = 0;
+  let authWaitNonBlockingSamples = 0;
+  let phantomBlockEvents = 0;
+  let inPhantomBlock = false;
+
+  for (const sample of samples) {
+    const otherRequirements = sample.activeRequirements - sample.pendingOnAuth;
+    const unfinished = sample.activeRequirements > 0 || sample.pendingOnAuth > 0;
+    const allSilent = unfinished && sample.activeAgents === 0;
+
+    // C4 primary: all-silent ratio.
+    if (unfinished) {
+      unfinishedSamples++;
+      if (allSilent) allSilentSamples++;
+    }
+
+    // C4 secondary: auth-wait non-blocking utilization. The window
+    // requires auth pending AND another non-blocked requirement.
+    const authWaitWindow = sample.pendingOnAuth > 0 && otherRequirements > 0;
+    if (authWaitWindow) {
+      authWaitWindowSamples++;
+      if (sample.activeAgents > 0) authWaitNonBlockingSamples++;
+    }
+
+    // Phantom-block: auth pending + other requirement + 0 active.
+    // Count each continuous span as one event (transition into the
+    // state).
+    const phantom = authWaitWindow && sample.activeAgents === 0;
+    if (phantom && !inPhantomBlock) phantomBlockEvents++;
+    inPhantomBlock = phantom;
+  }
+
+  const allSilentRatio = unfinishedSamples === 0 ? 0 : allSilentSamples / unfinishedSamples;
+  const authWaitNonBlockingUtilization =
+    authWaitWindowSamples === 0 ? 0 : authWaitNonBlockingSamples / authWaitWindowSamples;
+
+  return {
+    allSilentRatio,
+    authWaitNonBlockingUtilization,
+    phantomBlockEvents,
+    windowSamples: samples.length,
+    thresholds: C4_THRESHOLDS,
+  };
+}
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
