@@ -59,4 +59,13 @@ export interface ChatHarnessAgentConfig {
   model?: { id: string; provider?: string; full: string };
   /** System prompt / instructions for the agent. */
   instructions?: string;
+  /**
+   * Working directory the agent dispatches in (bash cwd, file-tool
+   * root). Required for "chat about a specific project" use cases —
+   * without it the agent runs in the daemon's startup directory,
+   * which is rarely what the user wants. Absolute path; resolved
+   * relative to the harness storage dir is not supported (chat is
+   * project-scoped, not data-dir-scoped).
+   */
+  cwd?: string;
 }

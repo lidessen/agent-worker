@@ -187,5 +187,6 @@ function buildRuntimeConfig(runtime: ChatRuntime): RuntimeConfig {
     type: runtime.runtimeId as RuntimeConfig["type"],
     model: runtime.model?.full,
     instructions: runtime.instructions,
+    cwd: runtime.cwd,
   };
 }

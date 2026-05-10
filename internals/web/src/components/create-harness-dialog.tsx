@@ -46,6 +46,7 @@ export function CreateHarnessDialog() {
   // Chat-only
   const chatRuntime = signal("codex");
   const chatModel = signal("");
+  const chatCwd = signal("");
   const chatInstructions = signal("You are a helpful assistant. Use your tools when useful. Reply concisely.");
 
   const createBtnLabel = computed(loading, (l) => (l ? "Creating…" : "Create"));
@@ -84,6 +85,12 @@ export function CreateHarnessDialog() {
       } else {
         lines.push(`  model:`, `    full: ${m}`, `    id: ${m}`);
       }
+    }
+    const cwd = chatCwd.value.trim();
+    if (cwd) {
+      // Quote in case path has spaces; YAML scalar form keeps it
+      // intact through parseHarnessDef → contributeRuntime.
+      lines.push(`  cwd: ${JSON.stringify(cwd)}`);
     }
     const instr = chatInstructions.value.trim();
     if (instr) {
@@ -197,6 +204,20 @@ export function CreateHarnessDialog() {
             value={chatModel.value}
             oninput={(e: Event) => {
               chatModel.value = (e.target as HTMLInputElement).value;
+            }}
+          />
+        </div>
+        <div class={styles.field}>
+          <label class={styles.label}>
+            Working directory (optional — bash + file tools root)
+          </label>
+          <input
+            class={styles.input}
+            type="text"
+            placeholder="e.g. /Users/me/workspaces/my-project"
+            value={chatCwd.value}
+            oninput={(e: Event) => {
+              chatCwd.value = (e.target as HTMLInputElement).value;
             }}
           />
         </div>
