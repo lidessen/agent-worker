@@ -3,6 +3,7 @@ import {
   selectedItem,
   selectAgent,
   selectChannel,
+  selectChat,
   selectHarnessSettings,
   selectGlobalSettings,
   selectMonitor,
@@ -14,6 +15,7 @@ export type Route =
   | { page: "agent-chat"; params: { name: string } }
   | { page: "harness"; params: { key: string } }
   | { page: "channel"; params: { key: string; ch: string } }
+  | { page: "chat"; params: { key: string } }
   | { page: "monitor" }
   | { page: "settings" };
 
@@ -45,6 +47,11 @@ function parseHash(hash: string): Route {
   const wsMatch = path.match(/^\/harnesses\/([^/]+)$/);
   if (wsMatch) {
     return { page: "harness", params: { key: decodeURIComponent(wsMatch[1]) } };
+  }
+
+  const chatMatch = path.match(/^\/chat\/([^/]+)$/);
+  if (chatMatch) {
+    return { page: "chat", params: { key: decodeURIComponent(chatMatch[1]) } };
   }
 
   if (path === "/monitor") {
@@ -102,6 +109,8 @@ function selectedItemToHash(item: SelectedItem | null): string {
       return "#/";
     case "monitor":
       return "#/monitor";
+    case "chat":
+      return `#/chat/${encodeURIComponent(item.wsKey)}`;
   }
 }
 
@@ -129,6 +138,8 @@ function selectedItemMatchesRoute(item: SelectedItem | null, r: Route): boolean 
       return item.kind === "global-settings";
     case "monitor":
       return item.kind === "monitor";
+    case "chat":
+      return item.kind === "chat" && item.wsKey === r.params.key;
   }
 }
 
@@ -152,6 +163,9 @@ function applyRouteToSelectedItem(r: Route): void {
       return;
     case "monitor":
       selectMonitor();
+      return;
+    case "chat":
+      selectChat(r.params.key);
       return;
   }
 }

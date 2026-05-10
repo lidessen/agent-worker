@@ -46,6 +46,7 @@ import { GlobalSettingsView } from "./views/global-settings-view.tsx";
 import { GlobalEventsView } from "./views/global-events-view.tsx";
 import { DashboardView } from "./views/dashboard-view.tsx";
 import { MonitorView } from "./views/monitor-view.tsx";
+import { ChatView } from "./views/chat-view.tsx";
 import { CreateAgentDialog } from "./components/create-agent-dialog.tsx";
 import { CreateDocDialog } from "./components/create-doc-dialog.tsx";
 import { CreateHarnessDialog } from "./components/create-harness-dialog.tsx";
@@ -97,6 +98,8 @@ function createView(item: SelectedItem) {
       return <GlobalEventsView />;
     case "monitor":
       return <MonitorView />;
+    case "chat":
+      return <ChatView wsKey={item.wsKey} />;
   }
 }
 
@@ -295,6 +298,8 @@ function itemKey(item: SelectedItem | null): string {
       return "global-events";
     case "monitor":
       return "monitor";
+    case "chat":
+      return `chat:${item.wsKey}`;
   }
 }
 
@@ -368,6 +373,8 @@ function selectedLabel(item: SelectedItem | null): string {
       return "Event Log";
     case "monitor":
       return "Monitor";
+    case "chat":
+      return `chat: ${item.wsKey}`;
   }
 }
 

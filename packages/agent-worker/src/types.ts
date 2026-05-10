@@ -72,6 +72,8 @@ export interface ManagedHarnessInfo {
   name: string;
   label?: string;
   tag?: string;
+  /** `HarnessType` id this instance plugs into. Drives type-aware UI. */
+  harnessTypeId: string;
   agents: string[];
   channels: string[];
   default_channel: string;

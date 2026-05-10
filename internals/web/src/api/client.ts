@@ -21,6 +21,7 @@ import type {
   TaskDetail,
   MonitorSnapshot,
   MonitorEvent,
+  ChatTurn,
 } from "./types.ts";
 
 export class WebClient {
@@ -284,6 +285,24 @@ export class WebClient {
     if (opts?.cursor !== undefined) params.set("cursor", String(opts.cursor));
     const q = params.toString() ? `?${params}` : "";
     yield* this.sseStream<DaemonEvent>(`/events/stream${q}`, opts?.signal);
+  }
+
+  // ── Chat (decision 008) ─────────────────────────────────────────────
+
+  async chatTurn(harnessKey: string, content: string): Promise<{
+    userTurn: ChatTurn;
+    assistantTurn: ChatTurn;
+    durationMs: number;
+    usage?: { inputTokens: number; outputTokens: number; totalTokens: number };
+  }> {
+    return this.request(`/harnesses/${encodeURIComponent(harnessKey)}/turn`, {
+      method: "POST",
+      body: JSON.stringify({ content }),
+    });
+  }
+
+  async chatConversation(harnessKey: string): Promise<{ key: string; conversation: ChatTurn[] }> {
+    return this.request(`/harnesses/${encodeURIComponent(harnessKey)}/conversation`);
   }
 
   // ── Monitor (decision 004) ──────────────────────────────────────────

@@ -12,6 +12,7 @@ import {
   Bot,
   Folder,
   Activity,
+  MessageSquare,
 } from "semajsx/icons";
 import { agents } from "../../stores/agents.ts";
 import { harnesses } from "../../stores/harnesses.ts";
@@ -25,6 +26,7 @@ import {
   selectGlobalSettings,
   selectGlobalEvents,
   selectMonitor,
+  selectChat,
 } from "../../stores/navigation.ts";
 import { parsePlatformName } from "../brand-icons.tsx";
 import { showCreateAgent } from "../create-agent-dialog.tsx";
@@ -69,11 +71,13 @@ function AgentItem(props: { agent: AgentInfo }) {
 
 function HarnessItem(props: { ws: HarnessInfo }) {
   const { ws } = props;
+  const isChat = ws.harnessTypeId === "single-agent-chat";
   const isCurrent = computed(currentHarness, (key) => key === ws.name);
-  const active = computed(
-    [selectedItem, isCurrent],
-    (sel, cur) => cur && sel?.kind === "harness-settings" && sel.wsKey === ws.name,
-  );
+  const active = computed([selectedItem, isCurrent], (sel, cur) => {
+    if (!cur) return false;
+    if (isChat) return sel?.kind === "chat" && sel.wsKey === ws.name;
+    return sel?.kind === "harness-settings" && sel.wsKey === ws.name;
+  });
   const cls = computed(active, (a) => (a ? [s.item, s.itemActive] : s.item));
   const agentCount = computed(agents, (list) => list.filter((a) => a.harness === ws.name).length);
   return (
@@ -81,12 +85,16 @@ function HarnessItem(props: { ws: HarnessInfo }) {
       class={cls}
       onclick={() => {
         currentHarness.value = ws.name;
-        selectHarnessSettings(ws.name);
+        if (isChat) {
+          selectChat(ws.name);
+        } else {
+          selectHarnessSettings(ws.name);
+        }
       }}
     >
       <span class={harnessDotClass(ws.status)} />
       <span class={s.collapsedGlyph}>
-        <Icon icon={Folder} size={12} />
+        <Icon icon={isChat ? MessageSquare : Folder} size={12} />
       </span>
       <span
         class={computed(sidebarCollapsed, (c) => (c ? s.hiddenCollapsed : s.itemLabel))}
@@ -96,7 +104,7 @@ function HarnessItem(props: { ws: HarnessInfo }) {
       <span
         class={computed(sidebarCollapsed, (c) => (c ? s.hiddenCollapsed : s.itemCount))}
       >
-        {agentCount}
+        {isChat ? "·" : agentCount}
       </span>
     </button>
   );
@@ -129,7 +137,10 @@ function HarnessesSection() {
     const items: JSXNode[] = [];
     list.forEach((ws) => {
       items.push(<HarnessItem ws={ws} />);
-      if (ws.name === curKey) {
+      // Chat harnesses don't have channel sub-items — clicking the
+      // chat harness opens the conversation directly.
+      const isChat = ws.harnessTypeId === "single-agent-chat";
+      if (!isChat && ws.name === curKey) {
         channels.forEach((ch) => {
           items.push(<ChannelSub wsKey={ws.name} channel={ch} />);
         });
