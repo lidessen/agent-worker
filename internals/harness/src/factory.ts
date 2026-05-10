@@ -16,18 +16,23 @@ import {
   coordinationRuntime,
   multiAgentCoordinationHarnessType,
 } from "@agent-worker/harness-coordination";
+import { singleAgentChatHarnessType } from "@agent-worker/harness-chat";
 
 // ── createHarness ────────────────────────────────────────────────────────
 
 /**
- * Construct and initialize a multi-agent coordination Harness.
+ * Construct and initialize a Harness. Auto-registers both shipped
+ * `HarnessType`s (coord and chat) in the registry; the harness's
+ * `harnessTypeId` field selects which one this instance plugs into.
  *
- * `createHarness` is the coord-flavored entry point: it auto-registers
- * `multiAgentCoordinationHarnessType` in the registry and defaults
- * `harnessTypeId` to it. Coord `onInit` (fired from `harness.init`)
- * registers `config.agents` and attaches `config.connections` adapters
- * to the bridge. Callers that want the substrate no-op type should
- * construct via `new Harness(...)` directly.
+ * Default: coord. Chat harnesses opt in via
+ * `harnessTypeId: "single-agent-chat"` plus an `agent` block on the
+ * config (see decision 008). Coord callers continue to pass
+ * `agents: [...]` as before; the default keeps existing behavior
+ * unchanged.
+ *
+ * Callers that want the substrate no-op type construct via
+ * `new Harness(...)` directly.
  */
 export async function createHarness(
   config: HarnessConfig,
@@ -36,6 +41,9 @@ export async function createHarness(
   const registry = harnessTypeRegistry ?? createHarnessTypeRegistry();
   if (!registry.get(multiAgentCoordinationHarnessType.id)) {
     registry.register(multiAgentCoordinationHarnessType);
+  }
+  if (!registry.get(singleAgentChatHarnessType.id)) {
+    registry.register(singleAgentChatHarnessType);
   }
   const harness = new Harness(
     { ...config, harnessTypeId: config.harnessTypeId ?? COORDINATION_HARNESS_TYPE_ID },

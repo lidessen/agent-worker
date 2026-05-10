@@ -19,6 +19,7 @@
     "@agent-worker/shared": "workspace:*",
     "@agent-worker/harness": "workspace:*",
     "@agent-worker/harness-coordination": "workspace:*",
+    "@agent-worker/harness-chat": "workspace:*",
     "@ai-sdk/anthropic": "^3.0.74",
     "@ai-sdk/deepseek": "^2.0.32",
     "@ai-sdk/google": "^3.0.67",

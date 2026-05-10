@@ -17,6 +17,7 @@
       "@agent-worker/shared": ["./internals/shared/src/index.ts"],
       "@agent-worker/harness": ["./internals/harness/src/index.ts"],
       "@agent-worker/harness-coordination": ["./internals/harness-coordination/src/index.ts"],
+      "@agent-worker/harness-chat": ["./internals/harness-chat/src/index.ts"],
       "@semajsx/blocks": ["./internals/blocks/src/index.ts"],
       "@semajsx/chat": ["./internals/chat/src/index.ts"],
       "@semajsx/core": ["./internals/core/src/index.ts"],
