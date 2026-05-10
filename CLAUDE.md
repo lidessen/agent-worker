@@ -1,5 +1,15 @@
 This project is in early development. Do not add backward-compatibility shims, deprecated aliases, or dual-path code when making changes. Breaking changes are acceptable — just update all callers directly.
 
+## Refactor posture
+
+When a task is a refactor, three rules together:
+
+1. **Reuse useful code and designs** — MCP scaffolding, capability boundary, JSONL replay, worktree provisioning, channel/inbox/team/resource/chronicle tools, and similar load-bearing pieces stay. Don't rewrite for the sake of "feeling cleaner". Test: if you'd write something materially different from scratch, rewrite it; otherwise keep it.
+2. **No historical baggage in the new shape** — no transitional fields kept "until follow-on blueprint lands", no migration-source markers, no `nextSteps`-style legacy properties left dangling, no two competing shapes of the same concept living side by side.
+3. **Land the new shape fully in one slice** — every caller, test, doc string, prompt-text reference moves over together. The codebase should read as if the new shape was always the design.
+
+If splitting work into multiple slices feels necessary, the seam goes between *concepts* (e.g. "drop Artifact entirely" / "move Task to harness-layer projection") — not between "do the rename" and "clean up the residue".
+
 ## Design-Driven Development
 
 `design/` is the architectural source of truth. Read `design/DESIGN.md` first for system shape, then the relevant per-package doc under `design/packages/<pkg>.md` before touching a package — the module boundaries, data flow, and "doesn't do" lists are there.
