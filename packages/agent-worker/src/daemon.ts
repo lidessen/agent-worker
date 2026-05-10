@@ -99,6 +99,47 @@ function isTailscaleAddress(remoteAddress?: string): boolean {
   return a === 100 && b >= 64 && b <= 127;
 }
 
+/**
+ * One-shot rename of pre-`Workspace→Harness` rename data-dir layout to
+ * the current names. Renames `<dataDir>/{workspaces,workspaces.json,
+ * workspace-data}` to `<dataDir>/{harnesses,harnesses.json,
+ * harness-data}` when the new path doesn't already exist. If both old
+ * and new exist (a half-migrated state from a previous failed start)
+ * the new path wins and the old one is left in place — surfacing the
+ * conflict rather than silently merging.
+ *
+ * Per the project's "no backwards-compatibility shim" posture this is
+ * a forward migration, not a fallback path: subsequent code expects
+ * only the new names.
+ */
+async function migrateDataDirLayout(dataDir: string): Promise<void> {
+  const { existsSync, renameSync } = await import("node:fs");
+  const renames: Array<[string, string]> = [
+    [join(dataDir, "workspaces"), join(dataDir, "harnesses")],
+    [join(dataDir, "workspaces.json"), join(dataDir, "harnesses.json")],
+    [join(dataDir, "workspace-data"), join(dataDir, "harness-data")],
+  ];
+  for (const [oldPath, newPath] of renames) {
+    if (!existsSync(oldPath)) continue;
+    if (existsSync(newPath)) {
+      console.error(
+        `[daemon] data-dir migration: both ${oldPath} and ${newPath} exist; ` +
+          `leaving the old path in place. Resolve manually before next start.`,
+      );
+      continue;
+    }
+    try {
+      renameSync(oldPath, newPath);
+      console.error(`[daemon] data-dir migration: ${oldPath} → ${newPath}`);
+    } catch (err) {
+      console.error(
+        `[daemon] data-dir migration failed for ${oldPath}:`,
+        err instanceof Error ? err.message : err,
+      );
+    }
+  }
+}
+
 export class Daemon {
   private server: ServerType | null = null;
   private _port = 0;
@@ -155,6 +196,13 @@ export class Daemon {
   async start(): Promise<DaemonInfo> {
     const { mkdirSync } = await import("node:fs");
     mkdirSync(this.config.dataDir, { recursive: true });
+
+    // One-time data-dir layout migration from the pre-rename names
+    // (workspaces/, workspaces.json, workspace-data/) to the
+    // post-rename names. Per the project's "no backwards-compat
+    // shim" posture this is a one-shot rename, not a fallback path
+    // — once migrated the old names cease to exist.
+    await migrateDataDirLayout(this.config.dataDir);
 
     await this.eventLog.init();
 

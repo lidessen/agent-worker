@@ -35,6 +35,7 @@ const OPEN_PROVIDERS = new Set([
   "deepseek",
   "moonshot",
   "kimi",
+  "kimi-code",
   "qwen",
   "alibaba",
   "zhipu",
