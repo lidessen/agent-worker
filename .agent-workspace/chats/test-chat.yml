@@ -1,0 +1,11 @@
+name: test-chat
+harnessTypeId: single-agent-chat
+agent:
+  name: assistant
+  runtime: ai-sdk
+  model:
+    full: deepseek:deepseek-chat
+    id: deepseek-chat
+    provider: deepseek
+  instructions: |
+    You are a helpful assistant. Always reply in one short sentence.

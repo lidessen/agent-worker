@@ -127,6 +127,7 @@ export class ManagedHarness {
       name: this.name,
       label: this.resolved.def.label,
       tag: this.tag,
+      harnessTypeId: this.harness.harnessTypeId,
       agents: this.resolved.agents.map((a) => a.name),
       channels,
       default_channel: this.defaultChannel,

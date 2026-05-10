@@ -29,6 +29,8 @@ export interface HarnessInfo {
   status: string;
   agents: string[];
   createdAt: number;
+  /** `HarnessType` id this instance plugs into (e.g. `multi-agent-coordination`, `single-agent-chat`). */
+  harnessTypeId?: string;
 }
 
 export interface InboxItem {
@@ -280,3 +282,16 @@ export type MonitorEvent =
   | { kind: "sample"; sample: ConcurrencySample }
   | { kind: "snapshot"; snapshot: MonitorSnapshot }
   | { kind: "intervention"; intervention: Intervention };
+
+// ── Chat (decision 008) ────────────────────────────────────────────────────
+
+export type ChatRole = "user" | "assistant" | "system";
+
+export interface ChatTurn {
+  id: string;
+  role: ChatRole;
+  content: string;
+  ts: number;
+  runId?: string;
+  error?: string;
+}
