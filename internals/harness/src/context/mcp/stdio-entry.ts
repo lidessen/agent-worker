@@ -14,7 +14,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { HARNESS_TOOL_DEFS } from "./server.ts";
+import { HARNESS_TOOL_DEFS, type ToolDef } from "./server.ts";
+import { COORDINATION_TOOL_DEFS } from "@agent-worker/harness-coordination";
 
 const [daemonUrl, token, harness, agent] = process.argv.slice(2);
 if (!daemonUrl || !token || !harness || !agent) {
@@ -89,19 +90,18 @@ function buildZodParams(
   return out;
 }
 
-// Build MCP server and register every tool from HARNESS_TOOL_DEFS.
-// Every tool routes through the generic /tool-call endpoint — the set
-// of tools this stdio subprocess exposes is now always in sync with
-// whatever the daemon has wired up via createHarnessTools.
+// Build MCP server and register every tool the daemon advertises.
+// The catalog is the union of substrate `HARNESS_TOOL_DEFS` and any
+// type-contributed catalog (today: coord's `COORDINATION_TOOL_DEFS`).
+// Every tool routes through the generic /tool-call endpoint, so this
+// subprocess stays in sync with whatever the daemon has wired up via
+// `buildAgentToolSet`.
 const server = new McpServer({ name: `harness-${agent}`, version: "0.0.1" });
 
-type ToolDef = {
-  description: string;
-  parameters: Record<string, { type: string; description?: string }>;
-  required: readonly string[];
+const defs: Record<string, ToolDef> = {
+  ...HARNESS_TOOL_DEFS,
+  ...COORDINATION_TOOL_DEFS,
 };
-
-const defs = HARNESS_TOOL_DEFS as unknown as Record<string, ToolDef>;
 for (const [toolName, def] of Object.entries(defs)) {
   const requiredSet = new Set<string>(def.required);
   const params = buildZodParams(def.parameters, requiredSet);

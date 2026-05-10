@@ -1351,8 +1351,10 @@ export class Daemon {
     // Lazy-load to avoid pulling harness package into the daemon's
     // module graph at the top of the file (keeps the cross-package
     // dependency shape consistent with the existing handlers).
-    const { createHarnessTools } = await import("@agent-worker/harness");
-    const channels = handle.harness.getAgentChannels(agent);
+    const { buildAgentToolSet } = await import("@agent-worker/harness");
+    if (!handle.harness.hasAgent(agent)) {
+      await handle.harness.registerAgent(agent);
+    }
     // Query the agent's active Wake so the Wake-scoped tools
     // (worktree_*) are present in the dispatched tool set. Out-of-band
     // callers (debug, tests, the stdio MCP proxy) get the same surface
@@ -1364,23 +1366,11 @@ export class Daemon {
     } catch {
       // No active Wake → no worktree tools, that's fine.
     }
-    const tools = createHarnessTools(
-      agent,
-      handle.harness.contextProvider,
-      channels,
-      (other) =>
-        handle.harness.hasAgent(other) ? handle.harness.getAgentChannels(other) : undefined,
-      {
-        stateStore: handle.harness.stateStore,
-        harnessName: handle.harness.name,
-        harnessKey: key,
-        dataDir: this.config.dataDir,
-        instructionQueue: handle.harness.instructionQueue,
-        activeWakeId,
-        harnessTypeRegistry: handle.harness.harnessTypeRegistry,
-        harnessTypeId: handle.harness.harnessTypeId,
-      },
-    );
+    const { tools } = buildAgentToolSet(agent, handle.harness, {
+      activeWakeId,
+      harnessKey: key,
+      dataDir: this.config.dataDir,
+    });
 
     const fn = tools[name];
     if (!fn) {

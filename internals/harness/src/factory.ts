@@ -1,6 +1,13 @@
 import type { HarnessConfig } from "./types.ts";
 import { Harness } from "./harness.ts";
-import { createHarnessTools, type HarnessToolSet } from "./context/mcp/server.ts";
+import {
+  createHarnessTools,
+  HARNESS_TOOL_DEFS,
+  type HarnessToolHandler,
+  type HarnessToolSet,
+  type HarnessToolsOptions,
+  type ToolDef,
+} from "./context/mcp/server.ts";
 import { HARNESS_PROMPT_SECTIONS } from "./context/mcp/prompts.tsx";
 import type { PromptSection } from "./loop/prompt.tsx";
 import { createHarnessTypeRegistry, type HarnessTypeRegistry } from "./type/index.ts";
@@ -37,6 +44,56 @@ export async function createHarness(
   return harness;
 }
 
+// ── buildAgentToolSet ─────────────────────────────────────────────────────
+
+/**
+ * Build the full per-agent tool set + def map: substrate tools merged
+ * with whatever the registered `HarnessType` contributes via
+ * `contributeMcpTools`. Per-agent MCP servers and out-of-band callers
+ * (daemon `/tool-call`, debug clients) all funnel through this so the
+ * substrate↔type merge happens in one place.
+ *
+ * Substrate-only and type-only tools live separately (`createHarnessTools`
+ * + `HARNESS_TOOL_DEFS` for substrate; the type's contribution for
+ * its own slice). This helper does not inspect contributed item shapes
+ * beyond casting them to `{name, def, handler}`; that boundary cast
+ * is the substrate's only knowledge of contributed tool layout.
+ */
+export function buildAgentToolSet(
+  agentName: string,
+  harness: Harness,
+  options: Pick<HarnessToolsOptions, "activeWakeId" | "harnessKey" | "dataDir"> = {},
+): { tools: HarnessToolSet; defs: Record<string, ToolDef> } {
+  const tools: HarnessToolSet = {
+    ...createHarnessTools(agentName, harness.contextProvider, {
+      stateStore: harness.stateStore,
+      harnessName: harness.name,
+      harnessKey: options.harnessKey,
+      dataDir: options.dataDir,
+      instructionQueue: harness.instructionQueue,
+      activeWakeId: options.activeWakeId,
+      harnessTypeRegistry: harness.harnessTypeRegistry,
+      harnessTypeId: harness.harnessTypeId,
+    }),
+  };
+  const defs: Record<string, ToolDef> = { ...HARNESS_TOOL_DEFS };
+
+  const type = harness.harnessTypeRegistry.resolve(harness.harnessTypeId);
+  const contributed =
+    type.contributeMcpTools?.({
+      harness,
+      runtime: harness.typeRuntime,
+      agentName,
+    }) ?? [];
+  for (const raw of contributed) {
+    const item = raw as { name: string; def: ToolDef; handler: HarnessToolHandler };
+    tools[item.name] = item.handler;
+    defs[item.name] = item.def;
+  }
+
+  return { tools, defs };
+}
+
 // ── createAgentTools ───────────────────────────────────────────────────────
 
 /** Directories exposed to a harness agent. */
@@ -52,20 +109,7 @@ export function createAgentTools(
   agentName: string,
   runtime: Harness,
 ): { tools: HarnessToolSet; promptSections: PromptSection[]; dirs: AgentDirs } {
-  const channels = runtime.getAgentChannels(agentName);
-  const tools = createHarnessTools(
-    agentName,
-    runtime.contextProvider,
-    channels,
-    (name) => (runtime.hasAgent(name) ? runtime.getAgentChannels(name) : undefined),
-    {
-      stateStore: runtime.stateStore,
-      harnessName: runtime.name,
-      instructionQueue: runtime.instructionQueue,
-      harnessTypeRegistry: runtime.harnessTypeRegistry,
-      harnessTypeId: runtime.harnessTypeId,
-    },
-  );
+  const { tools } = buildAgentToolSet(agentName, runtime);
   const dirs: AgentDirs = {
     harnessSandboxDir: runtime.harnessSandboxDir,
     sandboxDir: runtime.agentSandboxDir(agentName),

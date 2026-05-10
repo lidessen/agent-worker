@@ -11,7 +11,7 @@ import {
   removeWorktree,
 } from "@agent-worker/harness";
 import { buildLeadHooks } from "@agent-worker/harness-coordination";
-import type { Harness, ResolvedAgent, HarnessToolSet } from "@agent-worker/harness";
+import type { Harness, ResolvedAgent, HarnessToolSet, ToolDef } from "@agent-worker/harness";
 import type { AgentLoop } from "@agent-worker/agent";
 import { HarnessOrchestrator, createOrchestrator } from "./orchestrator.ts";
 import { resolveRuntime, discoverCliRuntime, detectAiSdkModel } from "./resolve-runtime.ts";
@@ -723,26 +723,17 @@ export class HarnessRegistry {
       // it here with `activeWakeId` set so worktree_* shows up iff the
       // agent is mid-dispatch.
       let perRunTools = tools;
+      let perRunDefs: Record<string, ToolDef> | undefined;
       try {
         const active = await harness.stateStore.findActiveWake(agent.name);
-        const { createHarnessTools } = await import("@agent-worker/harness");
-        perRunTools = createHarnessTools(
-          agent.name,
-          harness.contextProvider,
-          harness.getAgentChannels(agent.name),
-          (other) =>
-            harness.hasAgent(other) ? harness.getAgentChannels(other) : undefined,
-          {
-            stateStore: harness.stateStore,
-            harnessName: harness.name,
-            harnessKey,
-            dataDir: this._dataDir,
-            instructionQueue: harness.instructionQueue,
-            activeWakeId: active?.id,
-            harnessTypeRegistry: harness.harnessTypeRegistry,
-            harnessTypeId: harness.harnessTypeId,
-          },
-        );
+        const { buildAgentToolSet } = await import("@agent-worker/harness");
+        const built = buildAgentToolSet(agent.name, harness, {
+          activeWakeId: active?.id,
+          harnessKey,
+          dataDir: this._dataDir,
+        });
+        perRunTools = built.tools;
+        perRunDefs = built.defs;
       } catch (err) {
         // Fall back to the static baseline if anything goes
         // wrong — the worker is still functional, it just
@@ -766,7 +757,7 @@ export class HarnessRegistry {
 
       if (loop.setTools) {
         // AI SDK agents: inject tools directly
-        const aiSdkTools = wrapHarnessToolsForAiSdk(perRunTools);
+        const aiSdkTools = wrapHarnessToolsForAiSdk(perRunTools, perRunDefs ?? HARNESS_TOOL_DEFS);
         loop.setTools(aiSdkTools);
       }
       if (loop.setMcpConfig && mcpConfigPath) {
@@ -876,20 +867,14 @@ function jsonTypeToZod(param: { type: string; description?: string }): z.ZodType
 }
 
 /**
- * Wrap harness tools (plain functions) + HARNESS_TOOL_DEFS (JSON-schema metadata)
+ * Wrap harness tools (plain functions) + a parallel def map (JSON-schema metadata)
  * into proper AI SDK tools with zod parameter schemas.
  */
-function wrapHarnessToolsForAiSdk(wsTools: HarnessToolSet): ToolSet {
+function wrapHarnessToolsForAiSdk(
+  wsTools: HarnessToolSet,
+  defs: Record<string, ToolDef>,
+): ToolSet {
   const result: ToolSet = {};
-  const defs = HARNESS_TOOL_DEFS as unknown as Record<
-    string,
-    {
-      description: string;
-      parameters: Record<string, { type: string; description?: string }>;
-      required: readonly string[];
-    }
-  >;
-
   for (const [name, fn] of Object.entries(wsTools)) {
     const def = defs[name];
     if (!def) continue;

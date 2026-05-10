@@ -1,6 +1,6 @@
 // ── Harness ──────────────────────────────────────────────────────────────
 export { Harness } from "./harness.ts";
-export { createHarness, createAgentTools } from "./factory.ts";
+export { createHarness, createAgentTools, buildAgentToolSet } from "./factory.ts";
 export type { AgentDirs } from "./factory.ts";
 
 // ── Context ────────────────────────────────────────────────────────────────
@@ -29,10 +29,7 @@ export type { PromptSection, PromptContext } from "./loop/prompt.tsx";
 export { createHarnessTools, HARNESS_TOOL_DEFS } from "./context/mcp/server.ts";
 export { createTaskTools, TASK_TOOL_DEFS } from "./context/mcp/task.ts";
 export type { TaskTools, TaskToolsDeps } from "./context/mcp/task.ts";
-export type { HarnessToolSet } from "./context/mcp/server.ts";
-export { createChannelTools } from "./context/mcp/channel.ts";
-export { createInboxTools } from "./context/mcp/inbox.ts";
-export { createTeamTools } from "./context/mcp/team.ts";
+export type { HarnessToolSet, HarnessToolHandler, ToolDef } from "./context/mcp/server.ts";
 export { createResourceTools } from "./context/mcp/resource.ts";
 export { createHarnessMcpConfig } from "./context/mcp/http-server.ts";
 

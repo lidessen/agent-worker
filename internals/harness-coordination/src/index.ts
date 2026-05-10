@@ -34,12 +34,20 @@ export {
   COORDINATION_BASE_SECTIONS,
 } from "./prompt.tsx";
 
+// ── MCP tools (coord-flavored) ────────────────────────────────────────────
+export { createCoordinationTools, COORDINATION_TOOL_DEFS } from "./mcp/server.ts";
+export type { CoordinationToolsContext } from "./mcp/server.ts";
+export { createChannelTools } from "./mcp/channel.ts";
+export { createInboxTools } from "./mcp/inbox.ts";
+export { createTeamTools } from "./mcp/team.ts";
+
 // ── HarnessType — coord ───────────────────────────────────────────────────
 export {
   COORDINATION_HARNESS_TYPE_ID,
   multiAgentCoordinationHarnessType,
 } from "./type.ts";
 export type {
+  ContributedToolItem,
   CoordHarnessTypeRuntime,
   CoordinationSnapshot,
   HarnessAgentSnapshot,
