@@ -1,6 +1,6 @@
 ---
 name: attention-driven
-description: Use go/setup/audit/goal/design/fact/reframe/close as the stable entrypoint for ordinary agent work. Use when starting or resuming work, changing system shape, recording progress, verifying claims, or closing work with a durable record.
+description: Use go/setup/audit/goal/design/fact/reframe/close as the stable entrypoint for ordinary agent work. Use when starting or resuming work, choosing autonomous action vs review vs escalation, changing system shape, recording progress, verifying claims, or closing work with a durable record.
 argument-hint: "[go | setup | audit | goal | design | fact | reframe | close]"
 ---
 
@@ -22,6 +22,12 @@ local choices: make them, review them with another role when useful, verify the
 claim, and move on. Escalate only the load-bearing 30% to the human: goal
 changes, irreversible tradeoffs, authority gaps, value judgments, or decisions
 whose failure would invalidate the rest.
+
+Autonomy is the default inside accepted boundaries. If the action is reversible,
+observable, within authority, and aligned with the current goal/design, decide
+and act. Use reviewer attention for uncertain 70% choices. Use human attention
+only when the decision changes direction, authority, values, irreversible cost,
+or durable system shape.
 
 Model work as something that can be steered: name the target, understand the
 current shape, observe the gap, make the smallest useful correction, and look
@@ -122,6 +128,8 @@ files only when the command needs the detail:
 
 - `references/goal.md` for goal/record/STOP/story semantics.
 - `references/design.md` for 30/70 design, decisions, blueprints.
+- `references/decision.md` for autonomous action, reviewer routing, and human
+  escalation gates.
 - `references/writing-guide.md` for design artifact prose.
 - `references/fact.md` for falsifiability, TDD, evidence trails.
 - `references/reframe.md` for reframe phases and closure.

@@ -51,8 +51,9 @@ Review:
 5. Surface STOP candidates the daily loop missed.
 6. Check protocol drift: open STOP index sync, stale criteria, naked verdicts,
    rotation problems, GOAL inconsistency, and design/fact cross-skill drift.
-7. Report findings in chat and ask before writing fixes.
-8. Append a review record entry after approved fixes.
+7. Apply routine record/index hygiene when it is factual and reversible.
+8. Ask before changing `GOAL.md`, resolving STOPs, or changing criteria.
+9. Append a review record entry after approved goal-level fixes.
 
 Do not invent new criteria during review unless the human explicitly requests a
 GOAL change.
@@ -70,6 +71,10 @@ course because evidence is weak.
 
 A STOP is not a failure report. It is target correction under observation: the
 observed trajectory no longer supports silent continuation.
+
+Do not turn ordinary path uncertainty into a STOP. If the agent can try a
+reversible path correction and observe the result, do that first. STOP only
+when the target, criteria, or General Line may be wrong.
 
 ## Stories
 
