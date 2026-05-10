@@ -234,4 +234,3 @@ describe("InMemoryHarnessStateStore — Handoff", () => {
     expect(fetched!.harnessTypeId).toBe("coding-harness");
   });
 });
-

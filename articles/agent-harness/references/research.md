@@ -399,13 +399,13 @@ Claude Code 在这块是最完整、最“组织学”的。
 它有两层：
 
 1. **subagents**
-    
+
     独立 context，用于隔离探索，最后回主线程摘要。适合研究、审查、日志排查这类会污染主上下文的任务。 ([Claude](https://code.claude.com/docs/en/sub-agents?utm_source=chatgpt.com))
-    
+
 2. **agent teams**
-    
+
     独立 session 组成团队，有 lead、teammates、shared task list、inter-agent messaging、centralized management，而且 teammates 之间可以直接通信。官方还明确 teams 是实验特性，v2.1.32+ 可用，并提醒存在 session resumption、coordination、shutdown 限制。 ([Claude](https://code.claude.com/docs/en/agent-teams))
-    
+
 
 这已经很像微型组织系统了，不只是“子任务函数调用”。
 

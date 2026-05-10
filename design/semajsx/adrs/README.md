@@ -43,7 +43,7 @@ ADRs are **immutable** - once accepted, create new ADR to supersede instead of e
 NNNN-decision-title.md
 ```
 
-Sequential numbering: `0001`, `0002`, `0003`...  
+Sequential numbering: `0001`, `0002`, `0003`...
 Examples: `0001-use-signals-for-reactivity.md`, `0002-monorepo-with-bun-workspaces.md`
 
 ---
