@@ -89,6 +89,19 @@ boundary:
 
 ## 5. Close
 
+Do not stop in a half-applied state. Before ending a work session, close the
+smallest active loop:
+
+- done slice: correction applied, observation captured, claim stated honestly;
+- handoff slice: work paused at a coherent boundary, current state and next
+  check recorded in a durable artifact;
+- blocked slice: blocker, failed observation, and required human/authority
+  decision surfaced.
+
+Do not claim done without evidence. Do not commit, publish, or hand off work
+whose verification story is still implied. For long tasks, shrink the slice
+until one of the three close states is true.
+
 If goal artifacts exist and this was a work session, draft a record entry in
 chat before writing:
 

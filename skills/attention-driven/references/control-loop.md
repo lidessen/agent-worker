@@ -120,6 +120,7 @@ Use this loop when work feels noisy, recurring, or hard to steer:
 4. Choose the smallest correction that can reduce the gap.
 5. Apply it inside the current 30/70 boundary.
 6. Observe again before declaring convergence.
+7. Stop only at a closed, handoff, or blocked state.
 
 Do not optimize the correction before you know the gap. Do not change the goal
 when one correction failed once. Do not keep applying the same correction when
@@ -128,6 +129,10 @@ the gap is not shrinking.
 Smallest means smallest relative to the primary metric. It may be the fastest
 check, the least risky change, the most reversible probe, the clearest user
 signal, or the correction that best preserves continuity.
+
+Stopping is part of control. A session that ends after applying a correction but
+before observation leaves the next agent in an unstable state. If the full task
+is too large, close a smaller loop and record where control resumes.
 
 ## Multi-Rate Control
 

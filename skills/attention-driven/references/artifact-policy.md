@@ -85,6 +85,22 @@ old review notes are historical artifacts. Do not rewrite them just to make the
 past look consistent. If they misled current work, add a new record, decision,
 blueprint, or correction note that supersedes them.
 
+## Stop State
+
+Do not leave work in an ambiguous middle state. Every session should stop at one
+of three states:
+
+- Closed: the slice is complete, evidence exists, and the claim matches the
+  evidence.
+- Handoff: the slice is intentionally paused at a coherent boundary, with
+  current state, next action, and next check recorded.
+- Blocked: the blocking fact, missing authority, or required decision is named.
+
+For code this may mean tests run and changes committed or an explicit handoff
+note. For design it may mean a proposal is ready for review or the unresolved
+question is named. For writing or research it may mean the current synthesis and
+next source/check are recorded. The form varies; the loop must be closed.
+
 ## Artifact Selection
 
 - Use a goal record when the important fact is "what happened and what it means

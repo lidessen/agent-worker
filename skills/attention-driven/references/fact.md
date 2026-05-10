@@ -79,6 +79,10 @@ Before claiming done, ask whether a future agent can tell from the artifacts
 whether the work actually works. If they would have to take your word for it,
 add evidence or weaken the claim.
 
+Do not end with verification implied. If the check was not run or the
+observation was not captured, say so and leave a handoff or blocker instead of a
+done claim.
+
 ## Handoffs
 
 Fact findings flow upward:
