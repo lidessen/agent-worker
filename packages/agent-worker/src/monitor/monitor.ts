@@ -152,34 +152,27 @@ export class Monitor {
           if (entry.status === "running") activeAgents++;
         }
 
-        // Active requirements: queued instructions + agents with pending
-        // inbox entries are both "in flight" from the user-requirement
-        // perspective. We approximate "requirement" as
-        // (active dispatch ∪ pending inbox per agent) since today we
-        // don't have a first-class Requirement type — it's the closest
-        // correct proxy until decision 005's Task projection lands.
         if (harness.harnessTypeId === COORDINATION_HARNESS_TYPE_ID) {
           const coord = coordinationRuntime(harness);
-          const queued = coord.instructionQueue.listAll().length;
-          activeRequirements += queued;
-          // Add pending inbox per agent (de-duplicated by agent —
-          // multiple inbox entries for one agent count as one requirement).
+
+          // Active requirements: queued instructions + agents with
+          // pending inbox entries are both "in flight" from the user-
+          // requirement perspective. Approximation since today there
+          // is no first-class Requirement type (decision 005's Task
+          // projection lands one).
+          activeRequirements += coord.instructionQueue.listAll().length;
           for (const entry of statuses) {
             const inbox = await harness.contextProvider.inbox.inspect(entry.name);
             if (inbox.length > 0) activeRequirements++;
           }
 
-          // Structural cap: sum of per-harness queue caps, since each
-          // harness can dispatch independently.
-          // (Today we don't track a configured numeric cap explicitly;
-          // GOAL.md requires the cap to be ≥ 3, so we surface the
-          // count of harnesses × default-per-harness as the cap, which
-          // is a conservative lower bound.)
-          // TODO(slice 4): make queueConfig.cap surface explicit.
+          // Structural cap: each registered agent runs its own
+          // orchestrator polling the queue, so the system's structural
+          // concurrency ceiling is the agent count. GOAL.md C1 reads
+          // "system is configurationally not allowed to be single-
+          // threaded" — N agents is exactly that ceiling.
+          structuralCap += coord.agentChannels.size;
         }
-
-        // Each harness contributes at least 1 toward structural cap.
-        structuralCap += 1;
       } catch (err) {
         // Single-harness failure shouldn't kill the sample.
         console.error(
