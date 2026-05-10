@@ -87,7 +87,16 @@ export function computeC4(store: RollingSampleStore): C4Metrics {
 
   for (const sample of samples) {
     const otherRequirements = sample.activeRequirements - sample.pendingOnAuth;
-    const unfinished = sample.activeRequirements > 0 || sample.pendingOnAuth > 0;
+    // A requirement is "unfinished" if it is queued / pending in some
+    // inbox / blocked on auth, OR if an agent is actively working on
+    // it. Excluding active agents from the definition makes the
+    // moment between "agent picks up the inbox entry" and "agent
+    // completes" look like the requirement vanished, inflating
+    // silent-ratio when in fact the system is *working*.
+    const unfinished =
+      sample.activeRequirements > 0 ||
+      sample.pendingOnAuth > 0 ||
+      sample.activeAgents > 0;
     const allSilent = unfinished && sample.activeAgents === 0;
 
     // C4 primary: all-silent ratio.
