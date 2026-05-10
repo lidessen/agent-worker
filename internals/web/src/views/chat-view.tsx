@@ -4,6 +4,7 @@ import { computed, signal } from "semajsx/signal";
 import {
   chatTurns,
   chatThinking,
+  chatPending,
   chatError,
   chatLoaded,
   loadConversation,
@@ -20,42 +21,62 @@ export function ChatView(props: { wsKey: string }) {
 
   const turns = chatTurns(wsKey);
   const thinking = chatThinking(wsKey);
+  const pending = chatPending(wsKey);
   const error = chatError(wsKey);
   const loaded = chatLoaded(wsKey);
   const draft = signal("");
 
   const harnessInfo = computed(harnesses, (list) => list.find((h) => h.name === wsKey));
 
-  const transcript = computed([turns, thinking, loaded], (list, isThinking, isLoaded) => {
-    if (!isLoaded && list.length === 0) {
-      return <div class={s.empty}>Loading conversation…</div>;
-    }
-    if (list.length === 0 && !isThinking) {
-      return <div class={s.empty}>No turns yet. Send a message to begin.</div>;
-    }
-    return (
-      <div class={s.transcript}>
-        {list.map((t) => (
-          <div class={[s.turn, t.role === "user" ? s.turnUser : s.turnAssistant]}>
-            <span class={s.turnRoleLabel}>
-              {t.role === "user" ? "you" : t.role}
-            </span>
-            <div class={[s.turnContent, t.error ? s.turnError : ""]}>
-              {t.error ? `Error: ${t.error}` : t.content || "(empty)"}
+  const transcript = computed(
+    [turns, thinking, pending, loaded],
+    (list, isThinking, pend, isLoaded) => {
+      if (!isLoaded && list.length === 0) {
+        return <div class={s.empty}>Loading conversation…</div>;
+      }
+      if (list.length === 0 && !isThinking && !pend) {
+        return <div class={s.empty}>No turns yet. Send a message to begin.</div>;
+      }
+      // Pending bubble is shown only when there's no committed
+      // assistant turn waiting in `list` for this dispatch yet —
+      // the dispatcher emits user_turn first (so list grows), then
+      // chunks (which feed pending), then done (which appends the
+      // assistant turn AND clears pending). A dangling pending +
+      // committed-assistant overlap would render twice; the store
+      // clears pending on done so that doesn't happen.
+      const showPending = pend !== null && (pend.content !== "" || pend.error);
+      return (
+        <div class={s.transcript}>
+          {list.map((t) => (
+            <div class={[s.turn, t.role === "user" ? s.turnUser : s.turnAssistant]}>
+              <span class={s.turnRoleLabel}>{t.role === "user" ? "you" : t.role}</span>
+              <div class={[s.turnContent, t.error ? s.turnError : ""]}>
+                {t.error ? `Error: ${t.error}` : t.content || "(empty)"}
+              </div>
             </div>
-          </div>
-        ))}
-        {isThinking ? (
-          <div class={s.thinking}>
-            <span class={s.thinkingDot} />
-            <span class={s.thinkingDot} />
-            <span class={s.thinkingDot} />
-            <span>thinking…</span>
-          </div>
-        ) : null}
-      </div>
-    );
-  });
+          ))}
+          {showPending ? (
+            <div class={[s.turn, s.turnAssistant]}>
+              <span class={s.turnRoleLabel}>assistant</span>
+              <div class={[s.turnContent, pend!.error ? s.turnError : ""]}>
+                {pend!.error
+                  ? `Error: ${pend!.error}`
+                  : pend!.content + (isThinking ? "▍" : "")}
+              </div>
+            </div>
+          ) : null}
+          {isThinking && !showPending ? (
+            <div class={s.thinking}>
+              <span class={s.thinkingDot} />
+              <span class={s.thinkingDot} />
+              <span class={s.thinkingDot} />
+              <span>thinking…</span>
+            </div>
+          ) : null}
+        </div>
+      );
+    },
+  );
 
   const errorBanner = computed(error, (err) =>
     err ? <div class={[s.turnContent, s.turnError]}>{`Error: ${err}`}</div> : null,

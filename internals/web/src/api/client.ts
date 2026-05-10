@@ -22,6 +22,7 @@ import type {
   MonitorSnapshot,
   MonitorEvent,
   ChatTurn,
+  ChatStreamEvent,
 } from "./types.ts";
 
 export class WebClient {
@@ -303,6 +304,61 @@ export class WebClient {
 
   async chatConversation(harnessKey: string): Promise<{ key: string; conversation: ChatTurn[] }> {
     return this.request(`/harnesses/${encodeURIComponent(harnessKey)}/conversation`);
+  }
+
+  /**
+   * Stream a chat turn via SSE. Yields user_turn → chunk* → (done | error).
+   * Consumer drives the iterator; aborting the signal cancels the dispatch.
+   */
+  async *streamChatTurn(
+    harnessKey: string,
+    content: string,
+    opts?: { signal?: AbortSignal },
+  ): AsyncGenerator<ChatStreamEvent> {
+    const path = `/harnesses/${encodeURIComponent(harnessKey)}/turn/stream`;
+    const res = await fetch(`${this.baseUrl}${path}`, {
+      method: "POST",
+      headers: this.authHeaders(),
+      body: JSON.stringify({ content }),
+      signal: opts?.signal,
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`stream chat ${res.status}: ${body}`);
+    }
+    if (!res.body) {
+      throw new Error("stream chat: empty body");
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        // SSE frames are separated by blank lines.
+        let idx;
+        while ((idx = buf.indexOf("\n\n")) >= 0) {
+          const frame = buf.slice(0, idx);
+          buf = buf.slice(idx + 2);
+          for (const line of frame.split("\n")) {
+            if (!line.startsWith("data: ")) continue;
+            try {
+              yield JSON.parse(line.slice(6)) as ChatStreamEvent;
+            } catch {
+              // skip malformed frame
+            }
+          }
+        }
+      }
+    } finally {
+      try {
+        reader.releaseLock();
+      } catch {
+        /* ignore */
+      }
+    }
   }
 
   // ── Monitor (decision 004) ──────────────────────────────────────────
