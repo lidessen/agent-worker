@@ -1,0 +1,13 @@
+{
+  "name": "@agent-worker/harness-chat",
+  "version": "0.0.1",
+  "type": "module",
+  "module": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@agent-worker/harness": "workspace:*",
+    "@agent-worker/shared": "workspace:*"
+  }
+}
