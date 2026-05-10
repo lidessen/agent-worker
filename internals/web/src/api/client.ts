@@ -23,6 +23,7 @@ import type {
   MonitorEvent,
   ChatTurn,
   ChatStreamEvent,
+  ChatInfo,
 } from "./types.ts";
 
 export class WebClient {
@@ -304,6 +305,10 @@ export class WebClient {
 
   async chatConversation(harnessKey: string): Promise<{ key: string; conversation: ChatTurn[] }> {
     return this.request(`/harnesses/${encodeURIComponent(harnessKey)}/conversation`);
+  }
+
+  async chatInfo(harnessKey: string): Promise<ChatInfo> {
+    return this.request(`/harnesses/${encodeURIComponent(harnessKey)}/chat-info`);
   }
 
   /**

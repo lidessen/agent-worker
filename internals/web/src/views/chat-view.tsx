@@ -7,6 +7,7 @@ import {
   chatPending,
   chatError,
   chatLoaded,
+  chatInfo,
   loadConversation,
   sendChatTurn,
 } from "../stores/chat.ts";
@@ -24,6 +25,7 @@ export function ChatView(props: { wsKey: string }) {
   const pending = chatPending(wsKey);
   const error = chatError(wsKey);
   const loaded = chatLoaded(wsKey);
+  const info = chatInfo(wsKey);
   const draft = signal("");
 
   const harnessInfo = computed(harnesses, (list) => list.find((h) => h.name === wsKey));
@@ -101,8 +103,16 @@ export function ChatView(props: { wsKey: string }) {
       <div class={s.header}>
         <div class={s.title}>{computed(harnessInfo, (info) => info?.label || info?.name || wsKey)}</div>
         <div class={s.subtitle}>
-          single-agent chat · {computed(harnessInfo, (info) => info?.harnessTypeId ?? "—")}
+          {computed(info, (i) => {
+            if (!i) return "single-agent chat · loading…";
+            const parts = [`@${i.agentName}`, i.runtime];
+            if (i.model?.full) parts.push(i.model.full);
+            return parts.join(" · ");
+          })}
         </div>
+        {computed(info, (i) =>
+          i?.cwd ? <div class={s.subtitle}>cwd: {i.cwd}</div> : null,
+        )}
       </div>
       {transcript}
       {errorBanner}

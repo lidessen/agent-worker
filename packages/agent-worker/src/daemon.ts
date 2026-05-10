@@ -550,6 +550,9 @@ export class Daemon {
         if (sub === "/conversation" && method === "GET") {
           return this.handleChatConversation(key, url);
         }
+        if (sub === "/chat-info" && method === "GET") {
+          return await this.handleChatInfo(key);
+        }
         if (sub === "/wait" && method === "GET") {
           return await this.handleHarnessWait(key, url);
         }
@@ -1305,6 +1308,29 @@ export class Daemon {
         aborted = true;
       };
     });
+  }
+
+  /**
+   * GET /harnesses/:key/chat-info — chat-typed harnesses only.
+   * Returns the agent's static config (runtime, model, cwd,
+   * instructions). The web UI fetches this once per chat-page entry
+   * to render a rich header so the user can tell chats apart when
+   * several point at different projects.
+   */
+  private async handleChatInfo(key: string): Promise<Response> {
+    const resolved = this.resolveHarness(key);
+    if (resolved instanceof Response) return resolved;
+    const handle = resolved;
+    const { SINGLE_AGENT_CHAT_HARNESS_TYPE_ID, chatRuntime } = await import(
+      "@agent-worker/harness-chat"
+    );
+    if (handle.harness.harnessTypeId !== SINGLE_AGENT_CHAT_HARNESS_TYPE_ID) {
+      return Response.json(
+        { error: "/chat-info is only valid for single-agent-chat harnesses" },
+        { status: 405 },
+      );
+    }
+    return Response.json(chatRuntime(handle.harness).info());
   }
 
   /**

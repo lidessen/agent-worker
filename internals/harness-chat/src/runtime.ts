@@ -44,6 +44,28 @@ export class ChatRuntime {
     this.storage = storage;
   }
 
+  /**
+   * Plain-data summary of the agent's static configuration. Used by
+   * the daemon's `/chat-info` endpoint to surface runtime + model +
+   * cwd in the conversation header so the user can tell their chats
+   * apart when several point at different projects.
+   */
+  info(): {
+    agentName: string;
+    runtime: string;
+    model?: { id: string; provider?: string; full: string };
+    cwd?: string;
+    instructions?: string;
+  } {
+    return {
+      agentName: this.agentName,
+      runtime: this.runtimeId,
+      model: this.model,
+      cwd: this.cwd,
+      instructions: this.instructions,
+    };
+  }
+
   // ── Lifecycle ──────────────────────────────────────────────────────────
 
   /**

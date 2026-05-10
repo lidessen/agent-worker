@@ -9,7 +9,7 @@
 
 import { signal, type Signal } from "semajsx/signal";
 import { client } from "./connection.ts";
-import type { ChatTurn } from "../api/types.ts";
+import type { ChatTurn, ChatInfo } from "../api/types.ts";
 
 export interface PendingAssistant {
   /** Text accumulated from `chunk` events; updates in place. */
@@ -24,6 +24,7 @@ interface ChatState {
   pending: Signal<PendingAssistant | null>;
   error: Signal<string | null>;
   loaded: Signal<boolean>;
+  info: Signal<ChatInfo | null>;
 }
 
 const cache = new Map<string, ChatState>();
@@ -37,10 +38,15 @@ function getOrCreate(key: string): ChatState {
       pending: signal<PendingAssistant | null>(null),
       error: signal<string | null>(null),
       loaded: signal<boolean>(false),
+      info: signal<ChatInfo | null>(null),
     };
     cache.set(key, state);
   }
   return state;
+}
+
+export function chatInfo(key: string): Signal<ChatInfo | null> {
+  return getOrCreate(key).info;
 }
 
 export function chatTurns(key: string): Signal<ChatTurn[]> {
@@ -63,15 +69,16 @@ export function chatLoaded(key: string): Signal<boolean> {
   return getOrCreate(key).loaded;
 }
 
-/** Load the conversation history for `key` from the daemon. Idempotent. */
+/** Load the conversation history + agent info for `key`. Idempotent. */
 export async function loadConversation(key: string): Promise<void> {
   const c = client.value;
   if (!c) return;
   const state = getOrCreate(key);
   if (state.loaded.value) return;
   try {
-    const res = await c.chatConversation(key);
-    state.turns.value = res.conversation;
+    const [conv, info] = await Promise.all([c.chatConversation(key), c.chatInfo(key)]);
+    state.turns.value = conv.conversation;
+    state.info.value = info;
     state.loaded.value = true;
   } catch (err) {
     state.error.value = err instanceof Error ? err.message : String(err);
