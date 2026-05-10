@@ -457,6 +457,12 @@ export class Daemon {
         if (sub === "/send" && method === "POST") {
           return await this.handleHarnessSend(key, req);
         }
+        if (sub === "/turn" && method === "POST") {
+          return await this.handleChatTurn(key, req);
+        }
+        if (sub === "/conversation" && method === "GET") {
+          return this.handleChatConversation(key, url);
+        }
         if (sub === "/wait" && method === "GET") {
           return await this.handleHarnessWait(key, url);
         }
@@ -1129,10 +1135,89 @@ export class Daemon {
     }
   }
 
+  /**
+   * POST /harnesses/:key/turn — chat-typed harnesses only.
+   * Body: { content: string }. Runs the chat dispatcher one shot
+   * and returns the resulting assistant turn. 405 on coord-typed
+   * harnesses; coord callers use /send instead.
+   */
+  private async handleChatTurn(key: string, req: Request): Promise<Response> {
+    const resolved = this.resolveHarness(key);
+    if (resolved instanceof Response) return resolved;
+    const handle = resolved;
+    const { SINGLE_AGENT_CHAT_HARNESS_TYPE_ID } = await import("@agent-worker/harness-chat");
+    if (handle.harness.harnessTypeId !== SINGLE_AGENT_CHAT_HARNESS_TYPE_ID) {
+      return Response.json(
+        { error: "/turn is only valid for single-agent-chat harnesses" },
+        { status: 405 },
+      );
+    }
+    const body = (await req.json()) as { content?: string };
+    if (!body.content) {
+      return Response.json({ error: "content is required" }, { status: 400 });
+    }
+    const { runChatTurn } = await import("./chat-dispatcher.ts");
+    try {
+      const result = await runChatTurn(handle.harness, { content: body.content });
+      return Response.json({
+        userTurn: result.userTurn,
+        assistantTurn: result.assistantTurn,
+        durationMs: result.durationMs,
+        usage: result.usage,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return Response.json({ error: message }, { status: 500 });
+    }
+  }
+
+  /**
+   * GET /harnesses/:key/conversation — chat-typed harnesses only.
+   * Returns the full conversation transcript. Pagination can land
+   * later if conversations grow large enough to need it.
+   */
+  private handleChatConversation(key: string, url: URL): Response {
+    const resolved = this.resolveHarness(key);
+    if (resolved instanceof Response) return resolved;
+    const handle = resolved;
+    // Lazy import keeps the daemon's main module-init graph free of
+    // chat-package back-references (consistent with other type-guarded
+    // routes). The check itself is cheap.
+    const sinceParam = url.searchParams.get("since");
+    const since = sinceParam ? Number(sinceParam) : undefined;
+    return Response.json({
+      key,
+      conversation: this.readChatConversation(handle.harness, since),
+    });
+  }
+
+  private readChatConversation(
+    harness: import("@agent-worker/harness").Harness,
+    since: number | undefined,
+  ): unknown[] {
+    // Imported synchronously below via the dynamic-import-friendly
+    // `chatRuntime` accessor. Errors propagate to the caller.
+    // (Type-narrowing import done in handler-level dynamic import path.)
+    const rtAny = harness.typeRuntime as
+      | { conversation: ReadonlyArray<{ ts: number }> }
+      | undefined;
+    if (!rtAny) return [];
+    const all = rtAny.conversation;
+    if (!since) return all.slice();
+    return all.filter((t) => t.ts > since);
+  }
+
   private async handleHarnessSend(key: string, req: Request): Promise<Response> {
     const resolved = this.resolveHarness(key);
     if (resolved instanceof Response) return resolved;
     const handle = resolved;
+    const { SINGLE_AGENT_CHAT_HARNESS_TYPE_ID } = await import("@agent-worker/harness-chat");
+    if (handle.harness.harnessTypeId === SINGLE_AGENT_CHAT_HARNESS_TYPE_ID) {
+      return Response.json(
+        { error: "/send is only valid for multi-agent-coordination harnesses; use /turn instead" },
+        { status: 405 },
+      );
+    }
 
     const body = (await req.json()) as {
       content: string;

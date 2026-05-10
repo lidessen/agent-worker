@@ -181,8 +181,25 @@ export interface HarnessDef {
   name?: string;
   /** Human-readable display name. Shown in UI instead of the machine name. */
   label?: string;
+  /**
+   * `HarnessType` id this config plugs into. Defaults to
+   * `multi-agent-coordination`. Other values (e.g.
+   * `single-agent-chat`) opt into a different shape; the loader
+   * applies type-aware validation (only coord requires `agents`).
+   */
+  harnessTypeId?: string;
   /** Agent definitions. Keys are agent names. */
   agents: Record<string, AgentDef>;
+  /**
+   * Single-agent block. Used by the `single-agent-chat` HarnessType.
+   * Mutually exclusive with `agents` for that type.
+   */
+  agent?: {
+    name?: string;
+    runtime?: string;
+    model?: { id: string; provider?: string; full: string } | string;
+    instructions?: string;
+  };
   /** Channel names to create. Default: ["general"]. */
   channels?: string[];
   /** Default channel for kickoff messages. Default: "general". */
