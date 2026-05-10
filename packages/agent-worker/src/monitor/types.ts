@@ -55,8 +55,7 @@ export interface MonitorSnapshot {
   /** Daemon uptime in seconds (samples older than this are not yet observed). */
   uptimeSec: number;
   c1: C1Metrics;
-  /** Slice 4 will fill this. */
-  c2?: unknown;
+  c2?: C2Metrics;
   c3?: C3Metrics;
   c4?: C4Metrics;
 }
@@ -93,6 +92,52 @@ export interface Intervention {
    * filled by future slices when the close path lands.
    */
   responseLatencyMs?: number;
+}
+
+// ── C2 (binding inventory) ───────────────────────────────────────────────
+
+export type BindingSource = "closed" | "open" | "unknown";
+
+export interface BindingEntry {
+  harness: string;
+  agent: string;
+  runtime: string;
+  model: string;
+  provider?: string;
+  source: BindingSource;
+  ossFallbackConfigured: boolean;
+}
+
+export interface C2Metrics {
+  /** Bindings whose source is closed AND no OSS fallback is configured. */
+  uncoveredCount: number;
+  /**
+   * Bindings whose configured OSS fallback has 0% observed success
+   * over the last 30 days. Slice 4 pragmatic implementation: 0 when
+   * we have no observed-success telemetry yet.
+   */
+  failedCount: number;
+  /**
+   * Reachability — pragmatic blend per decision 004:
+   *   open-or-covered bindings / total bindings.
+   * 1.0 if all bindings are open-source or have an OSS fallback;
+   * 0.0 if none do. Counterfactual replay is not in scope.
+   */
+  reachability: number;
+  /** Total binding count. */
+  totalBindings: number;
+  /** Count by source. */
+  bySource: { closed: number; open: number; unknown: number };
+  /** Full inventory rendered into the UI. */
+  bindings: BindingEntry[];
+  thresholds: {
+    /** Hard: uncovered = 0. */
+    uncoveredCountMax: number;
+    /** Hard: failed = 0. */
+    failedCountMax: number;
+    /** From month 4: reachability ≥ this. */
+    reachabilityMin: number;
+  };
 }
 
 // ── C4 (silence + non-blocking) ──────────────────────────────────────────

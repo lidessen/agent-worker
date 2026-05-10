@@ -51,6 +51,13 @@ const c = classes([
   "interventionTs",
   "interventionTarget",
   "interventionReason",
+  "bindingTable",
+  "bindingRow",
+  "bindingHead",
+  "bindingCell",
+  "bindingOk",
+  "bindingMiss",
+  "bindingUnknown",
 ]);
 
 export const view = rule`${c.view} {
@@ -364,4 +371,51 @@ export const interventionReason = rule`${c.interventionReason} {
   color: ${tokens.colors.text};
   grid-row: 2;
   grid-column: 1 / -1;
+}`;
+
+export const bindingTable = rule`${c.bindingTable} {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid ${tokens.colors.border};
+  border-radius: ${tokens.radii.sm};
+  overflow: hidden;
+  margin-top: ${tokens.space.sm};
+}`;
+
+export const bindingRow = rule`${c.bindingRow} {
+  display: grid;
+  grid-template-columns: 1.4fr 1.6fr 0.7fr 0.6fr;
+  gap: ${tokens.space.sm};
+  padding: ${tokens.space.xs} ${tokens.space.sm};
+  border-bottom: 1px solid ${tokens.colors.border};
+  font-size: ${tokens.fontSizes.xs};
+  font-family: ${tokens.fonts.mono};
+  align-items: baseline;
+}`;
+
+export const bindingHead = rule`${c.bindingHead} {
+  background: ${tokens.colors.surfaceOverlay};
+  color: ${tokens.colors.textMuted};
+  font-weight: ${tokens.fontWeights.medium};
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: ${tokens.fontSizes.xxs};
+}`;
+
+export const bindingCell = rule`${c.bindingCell} {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}`;
+
+export const bindingOk = rule`${c.bindingOk} {
+  color: ${tokens.colors.successTextStrong};
+}`;
+
+export const bindingMiss = rule`${c.bindingMiss} {
+  color: ${tokens.colors.danger};
+}`;
+
+export const bindingUnknown = rule`${c.bindingUnknown} {
+  color: ${tokens.colors.textMuted};
 }`;

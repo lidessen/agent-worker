@@ -241,11 +241,37 @@ export interface C4Metrics {
   };
 }
 
+export type BindingSource = "closed" | "open" | "unknown";
+
+export interface BindingEntry {
+  harness: string;
+  agent: string;
+  runtime: string;
+  model: string;
+  provider?: string;
+  source: BindingSource;
+  ossFallbackConfigured: boolean;
+}
+
+export interface C2Metrics {
+  uncoveredCount: number;
+  failedCount: number;
+  reachability: number;
+  totalBindings: number;
+  bySource: { closed: number; open: number; unknown: number };
+  bindings: BindingEntry[];
+  thresholds: {
+    uncoveredCountMax: number;
+    failedCountMax: number;
+    reachabilityMin: number;
+  };
+}
+
 export interface MonitorSnapshot {
   ts: number;
   uptimeSec: number;
   c1: C1Metrics;
-  c2?: unknown;
+  c2?: C2Metrics;
   c3?: C3Metrics;
   c4?: C4Metrics;
 }

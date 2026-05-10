@@ -17,7 +17,8 @@ import type { Harness } from "@agent-worker/harness";
 import { coordinationRuntime, COORDINATION_HARNESS_TYPE_ID } from "@agent-worker/harness-coordination";
 import { RollingSampleStore } from "./samples.ts";
 import { InterventionLog } from "./interventions.ts";
-import { computeC1, computeC3, computeC4 } from "./metrics.ts";
+import { computeC1, computeC2, computeC3, computeC4 } from "./metrics.ts";
+import { buildInventory } from "./bindings.ts";
 import type {
   ConcurrencySample,
   Intervention,
@@ -89,10 +90,12 @@ export class Monitor {
       structuralCap: 0,
     };
     const c1 = computeC1(this.samples, fallback);
+    const inventory = buildInventory(this.registry);
     return {
       ts: Date.now(),
       uptimeSec: Math.floor((Date.now() - this.startedAt) / 1000),
       c1,
+      c2: computeC2(inventory),
       c3: computeC3(this.interventions, c1.peak30d),
       c4: computeC4(this.samples),
     };
