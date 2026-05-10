@@ -1,5 +1,5 @@
-import { nanoid } from "../../utils.ts";
-import type { Message, StorageBackend, ChannelStoreInterface } from "../../types.ts";
+import { nanoid } from "@agent-worker/harness";
+import type { Message, StorageBackend, ChannelStoreInterface } from "@agent-worker/harness";
 
 type MessageListener = (message: Message) => void;
 
@@ -62,7 +62,6 @@ export class ChannelStore implements ChannelStoreInterface {
 
     if (opts?.sinceId) {
       const idx = messages.findIndex((m) => m.id === opts.sinceId);
-      // If found, take everything after it; if not found, return all (safe fallback)
       if (idx !== -1) {
         messages = messages.slice(idx + 1);
       }
@@ -72,7 +71,6 @@ export class ChannelStore implements ChannelStoreInterface {
       messages = messages.slice(-opts.limit);
     }
 
-    // Populate index
     for (const m of messages) {
       this.messageIndex.set(m.id, channel);
     }
@@ -94,12 +92,10 @@ export class ChannelStore implements ChannelStoreInterface {
 
   /** Find a message by ID across all channels (uses index first). */
   async findMessage(messageId: string): Promise<Message | null> {
-    // Check index first
     const knownChannel = this.messageIndex.get(messageId);
     if (knownChannel) {
       return this.getMessage(knownChannel, messageId);
     }
-    // Fallback: scan all channels
     for (const ch of this.channels) {
       const msg = await this.getMessage(ch, messageId);
       if (msg) return msg;
@@ -125,7 +121,6 @@ export class ChannelStore implements ChannelStoreInterface {
   /** Clear all messages in a channel. */
   async clear(channel: string): Promise<void> {
     await this.storage.writeFile(this.channelPath(channel), "");
-    // Remove index entries for this channel
     for (const [id, ch] of this.messageIndex) {
       if (ch === channel) this.messageIndex.delete(id);
     }

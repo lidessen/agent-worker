@@ -41,9 +41,9 @@ export class WebClient {
     return res.agents;
   }
 
-  async listHarnesss(): Promise<HarnessInfo[]> {
-    const res = await this.request<{ harnesss: HarnessInfo[] }>("/harnesss");
-    return res.harnesss;
+  async listHarnesses(): Promise<HarnessInfo[]> {
+    const res = await this.request<{ harnesses: HarnessInfo[] }>("/harnesses");
+    return res.harnesses;
   }
 
   async getAgentState(name: string): Promise<AgentState> {
@@ -102,14 +102,14 @@ export class WebClient {
   }
 
   async deleteHarness(key: string): Promise<void> {
-    await this.request(`/harnesss/${encodeURIComponent(key)}`, {
+    await this.request(`/harnesses/${encodeURIComponent(key)}`, {
       method: "DELETE",
     });
   }
 
   async clearChannel(key: string, ch: string): Promise<void> {
     await this.request(
-      `/harnesss/${encodeURIComponent(key)}/channels/${encodeURIComponent(ch)}`,
+      `/harnesses/${encodeURIComponent(key)}/channels/${encodeURIComponent(ch)}`,
       { method: "DELETE" },
     );
   }
@@ -122,7 +122,7 @@ export class WebClient {
     tag?: string;
     mode?: string;
   }): Promise<HarnessInfo> {
-    return this.request("/harnesss", {
+    return this.request("/harnesses", {
       method: "POST",
       body: JSON.stringify(opts),
     });
@@ -138,12 +138,12 @@ export class WebClient {
   // ── Harness API ──────────────────────────────────────────────────
 
   async getHarness(key: string): Promise<HarnessInfo> {
-    return this.request(`/harnesss/${encodeURIComponent(key)}`);
+    return this.request(`/harnesses/${encodeURIComponent(key)}`);
   }
 
   async listChannels(key: string): Promise<string[]> {
     const res = await this.request<{ channels: string[] }>(
-      `/harnesss/${encodeURIComponent(key)}/channels`,
+      `/harnesses/${encodeURIComponent(key)}/channels`,
     );
     return res.channels;
   }
@@ -158,7 +158,7 @@ export class WebClient {
     if (opts?.since !== undefined) params.set("since", opts.since);
     const q = params.toString() ? `?${params}` : "";
     const res = await this.request<{ messages: ChannelMessage[] }>(
-      `/harnesss/${encodeURIComponent(key)}/channels/${encodeURIComponent(ch)}${q}`,
+      `/harnesses/${encodeURIComponent(key)}/channels/${encodeURIComponent(ch)}${q}`,
     );
     return res.messages;
   }
@@ -172,7 +172,7 @@ export class WebClient {
     if (opts?.cursor !== undefined) params.set("cursor", String(opts.cursor));
     const q = params.toString() ? `?${params}` : "";
     yield* this.sseStream<ChannelMessage>(
-      `/harnesss/${encodeURIComponent(key)}/channels/${encodeURIComponent(ch)}/stream${q}`,
+      `/harnesses/${encodeURIComponent(key)}/channels/${encodeURIComponent(ch)}/stream${q}`,
       opts?.signal,
     );
   }
@@ -182,7 +182,7 @@ export class WebClient {
     content: string,
     opts?: { channel?: string; agent?: string },
   ): Promise<void> {
-    await this.request(`/harnesss/${encodeURIComponent(key)}/send`, {
+    await this.request(`/harnesses/${encodeURIComponent(key)}/send`, {
       method: "POST",
       body: JSON.stringify({ content, channel: opts?.channel, agent: opts?.agent }),
     });
@@ -190,7 +190,7 @@ export class WebClient {
 
   async listDocs(key: string): Promise<DocInfo[]> {
     const res = await this.request<{ docs: DocInfo[] }>(
-      `/harnesss/${encodeURIComponent(key)}/docs`,
+      `/harnesses/${encodeURIComponent(key)}/docs`,
     );
     return res.docs;
   }
@@ -204,33 +204,33 @@ export class WebClient {
     if (opts?.ownerLeadId) params.set("ownerLeadId", opts.ownerLeadId);
     const qs = params.toString();
     const res = await this.request<{ tasks: TaskSummary[] }>(
-      `/harnesss/${encodeURIComponent(key)}/tasks${qs ? `?${qs}` : ""}`,
+      `/harnesses/${encodeURIComponent(key)}/tasks${qs ? `?${qs}` : ""}`,
     );
     return res.tasks;
   }
 
   async getHarnessTask(key: string, taskId: string): Promise<TaskDetail> {
     return this.request<TaskDetail>(
-      `/harnesss/${encodeURIComponent(key)}/tasks/${encodeURIComponent(taskId)}`,
+      `/harnesses/${encodeURIComponent(key)}/tasks/${encodeURIComponent(taskId)}`,
     );
   }
 
   async readDoc(key: string, name: string): Promise<string> {
     const res = await this.request<{ content: string }>(
-      `/harnesss/${encodeURIComponent(key)}/docs/${encodeURIComponent(name)}`,
+      `/harnesses/${encodeURIComponent(key)}/docs/${encodeURIComponent(name)}`,
     );
     return res.content;
   }
 
   async writeDoc(key: string, name: string, content: string): Promise<void> {
-    await this.request(`/harnesss/${encodeURIComponent(key)}/docs/${encodeURIComponent(name)}`, {
+    await this.request(`/harnesses/${encodeURIComponent(key)}/docs/${encodeURIComponent(name)}`, {
       method: "PUT",
       body: JSON.stringify({ content }),
     });
   }
 
   async appendDoc(key: string, name: string, content: string): Promise<void> {
-    await this.request(`/harnesss/${encodeURIComponent(key)}/docs/${encodeURIComponent(name)}`, {
+    await this.request(`/harnesses/${encodeURIComponent(key)}/docs/${encodeURIComponent(name)}`, {
       method: "PATCH",
       body: JSON.stringify({ content }),
     });
@@ -239,19 +239,19 @@ export class WebClient {
   // ── Harness Status & Events ──────────────────────────────────────
 
   async getHarnessStatus(key: string): Promise<HarnessStatus> {
-    return this.request(`/harnesss/${encodeURIComponent(key)}/status`);
+    return this.request(`/harnesses/${encodeURIComponent(key)}/status`);
   }
 
   async peekInbox(key: string, agent: string): Promise<HarnessInboxEntry[]> {
     const res = await this.request<{ entries: HarnessInboxEntry[] }>(
-      `/harnesss/${encodeURIComponent(key)}/inbox/${encodeURIComponent(agent)}`,
+      `/harnesses/${encodeURIComponent(key)}/inbox/${encodeURIComponent(agent)}`,
     );
     return res.entries ?? [];
   }
 
   async readHarnessEvents(key: string, cursor?: number): Promise<CursorResult<DaemonEvent>> {
     const q = cursor !== undefined ? `?cursor=${cursor}` : "";
-    return this.request(`/harnesss/${encodeURIComponent(key)}/events${q}`);
+    return this.request(`/harnesses/${encodeURIComponent(key)}/events${q}`);
   }
 
   async *streamHarnessEvents(
@@ -262,7 +262,7 @@ export class WebClient {
     if (opts?.cursor !== undefined) params.set("cursor", String(opts.cursor));
     const q = params.toString() ? `?${params}` : "";
     yield* this.sseStream<DaemonEvent>(
-      `/harnesss/${encodeURIComponent(key)}/events/stream${q}`,
+      `/harnesses/${encodeURIComponent(key)}/events/stream${q}`,
       opts?.signal,
     );
   }

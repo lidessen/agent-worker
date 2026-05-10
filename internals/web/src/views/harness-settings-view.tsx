@@ -5,7 +5,7 @@ import { Icon, Drama } from "semajsx/icons";
 import { signal, computed } from "semajsx/signal";
 import { client } from "../stores/connection.ts";
 import { agents } from "../stores/agents.ts";
-import { deleteHarness } from "../stores/harnesss.ts";
+import { deleteHarness } from "../stores/harnesses.ts";
 import { selectAgent, selectChannel, selectGlobalSettings } from "../stores/navigation.ts";
 import { ClaudeIcon, CursorIcon, OpenAIIcon, VercelIcon } from "../components/brand-icons.tsx";
 import { ConfirmDialog } from "../components/confirm-dialog.tsx";

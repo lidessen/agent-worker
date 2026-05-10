@@ -5,7 +5,7 @@
  * (primarily claude-code: --mcp-config doesn't load HTTP in -p mode).
  * Connects back to the daemon HTTP API and proxies every harness tool
  * call through a single generic dispatch endpoint — `POST
- * /harnesss/:key/tool-call` — so adding a new harness tool only
+ * /harnesses/:key/tool-call` — so adding a new harness tool only
  * requires editing `HARNESS_TOOL_DEFS` on the daemon side and never
  * this file.
  *
@@ -29,13 +29,13 @@ const headers = {
 
 /**
  * Single dispatch path: every tool invocation becomes an HTTP POST to
- * the daemon's `/harnesss/:key/tool-call` endpoint. The daemon
+ * the daemon's `/harnesses/:key/tool-call` endpoint. The daemon
  * materialises the full harness tool set via `createHarnessTools`
  * and calls the requested tool, returning its text response.
  */
 async function callViaHttp(name: string, args: Record<string, unknown>): Promise<string> {
   try {
-    const res = await fetch(`${daemonUrl}/harnesss/${harness}/tool-call`, {
+    const res = await fetch(`${daemonUrl}/harnesses/${harness}/tool-call`, {
       method: "POST",
       headers,
       body: JSON.stringify({ agent, name, args }),

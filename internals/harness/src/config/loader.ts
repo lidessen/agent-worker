@@ -515,7 +515,7 @@ export async function resolveConnections(
   for (const def of defs) {
     switch (def.platform) {
       case "telegram": {
-        const { TelegramAdapter } = await import("../adapters/telegram.ts");
+        const { TelegramAdapter } = await import("@agent-worker/harness-coordination");
         const cfg = (def.config ?? {}) as {
           bot_token?: string;
           chat_id?: number;

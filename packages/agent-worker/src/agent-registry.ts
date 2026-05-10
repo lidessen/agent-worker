@@ -14,7 +14,7 @@ export type AgentHandle = ManagedAgent | GlobalAgentStub;
  *
  * Storage is scoped by harness:
  * - Global agents  → `<dataDir>/agents/<name>/`
- * - Harness agents → `<dataDir>/harnesss/<wsKey>/agents/<name>/`
+ * - Harness agents → `<dataDir>/harnesses/<wsKey>/agents/<name>/`
  *
  * Agents emit structured events to the shared EventBus.
  */

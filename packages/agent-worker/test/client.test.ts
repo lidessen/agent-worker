@@ -238,9 +238,9 @@ describe("AwClient", () => {
     expect(agents.some((a) => a.name === "temp")).toBe(false);
   });
 
-  test("listHarnesss includes global harness", async () => {
+  test("listHarnesses includes global harness", async () => {
     await setup();
-    const ws = await client.listHarnesss();
+    const ws = await client.listHarnesses();
     expect(ws).toHaveLength(1);
     expect(ws[0]!.name).toBe("global");
     expect(ws[0]!.mode).toBe("service");

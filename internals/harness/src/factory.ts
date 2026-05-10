@@ -3,31 +3,37 @@ import { Harness } from "./harness.ts";
 import { createHarnessTools, type HarnessToolSet } from "./context/mcp/server.ts";
 import { HARNESS_PROMPT_SECTIONS } from "./context/mcp/prompts.tsx";
 import type { PromptSection } from "./loop/prompt.tsx";
-import type { HarnessTypeRegistry } from "./type/index.ts";
+import { createHarnessTypeRegistry, type HarnessTypeRegistry } from "./type/index.ts";
+import {
+  COORDINATION_HARNESS_TYPE_ID,
+  multiAgentCoordinationHarnessType,
+} from "@agent-worker/harness-coordination";
 
 // ── createHarness ────────────────────────────────────────────────────────
 
+/**
+ * Construct and initialize a multi-agent coordination Harness.
+ *
+ * `createHarness` is the coord-flavored entry point: it auto-registers
+ * `multiAgentCoordinationHarnessType` in the registry and defaults
+ * `harnessTypeId` to it. Coord `onInit` (fired from `harness.init`)
+ * registers `config.agents` and attaches `config.connections` adapters
+ * to the bridge. Callers that want the substrate no-op type should
+ * construct via `new Harness(...)` directly.
+ */
 export async function createHarness(
   config: HarnessConfig,
   harnessTypeRegistry?: HarnessTypeRegistry,
 ): Promise<Harness> {
-  const harness = new Harness(config, harnessTypeRegistry);
-
+  const registry = harnessTypeRegistry ?? createHarnessTypeRegistry();
+  if (!registry.get(multiAgentCoordinationHarnessType.id)) {
+    registry.register(multiAgentCoordinationHarnessType);
+  }
+  const harness = new Harness(
+    { ...config, harnessTypeId: config.harnessTypeId ?? COORDINATION_HARNESS_TYPE_ID },
+    registry,
+  );
   await harness.init();
-
-  // Register agents
-  if (config.agents) {
-    for (const agent of config.agents) {
-      await harness.registerAgent(agent);
-    }
-  }
-
-  // Start connections (platform adapters)
-  if (config.connections) {
-    for (const adapter of config.connections) {
-      await harness.bridge.addAdapter(adapter);
-    }
-  }
   return harness;
 }
 

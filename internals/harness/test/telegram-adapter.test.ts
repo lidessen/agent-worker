@@ -1,5 +1,5 @@
 import { test, expect, describe, mock, afterEach } from "bun:test";
-import { TelegramAdapter } from "../src/adapters/telegram.ts";
+import { TelegramAdapter } from "@agent-worker/harness-coordination";
 import type { ChannelBridgeInterface, Message } from "../src/types.ts";
 import { parse as parseYaml } from "yaml";
 import type { ConnectionDef } from "../src/config/types.ts";

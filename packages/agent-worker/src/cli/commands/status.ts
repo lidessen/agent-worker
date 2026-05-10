@@ -16,10 +16,10 @@ export async function status(args: string[]): Promise<void> {
   const client = AwClient.fromInfo(info);
 
   try {
-    const [health, agents, harnesss] = await Promise.all([
+    const [health, agents, harnesses] = await Promise.all([
       client.health(),
       client.listAgents(),
-      client.listHarnesss(),
+      client.listHarnesses(),
     ]);
 
     // ── Daemon ──
@@ -29,7 +29,7 @@ export async function status(args: string[]): Promise<void> {
     console.log(`  URL:       http://${info.host}:${info.port}`);
     console.log(`  Web UI:    http://${info.host}:${info.port}/`);
     console.log(`  Agents:    ${health.agents}`);
-    console.log(`  Harnesss: ${health.harnesss}`);
+    console.log(`  Harnesses: ${health.harnesses}`);
 
     // ── Agents ──
     if (agents.length > 0) {
@@ -43,10 +43,10 @@ export async function status(args: string[]): Promise<void> {
       }
     }
 
-    // ── Harnesss ──
-    if (harnesss.length > 0) {
-      console.log("\nHarnesss:");
-      for (const w of harnesss) {
+    // ── Harnesses ──
+    if (harnesses.length > 0) {
+      console.log("\nHarnesses:");
+      for (const w of harnesses) {
         const key = w.tag ? `${w.name}:${w.tag}` : w.name;
         const agentList = w.agents?.join(", ") ?? "";
         const mode = (w as any).mode ? `[${(w as any).mode}]` : "";

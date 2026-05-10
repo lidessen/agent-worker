@@ -13,12 +13,20 @@
 import {
   createHarness,
   createAgentTools,
-  InstructionQueue,
   MemoryStorage,
   assemblePrompt,
-  DEFAULT_SECTIONS,
+  HARNESS_PROMPT_SECTIONS,
+  soulSection,
   nanoid,
 } from "../../src/index.ts";
+import {
+  COORDINATION_BASE_SECTIONS,
+  InstructionQueue,
+} from "@agent-worker/harness-coordination";
+
+// Coord agents in this a2a smoke compose substrate `soulSection` +
+// coord-specific sections + harness MCP prompts (mirrors orchestrator).
+const DEFAULT_SECTIONS = [soulSection, ...COORDINATION_BASE_SECTIONS, ...HARNESS_PROMPT_SECTIONS];
 import { createOrchestrator } from "agent-worker";
 
 // ── Helpers ──────────────────────────────────────────────────────────────

@@ -17,7 +17,8 @@ import type {
   HarnessStateStore,
   AgentRole,
 } from "@agent-worker/harness";
-import { assemblePrompt, BASE_SECTIONS, nanoid } from "@agent-worker/harness";
+import { assemblePrompt, nanoid, soulSection } from "@agent-worker/harness";
+import { COORDINATION_BASE_SECTIONS } from "@agent-worker/harness-coordination";
 
 /**
  * Lightweight checkpoint hook shape used by the orchestrator. Intentionally
@@ -39,7 +40,7 @@ export interface OrchestratorConfig {
   eventLog: EventLog;
   /** Polling interval in ms. Default: 5000 */
   pollInterval?: number;
-  /** Extra prompt sections (from capabilities). Appended after BASE_SECTIONS. */
+  /** Extra prompt sections (from capabilities). Appended after COORDINATION_BASE_SECTIONS. */
   promptSections?: PromptSection[];
   /** Handler called with assembled prompt; returns when done. */
   onInstruction: (prompt: string, instruction: Instruction) => Promise<void>;
@@ -110,7 +111,7 @@ export class HarnessOrchestrator {
   constructor(private readonly config: OrchestratorConfig) {
     this.pollInterval = config.pollInterval ?? 5000;
     const extra = config.promptSections ?? [];
-    this.sections = [...BASE_SECTIONS, ...extra];
+    this.sections = [soulSection, ...COORDINATION_BASE_SECTIONS, ...extra];
   }
 
   get name(): string {

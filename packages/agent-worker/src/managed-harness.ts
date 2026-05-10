@@ -292,7 +292,7 @@ export class ManagedHarness {
 
     // Worktree cleanup: walk every non-terminal Wake (the `wake.terminal`
     // listener has already cleaned the rest) and remove each worktree
-    // manually before `harness.shutdown()`. This catches harnesss
+    // manually before `harness.shutdown()`. This catches harnesses
     // stopped while Wakes were still running — e.g. `aw rm @ws` mid-task.
     try {
       const wakes = await this.harness.stateStore.listAllWakes();

@@ -1,4 +1,9 @@
-import type { Instruction, Priority, QueueConfig, InstructionQueueInterface } from "../types.ts";
+import type {
+  Instruction,
+  Priority,
+  QueueConfig,
+  InstructionQueueInterface,
+} from "@agent-worker/harness";
 
 const PRIORITY_ORDER: Priority[] = ["immediate", "normal", "background"];
 
@@ -23,19 +28,17 @@ export class InstructionQueue implements InstructionQueueInterface {
   constructor(config: QueueConfig = {}) {
     this.immediateQuota = config.immediateQuota ?? 4;
     this.normalQuota = config.normalQuota ?? 8;
-    this.maxBackgroundWait = config.maxBackgroundWait ?? 5 * 60 * 1000; // 5min
+    this.maxBackgroundWait = config.maxBackgroundWait ?? 5 * 60 * 1000;
     this.maxPreemptions = config.maxPreemptions ?? 3;
-    this.backgroundTtl = config.backgroundTtl ?? 5 * 60 * 1000; // 5min
+    this.backgroundTtl = config.backgroundTtl ?? 5 * 60 * 1000;
     this.maxSize = config.maxSize ?? 200;
   }
 
   enqueue(instruction: Instruction): void {
     if (this.size >= this.maxSize) {
-      // Drop the oldest background item to make room
       if (this.lanes.background.length > 0) {
         this.lanes.background.shift();
       } else {
-        // No background items to drop — reject the new item
         return;
       }
     }
@@ -43,13 +46,9 @@ export class InstructionQueue implements InstructionQueueInterface {
   }
 
   dequeue(agentName: string): Instruction | null {
-    // Prune expired background items before any other logic
     this.pruneExpired();
-
-    // Apply starvation protection: promote overdue background tasks
     this.promoteStarved();
 
-    // Lane bandwidth policy
     const forcedLane = this.getForcedLane();
     if (forcedLane) {
       const instruction = this.dequeueFromLane(forcedLane, agentName);
@@ -59,7 +58,6 @@ export class InstructionQueue implements InstructionQueueInterface {
       }
     }
 
-    // Normal priority order
     for (const priority of PRIORITY_ORDER) {
       const instruction = this.dequeueFromLane(priority, agentName);
       if (instruction) {
@@ -81,7 +79,6 @@ export class InstructionQueue implements InstructionQueueInterface {
   }
 
   shouldYield(agentName: string): boolean {
-    // Check if a higher-priority instruction is waiting for this agent
     const immediate = this.lanes.immediate.find((i) => i.agentName === agentName);
     return !!immediate;
   }
@@ -104,12 +101,10 @@ export class InstructionQueue implements InstructionQueueInterface {
   }
 
   private getForcedLane(): Priority | null {
-    // After immediateQuota consecutive immediate dispatches, force a normal task
     if (this.consecutiveImmediate >= this.immediateQuota && this.lanes.normal.length > 0) {
       return "normal";
     }
 
-    // After normalQuota consecutive high-priority dispatches, force a background task
     if (this.consecutiveHighPriority >= this.normalQuota && this.lanes.background.length > 0) {
       return "background";
     }
@@ -145,7 +140,6 @@ export class InstructionQueue implements InstructionQueueInterface {
       const instr = this.lanes.background[i]!;
       const waitTime = now - new Date(instr.enqueuedAt).getTime();
 
-      // Promote if waited too long or preempted too many times
       if (
         waitTime > this.maxBackgroundWait ||
         (instr.preemptionCount ?? 0) >= this.maxPreemptions
@@ -154,7 +148,6 @@ export class InstructionQueue implements InstructionQueueInterface {
       }
     }
 
-    // Remove from background (reverse order to preserve indices) and add to normal
     for (let i = toPromote.length - 1; i >= 0; i--) {
       const idx = toPromote[i]!;
       const [instr] = this.lanes.background.splice(idx, 1);

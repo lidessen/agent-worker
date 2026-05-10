@@ -265,7 +265,7 @@ export const HarnessPage: RuntimeComponent<Record<string, never>> = (_props, ctx
         {ch.map((name) => (
           <div
             class={styles.channelItem}
-            onclick={() => navigate(`/harnesss/${wk}/channels/${name}`)}
+            onclick={() => navigate(`/harnesses/${wk}/channels/${name}`)}
           >
             # {name}
           </div>

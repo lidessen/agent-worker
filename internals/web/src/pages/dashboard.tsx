@@ -2,7 +2,7 @@
 
 import { computed } from "semajsx/signal";
 import { agents, agentsLoading, fetchAgents } from "../stores/agents.ts";
-import { harnesss, harnesssLoading, fetchHarnesss } from "../stores/harnesss.ts";
+import { harnesses, harnessesLoading, fetchHarnesses } from "../stores/harnesses.ts";
 import { AgentCard } from "../components/agent-card.tsx";
 import { HarnessCard } from "../components/harness-card.tsx";
 import {
@@ -15,10 +15,10 @@ import * as styles from "./dashboard.style.ts";
 export function DashboardPage() {
   // Fetch data on mount
   fetchAgents();
-  fetchHarnesss();
+  fetchHarnesses();
 
   const agentCount = computed(agents, (a) => a.length);
-  const harnessCount = computed(harnesss, (w) => w.length);
+  const harnessCount = computed(harnesses, (w) => w.length);
 
   const agentsSection = computed([agents, agentsLoading], (list, loading) =>
     loading ? (
@@ -34,9 +34,9 @@ export function DashboardPage() {
     ),
   );
 
-  const harnesssSection = computed([harnesss, harnesssLoading], (list, loading) =>
+  const harnessesSection = computed([harnesses, harnessesLoading], (list, loading) =>
     loading ? (
-      <div class={[styles.empty, styles.loading]}>Loading harnesss...</div>
+      <div class={[styles.empty, styles.loading]}>Loading harnesses...</div>
     ) : list.length > 0 ? (
       <div class={styles.grid}>
         {list.map((ws) => (
@@ -44,7 +44,7 @@ export function DashboardPage() {
         ))}
       </div>
     ) : (
-      <div class={styles.empty}>No harnesss</div>
+      <div class={styles.empty}>No harnesses</div>
     ),
   );
 
@@ -68,7 +68,7 @@ export function DashboardPage() {
 
       <div class={styles.section}>
         <div class={styles.sectionHeader}>
-          <span class={styles.sectionTitle}>Harnesss</span>
+          <span class={styles.sectionTitle}>Harnesses</span>
           <span class={styles.count}>({harnessCount})</span>
           <button
             class={styles.newBtn}
@@ -79,7 +79,7 @@ export function DashboardPage() {
             New Harness
           </button>
         </div>
-        {harnesssSection}
+        {harnessesSection}
       </div>
 
       <CreateHarnessDialog />

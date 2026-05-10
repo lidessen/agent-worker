@@ -25,7 +25,7 @@ export function HarnessCard(props: { harness: HarnessInfo }) {
   const { harness } = props;
 
   function handleClick() {
-    navigate("/harnesss/" + harness.name);
+    navigate("/harnesses/" + harness.name);
   }
 
   const agentCount = harness.agents.length;

@@ -1,7 +1,7 @@
 import { describe, test, expect } from "bun:test";
 import { createTaskTools } from "../src/context/mcp/task.ts";
 import { InMemoryHarnessStateStore } from "../src/state/index.ts";
-import { InstructionQueue } from "../src/loop/priority-queue.ts";
+import { InstructionQueue } from "@agent-worker/harness-coordination";
 
 function setup(agentName = "lead") {
   const store = new InMemoryHarnessStateStore();

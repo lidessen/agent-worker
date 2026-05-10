@@ -114,6 +114,33 @@
         "@semajsx/configs": "workspace:*",
       },
     },
+    "internals/harness": {
+      "name": "@agent-worker/harness",
+      "version": "0.0.1",
+      "dependencies": {
+        "@agent-worker/shared": "workspace:*",
+        "@modelcontextprotocol/sdk": "^1.27.1",
+        "semajsx": "workspace:*",
+        "yaml": "^2.8.2",
+        "zod": "^4.3.6",
+      },
+      "devDependencies": {
+        "agent-worker": "workspace:*",
+      },
+    },
+    "internals/harness-coordination": {
+      "name": "@agent-worker/harness-coordination",
+      "version": "0.0.1",
+      "dependencies": {
+        "@agent-worker/agent": "workspace:*",
+        "@agent-worker/harness": "workspace:*",
+        "@agent-worker/shared": "workspace:*",
+        "@modelcontextprotocol/sdk": "^1.27.1",
+        "semajsx": "workspace:*",
+        "yaml": "^2.8.2",
+        "zod": "^4.3.6",
+      },
+    },
     "internals/icons": {
       "name": "@semajsx/icons",
       "version": "0.1.0",
@@ -368,20 +395,6 @@
         "semajsx": "workspace:*",
       },
     },
-    "internals/workspace": {
-      "name": "@agent-worker/workspace",
-      "version": "0.0.1",
-      "dependencies": {
-        "@agent-worker/shared": "workspace:*",
-        "@modelcontextprotocol/sdk": "^1.27.1",
-        "semajsx": "workspace:*",
-        "yaml": "^2.8.2",
-        "zod": "^4.3.6",
-      },
-      "devDependencies": {
-        "agent-worker": "workspace:*",
-      },
-    },
     "packages/agent-worker": {
       "name": "agent-worker",
       "version": "0.0.1",
@@ -390,9 +403,9 @@
       },
       "dependencies": {
         "@agent-worker/agent": "workspace:*",
+        "@agent-worker/harness": "workspace:*",
         "@agent-worker/loop": "workspace:*",
         "@agent-worker/shared": "workspace:*",
-        "@agent-worker/workspace": "workspace:*",
         "@ai-sdk/anthropic": "^3.0.74",
         "@ai-sdk/deepseek": "^2.0.32",
         "@ai-sdk/google": "^3.0.67",
@@ -472,13 +485,15 @@
   "packages": {
     "@agent-worker/agent": ["@agent-worker/agent@workspace:internals/agent"],
 
+    "@agent-worker/harness": ["@agent-worker/harness@workspace:internals/harness"],
+
+    "@agent-worker/harness-coordination": ["@agent-worker/harness-coordination@workspace:internals/harness-coordination"],
+
     "@agent-worker/loop": ["@agent-worker/loop@workspace:internals/loop"],
 
     "@agent-worker/shared": ["@agent-worker/shared@workspace:internals/shared"],
 
     "@agent-worker/web": ["@agent-worker/web@workspace:internals/web"],
-
-    "@agent-worker/workspace": ["@agent-worker/workspace@workspace:internals/workspace"],
 
     "@ai-sdk/anthropic": ["@ai-sdk/anthropic@3.0.76", "", { "dependencies": { "@ai-sdk/provider": "3.0.10", "@ai-sdk/provider-utils": "4.0.27" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-kOuvT9e6PygFvgYpkr4v9gjvmcMPfJp79jaXjeRl9Gpoj2OXdtc3ero7o1ic+tiSBw5IMubxXFO68BCA/axGJA=="],
 

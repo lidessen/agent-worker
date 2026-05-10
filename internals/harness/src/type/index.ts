@@ -3,8 +3,18 @@
 export type {
   HarnessType,
   HarnessTypeRegistry,
+  HarnessTypeRuntime,
+  ContributeRuntimeInput,
+  OnInitInput,
+  OnShutdownInput,
   ProduceExtensionInput,
   ConsumeExtensionInput,
+  ContributedMcpTool,
+  ContributedPromptSection,
+  ContributeMcpToolsInput,
+  ContributeContextSectionsInput,
+  SnapshotExtensionInput,
+  ParseConfigInput,
 } from "./types.ts";
 
 export { DEFAULT_HARNESS_TYPE_ID, defaultHarnessType } from "./default.ts";

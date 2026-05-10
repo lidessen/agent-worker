@@ -67,7 +67,7 @@ export const ChannelPage: RuntimeComponent<Record<string, never>> = (_props, ctx
   return (
     <div class={styles.page}>
       <div class={styles.header}>
-        <button class={styles.backBtn} onclick={() => navigate(`/harnesss/${wsKey.value}`)}>
+        <button class={styles.backBtn} onclick={() => navigate(`/harnesses/${wsKey.value}`)}>
           Back
         </button>
         <div class={styles.headerInfo}>

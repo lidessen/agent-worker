@@ -3,7 +3,7 @@
 import { signal, computed } from "semajsx/signal";
 import { when } from "semajsx";
 import { client } from "../stores/connection.ts";
-import { fetchHarnesss } from "../stores/harnesss.ts";
+import { fetchHarnesses } from "../stores/harnesses.ts";
 import { navigate } from "../router.ts";
 import { YamlEditor } from "./yaml-editor.tsx";
 import * as styles from "./create-harness-dialog.style.ts";
@@ -64,8 +64,8 @@ export function CreateHarnessDialog() {
         mode: mode.value,
       });
       close();
-      await fetchHarnesss();
-      navigate("/harnesss/" + ws.name);
+      await fetchHarnesses();
+      navigate("/harnesses/" + ws.name);
     } catch (err) {
       error.value = err instanceof Error ? err.message : "Failed to create harness";
       loading.value = false;

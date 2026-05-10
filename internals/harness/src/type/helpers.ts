@@ -29,7 +29,7 @@ import type {
  */
 export class HandoffExtensionConsumeError extends Error {
   readonly harnessTypeId: string;
-  readonly cause?: unknown;
+  override readonly cause?: unknown;
 
   constructor(harnessTypeId: string, cause: unknown) {
     super(

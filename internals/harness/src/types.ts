@@ -86,6 +86,15 @@ export interface TimelineEvent {
   toolCall?: ToolCallData;
 }
 
+/**
+ * Per-Wake event seen by a HarnessType's `produceExtension` hook.
+ * Today, the events array passed into the hook is sourced from the
+ * timeline / event log, so `HarnessEvent` aliases `TimelineEvent`.
+ * When the work-log slice introduces a richer event surface, the
+ * alias becomes a discriminated union without changing call sites.
+ */
+export type HarnessEvent = TimelineEvent;
+
 // ── Resource types ─────────────────────────────────────────────────────────
 
 export interface Resource {
@@ -186,24 +195,30 @@ export interface ChannelBridgeInterface {
 
 export type BridgeSubscriber = (message: Message) => void;
 
-export interface HarnessAgentSnapshot {
-  name: string;
-  status: AgentStatus;
-  currentTask?: string;
-  channels: string[];
-  inbox: InboxEntry[];
-  recentActivity: TimelineEvent[];
-}
-
-export interface HarnessStateSnapshot {
+/**
+ * Substrate slice of `HarnessStateSnapshot`. Universal across types —
+ * carries identity, the registered type id, and the substrate stores'
+ * data (documents, chronicle).
+ */
+export interface HarnessSubstrateSnapshot {
   name: string;
   tag?: string;
-  defaultChannel: string;
-  channels: string[];
+  harnessTypeId: string;
   documents: string[];
   chronicle: ChronicleEntry[];
-  queuedInstructions: Instruction[];
-  agents: HarnessAgentSnapshot[];
+}
+
+/**
+ * Unified snapshot shape per resolved Q #3 of the substrate-cut
+ * blueprint: substrate slice plus a `typeExtensions` map keyed by
+ * `HarnessType.id`. A coord harness emits its slice under
+ * `typeExtensions["multi-agent-coordination"]`; future types
+ * (coding/writing/...) plug in symmetrically. Stitcher helpers can
+ * project a flat view per consumer's preference.
+ */
+export interface HarnessStateSnapshot {
+  substrate: HarnessSubstrateSnapshot;
+  typeExtensions: Record<string, unknown>;
 }
 
 // ── Harness runtime interface ────────────────────────────────────────────
@@ -216,7 +231,7 @@ export interface HarnessRuntime {
   readonly eventLog: EventLog;
   readonly bridge: ChannelBridgeInterface;
   readonly instructionQueue: InstructionQueueInterface;
-  /** Root directory for this harness's file storage. Undefined for memory-only harnesss. */
+  /** Root directory for this harness's file storage. Undefined for memory-only harnesses. */
   readonly storageDir: string | undefined;
   /** Shared harness sandbox directory (collaborative files visible to all agents). */
   readonly harnessSandboxDir: string | undefined;

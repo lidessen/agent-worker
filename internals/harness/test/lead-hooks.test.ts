@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { buildLeadHooks } from "../src/loop/lead-hooks.ts";
+import { buildLeadHooks } from "@agent-worker/harness-coordination";
 import { InMemoryHarnessStateStore } from "../src/state/index.ts";
 
 describe("buildLeadHooks.onCheckpoint", () => {

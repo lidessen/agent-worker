@@ -1,18 +1,17 @@
+import { extractMentions } from "@agent-worker/harness";
 import type {
   Message,
   BridgeSubscriber,
   ChannelBridgeInterface,
   ChannelStoreInterface,
   ChannelAdapter,
-} from "../types.ts";
-import { extractMentions } from "../utils.ts";
+} from "@agent-worker/harness";
 
 export class ChannelBridge implements ChannelBridgeInterface {
   private subscribers = new Set<BridgeSubscriber>();
   private adapters: ChannelAdapter[] = [];
 
   constructor(private readonly channels: ChannelStoreInterface) {
-    // Listen to channel messages and dispatch to subscribers
     this.channels.on("message", (message) => {
       this.dispatch(message);
     });
@@ -53,8 +52,6 @@ export class ChannelBridge implements ChannelBridgeInterface {
 
   private dispatch(message: Message): void {
     for (const subscriber of this.subscribers) {
-      // Anti-loop: check if the subscriber's platform matches the message source
-      // Adapters should check message.from to avoid echo loops
       try {
         subscriber(message);
       } catch {

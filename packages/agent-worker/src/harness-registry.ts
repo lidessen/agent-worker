@@ -8,9 +8,9 @@ import {
   toHarnessConfig,
   resolveConnections,
   HARNESS_TOOL_DEFS,
-  buildLeadHooks,
   removeWorktree,
 } from "@agent-worker/harness";
+import { buildLeadHooks } from "@agent-worker/harness-coordination";
 import type { Harness, ResolvedAgent, HarnessToolSet } from "@agent-worker/harness";
 import type { AgentLoop } from "@agent-worker/agent";
 import { HarnessOrchestrator, createOrchestrator } from "./orchestrator.ts";
@@ -37,7 +37,7 @@ storage: file
  *
  * Emits structured events to the shared EventBus.
  */
-/** Manifest entry — persisted to harnesss.json for restart recovery. */
+/** Manifest entry — persisted to harnesses.json for restart recovery. */
 interface ManifestEntry {
   /** Harness key (name or name:tag) — used for dedup and removal. */
   key: string;
@@ -47,7 +47,7 @@ interface ManifestEntry {
 }
 
 export class HarnessRegistry {
-  private harnesss = new Map<string, ManagedHarness>();
+  private harnesses = new Map<string, ManagedHarness>();
   private _bus?: EventBus;
   private _defaultHarness: ManagedHarness | null = null;
   private _dataDir: string;
@@ -63,7 +63,7 @@ export class HarnessRegistry {
 
   /** Path to the harness manifest file. */
   private get manifestPath(): string {
-    return join(this._dataDir, "harnesss.json");
+    return join(this._dataDir, "harnesses.json");
   }
 
   /** Serialize access to the manifest file. */
@@ -120,14 +120,14 @@ export class HarnessRegistry {
   }
 
   /**
-   * Restore all harnesss from manifest. Called on daemon start after
+   * Restore all harnesses from manifest. Called on daemon start after
    * global harness and MCP hub are ready.
    * Skips setup steps (sandbox already populated) and kickoff (not a fresh create).
    */
   async restoreFromManifest(): Promise<void> {
     const entries = await this.readManifest();
     for (const entry of entries) {
-      if (this.harnesss.has(entry.key)) continue;
+      if (this.harnesses.has(entry.key)) continue;
       try {
         const handle = await this.create({
           source: entry.sourcePath,
@@ -171,7 +171,7 @@ export class HarnessRegistry {
   async ensureDefault(): Promise<ManagedHarness> {
     if (this._defaultHarness) return this._defaultHarness;
 
-    const configPath = join(this._dataDir, "harnesss", "_global.yml");
+    const configPath = join(this._dataDir, "harnesses", "_global.yml");
     const globalDir = this.harnessDir("global");
 
     // Try _global.yml first, then auto-discover a runtime and build config dynamically.
@@ -313,7 +313,7 @@ export class HarnessRegistry {
     }
 
     const key = input.tag ? `${resolved.def.name}:${input.tag}` : resolved.def.name;
-    if (this.harnesss.has(key)) {
+    if (this.harnesses.has(key)) {
       throw new Error(`Harness "${key}" already exists`);
     }
 
@@ -478,7 +478,7 @@ export class HarnessRegistry {
       onDispose: unsubscribeTerminal,
     });
 
-    this.harnesss.set(key, handle);
+    this.harnesses.set(key, handle);
 
     // Persist to manifest for restart recovery (service mode only, not on restore)
     if (input.mode !== "task" && !input._restore) {
@@ -496,23 +496,23 @@ export class HarnessRegistry {
   /** Get a harness by key ("name" or "name:tag"). */
   get(key: string): ManagedHarness | undefined {
     if (key === "global" && this._defaultHarness) return this._defaultHarness;
-    return this.harnesss.get(key);
+    return this.harnesses.get(key);
   }
 
-  /** List all harnesss (including global). */
+  /** List all harnesses (including global). */
   list(): ManagedHarnessInfo[] {
     const result: ManagedHarnessInfo[] = [];
     if (this._defaultHarness) result.push(this._defaultHarness.info);
-    for (const h of this.harnesss.values()) result.push(h.info);
+    for (const h of this.harnesses.values()) result.push(h.info);
     return result;
   }
 
   /** Stop and remove a harness. Also removes from manifest. */
   async remove(key: string): Promise<void> {
-    const handle = this.harnesss.get(key);
+    const handle = this.harnesses.get(key);
     if (!handle) throw new Error(`Harness "${key}" not found`);
     await handle.stop();
-    this.harnesss.delete(key);
+    this.harnesses.delete(key);
     await this.unregisterFromManifest(key);
     // Wipe the harness-data directory so a subsequent `create`
     // with the same name starts clean. Without this the new
@@ -533,9 +533,9 @@ export class HarnessRegistry {
     }
   }
 
-  /** Stop all harnesss (including default). */
+  /** Stop all harnesses (including default). */
   async stopAll(): Promise<void> {
-    const handles = Array.from(this.harnesss.values());
+    const handles = Array.from(this.harnesses.values());
     await Promise.all(handles.map((h) => h.stop()));
     if (this._defaultHarness) {
       await this._defaultHarness.stop();
@@ -544,7 +544,7 @@ export class HarnessRegistry {
   }
 
   get size(): number {
-    return this.harnesss.size + (this._defaultHarness ? 1 : 0);
+    return this.harnesses.size + (this._defaultHarness ? 1 : 0);
   }
 
   // ── Internal ────────────────────────────────────────────────────────────

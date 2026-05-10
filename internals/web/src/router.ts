@@ -21,7 +21,7 @@ function parseHash(hash: string): Route {
     return { page: "agent-chat", params: { name: decodeURIComponent(agentMatch[1]) } };
   }
 
-  const channelMatch = path.match(/^\/harnesss\/([^/]+)\/channels\/([^/]+)$/);
+  const channelMatch = path.match(/^\/harnesses\/([^/]+)\/channels\/([^/]+)$/);
   if (channelMatch) {
     return {
       page: "channel",
@@ -32,7 +32,7 @@ function parseHash(hash: string): Route {
     };
   }
 
-  const wsMatch = path.match(/^\/harnesss\/([^/]+)$/);
+  const wsMatch = path.match(/^\/harnesses\/([^/]+)$/);
   if (wsMatch) {
     return { page: "harness", params: { key: decodeURIComponent(wsMatch[1]) } };
   }

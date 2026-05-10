@@ -48,22 +48,141 @@ export interface ConsumeExtensionInput<E = unknown> {
 }
 
 /**
+ * Per-Harness, per-type runtime slot. The substrate stores whatever the
+ * type's `contributeRuntime` returns under `harness.typeRuntime`,
+ * opaquely; the type's own consumer-side accessor (e.g.
+ * `coordinationRuntime(harness)`) narrows the type when callers need it.
+ *
+ * Substrate code never inspects this value — it just holds the slot
+ * across the Harness lifetime so the type's lifecycle hooks can read it.
+ */
+export type HarnessTypeRuntime = unknown;
+
+/**
+ * Inputs to `contributeRuntime`. The type sees the Harness instance
+ * itself plus the construction-time config, before lifecycle starts.
+ *
+ * `harness` is given as `unknown` here to keep the substrate import
+ * graph free of a back-reference; concrete types cast at the call
+ * boundary into the concrete `Harness` shape they expect.
+ */
+export interface ContributeRuntimeInput {
+  harness: unknown;
+  config: unknown;
+}
+
+/** Inputs to `onInit`. Includes the runtime that `contributeRuntime` returned (or `undefined` if none). */
+export interface OnInitInput<R = HarnessTypeRuntime> {
+  harness: unknown;
+  runtime: R | undefined;
+}
+
+/** Inputs to `onShutdown`. Mirrors `OnInitInput`. */
+export interface OnShutdownInput<R = HarnessTypeRuntime> {
+  harness: unknown;
+  runtime: R | undefined;
+}
+
+/**
+ * Opaque MCP tool definition contributed by a `HarnessType`. Substrate
+ * does not inspect the shape — concrete consumers (factory.ts in the
+ * substrate, the MCP server) cast this to whatever shape their
+ * registration code expects. Kept opaque here so the substrate's import
+ * graph does not pull in the MCP SDK.
+ */
+export type ContributedMcpTool = unknown;
+
+/** Inputs to `contributeMcpTools`. Mirrors `OnInitInput` plus the agent name. */
+export interface ContributeMcpToolsInput<R = HarnessTypeRuntime> {
+  harness: unknown;
+  runtime: R | undefined;
+  agentName: string;
+}
+
+/**
+ * Opaque prompt section contributed by a `HarnessType`. Same rationale
+ * as `ContributedMcpTool`: substrate does not inspect; concrete consumers
+ * (the prompt assembly path) cast at the boundary.
+ */
+export type ContributedPromptSection = unknown;
+
+/** Inputs to `contributeContextSections`. Mirrors `ContributeMcpToolsInput`. */
+export interface ContributeContextSectionsInput<R = HarnessTypeRuntime> {
+  harness: unknown;
+  runtime: R | undefined;
+  agentName: string;
+}
+
+/** Inputs to `snapshotExtension`. Mirrors lifecycle inputs plus snapshot opts. */
+export interface SnapshotExtensionInput<R = HarnessTypeRuntime> {
+  harness: unknown;
+  runtime: R | undefined;
+  opts?: {
+    inboxLimit?: number;
+    timelineLimit?: number;
+    chronicleLimit?: number;
+    queuedLimit?: number;
+  };
+}
+
+/**
+ * Inputs to `parseConfig`. The harness loader hands the type-specific
+ * raw config (whatever was parsed from YAML/JSON minus the substrate
+ * fields) and lets the type validate / project it into its own config
+ * shape.
+ */
+export interface ParseConfigInput {
+  raw: unknown;
+}
+
+/**
  * One harness-type contract. Every Harness instance has exactly one
  * registered `HarnessType` for its lifetime, fixed at construction.
  *
- * Both hooks are optional:
- * - if `produceExtension` is absent, the Handoff's per-type extension entry
- *   is omitted (the core still writes).
- * - if `consumeExtension` is absent, the next Wake's packet passes
- *   through unchanged.
+ * Every method is optional. The substrate calls each at the right
+ * lifecycle point and tolerates absence:
+ *
+ * - `contributeRuntime` — called once at Harness construction; the
+ *   returned value is stashed in `harness.typeRuntime` and passed back
+ *   into the type's lifecycle hooks. `undefined` means the type carries
+ *   no per-Harness state.
+ * - `onInit` / `onShutdown` — called from `Harness.init` / `shutdown`.
+ *   The type starts background work (telegram adapter, queue workers,
+ *   …) on init and tears it down on shutdown. Absence means no-op.
+ * - `produceExtension` — at Wake close, builds the per-type Handoff
+ *   extension payload. Absence omits the extension entry (core still
+ *   writes).
+ * - `consumeExtension` — at next Wake start, injects extension content
+ *   into the `ContextPacket`. Absence passes the packet through
+ *   unchanged.
  */
-export interface HarnessType<E = unknown> {
+export interface HarnessType<E = unknown, R = HarnessTypeRuntime> {
   /** Stable id used as the key in `Handoff.extensions` and in the registry. */
   readonly id: string;
   /** Optional human-readable label for diagnostics / UI. */
   readonly label?: string;
   /** Optional version stamped on produced extensions for evolution. */
   readonly schemaVersion?: number;
+
+  /**
+   * Build the per-Harness runtime slot. Called once at construction
+   * before `init`. Returns `undefined` to indicate "no per-Harness
+   * state needed". Sync only — async setup belongs in `onInit`.
+   */
+  contributeRuntime?(input: ContributeRuntimeInput): R | undefined;
+
+  /**
+   * Lifecycle: run after substrate `init` work has completed, before
+   * the harness is considered ready. Use this to start background work
+   * the type owns (telegram adapter, queue worker, …).
+   */
+  onInit?(input: OnInitInput<R>): Promise<void> | void;
+
+  /**
+   * Lifecycle: run before substrate `shutdown` work. Tear down whatever
+   * `onInit` started.
+   */
+  onShutdown?(input: OnShutdownInput<R>): Promise<void> | void;
 
   /**
    * Build the per-type extension payload at Wake close.
@@ -83,6 +202,39 @@ export interface HarnessType<E = unknown> {
   consumeExtension?(
     input: ConsumeExtensionInput<E>,
   ): Promise<ContextPacket> | ContextPacket;
+
+  /**
+   * Contribute MCP tool definitions for this Harness's agents. The
+   * substrate's tool factory merges substrate-only tools (resource_*,
+   * task_*, wake_*) with each registered type's contributions before
+   * registering with the agent's MCP server. Absence means no
+   * type-contributed tools.
+   */
+  contributeMcpTools?(input: ContributeMcpToolsInput<R>): ContributedMcpTool[];
+
+  /**
+   * Contribute additional prompt sections to be appended after the
+   * substrate's `SUBSTRATE_BASE_SECTIONS`. Coord-flavored sections
+   * (`inboxSection`, `responseGuidelines`) live here. Absence means
+   * the prompt uses substrate sections only.
+   */
+  contributeContextSections?(input: ContributeContextSectionsInput<R>): ContributedPromptSection[];
+
+  /**
+   * Build the per-type slice of `HarnessStateSnapshot.typeExtensions`.
+   * Substrate emits its own slice (name/tag/harnessTypeId/documents/
+   * chronicle); the type fills in its own keyed payload here.
+   * Absence means no entry under this type's id.
+   */
+  snapshotExtension?(input: SnapshotExtensionInput<R>): Promise<unknown> | unknown;
+
+  /**
+   * Parse the type-specific portion of a `HarnessConfig` (everything
+   * the substrate didn't recognize). Returns the projected shape the
+   * type expects in `contributeRuntime` / `onInit`. Absence means the
+   * type takes no config (or accepts the raw value as-is).
+   */
+  parseConfig?(input: ParseConfigInput): unknown;
 }
 
 /**

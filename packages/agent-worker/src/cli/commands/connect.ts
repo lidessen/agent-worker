@@ -200,7 +200,8 @@ async function connectTelegram(args: string[]): Promise<void> {
     rl.close();
   }
 
-  const { runTelegramAuth, saveConnection, setSecret } = await import("@agent-worker/harness");
+  const { saveConnection, setSecret } = await import("@agent-worker/harness");
+  const { runTelegramAuth } = await import("@agent-worker/harness-coordination");
 
   try {
     const result = await runTelegramAuth(botToken!);
