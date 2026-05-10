@@ -68,6 +68,31 @@ export async function startMonitorStream(): Promise<void> {
             c1: { ...snap.c1, current: evt.sample },
           };
         }
+      } else if (evt.kind === "intervention") {
+        // A new intervention surfaced; nudge the snapshot so the C3
+        // panel re-renders. Cheaper than a full GET; only the c3
+        // slice changes.
+        const snap = monitorSnapshot.value;
+        if (snap?.c3) {
+          const totalsCopy = { ...snap.c3.totals };
+          totalsCopy[evt.intervention.type]++;
+          totalsCopy.total++;
+          const rescueRatio =
+            totalsCopy.total === 0 ? 0 : totalsCopy.rescue / totalsCopy.total;
+          monitorSnapshot.value = {
+            ...snap,
+            c3: {
+              ...snap.c3,
+              totals: totalsCopy,
+              rescueRatio,
+              recent: [evt.intervention, ...snap.c3.recent].slice(0, 30),
+            },
+          };
+        } else {
+          // Snapshot didn't have C3 yet (first event in life) — pull a
+          // fresh snapshot. Cheap and rare.
+          void loadMonitorSnapshot();
+        }
       }
     }
   } catch (err) {

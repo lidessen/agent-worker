@@ -200,15 +200,45 @@ export interface C1Metrics {
   };
 }
 
+export type InterventionType = "authorization" | "acceptance" | "rescue" | "other";
+
+export interface Intervention {
+  id: string;
+  ts: number;
+  type: InterventionType;
+  harness?: string;
+  agent?: string;
+  reason?: string;
+  responseLatencyMs?: number;
+}
+
+export interface C3Metrics {
+  totals: {
+    authorization: number;
+    acceptance: number;
+    rescue: number;
+    other: number;
+    total: number;
+  };
+  rescueRatio: number;
+  perRequirementAuthAcceptance: number;
+  recent: Intervention[];
+  thresholds: {
+    rescueRatioMax: number;
+    perRequirementAuthAcceptanceMax: number;
+  };
+}
+
 export interface MonitorSnapshot {
   ts: number;
   uptimeSec: number;
   c1: C1Metrics;
   c2?: unknown;
-  c3?: unknown;
+  c3?: C3Metrics;
   c4?: unknown;
 }
 
 export type MonitorEvent =
   | { kind: "sample"; sample: ConcurrencySample }
-  | { kind: "snapshot"; snapshot: MonitorSnapshot };
+  | { kind: "snapshot"; snapshot: MonitorSnapshot }
+  | { kind: "intervention"; intervention: Intervention };
