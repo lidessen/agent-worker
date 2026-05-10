@@ -55,14 +55,68 @@ export interface MonitorSnapshot {
   /** Daemon uptime in seconds (samples older than this are not yet observed). */
   uptimeSec: number;
   c1: C1Metrics;
-  /** Slice 2+ will fill these in. Present in the type so the UI can render
-   *  "not yet measured" placeholders consistently. */
+  /** Slice 4 will fill this. */
   c2?: unknown;
-  c3?: unknown;
+  c3?: C3Metrics;
+  /** Slice 3 will fill this. */
   c4?: unknown;
+}
+
+// ── Interventions (slice 2 / C3) ──────────────────────────────────────────
+
+/**
+ * Intervention type taxonomy from GOAL.md C3:
+ *   - `authorization` — system actively raises a tool-layer auth request.
+ *   - `acceptance`    — system reports "done; please review".
+ *   - `rescue`        — system reports "stuck; need direction / hint".
+ *                        This is the failure signal.
+ *   - `other`         — user-initiated interruption (does NOT count as
+ *                        the system bothering the user).
+ */
+export type InterventionType = "authorization" | "acceptance" | "rescue" | "other";
+
+export interface Intervention {
+  /** Stable id (timestamp + nanoid). */
+  id: string;
+  /** Millisecond timestamp at which the intervention surfaced. */
+  ts: number;
+  type: InterventionType;
+  /** Harness key this intervention came out of (when scoped). */
+  harness?: string;
+  /** Agent name involved (when scoped). */
+  agent?: string;
+  /** Free-text reason / context. */
+  reason?: string;
+  /**
+   * Optional response latency in ms — measured on intervention close
+   * (e.g. user accepts an acceptance request) when the close path
+   * reports back. Slice 2 emits open events; close-side latency is
+   * filled by future slices when the close path lands.
+   */
+  responseLatencyMs?: number;
+}
+
+export interface C3Metrics {
+  /** Last 30-day intervention totals broken out by type. */
+  totals: { authorization: number; acceptance: number; rescue: number; other: number; total: number };
+  /** rescue / total — the failure signal. 0 when total is 0. */
+  rescueRatio: number;
+  /** Rolling per-requirement (auth + acceptance) count over the
+   *  last 30 days; an approximation since requirement boundaries are
+   *  not first-class yet. */
+  perRequirementAuthAcceptance: number;
+  /** Recent interventions (most recent first), capped for the panel. */
+  recent: Intervention[];
+  thresholds: {
+    /** From month 4: rescueRatio ≤ this. */
+    rescueRatioMax: number;
+    /** From month 4: per-requirement (auth + acceptance) ≤ this. */
+    perRequirementAuthAcceptanceMax: number;
+  };
 }
 
 /** SSE event body emitted by `GET /monitor/stream`. */
 export type MonitorEvent =
   | { kind: "sample"; sample: ConcurrencySample }
-  | { kind: "snapshot"; snapshot: MonitorSnapshot };
+  | { kind: "snapshot"; snapshot: MonitorSnapshot }
+  | { kind: "intervention"; intervention: Intervention };

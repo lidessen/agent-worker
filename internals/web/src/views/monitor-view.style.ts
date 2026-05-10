@@ -41,6 +41,16 @@ const c = classes([
   "placeholderTitle",
   "placeholderBody",
   "thresholdNote",
+  "interventionList",
+  "interventionRow",
+  "interventionType",
+  "interventionTypeRescue",
+  "interventionTypeAuth",
+  "interventionTypeAccept",
+  "interventionTypeOther",
+  "interventionTs",
+  "interventionTarget",
+  "interventionReason",
 ]);
 
 export const view = rule`${c.view} {
@@ -282,4 +292,76 @@ export const thresholdNote = rule`${c.thresholdNote} {
   border-radius: ${tokens.radii.sm};
   font-size: ${tokens.fontSizes.xs};
   color: ${tokens.colors.textMuted};
+}`;
+
+export const interventionList = rule`${c.interventionList} {
+  display: flex;
+  flex-direction: column;
+  gap: ${tokens.space.xs};
+}`;
+
+export const interventionRow = rule`${c.interventionRow} {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  gap: ${tokens.space.sm};
+  align-items: baseline;
+  padding: ${tokens.space.xs} 0;
+  border-bottom: 1px solid ${tokens.colors.border};
+  font-size: ${tokens.fontSizes.xs};
+}`;
+
+export const interventionType = rule`${c.interventionType} {
+  display: inline-block;
+  padding: 1px ${tokens.space.sm};
+  border-radius: ${tokens.radii.pill};
+  font-family: ${tokens.fonts.mono};
+  font-size: ${tokens.fontSizes.xxs};
+  font-weight: ${tokens.fontWeights.medium};
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}`;
+
+export const interventionTypeRescue = rule`${c.interventionTypeRescue} {
+  background: ${tokens.colors.dangerSurface};
+  color: ${tokens.colors.danger};
+  border: 1px solid ${tokens.colors.dangerBorder};
+}`;
+
+export const interventionTypeAuth = rule`${c.interventionTypeAuth} {
+  background: ${tokens.colors.warningSurface};
+  color: ${tokens.colors.warning};
+  border: 1px solid ${tokens.colors.warningBorder};
+}`;
+
+export const interventionTypeAccept = rule`${c.interventionTypeAccept} {
+  background: ${tokens.colors.successSurface};
+  color: ${tokens.colors.successTextStrong};
+  border: 1px solid ${tokens.colors.successBorder};
+}`;
+
+export const interventionTypeOther = rule`${c.interventionTypeOther} {
+  background: ${tokens.colors.surfaceOverlay};
+  color: ${tokens.colors.textMuted};
+  border: 1px solid ${tokens.colors.border};
+}`;
+
+export const interventionTs = rule`${c.interventionTs} {
+  font-family: ${tokens.fonts.mono};
+  color: ${tokens.colors.textMuted};
+  font-size: ${tokens.fontSizes.xxs};
+  grid-column: 2;
+}`;
+
+export const interventionTarget = rule`${c.interventionTarget} {
+  font-family: ${tokens.fonts.mono};
+  color: ${tokens.colors.textDim};
+  font-size: ${tokens.fontSizes.xxs};
+  grid-row: 2;
+  grid-column: 1 / -1;
+}`;
+
+export const interventionReason = rule`${c.interventionReason} {
+  color: ${tokens.colors.text};
+  grid-row: 2;
+  grid-column: 1 / -1;
 }`;

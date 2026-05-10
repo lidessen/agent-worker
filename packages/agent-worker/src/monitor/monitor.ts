@@ -16,9 +16,12 @@ import type { HarnessRegistry } from "../harness-registry.ts";
 import type { Harness } from "@agent-worker/harness";
 import { coordinationRuntime, COORDINATION_HARNESS_TYPE_ID } from "@agent-worker/harness-coordination";
 import { RollingSampleStore } from "./samples.ts";
-import { computeC1 } from "./metrics.ts";
+import { InterventionLog } from "./interventions.ts";
+import { computeC1, computeC3 } from "./metrics.ts";
 import type {
   ConcurrencySample,
+  Intervention,
+  InterventionType,
   MonitorEvent,
   MonitorSnapshot,
 } from "./types.ts";
@@ -37,10 +40,12 @@ export type MonitorSubscriber = (event: MonitorEvent) => void;
 export class Monitor {
   private readonly tickMs: number;
   private readonly samples = new RollingSampleStore();
+  private readonly interventions = new InterventionLog();
   private readonly subscribers = new Set<MonitorSubscriber>();
   private timer: ReturnType<typeof setInterval> | null = null;
   private busOff: (() => void) | null = null;
   private readonly startedAt = Date.now();
+  private interventionSeq = 0;
 
   constructor(
     private readonly registry: HarnessRegistry,
@@ -83,11 +88,35 @@ export class Monitor {
       pendingOnAuth: 0,
       structuralCap: 0,
     };
+    const c1 = computeC1(this.samples, fallback);
     return {
       ts: Date.now(),
       uptimeSec: Math.floor((Date.now() - this.startedAt) / 1000),
-      c1: computeC1(this.samples, fallback),
+      c1,
+      c3: computeC3(this.interventions, c1.peak30d),
     };
+  }
+
+  /**
+   * Record a manually-supplied intervention. Used for paths that
+   * don't go through the bus (CLI prompts, future tool-permission
+   * dialogs, …).
+   */
+  recordIntervention(input: {
+    type: InterventionType;
+    harness?: string;
+    agent?: string;
+    reason?: string;
+    responseLatencyMs?: number;
+  }): Intervention {
+    const intv: Intervention = {
+      id: `intv-${Date.now()}-${this.interventionSeq++}`,
+      ts: Date.now(),
+      ...input,
+    };
+    this.interventions.push(intv);
+    this.emit({ kind: "intervention", intervention: intv });
+    return intv;
   }
 
   /** Subscribe to live monitor events. Returns an unsubscribe function. */
@@ -180,10 +209,54 @@ export class Monitor {
     }
   }
 
-  private onBusEvent(_event: BusEvent): void {
-    // Slice 1 only collects from polling; slice 2 will add intervention
-    // counters here. The subscription is wired now so the wiring stays
-    // stable across slices.
+  /**
+   * Translate selected `EventBus` events into `Intervention` records
+   * (slice 2 / C3). The mapping is deliberately conservative so we
+   * don't double-count or treat ordinary error logging as a rescue
+   * signal:
+   *   - `harness.agent_error` with a fatal-strategy payload → rescue.
+   *     Non-fatal errors are recovery-handled by the orchestrator and
+   *     never reach the human.
+   *   - `harness.kickoff_task_failed` → rescue.
+   *   - `harness.completed` → acceptance. The harness reached a
+   *     drained state and is asking the human to review.
+   * Future signal sources (tool-layer auth pause, user-initiated
+   * stop) will surface as additional types when they land.
+   */
+  private onBusEvent(event: BusEvent): void {
+    const harness = typeof event.harness === "string" ? event.harness : undefined;
+    const agent = typeof event.agent === "string" ? event.agent : undefined;
+
+    if (event.type === "harness.agent_error") {
+      const strategy = event.strategy as { fatal?: boolean; reason?: string } | undefined;
+      if (strategy?.fatal) {
+        this.recordIntervention({
+          type: "rescue",
+          harness,
+          agent,
+          reason: `fatal: ${strategy.reason ?? "agent stopped"}`,
+        });
+      }
+      return;
+    }
+
+    if (event.type === "harness.kickoff_task_failed") {
+      this.recordIntervention({
+        type: "rescue",
+        harness,
+        reason: typeof event.error === "string" ? event.error : "kickoff task failed",
+      });
+      return;
+    }
+
+    if (event.type === "harness.completed") {
+      this.recordIntervention({
+        type: "acceptance",
+        harness,
+        reason: "harness completed; awaiting review",
+      });
+      return;
+    }
   }
 
   private emit(event: MonitorEvent): void {

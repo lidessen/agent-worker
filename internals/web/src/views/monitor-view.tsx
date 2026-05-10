@@ -32,6 +32,17 @@ function thresholdClass(value: number, min: number) {
   return [s.thresholdLine, s.thresholdNeutral];
 }
 
+/** For "max" thresholds, ok when value ≤ max. */
+function thresholdMaxClass(value: number, max: number) {
+  if (value <= max) return [s.thresholdLine, s.thresholdOk];
+  return [s.thresholdLine, s.thresholdWarn];
+}
+
+function fmtIntervention(ts: number): string {
+  const d = new Date(ts);
+  return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+}
+
 export function MonitorView() {
   // Bootstrap: load snapshot, start SSE.
   void loadMonitorSnapshot();
@@ -108,6 +119,51 @@ export function MonitorView() {
     );
   });
 
+  const c3Section = computed(monitorSnapshot, (snap) => {
+    const c3 = snap?.c3;
+    if (!c3) {
+      return (
+        <div class={s.cardBody}>
+          <div class={s.metricRow}>
+            <span class={s.metricLabel}>Loading…</span>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div class={s.cardBody}>
+        <div class={s.metricRow}>
+          <span class={s.metricLabel}>Total interventions (30d)</span>
+          <span class={s.metricValue}>{c3.totals.total}</span>
+        </div>
+        <div class={s.metricMeta}>
+          rescue {c3.totals.rescue} · acceptance {c3.totals.acceptance} · auth{" "}
+          {c3.totals.authorization} · other {c3.totals.other}
+        </div>
+        <div class={s.metricRow}>
+          <span class={s.metricLabel}>Rescue ratio (failure signal)</span>
+          <span class={s.metricValue}>{pct(c3.rescueRatio)}</span>
+        </div>
+        <div class={thresholdMaxClass(c3.rescueRatio, c3.thresholds.rescueRatioMax)}>
+          GOAL.md threshold from month 4: rescue ratio ≤ {pct(c3.thresholds.rescueRatioMax)}
+        </div>
+        <div class={s.metricRow}>
+          <span class={s.metricLabel}>Per-requirement (auth + accept)</span>
+          <span class={s.metricValue}>{c3.perRequirementAuthAcceptance.toFixed(2)}</span>
+        </div>
+        <div
+          class={thresholdMaxClass(
+            c3.perRequirementAuthAcceptance,
+            c3.thresholds.perRequirementAuthAcceptanceMax,
+          )}
+        >
+          GOAL.md threshold from month 4: ≤ {c3.thresholds.perRequirementAuthAcceptanceMax}
+        </div>
+        <RecentInterventions list={c3.recent} />
+      </div>
+    );
+  });
+
   const summaryStrip = computed(monitorSnapshot, (snap) => {
     if (!snap) {
       return (
@@ -151,8 +207,12 @@ export function MonitorView() {
         </div>
         <div class={s.summaryItem}>
           <span class={s.summaryLabel}>C3 intervention</span>
-          <span class={s.summaryValue}>—</span>
-          <span class={s.summaryStatus}>slice 2 will fill</span>
+          <span class={s.summaryValue}>
+            {snap.c3 ? `rescue ${pct(snap.c3.rescueRatio)} · ${snap.c3.totals.total} total` : "—"}
+          </span>
+          <span class={s.summaryStatus}>
+            {snap.c3 ? `${snap.c3.totals.rescue} rescue` : "not measured"}
+          </span>
         </div>
         <div class={s.summaryItem}>
           <span class={s.summaryLabel}>C4 silence</span>
@@ -204,12 +264,7 @@ export function MonitorView() {
             <div class={s.cardTitle}>C3 — Intervention budget</div>
             <div class={s.cardSubtitle}>Rescue ratio and per-requirement intervention count</div>
           </div>
-          <div class={s.placeholder}>
-            <div class={s.placeholderTitle}>Slice 2</div>
-            <div class={s.placeholderBody}>
-              authorization / acceptance / rescue tracking lands here.
-            </div>
-          </div>
+          {c3Section}
         </div>
 
         <div class={s.card}>
@@ -225,6 +280,40 @@ export function MonitorView() {
       </div>
     </div>
   );
+}
+
+function RecentInterventions(props: { list: import("../api/types.ts").Intervention[] }) {
+  if (props.list.length === 0) {
+    return (
+      <div class={s.metricMeta}>No interventions recorded yet.</div>
+    );
+  }
+  return (
+    <div class={s.interventionList}>
+      <div class={s.barLabel}>
+        <span>Recent interventions</span>
+        <span>{props.list.length}</span>
+      </div>
+      {props.list.slice(0, 6).map((iv) => (
+        <div class={s.interventionRow}>
+          <span class={typeBadgeClass(iv.type)}>{iv.type}</span>
+          <span class={s.interventionTs}>{fmtIntervention(iv.ts)}</span>
+          <span class={s.interventionTarget}>
+            {iv.harness ?? ""}
+            {iv.agent ? ` · @${iv.agent}` : ""}
+          </span>
+          <span class={s.interventionReason}>{iv.reason ?? ""}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function typeBadgeClass(type: string) {
+  if (type === "rescue") return [s.interventionType, s.interventionTypeRescue];
+  if (type === "authorization") return [s.interventionType, s.interventionTypeAuth];
+  if (type === "acceptance") return [s.interventionType, s.interventionTypeAccept];
+  return [s.interventionType, s.interventionTypeOther];
 }
 
 function Sparkline() {
