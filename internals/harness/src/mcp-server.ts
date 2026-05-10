@@ -18,6 +18,7 @@ import { z } from "zod";
 import type { Harness } from "./harness.ts";
 import type { Instruction, TimelineEvent } from "./types.ts";
 import { buildAgentToolSet } from "./factory.ts";
+import { coordinationRuntime } from "@agent-worker/harness-coordination";
 
 interface McpSession {
   server: McpServer;
@@ -213,7 +214,7 @@ export class HarnessMcpHub {
     // 1. External ($-prefixed) → debug server (mcp: prefix, all channels, debug tools)
     // 2. Lead agent → agent server + debug tools (real agent name, all channels)
     // 3. Regular agent → agent server only
-    const isLead = !isExternal && this.harness.isLead(agentName);
+    const isLead = !isExternal && coordinationRuntime(this.harness).isLead(agentName);
     const server = isExternal
       ? await this.createDebugServer(agentName)
       : isLead
@@ -253,8 +254,9 @@ export class HarnessMcpHub {
   // ── Agent server factory ─────────────────────────────────────────────
 
   private async createAgentServer(agentName: string): Promise<McpServer> {
-    if (!this.harness.hasAgent(agentName)) {
-      await this.harness.registerAgent(agentName);
+    const coord = coordinationRuntime(this.harness);
+    if (!coord.hasAgent(agentName)) {
+      await coord.registerAgent(agentName);
     }
 
     const server = new McpServer({
@@ -297,9 +299,10 @@ export class HarnessMcpHub {
 
   private async createDebugServer(name: string): Promise<McpServer> {
     // External MCP user joins ALL channels so it receives every message
-    if (!this.harness.hasAgent(name)) {
+    const coord = coordinationRuntime(this.harness);
+    if (!coord.hasAgent(name)) {
       const allChannels = this.harness.contextProvider.channels.listChannels();
-      await this.harness.registerAgent(name, allChannels);
+      await coord.registerAgent(name, allChannels);
     }
 
     const server = await this.createAgentServer(name);
@@ -309,6 +312,7 @@ export class HarnessMcpHub {
 
   private registerDebugTools(server: McpServer): void {
     const ws = this.harness;
+    const coord = coordinationRuntime(ws);
     const provider = ws.contextProvider;
 
     // ── agents: overview of all agents ──────────────────────────────────
@@ -325,7 +329,7 @@ export class HarnessMcpHub {
             const paused = this._pauseCallbacks.isAgentPaused?.(e.name);
             const statusStr = paused ? "paused" : e.status;
             const task = e.currentTask ? ` — ${e.currentTask}` : "";
-            const channels = ws.getAgentChannels(e.name);
+            const channels = coord.getAgentChannels(e.name);
             const chStr = channels.size > 0 ? ` [${[...channels].join(", ")}]` : "";
             const events = await provider.timeline.read(e.name, { limit: 3 });
             const activity = formatRecentActivity(events);
@@ -457,7 +461,7 @@ export class HarnessMcpHub {
       "queue",
       "Show all pending instructions in the harness queue, grouped by priority.",
       async () => {
-        const pending = ws.instructionQueue.listAll();
+        const pending = coord.instructionQueue.listAll();
         if (pending.length === 0) {
           return { content: [{ type: "text", text: "Queue empty — no pending instructions." }] };
         }
@@ -495,12 +499,12 @@ export class HarnessMcpHub {
 
         const lines = [
           `Harness: ${ws.name}${ws.tag ? ` (tag: ${ws.tag})` : ""}`,
-          `Lead: ${ws.lead ?? "none"}`,
-          `Default channel: #${ws.defaultChannel}`,
+          `Lead: ${coord.lead ?? "none"}`,
+          `Default channel: #${coord.defaultChannel}`,
           `Channels: ${channels.join(", ")}`,
           `Agents: ${agents.length} (${agents.map((a) => a.name).join(", ")})`,
           `Documents: ${docs.length}${docs.length > 0 ? ` (${docs.join(", ")})` : ""}`,
-          `Queue size: ${ws.instructionQueue.size}`,
+          `Queue size: ${coord.instructionQueue.size}`,
           `Storage: ${ws.storageDir ?? "in-memory"}`,
           `Shared sandbox: ${ws.harnessSandboxDir ?? "none"}`,
         ];

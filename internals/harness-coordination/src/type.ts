@@ -8,30 +8,27 @@
 //
 // Per design/decisions/006-harness-as-agent-environment.md, the
 // substrate `Harness` class is type-agnostic; this type contributes
-// the coord-flavored behavior via the `HarnessType` protocol's
-// optional methods.
+// every coord-flavored behavior via the `HarnessType` protocol's
+// optional methods:
 //
-// Current scope:
-//   - `contributeRuntime` stashes the coord-shaped slices of
-//     `HarnessConfig` (`agents`, `connections`) so `onInit` can act on
-//     them without re-reading config.
+//   - `contributeRuntime` constructs the per-Harness
+//     `CoordinationRuntime` that owns coord state (channel/inbox/
+//     status stores, bridge, instruction queue, agent roster, lead
+//     designation, defaultChannel, routing logic). The substrate
+//     stashes it on `harness.typeRuntime`; callers reach it via the
+//     `coordinationRuntime(harness)` typed accessor.
 //   - `onInit` registers configured agents and starts configured
-//     channel adapters (telegram et al.) on the substrate Harness.
-//     `factory.createHarness` no longer orchestrates these steps.
+//     channel adapters; loads persisted store state.
+//   - `onShutdown` tears down the bridge.
 //   - `contributeMcpTools` returns the coord-flavored per-agent tool
 //     set (channel_*, my_inbox*, no_action, my_status_set, team_*,
 //     wait_inbox); substrate's `createHarnessTools` provides the
-//     universal slice (resource_*, chronicle_*, task_*/wake_*/
-//     handoff_*, worktree_*) and `factory.createAgentTools` /
-//     per-agent MCP servers merge the two.
+//     universal slice and `factory.buildAgentToolSet` merges the two.
 //   - `snapshotExtension` returns the coord slice of
 //     `HarnessStateSnapshot.typeExtensions["multi-agent-coordination"]`,
-//     reading from the substrate `Harness` instance's still-attached
-//     coord state via type cast.
+//     reading directly from the runtime.
 //
-// Future slices fill in:
-//   - Move coord state fields/methods out of substrate `Harness` into
-//     the coord runtime (the heavy ~290-caller ownership cut).
+// Future slice:
 //   - `contributeContextSections` — `inboxSection` /
 //     `responseGuidelines` (today imported by orchestrator
 //     directly; future slice routes them through this hook).
@@ -40,8 +37,6 @@
 
 import type {
   AgentStatus,
-  ChannelAdapter,
-  ChannelBridgeInterface,
   ContributeMcpToolsInput,
   ContributeRuntimeInput,
   HarnessConfig,
@@ -50,24 +45,14 @@ import type {
   InboxEntry,
   Instruction,
   OnInitInput,
+  OnShutdownInput,
   SnapshotExtensionInput,
+  StorageBackend,
   TimelineEvent,
   ToolDef,
 } from "@agent-worker/harness";
+import { CoordinationRuntime } from "./runtime.ts";
 import { createCoordinationTools, COORDINATION_TOOL_DEFS } from "./mcp/server.ts";
-
-/**
- * Shape of each item in `multiAgentCoordinationHarnessType.contributeMcpTools`'s
- * return value. The substrate's tool-merging boundary
- * (`factory.createAgentTools` / per-agent MCP servers) iterates this
- * list and inserts each `{name, def, handler}` into the merged tool
- * set + def map.
- */
-export interface ContributedToolItem {
-  name: string;
-  def: ToolDef;
-  handler: HarnessToolHandler;
-}
 
 /** Stable id used in `Handoff.extensions` and the registry. */
 export const COORDINATION_HARNESS_TYPE_ID = "multi-agent-coordination" as const;
@@ -97,75 +82,73 @@ export interface CoordinationSnapshot {
 }
 
 /**
- * Per-Harness runtime slot for the coord type, populated by
- * `contributeRuntime` at construction. Holds the slices of
- * `HarnessConfig` that `onInit` needs to act on (`agents` to register
- * and `connections` to attach to the bridge). The substrate Harness
- * stashes this verbatim on `harness.typeRuntime` and never inspects
- * it; the type's lifecycle hooks are the only readers.
- *
- * After the full ownership cut, this also owns the channel/inbox/
- * status stores, bridge, and instruction queue — today those still
- * live on substrate Harness.
+ * Shape of each item in `multiAgentCoordinationHarnessType.contributeMcpTools`'s
+ * return value. The substrate's tool-merging boundary
+ * (`factory.buildAgentToolSet`) iterates this list and inserts each
+ * `{name, def, handler}` into the merged tool set + def map.
  */
-export interface CoordHarnessTypeRuntime {
-  agents: string[];
-  connections: ChannelAdapter[];
+export interface ContributedToolItem {
+  name: string;
+  def: ToolDef;
+  handler: HarnessToolHandler;
 }
 
 /**
- * Substrate `Harness` shape this type currently reads from. The full
- * cut moves the fields below into the coord runtime; for now they
- * still live on substrate, accessed by type cast at the boundary.
- * Kept narrow on purpose — only the parts the lifecycle hooks need.
+ * Shape the coord type expects from the substrate `Harness` instance
+ * passed via `ContributeRuntimeInput.harness`. Kept narrow on purpose:
+ * the type only reads what it needs to seed the runtime.
  */
-interface CoordHarnessLike {
-  defaultChannel: string;
-  instructionQueue: { listAll(): Instruction[] };
+interface CoordHostHarness {
+  storage: StorageBackend;
   contextProvider: import("@agent-worker/harness").ContextProvider;
-  getAgentChannels(name: string): Set<string>;
-  hasAgent(name: string): boolean;
-  registerAgent(name: string, channels?: string[]): Promise<void>;
-  bridge: ChannelBridgeInterface;
-  // Iterating this private-ish map is the cleanest way to enumerate
-  // the agents this Harness knows about today; the cut moves
-  // ownership entirely to coord and removes the cross-package access.
-  ["agentChannels"]: Map<string, Set<string>>;
 }
 
-export const multiAgentCoordinationHarnessType: HarnessType<unknown, CoordHarnessTypeRuntime> = {
+export const multiAgentCoordinationHarnessType: HarnessType<unknown, CoordinationRuntime> = {
   id: COORDINATION_HARNESS_TYPE_ID,
   label: "multi-agent coordination",
 
-  contributeRuntime({ config }: ContributeRuntimeInput): CoordHarnessTypeRuntime {
-    const c = config as HarnessConfig;
-    return {
-      agents: c.agents ?? [],
-      connections: c.connections ?? [],
-    };
+  contributeRuntime({ harness, config }: ContributeRuntimeInput): CoordinationRuntime {
+    const h = harness as CoordHostHarness;
+    return new CoordinationRuntime({
+      config: config as HarnessConfig,
+      storage: h.storage,
+    });
   },
 
-  async onInit({ harness, runtime }: OnInitInput<CoordHarnessTypeRuntime>): Promise<void> {
+  async onInit({ runtime }: OnInitInput<CoordinationRuntime>): Promise<void> {
     if (!runtime) return;
-    const h = harness as CoordHarnessLike;
-    for (const name of runtime.agents) {
-      await h.registerAgent(name);
+    // Load persisted state (status / channel index / per-agent inboxes
+    // for any agents already registered in this construction window).
+    await runtime.load();
+    // Register configured agents (each call also loads that agent's
+    // inbox, so config-driven agents pick up their persisted entries).
+    for (const name of runtime.agentsConfig) {
+      await runtime.registerAgent(name);
     }
-    for (const adapter of runtime.connections) {
-      await h.bridge.addAdapter(adapter);
+    // Attach configured channel adapters (telegram et al.) to the bridge.
+    for (const adapter of runtime.connectionsConfig) {
+      await runtime.bridge.addAdapter(adapter);
     }
+  },
+
+  async onShutdown({ runtime }: OnShutdownInput<CoordinationRuntime>): Promise<void> {
+    if (!runtime) return;
+    await runtime.shutdown();
   },
 
   contributeMcpTools({
     harness,
+    runtime,
     agentName,
-  }: ContributeMcpToolsInput<CoordHarnessTypeRuntime>): ContributedToolItem[] {
-    const h = harness as CoordHarnessLike;
+  }: ContributeMcpToolsInput<CoordinationRuntime>): ContributedToolItem[] {
+    if (!runtime) return [];
+    const h = harness as CoordHostHarness;
     const tools = createCoordinationTools({
       agentName,
       provider: h.contextProvider,
-      agentChannels: h.getAgentChannels(agentName),
-      lookupAgentChannels: (name) => (h.hasAgent(name) ? h.getAgentChannels(name) : undefined),
+      agentChannels: runtime.getAgentChannels(agentName),
+      lookupAgentChannels: (name) =>
+        runtime.hasAgent(name) ? runtime.getAgentChannels(name) : undefined,
     });
     return Object.entries(tools).map(([name, handler]) => {
       const def = COORDINATION_TOOL_DEFS[name];
@@ -176,25 +159,33 @@ export const multiAgentCoordinationHarnessType: HarnessType<unknown, CoordHarnes
     });
   },
 
-  async snapshotExtension({ harness, opts }: SnapshotExtensionInput<CoordHarnessTypeRuntime>): Promise<CoordinationSnapshot> {
-    const h = harness as CoordHarnessLike;
+  async snapshotExtension({
+    harness,
+    runtime,
+    opts,
+  }: SnapshotExtensionInput<CoordinationRuntime>): Promise<CoordinationSnapshot | undefined> {
+    if (!runtime) return undefined;
+    const h = harness as CoordHostHarness;
     const inboxLimit = opts?.inboxLimit ?? 10;
     const timelineLimit = opts?.timelineLimit ?? 5;
     const queuedLimit = opts?.queuedLimit ?? 20;
 
-    const channels = h.contextProvider.channels.listChannels();
-    const queuedInstructions = h.instructionQueue.listAll().slice(-queuedLimit);
+    const channels = runtime.channelStore.listChannels();
+    const queuedInstructions = runtime.instructionQueue.listAll().slice(-queuedLimit);
 
+    const agentNames = [...runtime.agentChannels.keys()];
     const agents: HarnessAgentSnapshot[] = await Promise.all(
-      [...h.agentChannels.keys()].map(async (name): Promise<HarnessAgentSnapshot> => {
+      agentNames.map(async (name): Promise<HarnessAgentSnapshot> => {
         const status = await h.contextProvider.status.get(name);
         const inbox = (await h.contextProvider.inbox.inspect(name)).slice(0, inboxLimit);
-        const recentActivity = await h.contextProvider.timeline.read(name, { limit: timelineLimit });
+        const recentActivity = await h.contextProvider.timeline.read(name, {
+          limit: timelineLimit,
+        });
         return {
           name,
           status: status?.status ?? "idle",
           currentTask: status?.currentTask,
-          channels: [...h.getAgentChannels(name)],
+          channels: [...runtime.getAgentChannels(name)],
           inbox,
           recentActivity,
         };
@@ -202,7 +193,7 @@ export const multiAgentCoordinationHarnessType: HarnessType<unknown, CoordHarnes
     );
 
     return {
-      defaultChannel: h.defaultChannel,
+      defaultChannel: runtime.defaultChannel,
       channels,
       queuedInstructions,
       agents,

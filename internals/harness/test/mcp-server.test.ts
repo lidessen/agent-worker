@@ -3,6 +3,7 @@ import { createHarness } from "../src/factory.ts";
 import { MemoryStorage } from "../src/context/storage.ts";
 import { HarnessMcpHub } from "../src/mcp-server.ts";
 import { HarnessClient } from "@agent-worker/agent";
+import { coordinationRuntime } from "@agent-worker/harness-coordination";
 import type { Harness } from "../src/harness.ts";
 
 describe("HarnessMcpHub + HarnessClient", () => {
@@ -103,7 +104,7 @@ describe("HarnessMcpHub + HarnessClient", () => {
   test("inbox tools work via MCP", async () => {
     // Bob must be registered before alice sends the mention,
     // so the harness routes the message to bob's inbox.
-    await harness.registerAgent("bob", ["general"]);
+    await coordinationRuntime(harness).registerAgent("bob", ["general"]);
 
     // Alice sends a message mentioning bob
     await harness.contextProvider.send({
@@ -327,7 +328,7 @@ describe("HarnessMcpHub debug tools", () => {
   });
 
   test("queue tool shows pending instructions", async () => {
-    harness.instructionQueue.enqueue({
+    coordinationRuntime(harness).instructionQueue.enqueue({
       id: "test-1",
       agentName: "alice",
       messageId: "",
@@ -362,7 +363,7 @@ describe("HarnessMcpHub debug tools", () => {
 
   test("inbox_peek shows agent inbox", async () => {
     // Register bob so inbox routing works
-    await harness.registerAgent("bob", ["general"]);
+    await coordinationRuntime(harness).registerAgent("bob", ["general"]);
     // Send a message mentioning bob
     await harness.contextProvider.send({
       channel: "general",
@@ -386,7 +387,7 @@ describe("HarnessMcpHub debug tools", () => {
   });
 
   test("queue groups by priority", async () => {
-    harness.instructionQueue.enqueue({
+    coordinationRuntime(harness).instructionQueue.enqueue({
       id: "i1",
       agentName: "alice",
       messageId: "",
@@ -395,7 +396,7 @@ describe("HarnessMcpHub debug tools", () => {
       priority: "immediate",
       enqueuedAt: new Date().toISOString(),
     });
-    harness.instructionQueue.enqueue({
+    coordinationRuntime(harness).instructionQueue.enqueue({
       id: "i2",
       agentName: "bob",
       messageId: "",
