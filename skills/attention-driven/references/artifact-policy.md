@@ -37,6 +37,40 @@ The 70% side is close to fire-and-forget: do it, verify the relevant claim, and
 move on. Do not over-optimize wording, local structure, or historical neatness
 when the skeleton is sound.
 
+## Decision Allocation
+
+Human attention follows the same 30/70 rule. The system should make ordinary
+decisions by default and reserve human attention for the principal decisions.
+
+System-owned decisions:
+
+- reversible local tactics;
+- helper names, internal structure, proof shape, and routine implementation
+  choices;
+- choosing among equivalent ways to satisfy an already accepted goal or design;
+- first-pass correction after a failed observation.
+
+Review-owned decisions:
+
+- research-like proposals, uncertain designs, or high-blast-radius choices that
+  still fit within the current goal;
+- claims where an advocate/opponent/reviewer split can find mistakes before the
+  human sees the artifact;
+- 70% decisions whose cost of being wrong is local, but whose error is likely.
+
+Human-owned decisions:
+
+- goal changes, STOP resolution, or success criteria changes;
+- irreversible or expensive tradeoffs;
+- authority, permission, budget, legal, security, or external relationship
+  choices;
+- value judgments and product direction;
+- system-shape decisions whose failure invalidates downstream work.
+
+Do not confuse "human should know" with "human must decide." Summarize ordinary
+decisions in records or PR notes, but only block on the human when the decision
+is load-bearing or outside agent authority.
+
 ## Same Pattern Across Layers
 
 - `goal`: record the compass and the output that matters; leave path tactics
