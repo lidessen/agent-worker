@@ -163,7 +163,7 @@ export interface RuntimeConfig {
    */
   permissionMode?: "default" | "acceptEdits" | "bypassPermissions";
   fullAuto?: boolean;
-  sandbox?: "read-only" | "harness-write" | "danger-full-access";
+  sandbox?: "read-only" | "workspace-write" | "danger-full-access";
 }
 
 // ── Agent runner ──────────────────────────────────────────────────────────

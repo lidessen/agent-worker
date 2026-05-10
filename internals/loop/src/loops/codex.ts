@@ -220,7 +220,7 @@ export class CodexLoop {
         model: this.options.model ?? undefined,
         threadId: this.threadId ?? undefined,
         approvalPolicy: this.options.fullAuto ? "never" : "on-request",
-        sandbox: this.options.sandbox ?? (this.options.fullAuto ? "harness-write" : undefined),
+        sandbox: this.options.sandbox ?? (this.options.fullAuto ? "workspace-write" : undefined),
         approvalsReviewer: this.options.approvalsReviewer ?? undefined,
         developerInstructions: this.pendingDeveloperInstructions ?? undefined,
         baseInstructions: this.options.instructions ?? undefined,
