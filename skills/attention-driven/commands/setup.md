@@ -49,6 +49,10 @@ It should name the mainline, route, and next observable move.
 Preserve only the load-bearing 30% in durable artifacts. If history was wrong,
 correct the current artifact or create the next one; do not repair old records
 for their own sake.
+
+Do not route every decision to the human. Let agents decide and review ordinary
+70% choices; escalate only goal, authority, value, irreversible, or
+system-shape decisions.
 <!-- /skill:attention-driven -->
 ```
 

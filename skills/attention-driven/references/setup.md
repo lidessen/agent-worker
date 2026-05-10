@@ -37,6 +37,9 @@ The managed block should:
 - define goal/design/fact/reframe/setup ownership in one line each;
 - point to durable artifacts instead of inlining all methodology;
 - include the artifact policy: preserve 30%, leave 70% flexible.
+- include the decision policy: agents decide/review ordinary 70% choices, and
+  humans decide only the load-bearing 30% that changes goal, authority, values,
+  irreversible cost, or system shape.
 
 ## Presets
 

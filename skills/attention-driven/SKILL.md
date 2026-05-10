@@ -1,6 +1,6 @@
 ---
 name: attention-driven
-description: Stable entrypoint for agent work based on the 30/70 attention rule and a localized steering posture. Use when starting or resuming work, setting up agent workflow in a project, deciding whether a task is goal/design/fact/reframe work, changing system shape, recording progress, or requiring falsifiable verification. Keeps one mainline: goal keeps direction; design keeps system shape; fact keeps observations; reframe changes the lens; setup wires the harness. Args: `go`, `setup`, `audit`, `goal`, `design`, `fact`, `reframe`, `close`.
+description: Use go/setup/audit/goal/design/fact/reframe/close as the stable entrypoint for ordinary agent work. Use when starting or resuming work, changing system shape, recording progress, verifying claims, or closing work with a durable record.
 argument-hint: "[go | setup | audit | goal | design | fact | reframe | close]"
 ---
 
@@ -16,6 +16,12 @@ Hold the load-bearing 30% and give the remaining 70% freedom. Spend most
 attention on the slow-changing skeleton: the goal line, design shape, fact
 claim, or reframe primitive that determines the rest. Treat the surrounding
 execution detail as flexible and cheap to retry.
+
+Apply the same rule to decisions. Maximize system agency for reversible and
+local choices: make them, review them with another role when useful, verify the
+claim, and move on. Escalate only the load-bearing 30% to the human: goal
+changes, irreversible tradeoffs, authority gaps, value judgments, or decisions
+whose failure would invalidate the rest.
 
 Model work as something that can be steered: name the target, understand the
 current shape, observe the gap, make the smallest useful correction, and look
@@ -99,6 +105,10 @@ Preserve only the load-bearing 30% as durable artifacts: current goal plus
 recorded output, design plus blueprint/execution direction, fact evidence,
 reframe primitive, and setup wiring. Leave the 70% strategy flexible and mostly
 fire-and-forget.
+
+Do not ask the human to decide every local tradeoff. Use agent judgment and
+agent review for ordinary 70% decisions; surface the few decisions that change
+direction, authority, values, or system shape.
 
 If an older decision, blueprint, record entry, or concept note was wrong, do
 not repair history for its own sake. Correct the current artifact or create the

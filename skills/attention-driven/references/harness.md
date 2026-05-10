@@ -55,3 +55,9 @@ review should be skeleton-grade: surface the 20-30% whose failure invalidates
 the rest, and make details collapsible or cheap to replace. If must-review
 volume grows linearly with agent output, the harness is preparing the human for
 review failure.
+
+The same applies to decisions. A good harness maximizes agent initiative inside
+accepted boundaries: routine choices are made by the agent, uncertain 70%
+choices can be checked by a reviewer role, and only the principal decisions
+reach the human. Escalation is for authority, values, irreversible cost, goal
+change, or system-shape risk, not for every choice the agent could make.
