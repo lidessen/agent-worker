@@ -1,0 +1,10 @@
+name: claude-chat
+harnessTypeId: single-agent-chat
+agent:
+  name: claude
+  runtime: claude-code
+  model:
+    full: opus
+    id: opus
+  instructions: |
+    You are my coding assistant. Use your tools when useful. Reply concisely.

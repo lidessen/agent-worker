@@ -100,6 +100,79 @@ function isTailscaleAddress(remoteAddress?: string): boolean {
 }
 
 /**
+ * Load credentials from well-known shell-style files into
+ * `process.env` so the daemon (and the agent loops it spawns) sees
+ * the same auth state the user gets in an interactive shell. The
+ * daemon often starts from a non-interactive parent shell that
+ * never sources these files; without this step `claude` chats
+ * report "not authenticated" even though the user did set up a
+ * token.
+ *
+ * Sources, in priority (last write wins per key):
+ *   1. ~/.agent-worker/secrets.env  (KEY=value, one per line)
+ *   2. ~/.config/shell/secrets.zsh  (typical `export KEY="value"`)
+ *   3. ~/.config/shell/secrets.sh   (POSIX equivalent)
+ *
+ * Only `KEY=value` and `export KEY=value` patterns are parsed; the
+ * file is never executed. Quotes (single or double) are stripped
+ * if they wrap the entire value. Existing process.env entries are
+ * preserved (set-once-only) so explicit env at start time wins.
+ *
+ * Auth-relevant keys we care about: CLAUDE_CODE_OAUTH_TOKEN,
+ * ANTHROPIC_API_KEY, OPENAI_API_KEY, plus AWS / Google creds.
+ */
+async function loadShellSecretsIntoEnv(): Promise<{ loaded: string[]; sources: string[] }> {
+  const { readFile } = await import("node:fs/promises");
+  const { homedir } = await import("node:os");
+  const home = homedir();
+  const candidates = [
+    `${home}/.agent-worker/secrets.env`,
+    `${home}/.config/shell/secrets.zsh`,
+    `${home}/.config/shell/secrets.sh`,
+  ];
+  const loaded: string[] = [];
+  const sources: string[] = [];
+  for (const path of candidates) {
+    let raw: string;
+    try {
+      raw = await readFile(path, "utf-8");
+    } catch {
+      continue;
+    }
+    sources.push(path);
+    for (const line of raw.split("\n")) {
+      // Skip comments, empty lines, and anything that doesn't look like an assignment.
+      const stripped = line.trim();
+      if (!stripped || stripped.startsWith("#")) continue;
+      // Match `export KEY=value` and `KEY=value` only.
+      const match = stripped.match(/^(?:export\s+)?([A-Z_][A-Z0-9_]*)=(.*)$/);
+      if (!match) continue;
+      const key = match[1]!;
+      let value = match[2]!.trim();
+      // Strip wrapping quotes when the entire value is wrapped.
+      if (
+        (value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'"))
+      ) {
+        value = value.slice(1, -1);
+      }
+      // Drop trailing inline comment when value is unquoted.
+      // (Quoted values keep them — `#` inside quotes is literal.)
+      if (!stripped.includes('"') && !stripped.includes("'")) {
+        const hashIdx = value.indexOf(" #");
+        if (hashIdx >= 0) value = value.slice(0, hashIdx).trim();
+      }
+      // Don't override env vars the parent process already set.
+      if (process.env[key] === undefined) {
+        process.env[key] = value;
+        loaded.push(key);
+      }
+    }
+  }
+  return { loaded, sources };
+}
+
+/**
  * One-shot rename of pre-`Workspace→Harness` rename data-dir layout to
  * the current names. Renames `<dataDir>/{workspaces,workspaces.json,
  * workspace-data}` to `<dataDir>/{harnesses,harnesses.json,
@@ -196,6 +269,17 @@ export class Daemon {
   async start(): Promise<DaemonInfo> {
     const { mkdirSync } = await import("node:fs");
     mkdirSync(this.config.dataDir, { recursive: true });
+
+    // Pull credentials from common shell-secrets files into
+    // process.env so checkClaudeCodeAuth / agent loops see the
+    // user's interactive-shell auth state. Idempotent; safe to
+    // call on every start.
+    const { loaded, sources } = await loadShellSecretsIntoEnv();
+    if (loaded.length > 0) {
+      console.error(
+        `[daemon] loaded ${loaded.length} credential keys from ${sources.length} source(s): ${loaded.join(", ")}`,
+      );
+    }
 
     // One-time data-dir layout migration from the pre-rename names
     // (workspaces/, workspaces.json, workspace-data/) to the
