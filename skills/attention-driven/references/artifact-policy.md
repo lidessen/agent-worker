@@ -9,6 +9,17 @@ This is the core law of attention-driven work: hold the important 30% tightly an
 give the remaining 70% room. Most attention should go to the principal
 contradiction: the slow-changing choice that determines the shape of the rest.
 
+The rule has two motivations, not one. Attention is finite, so the skeleton
+deserves the budget. And the 30% is the structural layer — costly to change
+once committed, while the 70% stays cheap throughout. Renovation is the
+clearest analogy: soft furnishing drives most of the visible result and is
+cheap to swap, while plumbing, wiring, and load-bearing walls gate what
+becomes possible later. The goal is to keep the 30% small and deliberate so
+the 70% stays large and cheap. When a 70% item has quietly become
+load-bearing — callers everywhere depend on its shape — it has migrated into
+the 30% without a decision. Catch that before the next change pays for the
+accidental load: either ratify it via `design` or restore the boundary.
+
 Capture the 30%:
 
 - Goal compass, success criteria, invariants, STOPs.

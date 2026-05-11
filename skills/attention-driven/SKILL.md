@@ -17,6 +17,24 @@ attention on the slow-changing skeleton: the goal line, design shape, fact
 claim, or reframe primitive that determines the rest. Treat the surrounding
 execution detail as flexible and cheap to retry.
 
+The 30% earns that budget for two reasons. Attention is finite, and the
+skeleton determines the rest — mistakes there make every downstream
+choice more expensive. And the 30% is the structural layer: costly to change
+once committed, while the 70% stays cheap throughout. A renovation makes the
+asymmetry concrete. Soft furnishing drives most of the visible result and is
+cheap to swap; plumbing, wiring, and load-bearing walls gate what can happen
+later. A good shape leaves few load-bearing walls in the way — merging two
+rooms is just taking a wall down. A bad shape made every wall load-bearing
+by accident, and now nothing can move.
+
+The corollary is design intent. Put something in the 30% only when it needs
+to be load-bearing, and keep the 70% structurally cheap to change. When a
+70% item has quietly become load-bearing — callers everywhere depend on its
+shape, or removing it would cascade — it has migrated into the 30% without a
+decision. Catch that before the next change pays for it: either ratify the
+new load and route it through `design`, or restore the boundary so the 70%
+remains free.
+
 Apply the same rule to decisions. Maximize system agency for reversible and
 local choices: make them, review them with another role when useful, verify the
 claim, and move on. Escalate only the load-bearing 30% to the human: goal
