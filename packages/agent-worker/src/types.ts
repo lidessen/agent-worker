@@ -195,7 +195,9 @@ export type HarnessOverviewEventType =
   | "harness.agent_run_start"
   | "harness.agent_run_end"
   | "harness.agent_text"
-  | "harness.agent_error";
+  | "harness.agent_error"
+  | "harness.authorization_required"
+  | "harness.authorization_resolved";
 
 export interface DaemonEvent {
   ts: number;

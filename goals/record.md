@@ -1678,3 +1678,99 @@ check with concrete evidence, judgment naming the principal tension.
   - **Use it.** The monitor exists; the next 30 days of real
     usage will produce the first non-`unclear` C1–C4 verdicts in
     `goals/record.md`. That is the structural goal close-out.
+
+## 2026-05-12 — Attention-driven system protocol direction
+
+- What I did:
+  - Clarified the product direction after the user corrected the
+    short-term target: `agent-worker` should replace the daily work
+    entry into Claude Code / Codex, but only as the subset that also
+    serves the final harness system. It is not a Claude Code / Codex
+    clone and should not chase full CLI, chat, or IDE parity.
+  - Added `design/decisions/009-attention-driven-system-protocol.md`
+    as the adopted direction: `attention-driven` is a system protocol,
+    not only a skill. The long-term harness target is self-awareness,
+    self-adaptation, and self-organization.
+  - Updated `design/DESIGN.md` and `design/packages/orchestrator.md`
+    so future runtime-entry and orchestrator work uses the same scope
+    rule: adopt backend-runtime behavior only when it serves both the
+    short-term work-entry replacement and the long-term harness
+    protocol.
+
+- Observations:
+  - `git diff --check` passes after the design edits.
+  - The implementation work already in progress remains aligned with
+    this direction: the authorization-pause monitor signal strengthens
+    self-awareness and blocked-work handling instead of adding runtime
+    parity for its own sake.
+
+- Criteria check:
+  - C1 — `unclear`; no new 30-day concurrency evidence in this design
+    slice.
+  - C2 — `unclear`; no fallback inventory change in this design slice.
+  - C3 — `unclear`; direction supports intervention accounting, but no
+    new long-window intervention verdict.
+  - C4 — `unclear`; direction supports non-blocking auth handling, but
+    the verdict still depends on live monitor samples over time.
+
+- Invariants check:
+  - Inv-1 — strengthened as design direction: cross-requirement
+    continuity should live in harness records and protocol, not in a
+    single super-agent prompt.
+  - Inv-2 / Inv-3 — not exercised by this design slice.
+
+- Judgment: goal-level direction is clearer, not changed. The short-term
+  engineering target stays the work-entry replacement subset; the
+  long-term mechanism target is attention-driven harness behavior. Next
+  implementation work should continue the monitor/auth slice and then
+  the OSS fallback slot, using decision 009 as a scope filter.
+
+## 2026-05-12 — Authorization-pause monitor signal
+
+- What I did:
+  - Wired auth-classified harness pauses into the monitor by emitting
+    `harness.authorization_required` when an agent run fails with the
+    existing auth error strategy.
+  - Emitted `harness.authorization_resolved` from harness resume paths
+    so monitor state clears when the operator resumes an affected agent
+    or harness.
+  - Taught `Monitor` to keep an in-memory set of pending
+    `(harness, agent)` authorizations, count them in `pendingOnAuth`,
+    include them in `activeRequirements`, and record an
+    `authorization` intervention.
+  - Added focused monitor tests for pending authorization counting and
+    clearing on either explicit resolution or the next agent run.
+
+- Observations:
+  - `bun test packages/agent-worker/test/monitor.test.ts` passes
+    (2 tests).
+  - `bunx tsgo -p packages/agent-worker/tsconfig.json --noEmit`
+    passes.
+  - `git diff --check` passes.
+  - Broader `bun test packages/agent-worker/test` still fails in
+    unrelated daemon/client/harness HTTP tests at server startup with
+    `Failed to start server. Is port 0 in use?`; the new monitor test
+    itself passes.
+
+- Criteria check:
+  - C1 — `unclear`; the current sample can now count auth-blocked
+    requirements, but no 30-day concurrency verdict exists.
+  - C2 — `unclear`; no binding fallback schema change in this slice.
+  - C3 — `unclear`; the monitor now records `authorization`
+    interventions from auth pauses, but rescue-ratio judgment still
+    needs live usage over time.
+  - C4 — `unclear`; `pendingOnAuth` is now non-zero when auth pauses
+    occur, so auth-wait and phantom-block metrics can be exercised in
+    real use, but no long-window verdict exists yet.
+
+- Invariants check:
+  - Inv-1 — not exercised.
+  - Inv-2 — not changed; missing fallback rows remain surfaced by the
+    existing C2 monitor.
+  - Inv-3 — not exercised.
+
+- Judgment: path-level progress. The previous C4 gap "pending-on-auth
+  signal source missing" is now closed for auth-classified runtime
+  pauses and resume clearing. The next distinct slice remains adding an
+  OSS fallback slot to harness config so C2 can distinguish
+  closed-but-covered bindings from uncovered bindings.
