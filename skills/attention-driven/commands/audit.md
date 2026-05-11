@@ -17,6 +17,17 @@ Run the smallest useful audit:
 
 If the user names a layer, audit only that layer.
 
+In multi-initiative projects, the goal audit walks `features/*/` (excluding
+`features/_done/`) in addition to `goals/`. Treat these as drift modes:
+
+- a `features/<name>/` folder with no `GOAL.md` (someone started, did not
+  finish setup);
+- a closed initiative still outside `_done/` (criteria met, retrospective
+  written, folder not archived);
+- a feature with naked ✓/✗ verdicts in its record;
+- a feature whose record has not been touched while work clearly happened
+  (commits reference it, but no record entry).
+
 ## Process
 
 1. Read `references/routing.md`, `references/artifact-policy.md`, and

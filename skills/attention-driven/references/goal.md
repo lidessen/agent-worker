@@ -97,6 +97,58 @@ volume hurts. Create `OPEN-STOPS.md` only when more than one open STOP needs an
 index. Rotate monthly records only when one record becomes too long to scan.
 `GOAL.md` is the exception: the compass is load-bearing from the start.
 
+## Multi-Initiative Projects
+
+A mature project rarely has a single project-level GOAL. The product compass
+already lives elsewhere (PRD, roadmap), and the work that lands in the repo
+is a stream of bounded initiatives: feature requests, migrations, redesigns.
+Each initiative has its own short-lived compass and closes when criteria are
+met.
+
+For this shape, do not stuff every feature into `goals/`. Use a separate
+top-level folder:
+
+```
+features/                 # one folder per active initiative
+  <feat-a>/
+    GOAL.md               # this initiative's General Line + criteria + Non-goals
+    record.md
+    OPEN-STOPS.md         # only when multiple open STOPs accumulate
+  <feat-b>/
+    ...
+  _done/                  # archive closed initiatives here on close
+    <feat-a>/
+goals/                    # optional; only if a project-level compass exists
+design/                   # shared across all initiatives
+blueprints/               # shared pool, named blueprints/<feat>-<slice>.md
+```
+
+In this shape, everything in the sections above ("Artifacts", "Permission
+Gradient", "Record Discipline", "STOPs", "Stories") still applies — just
+substitute `features/<name>/` for `goals/` as the compass location for
+that initiative. The compass / path asymmetry, the line-approved GOAL
+edit protocol, and STOP semantics are unchanged.
+
+Rules specific to multi-initiative shape:
+
+- `design/` is shared. A feature only writes `design/decisions/NNN-*.md` when
+  it actually changes system shape; most features don't.
+- `harness/` (CLAUDE.md managed block) is shared.
+- Blueprints stay in the shared `blueprints/` pool with a feature prefix
+  in the filename (`<feat>-<slice>.md`). Do not nest blueprints under
+  `features/<name>/` — the shared pool keeps cross-feature work visible
+  and matches how `commands/design.md` already routes blueprints.
+- Closing an initiative moves the folder under `_done/`. Do not delete; the
+  record is still evidence for future work. See `commands/close.md` for the
+  archive flow.
+- If `goals/GOAL.md` and `features/*/GOAL.md` both exist, `goals/GOAL.md`
+  is the project compass and each feature is a bounded initiative beneath
+  it. `commands/go.md` resumes one at a time — never both.
+
+Adopt this layout only when you actually have multiple parallel initiatives.
+A single active feature does not need a `features/` tree — a top-level
+`goals/GOAL.md` is simpler.
+
 ## With Other Layers
 
 - Design changes that cross module boundaries need a design decision even when

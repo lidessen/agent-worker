@@ -17,6 +17,7 @@ If splitting work into multiple slices feels necessary, the seam goes between *c
 - If a task would change the system's shape (add/remove/merge modules, change how modules connect, introduce a new key mechanism), write a proposal in `design/decisions/NNN-title.md` and wait for review before coding. Commit design changes separately from code.
 - For non-trivial tasks, follow Plan → Build → Verify: write a blueprint in `blueprints/<task>.md`, track progress with a TODO scaffold, then strip the TODO and keep the blueprint when done.
 - Bug fixes, small config tweaks, or tasks shorter to do than to plan don't need a blueprint.
+- When several parallel feature initiatives are in flight at once, give each its own `features/<name>/` folder (`GOAL.md`, `record.md`, optional `OPEN-STOPS.md`) instead of stacking them under `goals/`. `design/` and `blueprints/` stay shared. Archive closed initiatives under `features/_done/<name>/`. See `skills/attention-driven/references/goal.md` for the full pattern.
 - See `skills/attention-driven/` for the full methodology.
 
 ## Skill Authoring

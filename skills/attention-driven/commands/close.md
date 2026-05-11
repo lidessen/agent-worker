@@ -4,13 +4,18 @@ Close durable work surfaces cleanly.
 
 ## Goal Initiative
 
-For a goal initiative:
+For a goal initiative (project-level `goals/GOAL.md` or feature-level
+`features/<name>/GOAL.md`):
 
-1. Read `goals/GOAL.md`, records, and open STOPs.
+1. Read the relevant `GOAL.md`, records, and open STOPs.
 2. Draft a retrospective in chat: achieved criteria, missed criteria, major
    path changes, unresolved lessons, and final judgment.
 3. Ask the human whether the goal is complete, abandoned, or superseded.
-4. After confirmation, mark the goal closed and append a final record entry.
+4. After confirmation, append a final record entry and mark the goal closed.
+5. For a feature initiative in a multi-initiative project, also archive:
+   move `features/<name>/` to `features/_done/<name>/`. Do not delete —
+   the record is evidence for future work. The project-level `goals/GOAL.md`
+   is never archived this way; it closes in place.
 
 Do not silently rewrite the goal to match the outcome.
 
