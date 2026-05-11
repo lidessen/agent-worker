@@ -17,8 +17,8 @@ cheap to swap, while plumbing, wiring, and load-bearing walls gate what
 becomes possible later. The goal is to keep the 30% small and deliberate so
 the 70% stays large and cheap. When a 70% item has quietly become
 load-bearing — callers everywhere depend on its shape — it has migrated into
-the 30% without a decision; either ratify it via `design` or restore the
-boundary before the next change pays for the accidental load.
+the 30% without a decision. Catch that before the next change pays for the
+accidental load: either ratify it via `design` or restore the boundary.
 
 Capture the 30%:
 

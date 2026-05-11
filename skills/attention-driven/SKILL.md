@@ -18,7 +18,7 @@ claim, or reframe primitive that determines the rest. Treat the surrounding
 execution detail as flexible and cheap to retry.
 
 The 30% earns that budget for two reasons. Attention is finite, and the
-skeleton determines the rest — cheap mistakes there make every downstream
+skeleton determines the rest — mistakes there make every downstream
 choice more expensive. And the 30% is the structural layer: costly to change
 once committed, while the 70% stays cheap throughout. A renovation makes the
 asymmetry concrete. Soft furnishing drives most of the visible result and is
