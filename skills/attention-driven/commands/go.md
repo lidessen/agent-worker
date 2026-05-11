@@ -21,8 +21,8 @@ parallel features, each its own bounded GOAL), look in `features/` or
 - If the user named the feature, resume only that feature's
   `GOAL.md` / `record.md` / `OPEN-STOPS.md`.
 - If the user did not name one, list in-progress features (those with a
-  `GOAL.md` and no `_done/` marker) and ask which to resume. Do not load
-  every feature's record at once.
+  `GOAL.md` not located under a `_done/` directory) and ask which to
+  resume. Do not load every feature's record at once.
 - The project-level `goals/GOAL.md` may be absent in this shape — that is
   fine. Treat each feature's GOAL as the compass for its own mainline.
 

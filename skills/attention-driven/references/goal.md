@@ -120,7 +120,7 @@ features/                 # or initiatives/; pick one and stay consistent
     <feat-a>/
 goals/                    # optional; only if a project-level compass exists
 design/                   # shared across all initiatives
-blueprints/               # shared pool, or nested per feature — pick one
+blueprints/               # shared pool, or nested (features/<name>/blueprints/) — pick one
 ```
 
 Rules that stay the same:
