@@ -11,9 +11,23 @@ import { signal, type Signal } from "semajsx/signal";
 import { client } from "./connection.ts";
 import type { ChatTurn, ChatInfo } from "../api/types.ts";
 
+export interface ChatActivity {
+  /** Stable id from the loop's `callId`, or a synthetic per-turn key. */
+  id: string;
+  /** Tool name (`Bash`, `Read`, `Edit`, `shell`, etc.). */
+  name: string;
+  /** Raw args; the view distils a one-line summary. */
+  args?: Record<string, unknown>;
+  status: "running" | "done" | "error";
+  durationMs?: number;
+  error?: string;
+}
+
 export interface PendingAssistant {
   /** Text accumulated from `chunk` events; updates in place. */
   content: string;
+  /** Tool invocations observed during the current dispatch, in order. */
+  activities: ChatActivity[];
   /** Optional error if the stream ended in failure. */
   error?: string;
 }
@@ -121,7 +135,7 @@ export async function sendChatTurn(key: string, content: string): Promise<void> 
   if (state.thinking.value) return;
   state.thinking.value = true;
   state.error.value = null;
-  state.pending.value = { content: "" };
+  state.pending.value = { content: "", activities: [] };
   try {
     for await (const event of c.streamChatTurn(key, content)) {
       if (event.kind === "user_turn") {
@@ -129,8 +143,42 @@ export async function sendChatTurn(key: string, content: string): Promise<void> 
         // before the assistant produces a single token.
         state.turns.update((prev) => [...prev, event.userTurn]);
       } else if (event.kind === "chunk") {
-        state.pending.value = { content: event.accumulated };
+        state.pending.update((prev) => ({
+          content: event.accumulated,
+          activities: prev?.activities ?? [],
+          error: prev?.error,
+        }));
+      } else if (event.kind === "tool_call") {
+        state.pending.update((prev) => ({
+          content: prev?.content ?? "",
+          error: prev?.error,
+          activities: [
+            ...(prev?.activities ?? []),
+            { id: event.id, name: event.name, args: event.args, status: "running" },
+          ],
+        }));
+      } else if (event.kind === "tool_result") {
+        state.pending.update((prev) => ({
+          content: prev?.content ?? "",
+          error: prev?.error,
+          activities: (prev?.activities ?? []).map((a) =>
+            a.id === event.id
+              ? {
+                  ...a,
+                  status: event.error ? "error" : "done",
+                  durationMs: event.durationMs,
+                  error: event.error,
+                }
+              : a,
+          ),
+        }));
       } else if (event.kind === "done") {
+        // The turn finishes whether or not the provider emitted a
+        // matching `tool_result` for every `tool_call` (claude-code
+        // sometimes folds the result into the next assistant message
+        // without a discrete event). Treat anything still running at
+        // `done` time as a successful completion so the UI doesn't
+        // strand a "→" marker once the bubble has committed.
         state.turns.update((prev) => [...prev, event.assistantTurn]);
         state.pending.value = null;
         // Flip thinking off synchronously with the commit so the
@@ -150,7 +198,11 @@ export async function sendChatTurn(key: string, content: string): Promise<void> 
         }
       } else if (event.kind === "error") {
         state.error.value = event.message;
-        state.pending.value = { content: state.pending.value?.content ?? "", error: event.message };
+        state.pending.update((prev) => ({
+          content: prev?.content ?? "",
+          activities: prev?.activities ?? [],
+          error: event.message,
+        }));
         state.thinking.value = false;
       }
     }

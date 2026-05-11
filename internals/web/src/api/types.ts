@@ -308,6 +308,19 @@ export type ChatStreamEvent =
   | { kind: "user_turn"; userTurn: ChatTurn }
   | { kind: "chunk"; text: string; accumulated: string }
   | {
+      kind: "tool_call";
+      id: string;
+      name: string;
+      args?: Record<string, unknown>;
+    }
+  | {
+      kind: "tool_result";
+      id: string;
+      name: string;
+      durationMs?: number;
+      error?: string;
+    }
+  | {
       kind: "done";
       assistantTurn: ChatTurn;
       durationMs: number;

@@ -21,6 +21,14 @@ const c = classes([
   "inputHint",
   "submit",
   "empty",
+  "activities",
+  "activity",
+  "activityRunning",
+  "activityDone",
+  "activityError",
+  "activityName",
+  "activitySummary",
+  "activityTime",
 ]);
 
 export const view = rule`${c.view} {
@@ -155,6 +163,57 @@ export const submit = rule`${c.submit} {
   border-radius: ${tokens.radii.sm};
   font-size: ${tokens.fontSizes.sm};
   cursor: pointer;
+}`;
+
+export const activities = rule`${c.activities} {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: ${tokens.space.xs} 0;
+  margin-bottom: ${tokens.space.xs};
+}`;
+
+export const activity = rule`${c.activity} {
+  display: flex;
+  align-items: baseline;
+  gap: ${tokens.space.sm};
+  font-size: ${tokens.fontSizes.xs};
+  font-family: ${tokens.fonts.mono};
+  color: ${tokens.colors.textMuted};
+  padding: 2px ${tokens.space.sm};
+  border-left: 2px solid ${tokens.colors.border};
+}`;
+
+export const activityRunning = rule`${c.activityRunning} {
+  border-left-color: ${tokens.colors.accent};
+  color: ${tokens.colors.text};
+}`;
+
+export const activityDone = rule`${c.activityDone} {
+  border-left-color: ${tokens.colors.border};
+}`;
+
+export const activityError = rule`${c.activityError} {
+  border-left-color: ${tokens.colors.dangerBorder};
+  color: ${tokens.colors.danger};
+}`;
+
+export const activityName = rule`${c.activityName} {
+  font-weight: ${tokens.fontWeights.semibold};
+  color: inherit;
+}`;
+
+export const activitySummary = rule`${c.activitySummary} {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}`;
+
+export const activityTime = rule`${c.activityTime} {
+  color: ${tokens.colors.textMuted};
+  font-size: ${tokens.fontSizes.xxs};
 }`;
 
 export const empty = rule`${c.empty} {
