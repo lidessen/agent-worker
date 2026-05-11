@@ -41,6 +41,30 @@ export type ChatStreamEvent =
   | { kind: "user_turn"; userTurn: ChatTurn }
   | { kind: "chunk"; text: string; accumulated: string }
   | {
+      /**
+       * A tool invocation started. `id` is stable for correlating with
+       * the matching `tool_result` and uniquely identifies the
+       * activity within the turn — synthesized when the underlying
+       * loop event omits `callId` (e.g. Codex).
+       */
+      kind: "tool_call";
+      id: string;
+      name: string;
+      args?: Record<string, unknown>;
+    }
+  | {
+      /**
+       * A tool invocation ended. Emitted by Claude Code, Codex, AI SDK;
+       * not always emitted by Cursor — consumers must not assume every
+       * `tool_call` is followed by a `tool_result`.
+       */
+      kind: "tool_result";
+      id: string;
+      name: string;
+      durationMs?: number;
+      error?: string;
+    }
+  | {
       kind: "done";
       assistantTurn: ChatTurn;
       durationMs: number;
@@ -135,10 +159,38 @@ export async function* streamChatTurn(
 
     const startedAt = Date.now();
     const run = loop.run({ system: runtime.instructions ?? "", prompt });
+    // Provider may omit callId (Codex). When that happens we mint a
+    // synthetic id per (turn, tool_name) and queue it so `tool_call_end`
+    // can pair with the matching `tool_call_start` FIFO.
+    let toolCounter = 0;
+    const pendingByName = new Map<string, string[]>();
+    const enqueueId = (name: string, id: string) => {
+      const ids = pendingByName.get(name) ?? [];
+      ids.push(id);
+      pendingByName.set(name, ids);
+    };
+    const dequeueId = (name: string): string | undefined => {
+      const ids = pendingByName.get(name);
+      if (!ids || ids.length === 0) return undefined;
+      return ids.shift();
+    };
     for await (const event of run) {
       if (event.type === "text") {
         collected += event.text;
         yield { kind: "chunk", text: event.text, accumulated: collected };
+      } else if (event.type === "tool_call_start") {
+        const id = event.callId ?? `${event.name}#${toolCounter++}`;
+        if (!event.callId) enqueueId(event.name, id);
+        yield { kind: "tool_call", id, name: event.name, args: event.args };
+      } else if (event.type === "tool_call_end") {
+        const id = event.callId ?? dequeueId(event.name) ?? `${event.name}#?`;
+        yield {
+          kind: "tool_result",
+          id,
+          name: event.name,
+          durationMs: event.durationMs,
+          error: event.error,
+        };
       }
     }
     const result = await run.result;
