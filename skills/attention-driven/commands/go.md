@@ -14,8 +14,20 @@ If `goals/GOAL.md` exists:
   - the current monthly record if the project uses monthly records.
 - Surface open STOPs before continuing.
 
-If no goal artifacts exist, continue without forcing setup. Mention that goal
-continuity is unavailable only if it matters to the task.
+If the repo is a multi-initiative project (mature codebase with several
+parallel features, each its own bounded GOAL), look in `features/` or
+`initiatives/` for `*/GOAL.md`:
+
+- If the user named the feature, resume only that feature's
+  `GOAL.md` / `record.md` / `OPEN-STOPS.md`.
+- If the user did not name one, list in-progress features (those with a
+  `GOAL.md` and no `_done/` marker) and ask which to resume. Do not load
+  every feature's record at once.
+- The project-level `goals/GOAL.md` may be absent in this shape — that is
+  fine. Treat each feature's GOAL as the compass for its own mainline.
+
+If no goal artifacts exist anywhere, continue without forcing setup. Mention
+that goal continuity is unavailable only if it matters to the task.
 
 ## 2. Name the Mainline
 
