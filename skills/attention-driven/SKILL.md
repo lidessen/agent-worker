@@ -158,5 +158,7 @@ files only when the command needs the detail:
   adaptation.
 - `references/control-review.md` for three-role dialectical review in
   research-like design/proposal work or method imports into a project.
+- `references/effort.md` for the agent-effort model: why time is a broken
+  metric for Agent work, and how to use context tokens + tool calls instead.
 - `references/migration-audit.md` for temporary notes recovered from the old
   split skills that have not yet earned a permanent home.
