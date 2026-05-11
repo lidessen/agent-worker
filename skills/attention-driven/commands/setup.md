@@ -68,6 +68,10 @@ outside the markers.
 Create only what is load-bearing for the selected setup:
 
 - `goals/GOAL.md` and `goals/record.md` only through `goal set`.
+- `features/<name>/GOAL.md` and `features/<name>/record.md` only through
+  `goal set <name>` in multi-initiative projects. Do not create a
+  `features/` tree until the second concurrent initiative actually
+  appears — one feature uses `goals/` directly.
 - `design/` only through design bootstrap/init.
 - `concepts/` only through reframe init.
 - hooks only when the user asks for mechanical enforcement.

@@ -109,7 +109,7 @@ For this shape, do not stuff every feature into `goals/`. Use a separate
 top-level folder:
 
 ```
-features/                 # or initiatives/; pick one and stay consistent
+features/                 # one folder per active initiative
   <feat-a>/
     GOAL.md               # this initiative's General Line + criteria + Non-goals
     record.md
@@ -120,18 +120,30 @@ features/                 # or initiatives/; pick one and stay consistent
     <feat-a>/
 goals/                    # optional; only if a project-level compass exists
 design/                   # shared across all initiatives
-blueprints/               # shared pool, or nested (features/<name>/blueprints/) — pick one
+blueprints/               # shared pool, named blueprints/<feat>-<slice>.md
 ```
 
-Rules that stay the same:
+In this shape, everything in the sections above ("Artifacts", "Permission
+Gradient", "Record Discipline", "STOPs", "Stories") still applies — just
+substitute `features/<name>/` for `goals/` as the compass location for
+that initiative. The compass / path asymmetry, the line-approved GOAL
+edit protocol, and STOP semantics are unchanged.
+
+Rules specific to multi-initiative shape:
 
 - `design/` is shared. A feature only writes `design/decisions/NNN-*.md` when
   it actually changes system shape; most features don't.
 - `harness/` (CLAUDE.md managed block) is shared.
-- Each feature's `GOAL.md` follows the same compass / path asymmetry: stable
-  criteria, mutable record.
+- Blueprints stay in the shared `blueprints/` pool with a feature prefix
+  in the filename (`<feat>-<slice>.md`). Do not nest blueprints under
+  `features/<name>/` — the shared pool keeps cross-feature work visible
+  and matches how `commands/design.md` already routes blueprints.
 - Closing an initiative moves the folder under `_done/`. Do not delete; the
-  record is still evidence for future work.
+  record is still evidence for future work. See `commands/close.md` for the
+  archive flow.
+- If `goals/GOAL.md` and `features/*/GOAL.md` both exist, `goals/GOAL.md`
+  is the project compass and each feature is a bounded initiative beneath
+  it. `commands/go.md` resumes one at a time — never both.
 
 Adopt this layout only when you actually have multiple parallel initiatives.
 A single active feature does not need a `features/` tree — a top-level

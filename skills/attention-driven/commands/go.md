@@ -5,29 +5,33 @@ orient a task and did not explicitly pick a narrower command.
 
 ## 1. Resume
 
-If `goals/GOAL.md` exists:
+Pick exactly one source of compass, in this order:
 
-- Read it.
-- Read `goals/OPEN-STOPS.md` if present.
-- Read recent entries from the active record file:
-  - `goals/record.md`, or
-  - the current monthly record if the project uses monthly records.
-- Surface open STOPs before continuing.
+1. **User named a feature** (e.g. `go feat-a`): resume only
+   `features/feat-a/GOAL.md`, `features/feat-a/record.md`, and
+   `features/feat-a/OPEN-STOPS.md` if present. Skip every other GOAL.
+2. **`goals/GOAL.md` exists**: this is the project compass. Resume it. If
+   `features/*/GOAL.md` also exist, list active feature names (one line
+   each) as available context but do not load their records.
+3. **Only `features/*/GOAL.md` exist** (multi-initiative project, no
+   project compass):
+   - If exactly one active feature (a `GOAL.md` not under `_done/`),
+     resume it.
+   - If multiple active features and the call is interactive, list them
+     and ask which to resume. Do not load every feature's record.
+   - If multiple active features and the call is non-interactive (loop,
+     hook, agent-to-agent), do not block. Skip resume, state "multiple
+     active features; name one to resume," and continue to Name the
+     Mainline using whatever context the caller already supplied.
+4. **No goal artifacts anywhere**: continue without forcing setup. Mention
+   that goal continuity is unavailable only if it matters to the task.
 
-If the repo is a multi-initiative project (mature codebase with several
-parallel features, each its own bounded GOAL), look in `features/` or
-`initiatives/` for `*/GOAL.md`:
+When resuming, also read `OPEN-STOPS.md` for the selected compass if
+present, and surface open STOPs before continuing.
 
-- If the user named the feature, resume only that feature's
-  `GOAL.md` / `record.md` / `OPEN-STOPS.md`.
-- If the user did not name one, list in-progress features (those with a
-  `GOAL.md` not located under a `_done/` directory) and ask which to
-  resume. Do not load every feature's record at once.
-- The project-level `goals/GOAL.md` may be absent in this shape — that is
-  fine. Treat each feature's GOAL as the compass for its own mainline.
-
-If no goal artifacts exist anywhere, continue without forcing setup. Mention
-that goal continuity is unavailable only if it matters to the task.
+For monthly records, use the current `record-YYYY-MM.md` if the project
+rotates records; otherwise use the flat `record.md` next to the resumed
+GOAL.
 
 ## 2. Name the Mainline
 
