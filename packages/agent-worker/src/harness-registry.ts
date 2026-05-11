@@ -211,13 +211,25 @@ export class HarnessRegistry {
         for (const l of loopsRef) await l.pause();
       },
       resumeAll: async () => {
-        for (const l of loopsRef) await l.resume();
+        for (const l of loopsRef) {
+          await l.resume();
+          this.emitEvent("harness.authorization_resolved", {
+            harness: "global",
+            agent: l.name,
+            reason: "agent resumed",
+          });
+        }
       },
       pauseAgent: async (name) => {
         await findLoop(name).pause();
       },
       resumeAgent: async (name) => {
         await findLoop(name).resume();
+        this.emitEvent("harness.authorization_resolved", {
+          harness: "global",
+          agent: name,
+          reason: "agent resumed",
+        });
       },
     });
     const config = toHarnessConfig(resolved, {
@@ -341,13 +353,25 @@ export class HarnessRegistry {
         for (const l of loopsRef) await l.pause();
       },
       resumeAll: async () => {
-        for (const l of loopsRef) await l.resume();
+        for (const l of loopsRef) {
+          await l.resume();
+          this.emitEvent("harness.authorization_resolved", {
+            harness: key,
+            agent: l.name,
+            reason: "agent resumed",
+          });
+        }
       },
       pauseAgent: async (name) => {
         await findLoop(name).pause();
       },
       resumeAgent: async (name) => {
         await findLoop(name).resume();
+        this.emitEvent("harness.authorization_resolved", {
+          harness: key,
+          agent: name,
+          reason: "agent resumed",
+        });
       },
     });
     const config = toHarnessConfig(resolved, {
@@ -627,6 +651,15 @@ export class HarnessRegistry {
             await orch.pauseUntil(strategy.retryAfterMs);
           } else {
             await orch.pause();
+          }
+          if (strategy.category === "auth") {
+            this.emitEvent("harness.authorization_required", {
+              harness: harnessKey,
+              agent: agent.name,
+              runId,
+              reason: strategy.reason,
+              instruction: instruction.content.slice(0, 200),
+            });
           }
           await harness.eventLog.log(
             agent.name,

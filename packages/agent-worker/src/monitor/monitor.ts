@@ -47,6 +47,7 @@ export class Monitor {
   private busOff: (() => void) | null = null;
   private readonly startedAt = Date.now();
   private interventionSeq = 0;
+  private readonly pendingAuthorizations = new Set<string>();
 
   constructor(
     private readonly registry: HarnessRegistry,
@@ -141,6 +142,7 @@ export class Monitor {
     const ts = Date.now();
     let activeAgents = 0;
     let activeRequirements = 0;
+    const pendingOnAuth = this.pendingAuthorizations.size;
     let structuralCap = 0;
 
     // Walk every managed harness; sum across them.
@@ -190,8 +192,8 @@ export class Monitor {
     return {
       ts,
       activeAgents,
-      activeRequirements,
-      pendingOnAuth: 0, // slice 2 will fill this from intervention events
+      activeRequirements: activeRequirements + pendingOnAuth,
+      pendingOnAuth,
       structuralCap,
     };
   }
@@ -222,12 +224,21 @@ export class Monitor {
    *   - `harness.kickoff_task_failed` → rescue.
    *   - `harness.completed` → acceptance. The harness reached a
    *     drained state and is asking the human to review.
-   * Future signal sources (tool-layer auth pause, user-initiated
-   * stop) will surface as additional types when they land.
+   *   - `harness.authorization_required` → authorization + pending
+   *     C4 auth-wait marker.
+   *   - `harness.authorization_resolved` / next run start → clears
+   *     the pending marker.
+   * Future signal sources (user-initiated stop) will surface as
+   * additional types when they land.
    */
   private onBusEvent(event: BusEvent): void {
     const harness = typeof event.harness === "string" ? event.harness : undefined;
     const agent = typeof event.agent === "string" ? event.agent : undefined;
+    const pendingKey = this.authorizationKey(harness, agent);
+
+    if (pendingKey && event.type === "harness.agent_run_start") {
+      this.pendingAuthorizations.delete(pendingKey);
+    }
 
     if (event.type === "harness.agent_error") {
       const strategy = event.strategy as { fatal?: boolean; reason?: string } | undefined;
@@ -242,6 +253,22 @@ export class Monitor {
       return;
     }
 
+    if (event.type === "harness.authorization_required") {
+      if (pendingKey) this.pendingAuthorizations.add(pendingKey);
+      this.recordIntervention({
+        type: "authorization",
+        harness,
+        agent,
+        reason: typeof event.reason === "string" ? event.reason : "authorization required",
+      });
+      return;
+    }
+
+    if (event.type === "harness.authorization_resolved") {
+      if (pendingKey) this.pendingAuthorizations.delete(pendingKey);
+      return;
+    }
+
     if (event.type === "harness.kickoff_task_failed") {
       this.recordIntervention({
         type: "rescue",
@@ -252,12 +279,30 @@ export class Monitor {
     }
 
     if (event.type === "harness.completed") {
+      this.clearHarnessAuthorizations(harness);
       this.recordIntervention({
         type: "acceptance",
         harness,
         reason: "harness completed; awaiting review",
       });
       return;
+    }
+
+    if (event.type === "harness.failed" || event.type === "harness.stopped") {
+      this.clearHarnessAuthorizations(harness);
+    }
+  }
+
+  private authorizationKey(harness?: string, agent?: string): string | null {
+    if (!harness || !agent) return null;
+    return `${harness}:${agent}`;
+  }
+
+  private clearHarnessAuthorizations(harness?: string): void {
+    if (!harness) return;
+    const prefix = `${harness}:`;
+    for (const key of this.pendingAuthorizations) {
+      if (key.startsWith(prefix)) this.pendingAuthorizations.delete(key);
     }
   }
 
