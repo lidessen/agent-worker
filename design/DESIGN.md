@@ -165,6 +165,15 @@ Core types: `BusEvent` (shared telemetry), `LoopEvent` (loop telemetry), `Runtim
 
 ## Key Decisions
 
+**Attention-driven as system protocol, not only a skill.** The short-term
+product target is a work-entry replacement subset for Claude Code / Codex, not
+full CLI or chat parity. Backend runtimes are execution bindings; the product
+shape is the harness protocol: requirement intake, bounded Wake execution,
+observation, recovery, verification, blocked-work handling, and cross-runtime
+continuity. Long term, the harness should become self-aware, self-adaptive,
+and self-organizing through events, monitor signals, decision ownership,
+Handoffs, and capability boundaries. See [decisions/009](decisions/009-attention-driven-system-protocol.md).
+
 **Single long-lived daemon, not per-command subprocess.** Daemon holds Harnesses and runtime actors in memory; CLI commands are thin HTTP clients. _Rejected:_ spawn a fresh agent per CLI call like `codex` does. _Why:_ multi-agent Harnesses need shared intake, semantic events, projections, and execution state — a per-call subprocess can't coordinate a team.
 
 **`HarnessOrchestrator` in `agent-worker/`, not `harness/`.** The Harness substrate is passive (stores state, answers queries, validates, projects, and renders context packets); orchestrator is active (polls pending work, dispatches to runner, invokes extractors, handles errors/auto-pause/operator notification). _Rejected:_ keep polling inside `harness/`. _Why:_ Harness semantics stay reusable across execution strategies; orchestration is swappable without touching the substrate.

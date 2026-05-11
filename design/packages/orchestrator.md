@@ -24,13 +24,17 @@ another, Cursor for a third — each app a silo with its own session,
 its own context, its own runtime, its own context-window exhaustion
 ritual.
 
-The orchestrator unifies that surface. The user submits a requirement;
+The orchestrator unifies that surface as a **work-entry replacement
+subset**, not as Claude Code / Codex parity. The user submits a requirement;
 picks a `RuntimeBinding` (or accepts the harness's recommendation);
 sees in-flight tasks across all runtimes in one place; resumes a task
 when its previous Wake hit context limit, possibly under a different
 binding. The orchestrator does **not** implement runtime semantics —
 that stays in `internals/loop/` — and it does **not** own task state
 — that stays in the task-tracking Harness type's projection. It coordinates.
+See [../decisions/009-attention-driven-system-protocol.md](../decisions/009-attention-driven-system-protocol.md)
+for the scope rule: only runtime-CLI behaviors that also strengthen
+the long-term harness protocol belong here.
 
 ## Surface
 
@@ -128,6 +132,9 @@ under the C2 monitor) sees coverage in real time.
 - **Not a runtime adapter.** Per-binding context-budget normalization,
   session continuity, and tool transport are runtime concerns
   ([agent.md](agent.md)), not orchestrator concerns.
+- **Not Claude Code / Codex parity.** Native CLI affordances are adopted
+  only when they serve both short-term work-entry replacement and the
+  long-term attention-driven harness protocol.
 
 ## Key mechanisms
 
@@ -171,6 +178,8 @@ Each is a downstream blueprint candidate.
 ## Cross-references
 
 - [../decisions/005-session-orchestration-model.md](../decisions/005-session-orchestration-model.md) — adopted model
+- [../decisions/009-attention-driven-system-protocol.md](../decisions/009-attention-driven-system-protocol.md) —
+  product scope and attention-driven system protocol
 - [../decisions/004-observability-monitor.md](../decisions/004-observability-monitor.md) — instruments
   this surface; runs in parallel
 - [agent-worker.md](agent-worker.md) — daemon package where the
