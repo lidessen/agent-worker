@@ -64,6 +64,9 @@ Read the layer names as local steering responsibilities, not as phases:
 - `fact` keeps observations that can prove or falsify claims.
 - `reframe` changes the lens when the old category cannot guide the work.
 - `harness` keeps project context wired so future agents can continue.
+  Includes the `HANDOFF.md` convention — an ephemeral state snapshot
+  written by the outgoing agent, read first by the incoming agent,
+  consumed and archived after a single use.
 
 The same rule applies when maintaining attention-driven instructions. Command
 names, artifact wording, and setup mechanics may improve, but those execution
