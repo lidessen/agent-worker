@@ -149,6 +149,29 @@ and a first-class early engineering deliverable (a separate
   commercial layer must sit on top of the open-source-anchored core,
   not gate it.
 
+## Current trajectory (2026-05-12)
+
+**Principal tension: core loop works, results aren't surfaced to the user.**
+The daemon starts, discovers runtimes, and processes tasks through the
+coordination harness (verified: task create → dispatch → Codex agent
+runs in worktree → handoff completes). Three blockers prevent daily use
+(see `HANDOFF.md`). The substrate cut (extracting coordination to a
+peer package) is deferred — it improves package boundaries without
+changing behavior. The next differentiating capability is coordination
+end-to-end: two agents in one harness, channel routing, Wake handoff.
+
+**External landscape.** Multica (27K stars, 4 months) validates the
+market direction (agents as teammates on a shared board) but has no
+agent-to-agent coordination or HarnessType primitive. Claude Code Agent
+View (v2.1.139) treats sessions as process-level primitives — parallel
+independent workers, zero cross-session state. Both confirm agent-worker's
+differentiation (Harness as shared context, Wake/Handoff structured state
+transfer, OSS anchoring per Inv-2) is the right bet.
+
+**Priority.** (1) Three daily-use blockers → (2) coordination end-to-end
+→ (3) monitor producing C1–C4 numbers. The monitor exists as a class but
+has not yet produced a falsifiable observation against any criterion.
+
 ## Revisions
 
 - 2026-05-09: initial set (interview-driven).

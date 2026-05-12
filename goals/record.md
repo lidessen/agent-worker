@@ -1824,3 +1824,42 @@ check with concrete evidence, judgment naming the principal tension.
   `blueprints/daily-use-blockers.md`. Execute the 3 changes. Verify with
   typecheck + tests + live smoke test (`aw send codex ...` → file
   appears in project dir). Then close this record entry with results.
+
+## 2026-05-12 — Strategic adjustment: Multica + Claude Code landscape
+
+- What I did (Hermes):
+  - Analyzed Multica (27K stars, Go daemon + Next.js, 10+ CLI backends):
+    agents as issue assignees, thin daemon polls thick server, no
+    agent-to-agent coordination, markdown-based skill injection.
+  - Analyzed Claude Code Agent View (v2.1.139): sessions as process-level
+    primitives, parallel independent workers, zero cross-session state.
+  - Updated GOAL.md with Current Trajectory section and DESIGN.md with
+    external landscape context + deferred substrate cut note.
+  - Created HANDOFF.md + AGENTS.md handoff entry rule + attention-driven
+    skill updates (go.md step 0, harness reference Handoff Convention).
+
+- Observations:
+  - Both Multica and Claude Code validate agent-worker's direction but
+    neither does what agent-worker's 30% skeleton requires: Harness as
+    shared context container, Wake/Handoff structured state transfer,
+    HarnessType as structural primitive, OSS anchoring.
+  - Substrate cut (extracting coordination to peer package) is structural
+    refinement — zero behavioral change. Deferred until daily use and
+    coordination end-to-end are proven.
+  - Core loop verified: daemon → task → dispatch → Codex → worktree →
+    handoff. Three blockers remain (see HANDOFF.md).
+  - Monitor class exists but C1–C4 still `unclear`. Monitor is priority 3
+    behind daily-use blockers and coordination end-to-end.
+
+- Criteria check: C1–C4 all `unclear`.
+
+- Invariants check:
+  - Inv-1 — not violated. Harness owns context; worktree isolation strengthens.
+  - Inv-2 — not exercised. Codex is the only active backend.
+  - Inv-3 — not exercised.
+
+- Judgment: principal tension is **core loop works, results aren't surfaced**
+  (recorded in GOAL.md Current Trajectory). Path-level: HANDOFF.md 3 blockers
+  → coordination end-to-end → monitor. Goal-level: no change. The 30% skeleton
+  (Harness, HarnessType, Wake/Handoff, OSS anchoring) is confirmed by external
+  landscape as the right bet.
