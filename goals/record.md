@@ -1774,3 +1774,53 @@ check with concrete evidence, judgment naming the principal tension.
   pauses and resume clearing. The next distinct slice remains adding an
   OSS fallback slot to harness config so C2 can distinguish
   closed-but-covered bindings from uncovered bindings.
+
+## 2026-05-12 — Daily-use diagnosis + handoff to Codex
+
+- What I did (Hermes):
+  - Started daemon. Auto-discovered 6 agents: claude-code, codex, cursor,
+    deepseek, kimi-code, minimax. All idle in global harness.
+  - Validated end-to-end: create task → dispatch to codex → agent
+    processes in worktree → file created successfully (hello.txt at
+    `~/.agent-worker/harness-data/global/worktrees/wake_xxx/main/`).
+    Core loop works. 33K tokens, 11s, task completed.
+  - Identified 3 blockers that prevent daily use. Wrote handoff blueprint
+    at `blueprints/daily-use-blockers.md`.
+
+- Observations:
+  - **Blocker 1:** Worktree results not auto-merged to project. Agent
+    creates files in isolated worktree; after Wake completes, worktree
+    is deleted without surfacing results. Fix: auto git-merge before
+    worktree cleanup in `harness-registry.ts` `wake.terminal` handler.
+  - **Blocker 2:** `aw send codex "message"` → agent ignores it.
+    Notification format causes `no_action` tool call. Fix: agent-only
+    send path should auto-create task + dispatch instead.
+  - **Blocker 3:** `sendToHarness` crash on `harness.harnessTypeId`
+    undefined for default global harness. Fix: null guard in daemon.ts.
+  - Codex `checkCodexAuth()` passes on this machine (v0.130.0, gpt-5.5).
+    Claude Code subscription paused — Codex is the active CLI backend.
+
+- Criteria check:
+  - C1 — `unclear`. Monitor exists but no live multi-requirement usage.
+  - C2 — `unclear`. OSS fallback slots not yet in harness config.
+  - C3 — `unclear`. Auth-pause tracking wired but no rescue ratio data.
+  - C4 — `unclear`. Auth-wait signal source closed but no long-window data.
+
+- Invariants check:
+  - Inv-1 — not violated. Worktree isolation strengthens the boundary.
+  - Inv-2 — not exercised. Codex (closed-source) is the only active backend.
+  - Inv-3 — N/A. Diagnostic session, not work submitted for acceptance.
+
+- Judgment: **principal tension shifted from "structure vs measurement"
+  to "core loop works but results aren't surfaced."** The previous
+  trajectory (slice 2 → monitor) is now overtaken by the discovery that
+  the task dispatch path actually works end-to-end. The 3 blockers in
+  `blueprints/daily-use-blockers.md` are the new mainline. After they
+  land, the user can use agent-worker for real daily tasks and form
+  a feedback loop. Monitor (decision 004) remains important but now
+  sits behind "make it usable" in priority.
+
+- Next (for Codex on attention-driven resume): read
+  `blueprints/daily-use-blockers.md`. Execute the 3 changes. Verify with
+  typecheck + tests + live smoke test (`aw send codex ...` → file
+  appears in project dir). Then close this record entry with results.
