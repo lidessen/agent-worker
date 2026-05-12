@@ -43,7 +43,7 @@ export class Monitor {
   private readonly samples = new RollingSampleStore();
   private readonly interventions = new InterventionLog();
   private readonly subscribers = new Set<MonitorSubscriber>();
-  private timer: ReturnType<typeof setInterval> | null = null;
+  private timer: ReturnType<typeof setTimeout> | null = null;
   private busOff: (() => void) | null = null;
   private readonly startedAt = Date.now();
   private interventionSeq = 0;
@@ -61,9 +61,7 @@ export class Monitor {
   start(): void {
     if (this.timer) return;
     this.busOff = this.bus.on((event) => this.onBusEvent(event));
-    this.timer = setInterval(() => {
-      void this.tick();
-    }, this.tickMs);
+    this.scheduleTick();
     // Fire the first tick immediately so /monitor/snapshot doesn't
     // return zeros for the first second of daemon life.
     void this.tick();
@@ -72,13 +70,28 @@ export class Monitor {
   /** Stop the polling loop and unsubscribe. */
   stop(): void {
     if (this.timer) {
-      clearInterval(this.timer);
+      clearTimeout(this.timer);
       this.timer = null;
     }
     if (this.busOff) {
       this.busOff();
       this.busOff = null;
     }
+  }
+
+  /**
+   * Schedule the next tick after tickMs. Uses recursive setTimeout
+   * instead of setInterval so async ticks cannot overlap: if a tick
+   * takes longer than tickMs, the next tick waits for it to finish.
+   */
+  private scheduleTick(): void {
+    this.timer = setTimeout(() => {
+      this.timer = null;
+      void this.tick().finally(() => {
+        // Only reschedule if we haven't been stopped mid-tick.
+        if (!this.timer) this.scheduleTick();
+      });
+    }, this.tickMs);
   }
 
   /** Generate a snapshot of all metrics + thresholds. */
