@@ -342,18 +342,27 @@ export class WebClient {
         const { done, value } = await reader.read();
         if (done) break;
         buf += decoder.decode(value, { stream: true });
-        // SSE frames are separated by blank lines.
+        // SSE frames are separated by double newlines.
+        // Normalize CRLF → LF first, then split on \n\n.
+        const normalized = buf.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
         let idx;
-        while ((idx = buf.indexOf("\n\n")) >= 0) {
-          const frame = buf.slice(0, idx);
-          buf = buf.slice(idx + 2);
+        while ((idx = normalized.indexOf("\n\n")) >= 0) {
+          const frame = normalized.slice(0, idx);
+          buf = normalized.slice(idx + 2);
+          // Accumulate all data: lines within the frame (SSE spec
+          // allows multi-line data where multiple data: lines
+          // concatenate to form one event payload).
+          const dataLines: string[] = [];
           for (const line of frame.split("\n")) {
-            if (!line.startsWith("data: ")) continue;
-            try {
-              yield JSON.parse(line.slice(6)) as ChatStreamEvent;
-            } catch {
-              // skip malformed frame
+            if (line.startsWith("data: ")) {
+              dataLines.push(line.slice(6));
             }
+          }
+          if (dataLines.length === 0) continue;
+          try {
+            yield JSON.parse(dataLines.join("\n")) as ChatStreamEvent;
+          } catch {
+            // skip malformed frame
           }
         }
       }
@@ -428,18 +437,25 @@ export class WebClient {
         if (done) return;
 
         buffer += decoder.decode(value, { stream: true });
-        const frames = buffer.split("\n\n");
+        // Normalize CRLF → LF, then split frames on double newline.
+        const normalized = buffer.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+        const frames = normalized.split("\n\n");
         buffer = frames.pop()!; // incomplete frame stays in buffer
 
         for (const frame of frames) {
+          // Accumulate all data: lines (SSE spec allows multi-line
+          // data) and join them into a single payload.
+          const dataLines: string[] = [];
           for (const line of frame.split("\n")) {
             if (line.startsWith("data: ")) {
-              try {
-                yield JSON.parse(line.slice(6)) as T;
-              } catch {
-                /* skip malformed JSON */
-              }
+              dataLines.push(line.slice(6));
             }
+          }
+          if (dataLines.length === 0) continue;
+          try {
+            yield JSON.parse(dataLines.join("\n")) as T;
+          } catch {
+            /* skip malformed JSON */
           }
         }
       }
