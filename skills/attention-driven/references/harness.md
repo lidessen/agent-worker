@@ -48,6 +48,34 @@ task or design slice, L3 lives inside execution.
 Instruction files should point to durable artifacts, not duplicate them. Prefer
 "read `design/DESIGN.md`" over copying design contents into `CLAUDE.md`.
 
+## Handoff Convention
+
+When an agent hands off work to another agent (different model, different
+session, or different toolchain), use `HANDOFF.md` in the project root as the
+canonical fast-resume artifact. It is NOT a blueprint, NOT a record entry, NOT
+a design doc — it is a **state snapshot for the next agent only**, consumed
+and archived after a single use.
+
+**Format rules:**
+- One file per handoff. Previous handoffs live in `handoffs/archive/`.
+- Contains exactly: where we are, what's verified, next action, state to
+  preserve, when done.
+- "Next action" is concrete — file paths + line numbers + exact commands.
+  The next agent should not need to read any other document to start.
+- No long-term significance. The receiving agent archives it when done.
+
+**Lifecycle:**
+1. Outgoing agent writes `HANDOFF.md` before disconnecting.
+2. Incoming agent reads `HANDOFF.md` as first action (before anything else).
+3. Incoming agent executes, verifies, and moves it to
+   `handoffs/archive/<date>-<from>→<to>.md`.
+4. Incoming agent adds a closing entry to `goals/record.md`.
+
+This is not a replacement for blueprints or records. Blueprints are
+Plan→Build→Verify task plans; records are historical journals. HANDOFF.md is
+the "app state restoration" layer — it answers "what was I doing, what's true,
+what's next" in under 30 seconds.
+
 ## Finite Human Bandwidth
 
 Agent output can scale faster than human review. Outputs intended for human
