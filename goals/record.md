@@ -1863,3 +1863,37 @@ check with concrete evidence, judgment naming the principal tension.
   → coordination end-to-end → monitor. Goal-level: no change. The 30% skeleton
   (Harness, HarnessType, Wake/Handoff, OSS anchoring) is confirmed by external
   landscape as the right bet.
+
+## 2026-05-12 — Strategic pivot: headless-first, MCP as scheduling interface
+
+- What I changed:
+  - Human chose to pivot agent-worker to headless-first. The scheduling
+    interface is an MCP-capable agent (Hermes), not a built-in UI.
+    agent-worker exposes capabilities as MCP tools; web UI stays for
+    debug/observability.
+  - Updated GOAL.md: added non-goal "No primary end-user scheduling UI."
+    Updated Current Trajectory with strategic pivot rationale and new
+    priority: blockers → MCP server → coordination e2e → monitor.
+  - Saved dashboard redesign proposal to blueprint but deprioritized it
+    behind the MCP surface.
+
+- Observations:
+  - The human already uses Hermes as their daily entry point for work.
+    Making agent-worker an MCP backend for Hermes removes the need to
+    build a competing scheduling UI — all energy goes to execution
+    quality and multi-agent coordination.
+  - This does not change the 30% skeleton (Harness, HarnessType,
+    Wake/Handoff, OSS anchoring). It changes the product shape:
+    agent-worker is an execution backend, not a user-facing application.
+  - The MCP server is a thin wrapper over existing HTTP API endpoints.
+    No architectural change needed — all core capabilities are already
+    exposed via the daemon's REST surface.
+
+- Criteria check: C1–C4 all `unclear`.
+
+- Invariants check: Inv-1 not violated. Inv-2 not exercised. Inv-3 N/A.
+
+- Judgment: path-level adjustment. The principal tension (core loop works,
+  results aren't surfaced) is unchanged. The MCP server enters as priority 2,
+  ahead of coordination e2e — because until the scheduling agent can drive
+  agent-worker, multi-agent coordination has no user. Goal-level: no change.

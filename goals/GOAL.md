@@ -148,6 +148,12 @@ and a first-class early engineering deliverable (a separate
   is not forbidden, but is never the optimization target — any future
   commercial layer must sit on top of the open-source-anchored core,
   not gate it.
+- **No primary end-user scheduling UI** — The human schedules work
+  through an MCP-capable agent (Hermes, Claude Code, …), not through
+  a built-in dashboard. The web UI exists for debug/observability,
+  not as the primary interaction surface. The system's capabilities
+  are exposed as MCP tools so any scheduling agent can drive them;
+  the built-in CLI and HTTP API remain available as secondary surfaces.
 
 ## Current trajectory (2026-05-12)
 
@@ -157,8 +163,17 @@ coordination harness (verified: task create → dispatch → Codex agent
 runs in worktree → handoff completes). Three blockers prevent daily use
 (see `HANDOFF.md`). The substrate cut (extracting coordination to a
 peer package) is deferred — it improves package boundaries without
-changing behavior. The next differentiating capability is coordination
-end-to-end: two agents in one harness, channel routing, Wake handoff.
+changing behavior.
+
+**Strategic pivot: headless-first, MCP as the scheduling interface.**
+The human interacts through an MCP-capable scheduling agent (Hermes),
+not through a built-in UI. agent-worker exposes its capabilities as MCP
+tools — task create/dispatch/status/cancel, agent list/state, harness
+list/send — so any scheduling agent can drive execution. The web UI
+stays for debug/observability; the dashboard redesign becomes a lower
+priority than the MCP surface. This changes the product shape while
+keeping the architecture intact: agent-worker is an execution backend,
+not a user-facing application.
 
 **External landscape.** Multica (27K stars, 4 months) validates the
 market direction (agents as teammates on a shared board) but has no
@@ -168,9 +183,10 @@ independent workers, zero cross-session state. Both confirm agent-worker's
 differentiation (Harness as shared context, Wake/Handoff structured state
 transfer, OSS anchoring per Inv-2) is the right bet.
 
-**Priority.** (1) Three daily-use blockers → (2) coordination end-to-end
-→ (3) monitor producing C1–C4 numbers. The monitor exists as a class but
-has not yet produced a falsifiable observation against any criterion.
+**Priority.** (1) Three daily-use blockers → (2) MCP server exposing
+core capabilities → (3) coordination end-to-end (two agents in one
+harness, channel routing, Wake handoff) → (4) monitor producing C1–C4
+numbers.
 
 ## Revisions
 
