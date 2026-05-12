@@ -3,6 +3,26 @@
 Daily entrypoint for work. Use this when the user wants to continue, start, or
 orient a task and did not explicitly pick a narrower command.
 
+## 0. Check for Handoff
+
+Before reading any project artifact, check for `HANDOFF.md` in the project
+root. If it exists:
+
+1. **Read it.** It is a state snapshot from the previous agent — it tells you
+   where we are, what's verified, and your next action.
+2. **Execute the next action** as your first work. The handoff is designed to
+   be self-contained; you should not need to read other documents first.
+3. **After completion**, move it to `handoffs/archive/<date>-<from>→<to>.md`
+   and add a closing entry to the goal record.
+
+If `HANDOFF.md` does not exist, proceed to step 1.
+
+Why this is step 0, not step 1: the handoff represents a session in flight —
+unfinished work with verified context. Resuming from GOAL.md would give you
+the project's long-term direction but miss the immediate "what was I doing."
+A handoff sitting unread while the agent routes through goal/design is wasted
+continuity.
+
 ## 1. Resume
 
 Pick exactly one source of compass, in this order:
@@ -123,7 +143,9 @@ smallest active loop:
 
 - done slice: correction applied, observation captured, claim stated honestly;
 - handoff slice: work paused at a coherent boundary, current state and next
-  check recorded in a durable artifact;
+  check recorded in `HANDOFF.md` (see `references/harness.md` Handoff
+  Convention). The next agent — whatever model or session — reads
+  HANDOFF.md first and continues without rediscovery;
 - blocked slice: blocker, failed observation, and required human/authority
   decision surfaced.
 
